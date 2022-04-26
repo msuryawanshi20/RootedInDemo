@@ -1,0 +1,388 @@
+<apex:page id="pg" standardController="rstk__sohdr__c" extensions="rstk.ControllerExtnSalesOrder" action="{!doBeforePageLoad}" sideBar="false" showheader="false">
+<apex:variable var="o" value="{!sohdr}" />
+<apex:variable var="f_sodmdpo" value="{!$ObjectType.rstk__sodmdpo__c.fields}" />
+
+<c:popupPageHeader querysupport="true" nsprefix="{!NamespacePrefix}"/>
+<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+<apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+
+<script>
+  sforce.connection.sessionId = __sfdcSessionId;
+  window.pageParms = {!pageParms};
+  jQuery(function() {
+    jQuery("form a[id^=lookup]").attr("target", "_top");
+  });
+  
+  function populateVendors(soordDmdItemId, povendId) {
+	populateSelects(jQuery("[id$=vendorstext__c]"), getVendors(soordDmdItemId), povendId);
+  }
+
+  function populatePurchaseOrders(divId, povendId, dfltPO) {
+	populateSelects(jQuery("[id$=postext__c]"), getPurchaseOrders(divId, povendId), dfltPO);
+  }
+
+  function getVendors(soordDmdItemId) {
+    vendors = [];
+    if (soordDmdItemId) {
+    	var itemVendors = execQuery("select poitemvend_vendno__c, poitemvend_vendno__r.Name from poitemvend__c where "+
+              "poitemvend_item__r.poitem_item__c = "+quote(soordDmdItemId)+" order by poitemvend_vendno__r.Name");
+            
+        if (itemVendors.length == 0) { 
+        	vendors.push({ Id:"", Name:'*** {!$Label.No_Qualifying_Vendors} ***' }); 
+        } else {
+        	vendors.push({ Id:"", Name:'{!$Label.NoneOption}' }); 
+        }
+
+        for (var i=0; i<itemVendors.length; i++) {
+          var v = itemVendors[i];
+          vendors.push({ Id:v.poitemvend_vendno__c, Name:v.poitemvend_vendno__r.Name }); 
+        }
+    }
+    return vendors;
+  }
+
+  function getPurchaseOrders(divId, povendId) {
+    pos = [];
+    if (divId && povendId) {
+    	var purchaseOrders = execQuery("select Id, Name from pohdr__c where "+
+          		"pohdr_div__c = "+quote(divId)+" and pohdr_vendno__c = "+quote(povendId)+
+          		" and pohdr_ordsts__c != '9-Closed'"+
+          		" and pohdr_ordsts__c != '8-All Line Items Received'"+
+          		"order by Name");
+            
+        if (purchaseOrders.length == 0) { 
+        	pos.push({ Id:"", Name:'*** {!$Label.No_Qualifying_Purchase_Orders} ***' }); 
+        } else {
+        	pos.push({ Id:"", Name:'{!$Label.Create_New_Purchase_Orders}' }); 
+        }
+        pos = pos.concat(purchaseOrders);
+    }
+    return pos;
+  }
+
+</script>
+
+<apex:form >
+	<apex:pageBlock id="pb" mode="detail">
+		<apex:pageBlockSection showHeader="false" columns="1">
+                 <apex:outputPanel >
+                    <apex:outputPanel rendered="{!!readOnlyUser}">
+                    	<input type="button" class="btn" id="dp_removeSelected" value="{!$Label.directPO_Remove}" onclick="dp.verifyAndDelete();" />
+                    	<input type="button" class="btn" value="{!$Label.directPO_New}" onclick="dp.addRowDialog()" />
+                    </apex:outputPanel>
+                    <input type="button" class="btn" value="{!$Label.directPO_Refresh}" onclick="dp.pleaseWait(); dp_reset();"/>
+                </apex:outputPanel>
+
+
+
+ <apex:actionRegion >
+<!-- ======================================================================
+     <<<<<<< DIRECT PURCHASE TABLE
+     ====================================================================== -->
+                    <apex:pageBlockTable id="directPurchaseTable" value="{!sodmdpos.sodmdpoRows}" var="d">
+                        <apex:column headerValue="" rendered="{!isEditable}">
+                            <apex:facet name="header">
+                                <a href="#" onclick="dp.selectAll(); return false;">{!$Label.rstk__soship_sel}</a>
+                            </apex:facet>
+                            <input type="checkbox" id="rowSelected"
+                                onchange="dp.isDirty();dp.enableOptionalButtons()" />
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__so_line}">
+                            <apex:inputHidden id="idx" value="{!d.idx}" />
+                            <apex:inputHidden id="state" value="{!d.state}" />
+                            <apex:outputField id="soline" value="{!d.sodmdpo.sodmdpo_soorddmd__r.soorddmd_soline__r.rstk__soline_line__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__directpo_item_number}">
+                            <apex:outputField id="itemNumber" value="{!d.sodmdpo.sodmdpo_soorddmd__r.rstk__soorddmd_compicitem__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__directpo_vendor}">
+                            <apex:outputField id="vendor" value="{!d.sodmdpo.sodmdpo_poline__r.poline_ordno__r.rstk__pohdr_vendno__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!f_sodmdpo.rstk__sodmdpo_poline__c.label}">
+                            <apex:outputField id="purchaseOrder" value="{!d.sodmdpo.rstk__sodmdpo_poline__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__po_qty}">
+                            <apex:outputField id="poQty" value="{!d.sodmdpo.rstk__sodmdpo_poqty__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__demand_qty}">
+                          <apex:outputField id="demandQty" value="{!d.sodmdpo.rstk__sodmdpo_dmdqty__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__qty_received}">
+                            <apex:outputField id="qtyReceived" value="{!d.sodmdpo.sodmdpo_poline__r.rstk__formula_qtyrcvd__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__po_price}">
+                            <apex:outputField id="poPrice" value="{!d.sodmdpo.sodmdpo_poline__r.rstk__poline_unitprice__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__due_date}">
+                            <apex:outputField id="dueDate" value="{!d.sodmdpo.sodmdpo_poline__r.rstk__poline_duedte__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__drop}">
+                            <apex:outputField id="drop" value="{!d.sodmdpo.rstk__sodmdpo_dropship__c}" />
+                        </apex:column>
+                    </apex:pageBlockTable>
+     <!-- ======================================================================
+     DIRECT PURCHASE TABLE >>>>>>>
+     ====================================================================== -->      
+
+             <apex:actionFunction name="dp_update" action="{!sodmdpos.addRowChunks}" immediate="false" reRender="directPurchaseTable" oncomplete="dp.saveAndRun(null)">
+                <apex:param name="numOf" value="0"/>
+             </apex:actionFunction>
+             <apex:actionFunction name="dp_addRowChunk" action="{!sodmdpos.addRowChunks}" immediate="false" reRender="directPurchaseTable" oncomplete="dp.addRow()">
+                <apex:param name="numOf" value=""/>
+             </apex:actionFunction>
+             <apex:actionFunction name="dp_reset" action="{!resetSodmdpos}" immediate="false" reRender="directPurchaseTable" oncomplete="dp.postUpdateRows()"/>
+             <apex:actionFunction name="dp_delete" action="{!sodmdpos.deleteSelected}" immediate="false" reRender="directPurchaseTable, pageMessages" oncomplete="dp.postUpdateRows()"/>
+
+<!-- ======================================================================
+     <<<<<<< DIRECT PURCHASE ADD ROW
+     ====================================================================== -->      
+
+           <apex:outputPanel >
+              <div id="dp_addRowPopup" style="display:none">
+                 <apex:outputPanel styleClass="popupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="modalPopup">
+ 
+         <apex:actionFunction name="dpSave" action="{!sodmdpoEntry_save}" immediate="false" reRender="dp_messages,dp_addRowTable" oncomplete="closeTopDialog(); dp_postSave();"/>
+         <apex:actionFunction name="dpEntryClearAndShow" action="{!sodmdpoEntry.reset}" immediate="false" reRender="dp_addRowTable" oncomplete="closeTopDialog(); dp_showDialog();"/>
+         <apex:actionFunction name="dpEntryReload" action="{!sodmdpoEntry.updateForField}" immediate="false" reRender="dp_addRowTable" oncomplete="closeTopDialog();">
+               <apex:param name="updateField" value=""/>
+         </apex:actionFunction>
+
+         <apex:outputPanel id="dp_addRowTable">
+             <apex:pageMessages id="dp_messages"/>
+<script>
+         function dp_showDialog()
+         {
+            dp.resetRequired = false;
+            _showDialog('dp_addRowPopup', 600);
+         }
+         function dp_hasAnyErrors()
+         {
+            var anyVisibleErrors = jQuery("#"+escapeId("{!$Component.dp_messages}")).find('div').size() > 0;
+            return anyVisibleErrors;
+         }
+         function updateDPEntryTable(src)
+         {
+            dp.resetRequired = true;
+            dp.pleaseWait();
+            dpEntryReload(src);
+         }
+
+         function dp_validate()
+         {
+           var rootPanel = jQuery("div[id$=dppbsBottom]");
+           var poQty = rootPanel.find("input[id$=poQty]");
+           var poPrice = rootPanel.find("input[id$=poPrice]");
+           var dueDate = rootPanel.find("input[id$=dueDate]");
+           var poQtyMax = rootPanel.find("input[id$=poQtyMax]");
+           
+           var poQtyErr = null;
+           var poPriceErr = null;
+           var dueDateErr = null;
+           
+           var poQtyVal = parseLocaleFloat(poQty.val()) || 0.0;
+           var poPriceVal = poPrice.val();
+           var dueDateVal = jQuery.trim(dueDate.val());
+           var poQtyMaxVal = parseLocaleFloat(poQtyMax.val()) || 0.0;
+           
+           var anyErrors = false;
+           
+           if (poQtyVal <= 0 || poQtyVal > poQtyMaxVal) {
+             anyErrors = true;
+             if (poQtyMaxVal <= 0) {
+             	poQtyErr = "No more quantities are available for assignment for direct purchase.";
+             } else {
+             	poQtyErr = "Quantity must be a number greater than zero and less than or equal to "+poQtyMaxVal;
+             }
+           }
+           
+           if (poPriceVal == NaN || poPriceVal < 0) {
+             anyErrors = true;
+             poPriceErr = "Price must be a number of zero or more";
+           }
+           
+           if (dueDateVal == '') {
+             anyErrors = true;
+             dueDateErr = "Select a value for the due date";
+           }
+           
+           setErrorEl(poQty, poQtyErr);
+           setErrorEl(poPrice, poPriceErr);
+           setErrorEl(dueDate, dueDateErr);
+           
+           return !anyErrors;
+         }
+         
+         function dp_postSave()
+         {
+            var areErrors = dp_hasAnyErrors();
+            if (!areErrors)
+            {
+                _closeDialog();
+                dp.pleaseWait();
+                dp_reset();
+            }
+         }
+
+</script>
+             <apex:pageBlockSection id="dppbs" showHeader="true" collapsible="false" title="{!$Label.rstk__pagetab_salesorder_newdirectpurchaseentry}" columns="1">
+                <apex:pageBlockSection id="dppbsTop" columns="1">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__sales_order_line}"/>
+                            <apex:selectList id="soline" value="{!sodmdpoEntry.solineId}" size="1" tabIndex="4010" 
+                                         multiselect="false" onchange="updateDPEntryTable('soline')">
+                                <apex:selectOptions value="{!sodmdpoEntry.solines}"/>
+                            </apex:selectList>
+                     </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!ISBLANK(sodmdpoEntry.solineId)}">
+                        <apex:outputLabel value="{!$Label.rstk__directpo_item_number}"/>
+                            <apex:selectList id="itemNumber" value="{!sodmdpoEntry.soordDmdId}" size="1" tabIndex="4020" 
+                                         multiselect="false" onchange="updateDPEntryTable('soordmd')">
+                                <apex:selectOptions value="{!sodmdpoEntry.itemNumbers}"/>
+                            </apex:selectList>
+                     </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!!ISBLANK(sodmdpoEntry.soordDmdId)}">
+                        <apex:outputLabel value="{!$Label.rstk__directpo_vendor}"/>
+                        <apex:outputPanel >
+							<c:LocalSelect id="vendors__c" value="{!sodmdpoEntry.povendId}" link="true" tabIndex="4030" onchange="updateDPEntryTable('vendor')"/>
+                            <script>
+                            	populateVendors("{!sodmdpoEntry.soordDmdItemId}", nullStrToEmpty("{!sodmdpoEntry.povendId}"));
+                            </script>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+
+                <apex:pageBlockSection id="dppbsBottom" columns="2">
+                    <apex:pageBlockSectionItem rendered="{!!ISBLANK(sodmdpoEntry.povendId)}">
+                        <apex:outputLabel value="{!$Label.rstk__purchase_order}"/>
+                        <apex:outputPanel >
+							<c:LocalSelect id="pos__c" value="{!sodmdpoEntry.poHdrId}" link="true" tabIndex="4040" onchange="updateDPEntryTable('PO')"/>
+                            <script>
+                            	populatePurchaseOrders("{!sodmdpoEntry.buyDivId}", "{!sodmdpoEntry.povendId}", nullStrToEmpty("{!sodmdpoEntry.poHdrId}"));
+                            </script>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem rendered="{!!ISBLANK(sodmdpoEntry.povendId)}">
+                        <apex:outputLabel value="{!$Label.rstk__po_qty}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="poQty" value="{!sodmdpoEntry.sodmdpo.rstk__sodmdpo_poqty__c}" taborderhint="405"/>
+                            <apex:inputHidden id="poQtyMax" value="{!sodmdpoEntry.maxQty}"/>
+                            <apex:outputPanel rendered="{!sodmdpoEntry.maxQty <= 0}">
+                              <span class='elwarning'><img src='/img/msg_icons/warning16.png'/>&nbsp;No quantities remaining.</span>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem rendered="{!!ISBLANK(sodmdpoEntry.povendId)}">
+                        <apex:outputLabel value="{!$Label.rstk__po_price}"/>
+                            <apex:inputText id="poPrice" value="{!sodmdpoEntry.poPrice}" tabIndex="4060" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem rendered="{!!ISBLANK(sodmdpoEntry.povendId)}">
+                        <apex:outputLabel value="{!$Label.rstk__due_date}"/>
+                          <apex:outputPanel >
+                            <apex:inputField id="dueDate" value="{!sodmdpoEntry.dateObj.rstk__soline_duedate__c}" taborderhint="407"/>
+                          </apex:outputPanel>
+                    </apex:pageBlockSectionItem>                    
+                    
+                    <apex:pageBlockSectionItem rendered="{!!ISBLANK(sodmdpoEntry.povendId)}">
+                        <apex:outputLabel value="{!$Label.rstk__drop_ship_to_customer_address}"/>
+                        <apex:inputField id="dropShip" value="{!sodmdpoEntry.sodmdpo.rstk__sodmdpo_dropship__c}" taborderhint="408" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+             </apex:pageBlockSection>
+ 
+                <hr/>
+                 <apex:pageBlockSection columns="1">
+                  <apex:outputPanel >
+                    <apex:outputPanel rendered="{!!ISBLANK(sodmdpoEntry.povendId)}">
+                        <input type="button" class="btn" value="{!$Label.Save}" 
+                          onclick="if (dp_validate()) { dp.pleaseWait(); dpSave(); }" tabIndex="4090"/>
+                     </apex:outputPanel>
+                     <input type="button" class="btn" value="{!$Label.so_pagebtn_Cancel}" onclick="_closeDialog()" tabIndex="4091"/>
+                  </apex:outputPanel>
+              </apex:pageBlockSection>
+          </apex:outputPanel>
+
+               </apex:outputPanel>
+            </div>            
+           </apex:outputPanel>     
+<!-- ======================================================================
+     DIRECT PURCHASE ADD ROW >>>>>>>
+     ====================================================================== -->  
+</apex:actionRegion>
+
+<script>
+
+function areErrors()
+{
+  return jQuery("span[id$='pageMessages']").find('[class*=error]').size() > 0;
+}
+
+
+            var DPHandler = function(){};
+            DPHandler.prototype = new RowHandlerBase();
+            DPHandler.prototype.addRowDialog = function(e) {
+                        if (dp.resetRequired || areErrors())
+                        {
+                            this.pleaseWait();
+                            dpEntryClearAndShow();
+                        }
+                        else
+                        {
+                            dp_showDialog();
+                        }
+                };
+                
+            DPHandler.prototype.verifyAndDelete = function() {
+                var self = this;
+                var selected = this.getTableBody().find('input[id$="rowSelected"]:checked');
+                if (selected.size() == 0) {
+				alert("{!$Label.OneOrMoreRowsMustbeSelectedToDelete}");
+                  return;
+                }
+                var errorShown = false;
+                selected.each(function (index, el) 
+                {
+                  if (!errorShown) {
+	                   var parentRow = jQuery(this).closest("tr");
+	                   var qtyReceived = parseLocaleFloat(parentRow.find("span[id$='qtyReceived']").text()) || 0.0;
+	                   if (qtyReceived > 0) {
+						  alert("{!$Label.CantDeleteWhenReceiptsAlreadyBeenPerformed}");
+	                      errorShown = true;
+	                   }
+	              }
+                });
+                
+                if (!errorShown && confirm("{!$Label.ConfirmYuWishToDelSelectedRows}")) {
+                    this.deleteSelectedRows();
+                    this.pleaseWait();
+                    dp_delete();
+                }
+            }
+
+            var dp = new DPHandler(); 
+            dp.init("{!$Component.directPurchaseTable}:tb", dp_update, "dp_removeSelected", null, dp_addRowChunk);
+            dp.resetRequired = false;
+            
+</script>
+</apex:pageBlockSection>
+<apex:outputPanel style="display:none;">
+  <apex:inputField value="{!o.rstk__sohdr_candate__c}"/> <!--  Need to add an unused date control to the page to tell visualforce to import the DatePicker javascript. -->
+</apex:outputPanel>
+	</apex:pageBlock>
+
+
+    <div id="pleaseWaitPopup" style="display:none">
+        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+        <apex:outputPanel styleClass="topPopup">
+           <apex:image url="{!$Resource.rstk__busy}"/>
+        </apex:outputPanel>
+    </div>
+
+</apex:form>
+
+</apex:page>

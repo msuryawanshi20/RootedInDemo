@@ -1,0 +1,637 @@
+<apex:page id="pg" standardController="rstk__sopc__c" extensions="rstk.ControllerExtnSopc,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sopc__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sopc__c.fields}"/> 
+    <apex:variable var="f_socust" value="{!$ObjectType.rstk__socust__c.fields}" />
+    <apex:variable var="f_sopcq" value="{!$ObjectType.rstk__sopcq__c.fields}"/>
+     
+    <c:standardHeader cntr="{!controller}" enableAutocomplete="true" title="{!$Label.rstk__pagetitle_sopc}" customInclude="{!$Resource.rstk__sopc_cli}"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!saveAll}"/>
+
+        <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+        <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+        <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+        <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+        
+        <apex:inputHidden id="currDivisionId__c" value="{!currDivisionId}"/>
+        
+        <style>
+            .hidden{visibility:hidden;}
+            .rcptinput{
+                width:60px;
+                text-align:right; 
+            }
+            .sort {display:inline}
+            .numSort {display:inline}
+    
+                .modal {
+                    background-color:#fff;
+                    display:none;
+                    padding:15px;
+                    text-align:left;
+                    font-size:1em;
+                    border:2px solid #333;
+                
+                    opacity:1.0;
+                    -moz-border-radius:6px;
+                    -webkit-border-radius:6px;
+                    -moz-box-shadow: 0 0 50px #ccc;
+                    -webkit-box-shadow: 0 0 50x #ccc;
+                }
+                
+                .modal h2 {
+                    margin:0px;
+                    padding:10px 0 10px 45px;
+                    font-size:16px;
+                }
+                
+                .modalComponents {
+                    color:#efefef;
+                    height:200px;
+                    z-index:50;
+                }
+                 
+        </style>
+        <script>
+            var sopctId ='';
+    
+            function QuantityDetails(rowId){
+                sopctId = rowId;
+                jQuery(".quantityDetails").click();
+            }
+            
+            function jqueryOnReady() {
+                initHoverPopups(jQuery("#bodyTable"), {manualClose:false, displayUp:true, onClose:{}});
+                 jQuery("button[rel*=win]").overlay({
+                    mask: {
+                        color: '#ebecff',
+                        loadSpeed: 200,
+                        opacity: 0.8
+                    },
+                    
+                    closeOnClick: false,
+                    
+                    onBeforeLoad: function(e) {
+                        jQuery('#winVFPage').block({
+                            message: '',
+                            centerX: true, 
+                            centerY: true,
+                            css: { 
+                                border: 'none', 
+                                padding: '15px', 
+                                cursor: 'wait',
+                                opacity: .5, 
+                                textAlign: 'center'
+                            }
+                        });
+                        
+                        var winId = e.target.getTrigger().attr('class');
+                        var content = jQuery("#"+winId+"Frame");
+                        if (content.length > 0) {
+                            if (winId == 'quantityDetails') {
+                                content[0].src = "/apex/sopctquantityDetail?id=" +sopctId ; 
+                            } 
+                        
+                            content.load(function() {
+                                jQuery('#winVFPage').unblock();
+                            });
+                        }
+                    },
+                    onClose: function(e){
+                        var winId = e.target.getTrigger().attr('class');
+                        var content = jQuery("#"+winId+"Frame");
+                        if (content.length > 0) { 
+                            content[0].src = 'about:blank'; 
+                        }
+                    }
+                });  
+            }
+        </script>
+        
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel >
+                <button style="visibility:hidden" class="quantityDetails" rel="#winquantityDetails"></button>
+                <div class="modal" id="winquantityDetails" style="width:850px">
+                    <h2>{!$Label.sopc_Quantity_Details}</h2>
+                    <iframe id="quantityDetailsFrame" height="460px" width="100%" frameborder="0" src="about:blank">
+                    </iframe>
+                    <button type="button" class="close" onclick="component_close()">{!$Label.pagebtn_sopc_Close}</button>
+                </div>
+            </apex:outputPanel>
+        
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSaveAndNew="false"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+            
+            <c:division id="sopc_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_soprod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_soprod__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="sopc_soprod__c" cntr="{!controller}" slDesc="{!prodname}" 
+                            query="select id, name from soprod__c where soprod_div__c = 'prm' and soprod_activeind__c = true" queryParms="[['currDivisionId__c','Division']]"                               
+                            minChars="{!prodMinCharForAutoComplete}"
+                            width="250px" required="true" tabIndex="1"/>
+                    </apex:outputPanel>
+                 </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem rendered="{!currencyUtil.altCurrency}">
+                   <apex:outputPanel styleclass="standout">
+                    {!$Label.rstk__title_pricesincustomerscurrency}:<c:hoverDetail recId="{!currencyUtil.customerCurrencyId}" recName="{!currencyUtil.customerCurrencyName}"/>
+                   </apex:outputPanel>
+                 </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!!currencyUtil.altCurrency}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_custno__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="sopc_custno__c" cntr="{!controller}" slDesc="{!custname}" 
+                            query="select id, name from socust__c" width="250px" required="true" tabIndex="1"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_dfltqtyord__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_dfltqtyord__c.label}"/>
+                    <c:inputField id="sopc_dfltqtyord__c" required="false" cntr="{!controller}" tabIndex="21"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_prodname__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_prodname__c.label}"/>
+                    <c:inputField id="sopc_prodname__c" required="false" cntr="{!controller}" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_price__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_price__c.label}"/>
+                    <c:inputField id="sopc_price__c" required="false" cntr="{!controller}" tabIndex="22"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_proddesc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_proddesc__c.label}"/>
+                    <c:inputField id="sopc_proddesc__c" required="false" cntr="{!controller}" width="300px" tabIndex="4"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_linediscpct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_linediscpct__c.label}"/>
+                    <c:inputField id="sopc_linediscpct__c" required="false" cntr="{!controller}" tabIndex="23"/>
+                </apex:pageBlockSectionItem>
+
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_printack__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_printack__c.label}"/>
+                    <c:inputField id="sopc_printack__c" required="false" cntr="{!controller}" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_discount__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_discount__c.label}"/>
+                    <c:inputField id="sopc_discount__c" required="false" cntr="{!controller}" tabIndex="24"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_printpack__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_printpack__c.label}"/>
+                    <c:inputField id="sopc_printpack__c" required="false" cntr="{!controller}" tabIndex="6"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_bestprice__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_bestprice__c.label}"/>
+                    <c:inputField id="sopc_bestprice__c" required="false" cntr="{!controller}" tabIndex="25"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_printinv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_printinv__c.label}"/>
+                    <c:inputField id="sopc_printinv__c" required="false" cntr="{!controller}" tabIndex="7"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_nodiscount__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopc_nodiscount__c.label}"/>
+                    <c:inputField id="sopc_nodiscount__c" required="false" cntr="{!controller}" tabIndex="26"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_usecustgroups__c.inlineHelpText}" rendered="{!isConfigsoe}">
+                    <apex:outputLabel value="{!f.rstk__sopc_usecustgroups__c.label}"/>
+                    <c:inputField id="sopc_usecustgroups__c" required="false" disabled="{!!isConfigurableProduct}" cntr="{!controller}" tabIndex="8"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem rendered="{!showAltPrice1 && !isConfigsoe}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_altprice1__c.inlineHelpText}" rendered="{!showAltPrice1}">
+                    <apex:outputLabel value="{!f.rstk__sopc_altprice1__c.label}"/>
+                    <c:inputField id="sopc_altprice1__c" required="false" cntr="{!controller}" tabIndex="28"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!showAltPrice2}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_altprice2__c.inlineHelpText}" rendered="{!showAltPrice2}">
+                    <apex:outputLabel value="{!f.rstk__sopc_altprice2__c.label}"/>
+                    <c:inputField id="sopc_altprice2__c" required="false" cntr="{!controller}" tabIndex="30"/>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+
+              
+            <apex:tabPanel switchType="client" selectedTab="tab_Accounts" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_sopc_accountsandattributes}" name="tab_Accounts">
+                    <apex:pageBlockSection id="pbs_Accounts" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_salesacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_salesacct__c.label}"/>
+                            <c:selectList id="sopc_salesacct__c" cntr="{!controller}" required="false" options="{!RevenueAccts}" tabIndex="101"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_upc__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_upc__c.label}"/>
+                            <c:inputField id="sopc_upc__c" required="false" cntr="{!controller}" tabIndex="121"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_cosacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_cosacct__c.label}"/>
+                            <c:selectList id="sopc_cosacct__c" cntr="{!controller}" required="false" options="{!CostSalesAccts}" tabIndex="102"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_ean__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_ean__c.label}"/>
+                            <c:inputField id="sopc_ean__c" required="false" cntr="{!controller}" tabIndex="122"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_cospendacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_cospendacct__c.label}"/>
+                            <c:selectList id="sopc_cospendacct__c" cntr="{!controller}" required="false" options="{!CostSalesClearAccts}" tabIndex="103"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_hscode__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_hscode__c.label}"/>
+                            <c:inputField id="sopc_hscode__c" required="false" cntr="{!controller}" tabIndex="123"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_sopc_inventory}" name="tab_Inventory">
+                    <apex:pageBlockSection id="pbs_Inventory" showHeader="false" title="{!$Label.rstk__information}" columns="1" >                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_shipdiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_shipdiv__c.label}"/>
+                            <c:selectList id="sopc_shipdiv__c" cntr="{!controller}" required="false" options="{!InvDivs}" tabIndex="201"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_shipsite__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_shipsite__c.label}"/>
+                            <c:selectList id="sopc_shipsite__c" cntr="{!controller}" required="false" options="{!Sysites}" tabIndex="202"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_shiplocid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_shiplocid__c.label}"/>
+                            <c:selectList id="sopc_shiplocid__c" cntr="{!controller}" required="false" options="{!Sylocids}" tabIndex="203"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sopc_shiplocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sopc_shiplocnum__c.label}"/>
+                            <apex:outputPanel >
+                                <c:inputField id="sopc_shiplocnum__c" cntr="{!controller}" required="false" tabIndex="204"/>
+                                <c:largeSelectList id="shiplocnum_sel__c" cntr="{!controller}" options="{!Sylocnums}" tabIndex="204" useValue="true" rendered="{!!isView}"/>
+                            </apex:outputPanel> 
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                                    
+                <apex:tab label="{!$Label.rstk__pagetab_sopc_customerproductprice}" name="tab_CustProdPrice" id="tab_CustProdPrice">
+                    <c:EditableGrid jsController="pcq" data="{!customerPricingDetails}" editable="{!!isEditable}" ispopup="false"/>
+                    <script>                    
+                         pcq.resetRow = function(row) { 
+                          var self=this;
+                          pcqHandler.prototype.resetRow.call(self, row);
+                          var max=0;
+                          var minPrice=-1;
+                          self.getSelectableRows().each(function (index, el) {
+                            var row = jQuery(this);
+                            var rowTo = self.getRowDecimal(row, 'sopcq_toqty__c') || 0.0;
+                            if (rowTo > max) {
+                                max = rowTo;
+                            }
+                            var price = self.getRowDecimal(row, 'sopcq_price__c') || 0.0;
+                            if (minPrice == -1 || price < minPrice) {
+                              minPrice = price;
+                            }
+                          });
+                          self.setRowValue(row, 'sopcq_frqty__c', max +1);
+                          self.setRowValue(row, 'sopcq_toqty__c', max + 1);
+                          if (minPrice != -1) {
+                            self.setRowValue(row, 'sopcq_price__c', minPrice);
+                          }
+                        };
+                        
+                pcq.validate = function() {
+                    self = this;
+                    var isvalid = true;
+                    var warnZeroPricing = false;
+                    this.getVisibleRows().each(function (index, el) {
+                          var row = jQuery(this);
+                          var price = self.getRowValue(row, 'sopcq_price__c');
+                    
+                          if(!price || parseLocaleFloat(price) < 0) {
+                                alert("{!$Label.rstk__pricecantbelt0}"); 
+                                self.getRowObj(row, 'sopcq_price__c').focus();
+                                isvalid = false;
+                                return false;
+                          } else if (price == 0) {
+                                warnZeroPricing = true;
+                          }
+                      });
+                    
+                    if (isvalid && warnZeroPricing) {
+                      return confirm("{!$Label.rstk__confirmzeropricecorrect}");
+                    }
+                    
+                   return isvalid;
+              } 
+                        
+                    </script>                   
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_sopc_customerproductpricebydate}" name="tab_CustProdPriceByDate" id="tab_CustProdPriceByDate">
+                    <c:EditableGrid width="1150" jsController="productPriceByDate" data="{!productPricingDetails}" editable="{!isView}" ispopup="false" disableSave="{!!isView}"/>
+                    <script>
+                        productPriceByDate.onGridLoad = function() {
+                            self = this;
+                            if (productPriceByDate.rowIds.length ){
+                                    this.getRows().each(function (index, el) {
+                                    var row = jQuery(this);
+                                    var rowId = self.getRowValue(row, 'Id');
+                                    if (isEmpty(rowId)) rowId = productPriceByDate.rowIds[index];
+                                     if (!isEmpty(rowId)) {
+                                            self.getRowObj(row, 'sopct_frstdate__c').attr('disabled', true);
+                                            self.getRowObj(row, 'quantity__g').html('<button type="button" class="btn" onclick="QuantityDetails(\'' + rowId + '\');">Quantity Detail</button>');
+                                        }
+                                }); 
+                            }
+                        }
+                        
+                        productPriceByDate.validate = function() {
+                            self = this;
+                            var isvalid = true;
+                            
+                            var warnZeroPricing = false;
+                            
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var price = productPriceByDate.getRowValue(row, 'sopct_price__c');
+                                var firstDate = productPriceByDate.getRowValue(row, 'sopct_frstdate__c');
+                                var lastDate = productPriceByDate.getRowValue(row, 'sopct_lastdate__c');
+                                
+                                if(!price || parseInt(price) < 0) {
+                                    alert("{!$Label.rstk__pricecantbelt0}"); 
+                                    productPriceByDate.getRowObj(row, 'sopct_price__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                } else if (price == 0) {
+                                    warnZeroPricing = true;
+                                }
+                                
+                                if (!firstDate) {
+                                    alert("{!$Label.rstk__firsteffectivedate}"); 
+                                    productPriceByDate.getRowObj(row, 'sopct_frstdate__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if (!lastDate) {
+                                    alert("{!$Label.rstk__lasteffectivedate}"); 
+                                    productPriceByDate.getRowObj(row, 'sopct_lastdate__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                            });
+                               
+               
+                             if (isvalid && warnZeroPricing) {
+                               return confirm("{!$Label.rstk__confirmzeropricecorrect}");
+                             }
+                             
+                             return isvalid;
+                         } 
+                        
+                        productPriceByDate.entryChanged = function(row, rowNum, name, value) {
+                            if (name == 'sopct_lastdate__c') {
+                                var firstDate = productPriceByDate.getRowValue(row, 'sopct_frstdate__c');
+                                var lastDate = productPriceByDate.getRowValue(row, 'sopct_lastdate__c');
+                                if (firstDate != null && lastDate != null) {
+                                    verifyDate(firstDate,lastDate,row);
+                                }
+                            }
+                        }
+                        
+                         function verifyDate(firstDate,lastDate,row){
+                            Visualforce.remoting.Manager.invokeAction(  
+                                '{!$RemoteAction.ControllerExtnSopc.verifyDate}', //NameSpace  
+                                firstDate,lastDate,   
+                                function(result, event){
+                                    if (event.status) {
+                                        if(result){
+                                            alert("{!$Label.rstk__lstefctdtcntbelessthnfstefctdte}");
+                                            productPriceByDate.setRowValue(row, "sopct_lastdate__c", '');
+                                            return true;
+                                        }
+                                    } else if (event.type === 'exception') {
+                                        alert("{!$Label.rstk__exception1}"+event.message);
+                                    } else {
+                                        alert("{!$Label.rstk__unexpectedstatus}", event.message);
+                                    }
+                                }, {escape:false}
+                            );
+                        } 
+                    </script>
+                
+                </apex:tab>
+
+
+                <apex:tab label="{!$Label.rstk__pagetab_sopc_customerproductdiscount}" name="tab_CustProdDiscount" id="tab_CustProdDiscount">
+                    <c:EditableGrid jsController="cpd" data="{!cpdGridData}" editable="{!!isEditable}" ispopup="false"/>
+                    <script>
+     cpd.fromQtyField = "sopcd_frqty__c";
+     cpd.toQtyField = "sopcd_toqty__c";
+     cpd.discountField = "sopcd_discount__c";
+     cpd.resetRow = function(row) { 
+      var self=this;
+      cpdHandler.prototype.resetRow.call(self, row);
+      var max=0;
+      var maxDiscount=0;
+      self.getSelectableRows().each(function (index, el) {
+        var row = jQuery(this);
+        var rowTo = self.getRowDecimal(row, self.toQtyField) || 0.0;
+        if (rowTo > max) {
+            max = rowTo;
+        }
+        var disc = self.getRowDecimal(row, self.discountField) || 0.0;
+        if (disc > maxDiscount) {
+          maxDiscount = disc;
+        }
+      });
+      self.setRowValue(row, self.fromQtyField, max +1);
+      self.setRowValue(row, self.toQtyField, max + 1);
+      self.setRowValue(row, self.discountField, maxDiscount);
+    };
+
+     cpd.validate = function() { 
+       var valid = true;
+       var rangeFroms = [];
+       var rangeTos = [];
+       var self=this;
+       self.getSelectableRows().each(function (index, el) {
+        if (valid) {
+          var row = jQuery(this);
+          var rowFrom = self.getRowDecimal(row, self.fromQtyField) || 0;
+          var rowTo = self.getRowDecimal(row, self.toQtyField) || 0;
+          var disc = self.getRowDecimal(row, self.discountField) || 0;
+          if (rowFrom <= 0 || rowTo <= 0) {
+            alert("{!$Label.rstk__qtyfromandtorowsmustbeassignedvalsgt0}");
+            valid = false;
+          } else if (disc < 0 || disc > 100) {
+            alert("{!$Label.rstk__discountvaluemustbeassignedvaluesbetween0to100}");
+            valid = false;
+          } else if (rowFrom > rowTo) {
+            alert("{!$Label.rstk__qtyfromvalcantbegtqtytovaloneachrow}");
+            valid = false;
+          }
+        }
+        rangeFroms.push(rowFrom);
+        rangeTos.push(rowTo);
+       });
+       if (valid) {
+         for (var i=0;i<rangeFroms.length;i++) {
+           if (valid) {
+             var f = rangeFroms[i];
+             var t = rangeTos[i];
+             for (var j=i+1;j<rangeFroms.length;j++) {
+               if (f <= rangeTos[j] && t >= rangeFroms[j]) {
+                 alert("{!$Label.rstk__to_fromqtyrangeof_overlapswithrange}", [f, t, rangeFroms[j], rangeTos[j]]);
+                 valid = false;
+                 break;
+               }
+           }
+           }
+         }
+       }
+       return valid;
+     }
+                    </script>
+                </apex:tab> 
+                
+                <apex:tab label="{!$Label.rstk__pagepopup_soprod_configurationgroups}" name="tab_Confgroupps" style="{!IF((isConfigurableProduct && o.rstk__sopc_usecustgroups__c),'','display:none;')}">
+                    <c:EditableGrid jsController="sopcconfgroupps" data="{!sopcconfgrouppGrid}" editable="{!!isEditable}" ispopup="false"/>
+                    <script>
+                        sopcconfgroupps.onGridLoad = function() {
+                            self = this;
+                            this.maxSeq = null;
+                            this.getRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                                if(!isEmpty(rowId)) {
+                                    sopcconfgroupps.getRowObj(row, 'sopcconfgroupp_confgroup__c').attr('disabled', true);
+                                }
+                            });
+                        }
+                            
+                        sopcconfgroupps.getNextSeqNum = function() {
+                          if (this.maxSeq == null) {
+                            var seqs = execQuery("select sopcconfgroupp_seq__c from sopcconfgroupp__c order by sopcconfgroupp_seq__c desc limit 1");
+                            if (seqs.length > 0) {
+                                this.maxSeq = seqs[0].sopcconfgroupp_seq__c;
+                            } else {
+                                this.maxSeq = 0;
+                            }
+                          }
+                          return ++this.maxSeq;
+                        }
+                            
+                        sopcconfgroupps.resetRow = function(row) {
+                            self = this;
+                            sopcconfgrouppsHandler.prototype.resetRow.call(self, row);
+
+                            sopcconfgroupps.setRowValue(row, "sopcconfgroupp_seq__c", this.getNextSeqNum());
+                        }
+                        
+                        sopcconfgroupps.pleaseWait = function() {
+                            blockUI();
+                        }
+                        
+                        sopcconfgroupps.closePleaseWait = function() {
+                            unblockUI();
+                        }
+                        
+                        function closeTopDialog() {
+                            unblockUI();
+                            if (_topDialog !=  null) {
+                              _topDialog.hide();
+                              _topDialog = null;
+                            }
+                        }
+                        
+                        sopcconfgroupps.validate = function() {
+                            var visibleRows = this.getVisibleRows();
+                            for(i = 0; i < visibleRows.length; i++) {
+                                var row = jQuery(visibleRows[i]);
+                                var id = sopcconfgroupps.getRowValue(row, 'Id');
+                                var confgroupid = sopcconfgroupps.getRowValue(row, 'sopcconfgroupp_confgroup__c');
+                                if(!confgroupid) {
+                                    alert("{!$Label.rstk__configgrpcantbeblank}");
+                                    sopcconfgroupps.getRowObj(row, 'sopcconfgroupp_confgroup__c').focus();
+                                    return false;
+                                }
+                                var seq = sopcconfgroupps.getRowValue(row, 'sopcconfgroupp_seq__c');
+                                if(!seq || isNaN(seq) || parseInt(seq) <= 0) {
+                                    alert("{!$Label.rstk__selectionseqmustgt0}");
+                                    sopcconfgroupps.getRowObj(row, 'sopcconfgroupp_seq__c').focus();
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }
+                        
+                        sopcconfgroupps.onSaveFailed = function() {
+                            unblockUI();
+                        }
+                        
+                        sopcconfgroupps.onSaved = function() {
+                            unblockUI();
+                        } 
+                    </script>
+                </apex:tab> 
+                
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>                     
+                <apex:tab label="{!$Label.rstk__pagetab_sopc_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_ShipFromDivMustBeWithinSameProdAsDiv = "{!$Label.rstk__shipfromdivmustbewithinsameprodasdiv}";
+        var LABEL_EntryMustBeNumeric = "{!$Label.rstk__entrymustbenumeric}";
+        var LABEL_Warning_SpecifiedCodeLessThan_CharsLong = "{!$Label.rstk__warning_specifiedcodelessthan_charslong}";
+        var LABEL_EnterShipFromDiv = "{!$Label.rstk__entershipfromdiv}";
+        var LABEL_EnterShipFromSite = "{!$Label.rstk__entershipfromsite}";
+        var LABEL_NoSiteInDiv = "{!$Label.rstk__nositeindiv}";
+        var LABEL_InvalidAmt = "{!$Label.rstk__invalidamt}";
+        var LABEL_Invalidvaluefor = "{!$Label.rstk__invalidvaluefor}";
+        var LABEL_NoLocNumsExistForLocId = "{!$Label.rstk__nolocnumsexistforlocid}";
+        var LABEL_SaveOrResetUnsavedDataInDiscountQtyByQtyTab = "{!$Label.rstk__saveorresetunsaveddataindiscountqtybyqtytab}";
+        var LABEL_SelCurrDiv = "{!$Label.rstk__selcurrdiv}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

@@ -1,0 +1,758 @@
+<apex:page id="pg" standardController="rstk__confsess__c" extensions="rstk.ControllerExtnConfsess,rstk.RemoteQueryController,rstk.ControllerJobStatus" sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__confsess__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__confsess__c.fields}" /> 
+    <apex:variable var="f_confdcomp" value="{!$ObjectType.rstk__confdcomp__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_confsess}" customInclude="{!$Resource.rstk__confsess_cli}" enableTreeView="true" enableQuickMenu="false" enableAutocomplete="true" showHeader="false"/>
+
+    <apex:outputPanel >
+        <table width="100%" cellpadding="0" cellspacing="0">
+            <tr width="100%"> 
+                <td width="50%" align="left">
+                    <apex:image height="50px" value="{!URLFOR(logoUrl)}" rendered="{!logoUrl != null}"/>
+                </td>
+                <td width="50%" align="right">
+                    <table border="0">
+                        <tr style="vertical-align:middle;">
+                            <td>
+                                <strong><apex:outputText value="{!userdisplayname}" style="vertical-align:middle;font-family: Arial; font-size: 16px;color: #8e9dbe"/></strong>
+                                <br/>
+                                <apex:outputText value="{!$Label.rstk__labellastlogin} : {!lastloggedindate}" style="vertical-align:middle;font-family: Arial; font-size: 10px;color: #8e9dbe"/>
+                            </td>
+                            <td width="5px">&nbsp;</td>
+                            <td>
+                                <apex:image height="50px" value="{!URLFOR(soprodImageURL)}" rendered="{!soprodImageURL != null}"/>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+            <tr width="100%" style="background-color:#083D62">
+                <td width="50%" align="left">
+                    &nbsp;&nbsp;&nbsp;<strong><apex:outputText value="{!$Label.rstk__labelquoteconfigurator}" style="vertical-align:middle;font-family: Arial; font-size: 16px;color: #ffffff"/></strong>
+                </td>
+                <td width="50%" align="right" colspan="2" height="25px">
+                    <a href="{!$Site.Prefix}/secur/logout.jsp" title="{!$Label.Logout}" style="color: #ffffff">{!$Label.Logout}</a>&nbsp;&nbsp;&nbsp;
+                </td>
+            </tr>
+        </table>
+    </apex:outputPanel>
+    <apex:outputPanel ><div style="height:1px;"></div></apex:outputPanel>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <style>
+        input[type=checkbox][disabled]{
+          opacity: 0.4;
+        }
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.rstk__busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        .ac_results {
+            z-index: 9999;
+            background-color: #eee;
+        }
+        
+        #hlpicn
+        {
+          background:url("{!URLFOR($Resource.rstk__images, 'helpOrbs.gif')}") no-repeat 0 0;
+          width:20px;
+          height:15px;
+        }
+        
+        #hlpicn:hover
+        {
+          background-position:-20px 0;
+        }
+        
+		.rightAlign {text-align:right;} 
+</style>
+    
+    <apex:outputPanel id="op_init">
+        <script>
+            var soprodId = '{!o.rstk__confsess_soprod__c}';
+            var confsessId = '{!o.Id}';
+            var divId = '{!o.rstk__confsess_div__c}';
+            var sohdrId = '{!o.rstk__confsess_sohdr__c}';
+            var socustId = '{!o.rstk__confsess_socust__c}';
+            var accountId = '{!o.rstk__confsess_account__c}';
+            var imageRootstockLogo = "{!URLFOR($Resource.rstk__images,'rs_logo_web.png')}";
+            var allowAltPrice1Change = {!cfg.allowAltPrice1Change};
+            var allowAltPrice2Change = {!cfg.allowAltPrice2Change};
+            var exported = {!!ISBLANK(o.rstk__confsess_dateout__c)};
+            var expicitemsrl = {!o.rstk__confsess_expicitemsrl__c};
+            var exportAsJob = {!exportAsJob};
+        </script>
+    </apex:outputPanel>
+    
+    <apex:outputPanel id="op_reprice_data">
+        <script>
+            var repriceComponentId = '{!repriceComponentId}';
+            var repriceCompPrice = {!repriceCompPrice};
+            var repriceAltprice = {!repriceCompAltprice};
+            var repriceAltprice2 = {!repriceCompAltprice2};
+        </script>
+    </apex:outputPanel>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doEditMode" action="{!doEditMode}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doCloneConfig" action="{!doCloneConfig}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages">
+            <apex:param name="cloneCustomer" assignTo="{!cloneCustomer}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="repriceComponent" action="{!repriceComponent}" immediate="true" oncomplete="setRepriceCompData();" rerender="pageMessages,op_reprice_data,op_dealer_price,op_dealer_cost" status="statusProcessing">
+            <apex:param name="repriceComponentId" assignTo="{!repriceComponentId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="installCustChanged" action="{!installCustChanged}" immediate="true" rerender="pageMessages,op_instaddr,op_instaddr1" status="statusProcessing">
+            <apex:param name="installCust" assignTo="{!o.rstk__confsess_installcust__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons id="pbb_main" location="top">
+                <apex:outputPanel id="op_pbb_main">
+                    <apex:commandButton onclick="doPageSave();return false;" value="{!$Label.rstk__pagebtn_confsess_start}" rendered="{!isNew}" style="width:50px"/>
+                </apex:outputPanel>
+            </apex:pageBlockButtons>
+
+            <apex:outputPanel style="display:none">
+                <apex:inputHidden id="confsess_exportcust__c" value="{!o.rstk__confsess_exportcust__c}"/>
+            </apex:outputPanel>
+       
+            <apex:pageBlockSection id="pbs_Main_New_Edit" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!isNew}">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsess_div__c.label}"/>
+                    <apex:outputField value="{!o.rstk__confsess_div__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_socust__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__confsess_socust__c.label}"/>
+                    <c:autocomplete id="confsess_socust__c" cntr="{!controller}" required="true" slDesc="{!CustomerDesc}" query="select id, name from socust__c" width="200px" tabIndex="3600"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_soprod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsess_soprod__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:panelGrid columns="2" id="theGrid" rendered="{!isNew}">
+                            <c:autocomplete id="confsess_soprod__c" cntr="{!controller}" required="true" slDesc="{!prodDesc}" query="select id, name from soprod__c where soprod_configurable__c = true and soprod_activeind__c = true and soprod_div__c = '{!o.rstk__confsess_div__c}'" width="200px" tabIndex="21"/>
+                            <apex:commandButton id="cb_prod_select" onclick="openProdSelect(); return false;" value="{!$Label.rstk__pagebtn_confsess_selectproduct}"/>
+                        </apex:panelGrid>
+                        <apex:outputField value="{!o.rstk__confsess_soprod__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_sohdr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__rootstockquoteorder}"/>
+                    <apex:outputField value="{!o.rstk__confsess_sohdr__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_account__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsess_account__c.label}"/>
+                    <apex:outputField value="{!o.rstk__confsess_account__c}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_duedate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsess_duedate__c.label}"/>
+                    <apex:inputField id="confsess_duedate__c" value="{!o.rstk__confsess_duedate__c}" taborderhint="25"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_opportunity__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsess_opportunity__c.label}"/>
+                    <apex:outputField value="{!o.rstk__confsess_opportunity__c}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_useconfig__c.inlineHelpText}" rendered="{!isNew}">
+                    <apex:outputLabel value="{!f.rstk__confsess_useconfig__c.label}"/>
+                    <apex:inputField id="confsess_useconfig__c" value="{!o.rstk__confsess_useconfig__c}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem rendered="{!isNew}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_sopbk__c.inlineHelpText}" rendered="{!isNew}">
+                    <apex:outputLabel value="{!f.rstk__confsess_sopbk__c.label}" style="width:120px"/>
+                    <apex:selectlist id="confsess_sopbk__c" value="{!o.rstk__confsess_sopbk__c}" size="1" style="width:225">
+                        <apex:selectOptions value="{!priceBooks}"/>
+                    </apex:selectlist>
+                </apex:pageBlockSectionItem>   
+
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection id="pbs_Main_View_opt1" showHeader="false" title="{!$Label.rstk__information}" columns="3" rendered="{!!isNew}">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_sessionid__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!$Label.rstk__quote_number}"/>
+                    <apex:outputField value="{!o.rstk__confsess_sessionid__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:15%" labelStyle="width:18%">
+                    <apex:outputLabel value="{!$Label.rstk__date_created}"/>
+                    <apex:outputField value="{!o.Createddate}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem dataStyle="width:15% vertical-align:middle;font-family: Arial; font-size: 14px; font-weight: bold;" labelStyle="width:18%;">
+                    <apex:outputLabel value=""/>
+                    <apex:outputText value="{!$Label.rstk__quote_totals}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!$Label.rstk__confsess_customer}"/>
+                    <apex:outputField value="{!o.rstk__confsess_account__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:15%" labelStyle="width:18%">
+                    <apex:outputLabel value="{!$Label.rstk__datelastmodified}"/>
+                    <apex:outputPanel id="op_lastmoddte2">
+                        <apex:outputField value="{!o.Lastmodifieddate}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem id="pbs_price1" helpText="{!f.rstk__confsess_price1__c.inlineHelpText}" dataStyle="width:15%" labelStyle="width:18%">
+                    <apex:outputLabel value="{!cfg.altPrice1Label}"/>
+                    <apex:outputPanel id="op_dealer_price">
+                        <apex:outputText id="price1" value="{!cfg.price1}"/>
+                        {!cfg.currencyUtil.maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!$Label.rstk__customer_site}"/>
+                    <c:hoverDetail recId="{!customerSiteId}" recName="{!customerSiteName}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:15%" labelStyle="width:18%">
+                    <apex:outputLabel value="{!$Label.rstk__status}"/>
+                    <apex:outputPanel id="op_prodstatus3">
+                        <apex:outputText value="{!configStatus}" rendered="{!o.rstk__confsess_dateout__c == null}"/>
+                        <apex:outputPanel id="op_expstatus" rendered="{!o.rstk__confsess_dateout__c != null}">
+                            <apex:outputPanel rendered="{!o.rstk__confsess_soline__c != null}">
+                                <apex:outputText value="{!$Label.rstk__exported_to_quote_order_line}"/>
+                                <apex:outputField value="{!o.rstk__confsess_soline__c}"/>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!o.rstk__confsess_soline__c == null && o.rstk__confsess_sohdr__c != null}">
+                                <apex:outputText value="{!$Label.rstk__exported_to_quote_order}"/>
+                                <apex:outputField value="{!o.rstk__confsess_sohdr__c}"/>
+                            </apex:outputPanel>
+                            <apex:outputText value=" on " rendered="{!o.rstk__confsess_soline__c != null || o.rstk__confsess_sohdr__c != null}"/>
+                            <apex:outputField value="{!o.rstk__confsess_dateout__c}" rendered="{!o.rstk__confsess_soline__c != null || o.rstk__confsess_sohdr__c != null}"/>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem id="pbs_price2" helpText="{!f.rstk__confsess_price2__c.inlineHelpText}" dataStyle="width:15%" labelStyle="width:18%">
+                    <apex:outputLabel value="{!cfg.altPrice2Label}"/>
+                    <apex:outputPanel id="op_dealer_cost">
+                        <apex:outputText id="price2" value="{!cfg.price2}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!$Label.rstk__dealer_name}"/>
+                    <c:hoverDetail recId="{!dealerId}" recName="{!dealerName}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:15%" labelStyle="width:18%"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem dataStyle="width:15%" labelStyle="width:18%"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            
+        </apex:pageBlock>
+            
+        <apex:pageBlock title="{!$Label.rstk__ship_to_address}">
+            <apex:pageBlockButtons location="top">
+                <apex:commandButton onclick="window.location.replace('{!$Site.BaseUrl}/apex/PC_IDS_SelectQuoteAddressPage?sessionid={!o.id}&action=edit&returnURL='+encodeURIComponent(window.location.href));return false;" value="{!$Label.rstk__pagelink_edit}" rendered="{!isView}" immediate="true" style="width:50px"/>
+            </apex:pageBlockButtons>
+            <apex:outputPanel id="op_staddress1">
+                <apex:pageBlockSection id="pbs_Address_ViewEdit_opt1" showHeader="false" columns="2" >
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_installcust__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_installcust__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_installcust__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_stname__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_stname__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_stname__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_instaddr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_instaddr__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_instaddr__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_staddress1__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_staddress1__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_staddress1__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_custpo__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_custpo__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_custpo__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_staddress2__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_staddress2__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_staddress2__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_duedate__c.inlineHelpText}">
+                         <apex:outputLabel value="{!$Label.rstk__requested_delivery_date}"/>
+                         <apex:outputField value="{!o.rstk__confsess_duedate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_staddress3__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_staddress3__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_staddress3__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_stcity__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_stcity__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_stcity__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_ststate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_ststate__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_ststate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_stcountry__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_stcountry__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_stcountry__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_stzip__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_stzip__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_stzip__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__confsess_stcontact__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__confsess_stcontact__c.label}"/>
+                        <apex:outputField value="{!o.rstk__confsess_stcontact__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:outputPanel>
+        </apex:pageBlock>
+        
+        
+            <div id="popProd" style="display:none">
+                <table cellspacing="0" cellpadding="0" margin="0" width="100%" height="100%">
+                    <tr><td><iframe id="popProdFrame" src="" width="100%" height="500px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe></td></tr>
+                    <tr><td><input onclick="unblockUI(); return false;" type="button" class="btn" value="{!$Label.rstk__pagebtn_confsess_close}"/></td></tr>
+                </table>
+            </div>
+            <div id="popExport" style="display:none">
+                <apex:pageBlock >
+                <h2>{!$Label.Configuration_Export}</h2>
+                <hr></hr>
+                <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:100px;overflow-y:scroll;display:block">
+                <apex:pageBlockSection showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem id="p1" rendered="{!o.rstk__confsess_socust__c != null}">
+                        <apex:outputLabel value="{!f.rstk__confsess_sohdr__c.label}"/>
+                        <c:autocomplete id="confsess_sohdr__c" cntr="{!controller}" editable="true" query="select id, name from sohdr__c where sohdr_closed__c = false and sohdr_cancelled__c = false and sohdr_custno__c = '{!o.rstk__confsess_socust__c}'" width="200px"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem id="p2" rendered="{!o.rstk__confsess_socust__c == null}">
+                        <apex:outputLabel value="{!f.rstk__confsess_sohdr__c.label}"/>
+                        <c:autocomplete id="confsess_sohdr__c" cntr="{!controller}" editable="true" query="select id, name from sohdr__c where sohdr_closed__c = false and sohdr_cancelled__c = false" width="200px"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                </div>
+                <div id="actionBtns" style="clear:both">
+                    <p><input type="button" value="{!$Label.pagebtn_Export}" onclick="unblockUI();doExportConfig(true);"/><input type="button" value="{!$Label.pagebtn_Cancel}" onclick="unblockUI();"/></p>
+                </div>
+                </apex:pageBlock>
+            </div>
+            <div id="popClone" style="display:none">
+                <apex:pageBlock >
+                <h2>{!$Label.Clone_Configuration}</h2>
+                <hr></hr>
+                <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:100px;overflow-y:scroll;display:block">
+                <apex:pageBlockSection showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__confsess_socust__c.label}"/>
+                        <apex:selectList id="clonecustomer__c" value="{!cloneCustomer}" size="1" style="width:250px;">
+                            <apex:selectOptions value="{!socusts}" />
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                </div>
+                <div id="actionBtns" style="clear:both">
+                    <p><input type="button" value="{!$Label.pagebtn_Save}" onclick="unblockUI();blockUI();doCloneConfig(sfffGetFieldValue('clonecustomer__c'));"/><input type="button" value="{!$Label.pagebtn_Cancel}" onclick="unblockUI();"/></p>
+                </div>
+                </apex:pageBlock>
+            </div>
+            <div id="popComponentSelections" style="display:none">
+                <h2>{!$Label.rstk__configuration_session_components}</h2>
+                <apex:pageBlock id="pb_confdcomps" mode="detail">
+                    <apex:outputPanel id="op_comps" style="height:400px;overflow:auto;display:block">
+                        <apex:pageBlockTable id="pbt_adjustreqview" value="{!filteredConfdcomps}" var="rec">        
+                            <apex:column headerValue="{!$Label.rstk__item_number}" width="250px">
+                                <apex:outputField value="{!rec.rstk__confdcomp_soprod__c}" rendered="{!rec.rstk__confdcomp_itemtype__c == 'Product' || rec.rstk__confdcomp_itemtype__c == 'Entitlement'}"/>
+                                <apex:outputField value="{!rec.rstk__confdcomp_icitem__c}" rendered="{!rec.rstk__confdcomp_itemtype__c == 'Inventory'}"/>
+                                <apex:outputField value="{!rec.confdcomp_soservice__r.rstk__soservice_item__c}" rendered="{!rec.rstk__confdcomp_itemtype__c == 'Service'}"/>
+                                <apex:outputField value="{!rec.rstk__confdcomp_rtindoper__c}" rendered="{!rec.rstk__confdcomp_itemtype__c == 'Labor'}"/>
+                                <apex:outputField value="{!rec.rstk__confdcomp_item__c}" rendered="{!rec.rstk__confdcomp_itemtype__c == 'Miscellaneous'}"/>
+                                <apex:inputHidden id="confdcomp_id" value="{!rec.id}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confdcomp.rstk__confdcomp_desc__c.label}" width="200px">
+                                <apex:inputText id="desc" value="{!rec.rstk__confdcomp_desc__c}" rendered="{!rec.rstk__confdcomp_itemtype__c == 'Service' || rec.rstk__confdcomp_itemtype__c == 'Miscellaneous'}"/>
+                                <apex:outputField value="{!rec.rstk__confdcomp_desc__c}" rendered="{!rec.rstk__confdcomp_itemtype__c != 'Service' && rec.rstk__confdcomp_itemtype__c != 'Miscellaneous'}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__customer_product}" width="200px">
+                                <apex:outputField value="{!rec.rstk__searchindex__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__quantity}" style="text-align:right;" width="50px" headerClass="ct">
+                                <c:outputFormattedNumber value="{!rec.rstk__confdcomp_qtyper__c}" decimals="2"/>
+                            </apex:column>  
+                            <apex:column headerValue="{!f_confdcomp.rstk__confdcomp_price__c.label}" rendered="{!cfg.showPrice}" width="80px" style="text-align:right;" headerClass="ct">
+                                <c:outputFormattedNumber id="price" value="{!rec.rstk__confdcomp_price__c}" decimals="2" rendered="{!rec.rstk__confdcomp_priceadjuster__c == false}"/>
+                                <apex:inputField id="prc" value="{!rec.rstk__confdcomp_price__c}" style="text-align:right;width:100px" rendered="{!rec.rstk__confdcomp_priceadjuster__c == true}"/>
+                                <a name='sourceInfo' href="#" 
+                                    onclick="showSourcePopup('{!rec.rstk__confdcomp_price__c}','{!rec.confdcomp_pricecalcbase__c}',
+                                        '{!rec.confdcomp_pricecalcdisc__c}','{!JSENCODE(rec.confdcomp_pricesrce__c)}'); return false;"
+                                     title='Click to see the source of the initial price'>
+                                  <img height="8" width="8" src="/img/msg_icons/info16.png"/>
+                                </a>
+                            </apex:column>
+                            <apex:column headerValue="{!cfg.altPrice1Label}" style="text-align:right;" headerClass="ct" rendered="{!cfg.showAltPrice1 && (!cfg.allowAltPrice1Change || (rec.rstk__confdcomp_itemtype__c == 'Labor' && rec.rstk__confdcomp_pricemethod__c == 'Source Entity'))}">
+                                <c:outputFormattedNumber value="{!rec.rstk__confdcomp_altprice__c}" decimals="2"/>
+                            </apex:column>
+                            <apex:column headerValue="{!cfg.altPrice1Label}" style="text-align:right;width:100px" width="100px" headerClass="ct" rendered="{!cfg.showAltPrice1 && cfg.allowAltPrice1Change && (rec.rstk__confdcomp_itemtype__c != 'Labor' || rec.rstk__confdcomp_pricemethod__c != 'Source Entity')}">
+                                <apex:inputField id="ap1" value="{!rec.rstk__confdcomp_altprice__c}" style="text-align:right;width:100px"/>
+                            </apex:column>
+                            <apex:column headerValue="{!cfg.altPrice2Label}" style="text-align:right;" headerClass="ct" rendered="{!cfg.showAltPrice2 && (!cfg.allowAltPrice2Change || (rec.rstk__confdcomp_itemtype__c == 'Labor' && rec.rstk__confdcomp_pricemethod__c == 'Source Entity'))}">
+                                <c:outputFormattedNumber value="{!rec.rstk__confdcomp_altprice2__c}" decimals="2"/>
+                            </apex:column>
+                            <apex:column headerValue="{!cfg.altPrice2Label}" style="text-align:right;width:100px" width="100px" headerClass="ct" rendered="{!cfg.showAltPrice2 && cfg.allowAltPrice2Change && (rec.rstk__confdcomp_itemtype__c != 'Labor' || rec.rstk__confdcomp_pricemethod__c != 'Source Entity')}">
+                                <apex:inputField id="ap2" value="{!rec.rstk__confdcomp_altprice2__c}" style="text-align:right;width:100px"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confdcomp.rstk__confdcomp_cost__c.label}" style="text-align:right;" headerClass="ct" width="80px" rendered="{!cfg.showCost}">
+                                <c:outputFormattedNumber value="{!rec.rstk__confdcomp_cost__c}" decimals="2"/>
+                            </apex:column>
+                            <apex:column headerValue="" headerClass="ct">
+                                <apex:commandButton value="{!$Label.rstk__pagebtn_resetpricing}" onclick="repriceComponent('{!rec.id}');" style="width:75px;"/>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:outputPanel>
+                    <p>
+                        <apex:commandButton value="{!$Label.rstk__pagebtn_update}" onclick="updateComponents();" style="width:75px;"/>
+                        <apex:commandButton value="{!$Label.rstk__pagebtn_confsess_close}" onclick="unblockUI();" style="width:75px;"/>
+                    </p>
+            </apex:pageBlock>
+            </div>
+            <c:Popup popupId="sourcePopup" title="{!$Label.rstk__pagepopup_confsess_pricesource}" cancelCaption="Close">
+               <apex:pageBlockSection showHeader="false" columns="2" collapsible="false">
+                   <apex:pageBlockSectionItem helpText="{!f_confdcomp.rstk__confdcomp_pricecalcbase__c.inlineHelpText}">
+                       <apex:outputLabel value="{!f_confdcomp.rstk__confdcomp_pricecalcbase__c.label}"/>
+                       <div id="sp_confdcomp_pricecalcbase__c" style="width:100px; font-weight:bold;text-align:right;"/>
+                   </apex:pageBlockSectionItem>
+                   <apex:pageBlockSectionItem helpText="{!f_confdcomp.rstk__confdcomp_pricesrce__c.inlineHelpText}">
+                       <apex:outputLabel value="{!f_confdcomp.rstk__confdcomp_pricesrce__c.label}"/>
+                       <div id="sp_confdcomp_pricesrce1__c" style="width:300px; font-weight:bold;"/>
+                   </apex:pageBlockSectionItem>
+                   
+                   <apex:pageBlockSectionItem helpText="{!f_confdcomp.rstk__confdcomp_pricecalcdisc__c.inlineHelpText}">
+                       <apex:outputLabel value="{!f_confdcomp.rstk__confdcomp_pricecalcdisc__c.label}"/>
+                       <div id="sp_confdcomp_pricecalcdisc__c" style="width:100px; font-weight:bold;text-align:right;"/>
+                   </apex:pageBlockSectionItem>
+                   <apex:pageBlockSectionItem helpText="{!f_confdcomp.rstk__confdcomp_pricesrce__c.inlineHelpText}">
+                       <apex:outputLabel value="{!$Label.rstk__pricediscountsource}"/>
+                       <div id="sp_confdcomp_pricesrce2__c" style="width:300px; font-weight:bold;"/>
+                   </apex:pageBlockSectionItem>
+                   
+                   <apex:pageBlockSectionItem helpText="{!f_confdcomp.rstk__confdcomp_price__c.inlineHelpText}">
+                       <apex:outputLabel value="{!f_confdcomp.rstk__confdcomp_price__c.label}"/>
+                       <div id="sp_confdcomp_price__c" style="width:100px; font-weight:bold;text-align:right;"/>
+                   </apex:pageBlockSectionItem>
+                   <apex:pageBlockSectionItem />
+                 </apex:pageBlockSection>
+             </c:Popup>
+    </apex:form>
+
+    <apex:pageBlock id="pb2">
+        <apex:form id="fm2" rendered="{!isView}">
+            <apex:actionFunction name="saveGroup" action="{!saveGroup}" immediate="false" oncomplete="groupSaveComplete();unblockUI();" rerender="op_group,op_price,op_dealer_price,op_price1,op_price2,op_pricecc,op_price1cc,op_price2cc,op_cost,op_totcost,op_dealer_cost,op_validation,op_prodstatus,op_prodstatus2,op_prodstatus3,op_pbb_main,op_portal_btns,op_export,op_lastmoddte,op_lastmoddte2"/>
+            <apex:actionFunction name="saveGroupAndNext" action="{!saveGroup}" immediate="false" oncomplete="groupSaveComplete();validateComplete();unblockUI();" rerender="op_group,op_price,op_dealer_price,op_price1,op_price2,op_pricecc,op_price1cc,op_price2cc,op_cost,op_totcost,op_dealer_cost,op_validation,op_prodstatus,op_prodstatus2,op_prodstatus3,op_pbb_main,op_portal_btns,op_export,op_lastmoddte,op_lastmoddte2"/>
+            <apex:actionFunction name="saveSelection" action="{!saveSelection}" immediate="false" oncomplete="selectionSaveComplete();" rerender="op_selection,op_price,op_dealer_price,op_price1,op_price2,op_pricecc,op_price1cc,op_price2cc,op_cost,op_totcost,op_dealer_cost,op_lastmoddte,op_lastmoddte2"/>
+            <apex:actionFunction name="setConfgroupId" action="{!setConfgroupId}" immediate="true" oncomplete="groupGridComplete();" rerender="op_group">
+                <apex:param name="groupId" assignTo="{!groupId}" value="" />
+            </apex:actionFunction>
+            <apex:actionFunction name="setSelectionId" action="{!setSelectionId}" immediate="true" oncomplete="selectionGridComplete();" rerender="op_selection">
+                <apex:param name="selectionId" assignTo="{!selectionId}" value="" />
+            </apex:actionFunction>
+            <apex:actionFunction name="validateConfig" action="{!validateConfig}" immediate="true" oncomplete="validateComplete();" rerender="op_validation,op_prodstatus,op_prodstatus2,op_prodstatus3,op_pbb_main,op_portal_btns,op_export"/>
+            <apex:actionFunction name="exportConfig" action="{!exportConfig}" immediate="true" oncomplete="exportComplete();" rerender="pageMessages,op_validation,op_prodstatus,op_prodstatus2,op_prodstatus3,op_pbb_main,op_portal_btns,op_export,op_lastmoddte,op_lastmoddte2,op_init">
+                <apex:param name="sohdrId" assignTo="{!sohdrId}" value="" />
+            </apex:actionFunction>
+            <apex:actionFunction name="exportConfigAsJob" action="{!exportConfigAsJob}" immediate="true" oncomplete="checkJobStatus();" rerender="pageMessages,op_JobStatus,op_validation,op_prodstatus,op_prodstatus2,op_prodstatus3,op_pbb_main,op_portal_btns,op_export,op_lastmoddte,op_lastmoddte2,op_init">
+                <apex:param name="sohdrId" assignTo="{!sohdrId}" value="" />
+            </apex:actionFunction>
+            <apex:actionFunction name="onExportJobComplete" action="{!onExportJobComplete}" immediate="true" oncomplete="exportComplete();" rerender="pageMessages,op_validation,op_prodstatus,op_prodstatus2,op_prodstatus3,op_pbb_main,op_portal_btns,op_export,op_lastmoddte,op_lastmoddte2,op_init"/>
+            <apex:actionFunction name="repriceConfig" action="{!repriceConfig}" immediate="true" oncomplete="unblockUI();" rerender="op_selection,op_price,op_dealer_price,op_price1,op_price2,op_pricecc,op_price1cc,op_price2cc,op_cost,op_totcost,op_dealer_cost,op_lastmoddte,op_export"/>
+            <apex:actionFunction name="refreshConfig" action="{!refreshConfig}" immediate="true" oncomplete="unblockUI();" rerender="op_selection,op_price,op_dealer_price,op_price1,op_price2,op_pricecc,op_price1cc,op_price2cc,op_cost,op_totcost,op_dealer_cost,op_lastmoddte,op_lastmoddte2"/>
+            <apex:actionFunction name="refreshComponents" action="{!refreshComponents}" immediate="true" oncomplete="showComponentSelections();" rerender="op_comps"/>
+            <apex:outputPanel id="op_validation"><input id="validationstatus" type="text" value="{!nextGroupId}" style="display:none;"/></apex:outputPanel>
+            <apex:pageBlockSection id="pbs_config" showHeader="false" title="" columns="1" collapsible="false">
+                <apex:outputPanel id="op_config" rendered="{!isView}">
+                        <input type="submit" onclick="validateConfig();return false;" value="{!$Label.Validate_Configuration}" class="btn"/>&nbsp;
+                        <apex:outputPanel id="op_export">
+                        	<input type="submit" onclick="if (this.className == 'btn') {blockUI();repriceConfig();}return false;" value="{!repriceButtonText}" class="{!IF(o.confsess_dateout__c!=null,'btnDisabled','btn')}"/>&nbsp;
+                        </apex:outputPanel>
+                        <input type="submit" onclick="blockUI();refreshComponents();return false;" value="{!refreshButtonText}" class="btn"/>&nbsp;
+                        <apex:outputPanel id="op_portal_btns">
+                            <apex:commandButton onclick="window.open('{!$Site.BaseUrl}/apex/IDS_portalQuotePdfGenerator?id={!o.id}');return false;" value="{!$Label.rstk__pagebtn_confsess_quotedocument}" rendered="{!isView && nextGroupId=null}"/>
+                            <apex:commandButton onclick="window.open('{!$Site.BaseUrl}/apex/IDS_portalDealerPage?id={!o.id}');return false;" value="{!$Label.rstk__pagebtn_confsess_orderingdocument}" rendered="{!isView && nextGroupId=null}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!controller.retUrl != null}"><input type="button" onclick="location.href='{!controller.retUrl}'" value="{!$Label.exitconfigurator}" class="btn"/></apex:outputPanel>
+                        <apex:outputPanel ><div style="height:5px;"></div></apex:outputPanel>
+                        <apex:outputPanel id="op_tree">
+                        <table width="100%" border="0">
+                            <tr>
+                                <td>
+                                    <div id="configtree_anchor" class="bPageBlock brndScnBrd apexDefaultPageBlock" style="height:800px;overflow-y:scroll;display:block;">
+                                    </div>
+                                </td>
+                                <td id="treenode_details" width="70%">
+                                    <div id="dt_default" style="display:block;">
+                                        <div id="prod_grid" class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:800px;overflow-y:scroll;display:block">
+                                        <apex:outputPanel ><div style="height:4px;"></div></apex:outputPanel>
+                                        <table border="0">
+                                            <tr width="100%" height="110" style="vertical-align:middle;">
+                                                <td width="3px">&nbsp;</td>
+                                                <td>
+                                                    <apex:image value="{!soprodImageURL}" width="100" height="100" style="border: 3px solid #66757f;border-radius: 5px;"/>
+                                                </td>
+                                                <td width="5px">&nbsp;</td>
+                                                <td>
+                                                    <strong><apex:outputText value="{!soprodProd}" style="vertical-align:middle;font-family: Arial; font-size: 16px;"/></strong>
+                                                    <p><apex:outputText value="{!soprodDesc}" /></p>
+                                                    <apex:outputPanel id="op_prodstatus"><p>Status:&nbsp;<apex:outputText value="{!configStatus}" style="color:{!IF(nextGroupId!=null,'#000000','#00CC00')};"/></p></apex:outputPanel>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        </div>
+                                    </div>
+                                    <div id="dt_loading" style="display:none;">
+                                        <table width="100%" height="300px" border="0">
+                                            <tr>
+                                                <td width="100%" height="300px" align="center" style="vertical-align:middle;">
+                                                    <apex:image value="{!$Resource.rstk__busy}" width="40" height="40"/>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    <div id="dt_group" style="display:none;">
+                                        <div id="group_grid" class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:800px;overflow:auto;display:block">
+                                        
+                                        <apex:outputPanel id="op_group">
+                                            <script>
+                                            confgroupMin={!IF(confgroup.min!=null,confgroup.min,0)};
+                                            confgroupMax={!IF(confgroup.max!=null,confgroup.max,0)};
+                                            selectionCount=0;
+                                            </script>
+                                            <apex:pageMessages id="groupPageMessages"/>
+                                            <apex:outputPanel style="display:none">
+                                                <input id="validation_message" type="text" value="{!validationMessage}"/>
+                                                <input id="refresh_tree" type="text" value="{!refreshTree}"/>
+                                            </apex:outputPanel>
+                                            <apex:outputPanel ><div style="height:4px;"></div></apex:outputPanel>
+                                            <table border="0" width="100%">
+                                                <tr width="100%" height="{!IF(confgroup.hasImage, '110', '70')}" style="vertical-align:middle;">
+                                                    <td width="3px">&nbsp;</td>
+                                                    <td width="{!IF(confgroup.hasImage, '110px', '0px')}">
+                                                        <apex:image value="{!confgroup.image}" rendered="{!confgroup.hasImage}" width="100" height="100" style="border: 3px solid #66757f;border-radius: 5px;"/>
+                                                        <apex:outputPanel rendered="{!!confgroup.hasImage}"></apex:outputPanel>
+                                                    </td>
+                                                    <td width="450px">
+                                                        <strong><apex:outputText value="{!confgroup.title}" style="vertical-align:middle;font-family: Arial; font-size: 16px;"/></strong>
+                                                        <p><apex:outputText value="{!$Label.rstk__min + TEXT(confgroup.min) + ' '+$Label.rstk__max+ TEXT(confgroup.max)}"/></p>
+                                                        <p>Status:&nbsp;<apex:outputText value="{!confgroup.statusMsg}" style="color:{!confgroup.msgColor};"/></p>
+                                                    </td>
+                                                    <td align="left">
+                                                        <input type="submit" onclick="applyGroup(false); return false;" value="{!$Label.socontainer_pagebtn_Save}" class="btn"/>
+                                                        <input type="submit" onclick="applyGroup(true); return false;" value="{!$Label.Save_Next}" class="btn"/>
+                                                    </td>
+                                                </tr>
+                                                <tr width="100%" height="20">
+                                                    <td width="3px">&nbsp;</td>
+                                                    <td colspan="3">
+                                                        <p><strong><apex:outputText value="{!confgroup.description}" style="vertical-align:middle;font-family: Arial; font-size: 16px;color: #8e9dbe"/></strong></p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                            <apex:pageBlockSection id="pbs_group" showHeader="false" columns="1">
+                                                <apex:outputPanel id="op_group_grid" style="height:670px;overflow:auto;display:block">
+                                                <apex:pageBlockTable id="pbt_group" value="{!confgroup.groupselections}" var="rec">
+                                                
+                                                    <apex:column headerValue="{!$Label.rstk__select}" style="width:35px;">
+                                                        <apex:inputCheckbox id="gpSelected" onchange="groupSelectionChanged(this)" disabled="{!!rec.isOptional}" value="{!rec.isSelected}" title="{!rec.excludedReason}"/>
+                                                        <apex:inputHidden id="selection_id" value="{!rec.selection_id}"/>
+                                                        <apex:inputHidden id="flags" value="{!rec.flags}"/>
+                                                    </apex:column>
+                                                    
+                                                    <apex:column style="width:20px;">
+                                                        <apex:outputPanel rendered="{!!ISBLANK(rec.helpText)}">
+                                                            <div id="hlpicn" title="{!rec.helpText}"></div>
+                                                        </apex:outputPanel>
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__recommend}" style="align:left;width:45px;">
+                                                        <apex:inputCheckbox value="{!rec.isRecommended}" disabled="true" title="{!$Label.rstk__thisistherecommendedselection}" rendered="{!rec.isRecommended}"/>
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__quantity}" rendered="{!confgroup.hasAnyQtyInput}" style="width:60px;">
+                                                        <apex:inputText id="inputQty" onchange="inputQtyChanged(this);" value="{!rec.qtyInput}" rendered="{!rec.hasQtyInput}" style="width:50px;"/>
+                                                    </apex:column>
+
+                                                    <apex:column headerValue="{!$Label.rstk__image}" style="width:110px;">
+                                                        <apex:image value="{!rec.image}" width="100" height="100" rendered="{!rec.hasImage}" style="border-radius: 5px;"/>
+                                                        <!--<apex:outputText value="Image not available" rendered="{!!rec.hasImage}"/>-->
+                                                    </apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__components}" style="width:40px;">
+                                                        <apex:inputCheckbox value="{!rec.hasSubsel}" disabled="true" title="{!$Label.rstk__thisisselectionhassub_selections}" rendered="{!!rec.isSelected && rec.hasSubsel}"/>
+                                                        <apex:commandButton onclick="findAndSelectNode('{!rec.subselgroupId}');return false;" value="{!$Label.rstk__pagebtn_confsess_subselections}" rendered="{!rec.isSelected && rec.hasSubsel}"/>
+                                                        <apex:inputCheckbox value="{!rec.showComps}" disabled="true" title="{!$Label.rstk__thisisselectionhaseditablecomponents}" rendered="{!!rec.isSelected && rec.showComps}"/>
+                                                        <apex:commandButton onclick="findAndSelectNode('{!rec.id}');return false;" value="{!$Label.rstk__pagebtn_confsess_components}" rendered="{!rec.isSelected && rec.showComps}"/>
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__description}">
+                                                        <apex:outputText value="{!rec.description}" />
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__entity}">
+                                                        <apex:outputText value="{!rec.entity}" />
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__qtyonhand}" rendered="{!showQtyoh}">
+                                                        <apex:outputText value="{!rec.qtyoh}" />
+                                                    </apex:column>
+
+                                                    <apex:column headerValue="{!$Label.rstk__price}" rendered="{!cfg.showPrice}">
+                                                        <c:outputFormattedNumber value="{!rec.price}" decimals="2"/>
+                                                    </apex:column>
+
+                                                    <apex:column headerValue="{!cfg.altPrice1Label}" rendered="{!cfg.showAltPrice1}">
+                                                        <c:outputFormattedNumber value="{!rec.price1}" decimals="2"/>
+                                                    </apex:column>
+
+                                                    <apex:column headerValue="{!cfg.altPrice2Label}" rendered="{!cfg.showAltPrice2}">
+                                                        <c:outputFormattedNumber value="{!rec.price2}" decimals="2"/>
+                                                    </apex:column>
+
+                                                    <apex:column headerValue="{!$Label.rstk__cost}" rendered="{!cfg.showCost}">
+                                                        <c:outputFormattedNumber value="{!rec.cost}" decimals="2"/>
+                                                    </apex:column>
+                                                </apex:pageBlockTable>
+                                                </apex:outputPanel>
+                                            </apex:pageBlockSection>
+                                            </apex:outputPanel>
+                                        </div>
+                                    </div>
+                                    <div id="dt_select" style="display:none;">
+                                        <div id="selection_grid" class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:800px;overflow:auto;display:block">
+                                        <apex:outputPanel id="op_selection">
+                                            <apex:pageMessages id="selectionPageMessages"/>
+                                            <apex:pageBlockSection id="pbs_selection" showHeader="false" columns="1">
+                                                <apex:pageBlockSectionItem >
+                                                    <apex:outputPanel >
+                                                        <table border="0">
+                                                            <tr width="100%" height="110" style="vertical-align:middle;">
+                                                                <td>
+                                                                    <apex:image value="{!groupselection.image}" width="100" height="100" rendered="{!groupselection.hasImage}" style="border: 3px solid #66757f;border-radius: 5px;"/>
+                                                                </td>
+                                                                <td width="450px">
+                                                                    <strong><apex:outputText value="{!groupselection.description}" style="vertical-align:top;font-family: Arial; font-size: 16px;"/></strong>
+                                                                    <p><apex:outputText value="{!groupselection.entity}" /></p>
+                                                                    <p><apex:outputText value="{!IF(groupselection.qtyoh!=null,'Qty On Hand: '+groupselection.qtyoh,'')}" rendered="{!showQtyoh}"/></p>
+                                                                </td>
+                                                                <td>
+                                                                    <apex:outputPanel rendered="{!groupselection.showComps}">
+                                                                        <input type="submit" onclick="applySelection(); return false;" value="{!$Label.Save}" class="btn"/>&nbsp;
+                                                                    </apex:outputPanel>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:outputPanel id="op_selection_grid" style="height:620px;overflow:auto;display:block">
+                                                <apex:pageBlockTable id="pbt_selection" value="{!groupselection.selectionComponents}" var="rec" rendered="{!groupselection.showComps}" columnsWidth="35px, 35px, 250px, 300px, 60px, 60px, 100px">
+                                                    <apex:column headerValue="{!$Label.rstk__select}" style="width:35px;">
+                                                        <apex:inputCheckbox value="{!rec.isSelected}" disabled="{!!rec.isOptional}" />
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__primary}" style="align:left;width:35px;">
+                                                        <apex:inputCheckbox value="{!rec.isPrimary}" disabled="true" title="{!$Label.rstk__thisistheprimaryselection}" rendered="{!rec.isPrimary}"/>
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__componententity}">
+                                                        <apex:outputText value="{!rec.entity}"/>
+                                                    </apex:column>
+
+                                                    <apex:column headerValue="{!$Label.rstk__description}">
+                                                        <apex:outputText value="{!rec.description}" />
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__qtyonhand}" style="text-align:right;">
+                                                        <apex:outputText value="{!rec.qtyoh}" rendered="{!showQtyoh}"/>
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__quantity}" style="text-align:right;">
+                                                        <apex:inputText value="{!rec.qtyInput}" rendered="{!rec.adjqty}" style="float:right;width:70px"/>
+                                                        <c:outputFormattedNumber value="{!rec.qty}" decimals="2" rendered="{!!rec.adjqty}"/>
+                                                    </apex:column>
+                                                    
+                                                    <apex:column headerValue="{!$Label.rstk__price}" style="text-align:right;" rendered="{!cfg.showPrice}">
+                                                        <c:outputFormattedNumber value="{!rec.price}" decimals="2"/> {!cfg.currencyUtil.maintenanceCurrencySymbol}
+                                                    </apex:column>
+                                                </apex:pageBlockTable>
+                                                </apex:outputPanel>
+                                            </apex:pageBlockSection>
+                                            </apex:outputPanel>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                        </apex:outputPanel>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            
+            <div id="pleaseWaitPopup" style="display:none">
+                <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                </apex:outputPanel>
+            </div>
+        </apex:form>
+    </apex:pageBlock>
+
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_ConfigComplete = "{!$Label.rstk__configcomplete}";
+        var LABEL_ConfigRequired = "{!$Label.rstk__configinputrequired}";
+        var LABEL_Ship_ToNameRequired = "{!$Label.rstk__ship_tonamerequired}";
+        var LABEL_TaxLocRequired = "{!$Label.rstk__taxlocrequired}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

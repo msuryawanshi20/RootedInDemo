@@ -1,0 +1,451 @@
+<apex:page id="pg" standardController="rstk__podmd__c" extensions="rstk.ControllerExtnPodmd,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__podmd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__podmd__c.fields}" />
+    <apex:variable var="f_poline" value="{!$ObjectType.rstk__poline__c.fields}" />
+    
+    <apex:variable var="f_podmdcst" value="{!$ObjectType.rstk__podmdcst__c.fields}" />
+    
+    <apex:variable var="f_podmd" value="{!$ObjectType.rstk__podmd__c.fields}" />
+    
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_podmd}"  customInclude="{!$Resource.rstk__podmd_cli}" enableAutocomplete="true"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}"> 
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" />
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}" disableEdit="{!!showSubmitToVendor}"  disableDelete="{!!showSubmitToVendor}" />
+           	<apex:commandButton value="{!$Label.rstk__pagebtn_podmd_allocate}" onclick="allocateDemand(); return false;" rendered="{!AllocationsActive}"/> 
+            <apex:commandButton value="{!$Label.rstk__pagebtn_podmd_deallocate}" onclick="deallocateDemand(); return false;" rendered="{!DeAllocationsActive}"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_podmd_swapallocation}" onclick="swapAllocation(); return false;" rendered="{!SwapDemandsAvailable}"/>
+        </apex:pageBlockButtons>
+       
+        <apex:outputPanel style="display:none">
+            <apex:inputText id="podmd_wbs__c" value="{!o.rstk__podmd_wbs__c}"/>
+            <apex:inputText id="podmd_proj__c" value="{!o.rstk__podmd_proj__c}"/>
+            <apex:inputText id="podmd_issproj__c" value="{!o.rstk__podmd_issproj__c}"/>
+            <apex:inputText id="podmd_ordno__c" value="{!o.rstk__podmd_ordno__c}"/> 
+            <!--apex:inputText id="podmd_lne__c" value="{!o.podmd_lne__c}"/--> 
+            <apex:inputText id="podmd_poline__c" value="{!o.rstk__podmd_poline__c}"/>
+            <apex:inputText id="podmd_dmdsts__c" value="{!o.rstk__podmd_dmdsts__c}"/> 
+            <apex:inputText id="podmd_enginvumcf__c" value="{!o.rstk__podmd_enginvumcf__c}"/> 
+           
+            <apex:inputField id="podmd_qtyscp__c" value="{!o.rstk__podmd_qtyscp__c}"/> 
+            <apex:inputText id="podmd_isswbs__c" value="{!o.rstk__podmd_isswbs__c}"/>
+            <c:inputField id="podmd_qtyper__c" cntr="{!controller}" /> 
+            <c:inputField id="podmd_qtyreq_pseudo__c" cntr="{!controller}"/>
+          <!--   <c:inputTextarea id="podmd_refdes__c" cntr="{!controller}" cols="100" rows="15" rendered="{!!showRefdesTab}"/> --> 
+           <apex:inputHidden id="podmd_qtytype_fixedqty_ui__c" value="{!o.rstk__podmd_qtytype_fixedqty_ui__c}"  rendered="{!isNew}" />
+           <apex:inputHidden id="podmd_qtyiss__c" value="{!o.rstk__podmd_qtyiss__c}"  rendered="{!isNew}" />  <!--  rendered="{!OR(isNew,isView)}" -->
+           <apex:inputHidden id="podmd_invuom__c" value="{!o.rstk__podmd_invuom__c}"  rendered="{!isNew}" />
+           <!-- <apex:inputHidden id="podmd_dtereqd__c" value="{!o.rstk__podmd_dtereqd__c}"  rendered="{!isNew}"/> -->
+           <apex:inputHidden id="podmd_qtyreq__c" value="{!o.rstk__podmd_qtyreq__c}"  rendered="{!isNew}"/>
+           <apex:inputHidden id="podmd_compqty_ordqty_ui__c" value="{!o.rstk__podmd_compqty_ordqty_ui__c}"  rendered="{!isNew}"/>
+           <apex:inputHidden id="podmd_qtyoutstdg__c" value="{!o.rstk__podmd_qtyoutstdg__c}"  rendered="{!isNew}"/>
+           <!--RSTK-3563  -->
+           <apex:inputField id="podmd_scppct__c" value="{!o.rstk__podmd_scppct__c}"/> 
+           <apex:inputField id="podmd_setqty__c" value="{!o.rstk__podmd_setqty__c}"/> 
+           <!--  -->
+            </apex:outputPanel>
+        <c:division id="podmd_div__c" cntr="{!controller}" />
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_poline__c.inlineHelpText}" rendered="{!ShowPOName}"  >
+                     <apex:outputLabel value="{!f.rstk__podmd_poline__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__podmd_poline__c}" />
+                   </apex:outputPanel>   
+            </apex:pageBlockSectionItem> 
+            <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_poline__c.inlineHelpText}" rendered="{!ShowPOList}" >
+                      <apex:outputLabel value="{!f.rstk__podmd_poline__c.label}"/>
+                      <c:selectList id="podmd_poline__c"  cntr="{!controller}"    options="{!PoLineList}" />
+             </apex:pageBlockSectionItem> 
+            
+             <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_poline__c.inlineHelpText}" rendered="{!ShowAllPOList}" >
+                <apex:outputLabel value="{!f.rstk__podmd_poline__c.label}"/>
+           <!--      <c:autocomplete id="podmd_poline__c" cntr="{!controller}"    required="true" slDesc="{!poLineName}"  query="select id, name from poline__c where  poline_div__c = 'prm' and poline_potype__c = 'Subcontract' and (poline_ordsts__c = '2-Firmed' or poline_ordsts__c ='3-Approvals Processing' or poline_ordsts__c ='4-Approved' ) " queryParms="[['podmd_div__c','Division']]" minChars="{!minCharForAutoComplete}" tabIndex="4" /> -->  
+                <c:autocomplete id="podmd_poline__c" cntr="{!controller}"    required="true" slDesc="{!poLineName}"  query="select id, name from poline__c where  poline_div__c = 'prm' and poline_potype__c = 'Subcontract' and poline_ordsts__c != '9-Closed' " queryParms="[['podmd_div__c','Division']]" minChars="{!minCharForAutoComplete}" tabIndex="4" /> 
+            </apex:pageBlockSectionItem>
+           
+            <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_compitem__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__podmd_compitem__c.label}"/>
+                <c:autocomplete id="podmd_compitem__c" cntr="{!controller}"  required="true"  slDesc="{!compItemName}" secondarySearchColumn="icitem_descr__c" query="select id, name from icitem__c where icitem_item__r.peitem_inactivests__c != 'I' and icitem_div__c = 'prm'" queryParms="[['podmd_div__c','Division']]" minChars="{!minCharForAutoComplete}" tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_poline.rstk__poline_qtyreq__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_poline.rstk__poline_qtyreq__c.label}"/>
+                <apex:inputField id="poline_qtyreq__c" value="{!poline.rstk__poline_qtyreq__c}" html-disabled="true"  />
+             </apex:pageBlockSectionItem> 
+                  
+              <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_backflushpol__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__podmd_backflushpol__c.label}"/>
+                       
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_backflushpol__c" value="{!o.rstk__podmd_backflushpol__c}"  rendered="{!!isView}" />
+                            <apex:outputText value="{!o.rstk__podmd_backflushpol__c}" rendered="{!isView}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                        
+                     <apex:pageBlockSectionItem id="pbsi_dtereqd" helpText="{!f.rstk__podmd_dtereqd__c.inlineHelpText}" >
+                        <apex:outputLabel id="dtereqdlabel" value="{!f.rstk__podmd_dtereqd__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_dtereqd__c" value="{!o.rstk__podmd_dtereqd__c}"   rendered="{!isNew}" />
+                            <apex:outputField value="{!o.rstk__podmd_dtereqd__c}" rendered="{!OR(isView,isEdit)}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+             		
+             		
+              		<apex:pageBlockSectionItem helpText="{!f.rstk__podmd_invsite__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__podmd_invsite__c.label}"/>
+                        <c:selectList id="podmd_invsite__c" cntr="{!controller}" options="{!SySiteList}" onchange="getInventoryLocation(this.value);" disabled="{!!showInvSite}"  tabIndex="122"/>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_invdiv__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__podmd_invdiv__c.label}"/>
+                        <c:selectList id="podmd_invdiv__c" cntr="{!controller}" options="{!sl.Sydivs}"  tabIndex="121"/>
+                    </apex:pageBlockSectionItem>
+                     
+                   <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_isslocid__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__podmd_isslocid__c.label}"/>
+                        <c:selectList id="podmd_isslocid__c" cntr="{!controller}" options="{!InventoryLocation}" tabIndex="123" disabled="{!!IF((isView == true), false, IF(o.rstk__podmd_qtyiss__c != 0,false,true))}"/>
+                   </apex:pageBlockSectionItem>
+                    
+                      
+             
+                   <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtytype_qtyper_ui__c.inlineHelpText}" rendered="{!isNew}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtytype_qtyper_ui__c.label}"/>
+                        <c:inputCheckbox id="podmd_qtytype_qtyper_ui__c" cntr="{!controller}" tabIndex="201"/>
+                    </apex:pageBlockSectionItem>
+                    
+                     <apex:pageBlockSectionItem id="pbsi_qtyper" helpText="{!f.rstk__podmd_compqty_qtyper_ui__c.inlineHelpText}" rendered="{!isNew}" >
+                        <apex:outputLabel id="qtyperlabel" value="{!f.rstk__podmd_compqty_qtyper_ui__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_compqty_qtyper_ui__c" value="{!o.rstk__podmd_compqty_qtyper_ui__c}" required="true" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}" />
+                              <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_compqty_qtyper_ui__c}" rendered="{!isView}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                      <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtytype_qtyreqd_ui__c.inlineHelpText}" rendered="{!isNew}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtytype_qtyreqd_ui__c.label}"/>
+                        <c:inputCheckbox id="podmd_qtytype_qtyreqd_ui__c" cntr="{!controller}" tabIndex="203"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_compqty_qtyreq_ui__c.inlineHelpText}" rendered="{!isNew}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_compqty_qtyreq_ui__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="podmd_compqty_qtyreq_ui__c" value="{!o.rstk__podmd_compqty_qtyreq_ui__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                             <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_compqty_qtyreq_ui__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+<!-- RCB: RSTK-2402 -->                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtytype_fixedqty_ui__c.inlineHelpText}" rendered="{!isNew}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtytype_fixedqty_ui__c.label}"/>
+                        <c:inputCheckbox id="podmd_qtytype_fixedqty_ui__c" cntr="{!controller}" tabIndex="203"/>
+                    </apex:pageBlockSectionItem>
+                   
+         
+        </apex:pageBlockSection>
+        <apex:tabPanel switchType="client" selectedTab="tab_ComponentQty" id="theTabPanel" rendered="{!!isNew}">
+            <apex:tab label="{!$Label.rstk__pagetab_podmd_componentqty}" name="tab_ComponentQty" id="tab_ComponentQty">
+                <apex:pageBlockSection id="pbs_ComponentQty" showHeader="false" columns="2">
+                                   
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtytype_qtyper_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtytype_qtyper_ui__c.label}"/>
+                        <c:inputCheckbox id="podmd_qtytype_qtyper_ui__c" cntr="{!controller}" tabIndex="201"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_invuom__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__podmd_invuom__c.label}"/>
+                        <c:selectList id="podmd_invuom__c" cntr="{!controller}" options="{!sl.Syuoms}" tabIndex="202"/>
+                    </apex:pageBlockSectionItem>
+                    
+                      <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtytype_qtyreqd_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtytype_qtyreqd_ui__c.label}"/>
+                        <c:inputCheckbox id="podmd_qtytype_qtyreqd_ui__c" cntr="{!controller}" tabIndex="203"/>
+                    </apex:pageBlockSectionItem>
+                    
+                     <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_compqty_ordqty_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_compqty_ordqty_ui__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_compqty_ordqty_ui__c" value="{!o.rstk__podmd_compqty_ordqty_ui__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_compqty_ordqty_ui__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                     
+                     <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtytype_fixedqty_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtytype_fixedqty_ui__c.label}"/>
+                        <c:inputCheckbox id="podmd_qtytype_fixedqty_ui__c" cntr="{!controller}" tabIndex="203"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <!--   <apex:pageBlockSectionItem helpText="{!f.podmd_setqty__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.podmd_setqty__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_setqty__c" value="{!o.rstk__podmd_setqty__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_setqty__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                     </apex:pageBlockSectionItem> -->
+                    
+                    <apex:pageBlockSectionItem id="pbsi_qtyper" helpText="{!f.rstk__podmd_compqty_qtyper_ui__c.inlineHelpText}"  >
+                        <apex:outputLabel id="qtyperlabel" value="{!f.rstk__podmd_compqty_qtyper_ui__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_compqty_qtyper_ui__c" value="{!o.rstk__podmd_compqty_qtyper_ui__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_compqty_qtyper_ui__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                   <!--   <apex:pageBlockSectionItem helpText="{!f.podmd_scppct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.podmd_scppct__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_scppct__c" value="{!o.rstk__podmd_scppct__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="6" value="{!o.rstk__podmd_scppct__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>  -->
+                    
+                     <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_compqty_qtyreq_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_compqty_qtyreq_ui__c.label}"/>
+                        <apex:outputPanel >
+                              <apex:inputField id="podmd_compqty_qtyreq_ui__c" value="{!o.rstk__podmd_compqty_qtyreq_ui__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                             <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_compqty_qtyreq_ui__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                   
+              <!--       <apex:pageBlockSectionItem helpText="{!f.podmd_qtyscp__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.podmd_qtyscp__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_qtyscp__c" value="{!o.rstk__podmd_qtyscp__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="6" value="{!o.rstk__podmd_qtyscp__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem> -->
+      
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_podmd_qtydispositions}" name="tab_QtyDiswoordsitions" id="tab_QtyDiswoordsitions">
+                                  
+                  <apex:pageBlockSection id="pbs_QtyDiswoordsitions" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtyreq_pseudo__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtyreq_pseudo__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_qtyreq__c" value="{!o.rstk__podmd_qtyreq__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_qtyreq__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem> 
+                   <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtyoutstdg__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtyoutstdg__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_qtyoutstdg__c" value="{!o.rstk__podmd_qtyoutstdg__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_qtyoutstdg__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtyiss__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtyiss__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_qtyiss__c" value="{!o.rstk__podmd_qtyiss__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_qtyiss__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem> 
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_qtyalloc__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_qtyalloc__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="podmd_qtyalloc__c" value="{!o.rstk__podmd_qtyalloc__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__podmd_qtyalloc__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+             <apex:tab label="{!$Label.rstk__pagetab_podmd_issueproject}" name="tab_IssueProject" id="tab_IssueProject">
+                <apex:pageBlockSection id="pbs_IssueProject" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_proj__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_proj__c.label}"/>
+<!-- RCB: RSTK-1264 -->
+                    <apex:outputField value="{!o.rstk__podmd_proj__c}" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+                     
+                     <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_issproj__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_issproj__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputHidden id="podmd_issproj__c" value="{!o.rstk__podmd_issproj__c}"/>
+                            <apex:outputField value="{!o.rstk__podmd_issproj__c}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem> 
+                    <apex:pageBlockSectionItem >
+                        &nbsp;
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab> 
+             <apex:tab label="{!$Label.rstk__pagetab_podmd_unitcost}" name="tab_UnitCost" id="tab_UnitCost">
+                <apex:pageBlockSection id="pbs_UnitCost" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_ucstmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_ucstmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_ucstmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_ucstohdfrng__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_ucstohdfrng__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_ucstohdfrng__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_ucstlab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_ucstlab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_ucstlab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_ucstohdmach__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_ucstohdmach__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_ucstohdmach__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_ucstohdmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_ucstohdmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_ucstohdmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_ucstsubmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_ucstsubmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_ucstsubmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_ucstohdlab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_ucstohdlab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_ucstohdlab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_ucstsublab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_ucstsublab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_ucstsublab__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab> 
+              <apex:tab label="{!$Label.rstk__pagetab_podmd_deductions}" name="tab_Deductions" id="tab_Deductions">
+                <apex:pageBlockSection id="pbs_Deductions" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_dolchgoutmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_dolchgoutmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_dolchgoutmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_dolchgoutohdfrng__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_dolchgoutohdfrng__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_dolchgoutohdfrng__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_dolchgoutlab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_dolchgoutlab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_dolchgoutlab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_dolchgoutohdmach__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_dolchgoutohdmach__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_dolchgoutohdmach__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_dolchgoutohdmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_dolchgoutohdmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_dolchgoutohdmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_dolchgoutsubmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_dolchgoutsubmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_dolchgoutsubmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_dolchgoutohdlab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_dolchgoutohdlab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_dolchgoutohdlab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__podmd_dolchgoutsublab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__podmd_dolchgoutsublab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__podmd_dolchgoutsublab__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab> 
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_podmd_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+        <!-- <div id="selectSwapAllocations" style="display:none">
+            <h2>{!$Label.podmd_SwapAllocations}</h2>
+            <hr></hr>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:150px;overflow-y:auto;display:block">
+            <apex:pageBlockSection id="pbs_swapdemands" showHeader="false" columns="1" rendered="{!SwapDemandsAvailable}">
+                <apex:pageBlockTable id="pbt_swapdemands" value="{!swapdemands}" var="rec">
+                    <apex:column headerValue="{!$Label.select}">
+                        <apex:inputCheckbox id="swap_selected" onclick="swapSelectionChanged('{!rec.id}');"/>
+                        <apex:inputHidden id="demand_id" value="{!rec.id}"/>
+                        <apex:inputHidden id="demand_type" value="{!rec.dmdType}"/>
+                    </apex:column>                  
+                    <apex:column headerValue="{!$Label.demandType}" value="{!rec.dmdLabel}"/>
+                     <apex:column headerValue="{!f_poline.poline_ordno__c.label}" value="{!rec.ordno}"/>
+                    <apex:column headerValue="{!f_podmd.podmd_lne__c.label}">
+                        <apex:outputText html-decimals="0" value="{!rec.lne}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_podmd.podmd_dtereqd__c.label}" value="{!rec.dateRequired}"/>
+                    <apex:column headerValue="{!f_podmd.podmd_dtereqd__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyRequired}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_podmd.podmd_qtyiss__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyIssued}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_podmd.podmd_qtyalloc__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyAllocated}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+            </div>
+            <div id="issueBtns" style="clear:both">
+                <p><input type="button" value="{!$Label.pagebtn_podmd_MoveAllocation}" onclick="swapSelectedDemand();"/><input type="button" value="{!$Label.pagebtn_podmd_Cancel}" onclick="unblockUI();"/></p>
+            </div>
+        </div> -->
+        
+    </apex:pageBlock>
+    <!-- <apex:pageBlock id="details">
+         <apex:tabPanel switchType="client" selectedTab="tab_Components" id="theTabPanel" rendered="{!showDetailsTab}">
+            <apex:tab label="{!$Label.pagetab_podmd_ComponentsDetails}" name="tab_ComponentsDetails" id="tab_ComponentsDetails">
+             <apex:pageBlockSection id="pbs_Components" showHeader="false" columns="1">
+                <apex:pageBlockTable value="{!components}" var="rec">
+                    <apex:column headerValue="{!$Label.view}"><apex:outputLink value="{!URLFOR($Action.podmd__c.View, rec.id)}{!ReturnUrlParms}">View</apex:outputLink></apex:column>
+                    <apex:column headerValue="{!$Label.Component}" value="{!rec.Component}"/>
+                    <apex:column headerValue="{!$Label.Project}" value="{!rec.Project}"/>
+                    <apex:column headerValue="{!f_podmd.podmd_qtyiss__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.QtyIssued}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.podmd_lne__c.label}">
+                        <apex:outputText html-decimals="0" value="{!rec.Line}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection> 
+            </apex:tab>
+        </apex:tabPanel>
+        
+        
+            
+      </apex:pageBlock> -->
+    </apex:form>
+    
+  
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var DateReqGreaterThanOrd = "{!$Label.rstk__daterequiredgreaterthanorder}";
+        var DateReqLessThanOrd = "{!$Label.rstk__daterequiredlessthanorder}";
+        var QtyPerMustBeGreater = "{!$Label.rstk__qtypermustbegreater}";      
+        var ComponentQtyGreater = "{!$Label.rstk__componentqtymustbegreater}";
+        var ComponentQtyLess = "{!$Label.rstk__componentqtycannotbeless}";
+        var ScrapFactorLeastZero = "{!$Label.rstk__scrapfactormustbeleastzero}";
+        var Reference = "{!$Label.rstk__referencedesignatorssyntaxerror}";
+        var Designators = "{!$Label.rstk__numberofreferencedesignators}";
+        var OnlyOneReferenceDesignatorAllowed = "{!$Label.rstk__onlyonereferencedesignatorallowed}";
+        var LABEL_DuplicateComponentFoundWithSameOpernNum = "{!$Label.rstk__duplicatecomponentfoundwithsameopernnum}";
+        var LABEL_AllocationSwapComplete = "{!$Label.rstk__allocationswapcomplete}";
+        var LABEL_SelectDemand = "{!$Label.rstk__selectdemand}";
+        var LABEL_AllocationComplete = "{!$Label.rstk__allocationcomplete}";
+        var LABEL_ErrorOccuredDuringProcesing = "{!$Label.rstk__erroroccuredduringprocesing}";
+        var LABEL_DeAllocationComplete = "{!$Label.rstk__deallocationcomplete}";
+        var LABEL_Soagh_Error = "{!$Label.rstk__soagh_error}";
+        var qtyperlabel = '{!f.rstk__podmd_compqty_qtyper_ui__c.label}';
+        var fixedqtylabel = '{!$Label.rstk__fixed_quantity}';
+        var LABEL_BothQtyPerOrComponentQtycannotbelessthan0 = '{!$Label.rstk__label_bothqtyperorcomponentqtycannotbelessthan0}';
+        var LABEL_POComponentdemandisalreadyaddedforthisComponent = '{!$Label.rstk__label_pocomponentdemandisalreadyaddedforthiscomponent}';
+        var LABEL_Thislocationdoesnotsupportbackflushing = '{!$Label.rstk__thislocationdoesnotsupportbackflushing}';
+        var ParentItemandComponentItemcannotbethesame = '{!$Label.rstk__parentitemandcomponentitemcannotbethesame}';
+    </script>
+    
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

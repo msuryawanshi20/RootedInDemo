@@ -1,0 +1,104 @@
+<apex:page id="pg" standardController="rstk__customext__c" extensions="rstk.ControllerExtnMRPPolicyChange,rstk.RemoteQueryController" action="{!doBeforePageLoad}" sideBar="false">
+
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_mrppolicychange}" enableAutocomplete="true"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    
+    <apex:variable var="o" value="{!customext}" />
+    <apex:variable var="f_supitem" value="{!$ObjectType.rstk__supitem__c.fields}" />
+    
+    <script>
+
+		function markAll(checked) {
+			var body = document.getElementById('pg:fm:pb:pbt_supitem').tBodies[0];
+			var rowCount = body.rows.length;
+			for(var i = 0; i < rowCount; i++) {
+				document.getElementById('pg:fm:pb:pbt_supitem:' + i + ':is_selected').checked = checked;
+			} 
+		}
+
+		function pageInit(type) {
+			enableFixedHeaderSort();
+		}
+		function enableFixedHeaderSort() {
+			var tableId = 'pg:fm:pb:pbt_supitem';
+			var tbl = jQuery("table[id$=" + tableId + "]");
+
+			var sortOptions = { 
+					0: { sorter: false }
+		        };
+
+			if (tbl) {
+				tbl.vfFloatingHeaders();
+				tbl.tablesorter({
+					headers: sortOptions
+				});
+			}
+		}
+
+    </script>
+    
+    <apex:form id="fm">
+    	<apex:actionFunction name="updatePolicies" action="{!updatePolicies}" immediate="false" oncomplete="enableFixedHeaderSort();unblockUI();" rerender="op_gridList, pageMessages"/>
+    	<apex:actionFunction name="refreshList" action="{!refreshList}" immediate="false" oncomplete="enableFixedHeaderSort();unblockUI();" rerender="op_gridList, pageMessages"/>
+		<apex:pageBlock id="pb" mode="detail">
+	        <c:division id="div__c" cntr="{!controller}" />
+	        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+	            <apex:pageBlockSectionItem helpText="{!$Label.rstk__updateoption}">
+	                <apex:outputLabel value="{!$Label.rstk__updateoption1}" />
+					<apex:selectList id="update_option__c" value="{!updopt}" required="true" size="1">
+						<apex:selectOptions value="{!updateOptions}" />
+					</apex:selectList>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem >
+	                <apex:outputLabel value="" />
+					<apex:commandButton onclick="blockUI();updatePolicies(); return false;" value="{!$Label.rstk__pagebtn_mrppolicychange_updatepartpolicies}"/>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!$Label.rstk__excludegaspartsfromlist}">
+	                <apex:outputLabel value="{!$Label.rstk__excludegaspartsfromlist1}" />
+					<apex:inputCheckbox id="exgas" value="{!exgas}"/>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!$Label.rstk__excludechemicalpartsfromlist}">
+	                <apex:outputLabel value="{!$Label.rstk__excludechemicalpartsfromlist1}" />
+					<apex:inputCheckbox id="exchem" value="{!exchem}"/>
+	            </apex:pageBlockSectionItem>
+	            <!-- <apex:pageBlockSectionItem helpText="{!$Label.rstk__excludeallbutthissupplier}" >
+	                <apex:outputLabel value="{!$Label.rstk__excludeallbutthissupplier1}" />
+					<apex:selectlist id="vendor__c" value="{!exsup}" size="1">
+						<apex:selectOptions value="{!povends}"/>
+					</apex:selectlist>
+	            </apex:pageBlockSectionItem>  -->
+	            
+	            <apex:pageBlockSectionItem helptext="{!$Label.rstk__excludeallbutthissupplier}">
+                   <apex:outputLabel value="{!$Label.rstk__excludeallbutthissupplier1}" />
+                      <c:autocomplete id="povend__c" cntr="{!controller}" required="false" slDesc="{!o.povend__r.Name}"
+            	                 query="select id, name from povend__c where povend_onetimeind__c = false" queryParms="[]"/>
+               </apex:pageBlockSectionItem>
+	            
+	            
+	            <apex:pageBlockSectionItem >
+	                <apex:outputLabel value="" />
+					<apex:commandButton onclick="blockUI();refreshList(); return false;" value="{!$Label.rstk__pagebtn_mrppolicychange_refreshpartslist}"/>
+	            </apex:pageBlockSectionItem>
+	        </apex:pageBlockSection>
+			
+			
+        	<apex:commandButton onclick="markAll(true); return false;" value="{!$Label.rstk__pagebtn_mrppolicychange_markall}"/>
+        	<apex:commandButton onclick="markAll(false); return false;" value="{!$Label.rstk__pagebtn_mrppolicychange_unmarkall}"/>
+        	<apex:outputPanel id="op_gridList" style="height:400px;overflow:auto;display:block">
+				<apex:pageBlockTable id="pbt_supitem" value="{!supitemRecs}" var="rec">
+	        		<apex:column headerValue="{!$Label.rstk__select}">
+	        			<apex:inputCheckbox id="is_selected" value="{!rec.selected}"/>
+	        		</apex:column>
+	        		<apex:column headerValue="{!$Label.rstk__item}" value="{!rec.item}"/>
+	        		<apex:column headerValue="{!f_supitem.rstk__supitem_desc__c.label}" value="{!rec.descr}"/>
+	        		<apex:column headerValue="{!f_supitem.rstk__supitem_povend__c.label}" value="{!rec.povend}"/>
+				</apex:pageBlockTable>
+			</apex:outputPanel>
+		</apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+</apex:page>

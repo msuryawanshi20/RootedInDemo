@@ -1,0 +1,171 @@
+<apex:page id="pg" standardController="rstk__syorgapprv__c" extensions="rstk.ControllerExtnFinApprvs" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__syorgapprv__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__syorgapprv__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_finapprovers}" enableAutocomplete="true" />
+    <apex:includeScript value="{!$Resource.rstk__line_items}" />
+    
+    <script>
+		function createFieldChangeHandlers() {
+    		fieldChangeHandlers = {
+    			syorgapprv_orgid__c: onOrgChanged
+    		};
+    	}
+		function onOrgChanged() {
+			var orgId = sfffGetFieldValue('syorgapprv_orgid__c');
+			blockUI();
+			doOrgChange(orgId);
+		}
+
+       	var tableConfig = {syorgapprv_apprvid__c:{required:true,label:"{!f.rstk__syorgapprv_apprvid__c.label}"}, 
+	                	 syorgapprv_frmamt__c:{required:true,label:"{!f.rstk__syorgapprv_frmamt__c.label}"}, 
+	                	 syorgapprv_descr__c:{required:true,label:"{!f.rstk__syorgapprv_descr__c.label}"}}; 
+        jQuery(document).ready(function() {
+        	addRequiredFieldDecoration("select[id$=':syorgapprv_apprvid__c']");
+        	addRequiredFieldDecoration("input[id$=':syorgapprv_frmamt__c']");
+        	addRequiredFieldDecoration("input[id$=':syorgapprv_descr__c']");
+        });
+        function saveRecord() {
+        	if (!saveTables()) return false;
+        	return true;
+        }
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:actionFunction name="doOrgChange" action="{!orgchange}" immediate="true" rerender="theTabPanel"
+        	oncomplete="unblockUI()" onbeforedomupdate="resetTables()">
+            <apex:param name="orgId" assignTo="{!orgId}" value="" />
+        </apex:actionFunction>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <apex:commandButton onclick="doPageSave();return false;" value="{!$Label.rstk__pagebtn_save}" style="width:50px"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_finapprovers_cancel}" action="{!view}" style="width:50px" immediate="true"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            
+            </apex:outputPanel>
+            
+            <c:division id="syorgapprv_div__c" cntr="{!controller}"/>
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f.rstk__syorgapprv_orgid__c.label}"/>
+				 	<apex:selectlist id="syorgapprv_orgid__c" required="true" value="{!o.rstk__syorgapprv_orgid__c}" size="1">
+					 	<apex:selectoptions value="{!Syorgs}"/>
+					</apex:selectlist>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Info" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_finapprovers_agreementapprovers}" name="agreementApproversTab" id="agreementApproversTab">
+		        	<input type="button" value="{!$Label.Add_Agreement_Approver}" onclick="addRow('agreementApproversTbl');" />
+                    <apex:pageBlockTable id="agreementApproversTbl" value="{!agreementApprovers}" var="a" style="display:none;">
+	                    <apex:column id="delCol" width="20px">
+    	                    <a href="javascript:if (window.confirm('{!$Label.rstk__areyousure}')) deleteRow('agreementApproversTbl', '{!$Component.agreementApproversTbl.delCol}');" style="font-weight:bold">remove</a>
+        	            </apex:column>
+            	        <!-- apex:column id="insertCol" width="20px">
+                	        <a href="javascript:insertRow('agreementApproversTbl', '{!$Component.agreementApproversTbl.insertCol}');" style="font-weight:bold">insert</a>
+	                    </apex:column-->
+                        <apex:column headerValue="{!f.rstk__syorgapprv_apprvid__c.label}" >
+                            <apex:outputPanel >
+                            	<apex:inputHidden id="recId" value="{!a.recId}" />
+                            </apex:outputPanel>
+                            <apex:selectList id="syorgapprv_apprvid__c" value="{!a.obj.rstk__syorgapprv_apprvid__c}" size="1">
+                                <apex:selectOptions value="{!syapprvs}"/>
+                            </apex:selectList>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__syorgapprv_frmamt__c.label}">
+                            <apex:inputField id="syorgapprv_frmamt__c" value="{!a.obj.rstk__syorgapprv_frmamt__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__syorgapprv_descr__c.label}">
+                            <apex:inputText id="syorgapprv_descr__c" value="{!a.obj.rstk__syorgapprv_descr__c}"  size="40"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+	                <script>
+	                	initTable( "{!$Component.agreementApproversTbl}", tableConfig )</script>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_finapprovers_indirectreqapprovers}" name="indirectReqApproversTab" id="indirectReqApproversTab">
+                    <input type="button" value=" {!$Label.Add_Indirect_Req_Approver} " onclick="addRow('indirectReqApproversTbl')"/>
+                    <apex:pageBlockTable id="indirectReqApproversTbl" value="{!indirectReqApprovers}" var="a" style="display:none;">
+                    <apex:column id="delCol" width="20px">
+                        <a href="javascript:if (window.confirm('{!$Label.rstk__areyousure}')) deleteRow('indirectReqApproversTbl', '{!$Component.indirectReqApproversTbl.delCol}');" style="font-weight:bold">remove</a>
+                    </apex:column>
+                    <!-- apex:column id="insertCol" width="20px">
+                        <a href="javascript:insertRow('indirectReqApproversTbl', '{!$Component.indirectReqApproversTbl.insertCol}');" style="font-weight:bold">insert</a>
+                    </apex:column-->
+                        <apex:column headerValue="{!f.rstk__syorgapprv_apprvid__c.label}" >
+                            <apex:inputHidden id="recId" value="{!a.recId}" />
+                            <apex:selectList id="syorgapprv_apprvid__c" value="{!a.obj.rstk__syorgapprv_apprvid__c}" size="1">
+                                <apex:selectOptions value="{!syapprvs}"/>
+                            </apex:selectList>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__syorgapprv_frmamt__c.label}">
+                            <apex:inputField id="syorgapprv_frmamt__c" value="{!a.obj.rstk__syorgapprv_frmamt__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__syorgapprv_descr__c.label}">
+                            <apex:inputText id="syorgapprv_descr__c" value="{!a.obj.rstk__syorgapprv_descr__c}" size="40"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+	                <script>
+	                	initTable( "{!$Component.indirectReqApproversTbl}", tableConfig )</script>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_finapprovers_purchaseorderapprovers}" name="purchaseOrderApproversTab" id="purchaseOrderApproversTab">
+                    <input type="button" value=" {!$Label.Add_Purchase_Order_Approver} " onclick="addRow('purchaseOrderApproversTbl')"/>
+                    <apex:pageBlockTable id="purchaseOrderApproversTbl" value="{!purchaseOrderApprovers}" var="a" style="display:none;">
+                    <apex:column id="delCol" width="20px">
+                        <a href="javascript:if (window.confirm('{!$Label.rstk__areyousure}')) deleteRow('purchaseOrderApproversTbl', '{!$Component.purchaseOrderApproversTbl.delCol}');" style="font-weight:bold">remove</a>
+                    </apex:column>
+                    <!-- apex:column id="insertCol" width="20px">
+                        <a href="javascript:insertRow('purchaseOrderApproversTbl', '{!$Component.purchaseOrderApproversTbl.insertCol}');" style="font-weight:bold">insert</a>
+                    </apex:column-->
+                        <apex:column headerValue="{!f.rstk__syorgapprv_apprvid__c.label}" >
+                            <apex:inputHidden id="recId" value="{!a.recId}" />
+                            <apex:selectList id="syorgapprv_apprvid__c" value="{!a.obj.rstk__syorgapprv_apprvid__c}" size="1">
+                                <apex:selectOptions value="{!syapprvs}"/>
+                            </apex:selectList>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__syorgapprv_frmamt__c.label}">
+                            <apex:inputField id="syorgapprv_frmamt__c" value="{!a.obj.rstk__syorgapprv_frmamt__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__syorgapprv_descr__c.label}">
+                            <apex:inputText id="syorgapprv_descr__c" value="{!a.obj.rstk__syorgapprv_descr__c}"  size="40"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+	                <script>
+	                	initTable( "{!$Component.purchaseOrderApproversTbl}", tableConfig )</script>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_finapprovers_servicereqapprovers}" name="serviceReqApproversTab" id="serviceReqApproversTab">
+                    <input type="button" value=" {!$Label.Add_Service_Req_Approver} " onclick="addRow('serviceReqApproversTbl')"/>
+                    <apex:pageBlockTable id="serviceReqApproversTbl" value="{!serviceReqApprovers}" var="a" style="display:none;">
+                    <apex:column id="delCol" width="20px">
+                        <a href="javascript:if (window.confirm('{!$Label.rstk__areyousure}')) deleteRow('serviceReqApproversTbl', '{!$Component.serviceReqApproversTbl.delCol}');" style="font-weight:bold">remove</a>
+                    </apex:column>
+                    <!-- apex:column id="insertCol" width="20px">
+                        <a href="javascript:insertRow('serviceReqApproversTbl', '{!$Component.serviceReqApproversTbl.insertCol}');" style="font-weight:bold">insert</a>
+                    </apex:column-->
+                        <apex:column headerValue="{!f.rstk__syorgapprv_apprvid__c.label}" >
+                            <apex:inputHidden id="recId" value="{!a.recId}" />
+                            <apex:selectList id="syorgapprv_apprvid__c" value="{!a.obj.rstk__syorgapprv_apprvid__c}" size="1">
+                                <apex:selectOptions value="{!syapprvs}"/>
+                            </apex:selectList>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__syorgapprv_frmamt__c.label}">
+                            <apex:inputField id="syorgapprv_frmamt__c" value="{!a.obj.rstk__syorgapprv_frmamt__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__syorgapprv_descr__c.label}">
+                            <apex:inputText id="syorgapprv_descr__c" value="{!a.obj.rstk__syorgapprv_descr__c}"  size="40"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+	                <script>
+	                	initTable( "{!$Component.serviceReqApproversTbl}", tableConfig )</script>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

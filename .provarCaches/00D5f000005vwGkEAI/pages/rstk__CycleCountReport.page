@@ -1,0 +1,120 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_cyclecountreport}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnCycleCountReport" 
+	sideBar="true" action="{!doBeforePageLoad}">
+
+	<apex:variable var="o" value="{!rstk__customext__c}" />
+	<apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+	
+	<script>
+		function setFocusOnLoad() {}
+	</script>
+	
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_cyclecountreport}" 
+		customInclude="{!$Resource.rstk__cycleCountReport_cli}" enableAutocomplete="false"/>
+	
+	<apex:form id="fm" rendered="{!displayPageContent}">
+		<apex:actionFunction name="generateList" action="{!doGenerateList}" 
+			oncomplete="unblockUI();toggelButtons();" rerender="op_SubList, btns, pageMessages"/>
+		
+		<apex:pageBlock id="pb" mode="detail">
+			<apex:pageBlockButtons >
+                <apex:commandButton id="btn_generate" value="{!$Label.rstk__pagebtn_cyclecountreport_generatelist}" 
+                	onclick="if (validateFilter()) { blockUI();generateList(); } return false;"/>
+                <apex:commandButton id="btn_pdf" value="{!$Label.rstk__pagebtn_cyclecountreport_generatepdf}" 
+                	onclick="if (validateFilter()) { exportPDF(); } return false;" />
+                <apex:commandButton id="btn_csv" value="{!$Label.rstk__pagebtn_cyclecountreport_exporttoexcel}" 
+                	onclick="if (validateFilter()) { exportCSV(); } return false;" />
+                <apex:commandButton id="btn_sydata" value="{!$Label.rstk__pagebtn_cyclecountreport_locationadjustmentexport}" 
+                	onclick="if (validateFilter()) { exportSydata(); } return false;" />
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel id="btns" style="display:none">
+                <input type="hidden" id="reporttype" value="2"/>
+                <apex:outputText id="showPdfBtn__c" value="{!showPdfBtn}" />
+                <apex:outputText id="showCsvBtn__c" value="{!showCsvBtn}" />
+            </apex:outputPanel>
+            
+			<apex:pageBlockSection >
+				<apex:pageBlockSectionItem helpText="{!f.rstk__div__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__div__c.label}"/>
+					<apex:outputField id="div__c" value="{!o.rstk__div__c}" />
+				</apex:pageBlockSectionItem>
+				<apex:pageBlockSectionItem />
+			</apex:pageBlockSection>
+			
+		    <apex:pageBlockSection id="pbs_Main" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__selection_date__c.inlineHelpText}">
+					<apex:outputLabel value="{!$Label.rstk__selectiondate}"/>
+					<apex:inputField id="selection_date__c" value="{!o.rstk__selection_date__c}" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helpText="{!f.rstk__ccreport_class__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__ccreport_class__c.label}"/>
+					<apex:inputField id="ccreport_class__c" value="{!o.rstk__ccreport_class__c}" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helpText="{!f.rstk__ccreport_sortoption__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__ccreport_sortoption__c.label}"/>
+					<apex:inputField id="ccreport_sortoption__c" value="{!o.rstk__ccreport_sortoption__c}" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helpText="{!f.rstk__include_serial__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__include_serial__c.label}"/>
+					<apex:inputField id="include_serial__c" value="{!o.rstk__include_serial__c}" />
+				</apex:pageBlockSectionItem>
+				
+			</apex:pageBlockSection>
+		     
+		  	<apex:pageBlockTable id="op_SubList" value="{!details}" var="d" >
+				<apex:column headerValue="{!$Label.rstk__item}">
+				  <apex:outputText value="{!d.itemno}" />
+				</apex:column>
+				<apex:column headerValue="{!$Label.rstk__description}" style="width:300px; word-wrap: break-word;">
+					<apex:outputText value="{!d.descr}" />
+				</apex:column>
+				<apex:column headerValue="{!$Label.rstk__abc}">
+					<apex:outputText value="{!d.abc}" />
+				</apex:column>
+				<apex:column headerValue="{!$Label.rstk__totqty}" style="text-align:right;">
+                    <c:outputFormattedNumber value="{!d.totalQty}"
+                        decimals="2" />
+                </apex:column>
+             	<apex:column headerValue="{!$Label.rstk__totamount}" style="text-align:right;">
+                    <apex:outputText value="{!d.totalAmount}" html-decimals="2"/>
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstk__lastcountdate}" style="text-align:right;">
+                	<apex:outputText value="{!d.lastCountDate}" />
+                </apex:column>
+                <apex:column headerValue="{!$Label.site}">
+                	<apex:outputText value="{!d.site}" />
+               	</apex:column>
+               	<apex:column headerValue="{!$Label.rstk__id}">
+               		<apex:outputText value="{!d.locid}" />
+               	</apex:column>
+               	<apex:column headerValue="{!$Label.rstk__locationno}">
+               		<apex:outputText value="{!d.locNum}" />
+               	</apex:column>
+               	<apex:column headerValue="{!$Label.rstk__qty}"
+                    style="text-align:right;">
+                    <c:outputFormattedNumber value="{!d.locqty}"
+                        decimals="2" />
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstk__project}">
+                	<apex:outputText value="{!d.locProj}" />
+               	</apex:column>
+                <apex:column headerValue="{!$Label.rstk__lotno}" style="text-align:right;">
+					<apex:outputText value="{!d.lotNum}" />
+               	</apex:column>
+                <apex:column headerValue="{!$Label.rstk__serialno}" style="text-align:right;">
+                	<apex:outputText value="{!d.serialNum}" />
+                </apex:column>
+        	</apex:pageBlockTable>
+
+		</apex:pageBlock>
+	</apex:form>
+	
+	<c:footerInclude cntr="{!controller}" />
+	
+	<script>
+		var LABEL_MissingSelDateOrABCClassFilter = "{!$Label.MissingSelDateOrABCClassFilter}";
+	</script>
+</apex:page>

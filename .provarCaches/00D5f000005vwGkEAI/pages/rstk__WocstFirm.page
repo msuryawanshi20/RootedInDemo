@@ -1,0 +1,110 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_wocstfirm}" standardController="rstk__wocst__c" extensions="rstk.ControllerExtnWocstFirm,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__wocst__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__wocst__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_wocstfirm}" customInclude="{!$Resource.rstk__wocstfirm_cli}" enableAutocomplete="true"/>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    	<apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+    	<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    	<apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/> 
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="reloadWOList" action="{!doReloadWOList}" oncomplete="unblockUI();" rerender="op_WOList, pageMessages, op_firmbutton, op_rfirmbutton"/>
+        <apex:actionFunction name="firmSelected" action="{!doFirmSelected}" oncomplete="unblockUI();" rerender="op_WOList, pageMessages, op_firmbutton, op_rfirmbutton"/>
+        <apex:actionFunction name="reverseFirmSelected" action="{!doReverseFirmSelected}" oncomplete="unblockUI();" rerender="op_WOList, pageMessages"/>
+        
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            <apex:commandButton id="btn_search" value="{!$Label.rstk__pagebtn_wocstfirm_searchworkorders}" onclick="blockUI();reloadWOList(); return false;"/>
+            <apex:outputPanel id="op_firmbutton">
+            <apex:commandButton id="btn_firm" value="{!$Label.rstk__pagebtn_wocstfirm_firm}" onclick="if(checkSelected()){blockUI();firmSelected();} return false;" rendered="{!showFirm}"/>
+	    </apex:outputPanel>
+	    <apex:outputPanel id="op_rfirmbutton">
+	        <apex:commandButton id="btn_rfirm" value="{!$Label.rstk__pagebtn_wocstfirm_unfirm}" onclick="if(checkSelected()){blockUI();reverseFirmSelected();} return false;" rendered="{!showRfirm}"/>
+	    </apex:outputPanel>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+        </apex:outputPanel>
+        
+        <c:division id="wocst_div__c" cntr="{!controller}" disabled="false"/>
+        
+		<apex:pageBlockSection id="pbs_Site" showHeader="false" columns="1" >
+			<apex:pageBlockSectionItem helpText="{!f.rstk__wocst_site__c.inlineHelpText}">
+	             <apex:outputLabel value="{!f.rstk__wocst_site__c.label}"/>
+	             <c:selectList id="wocst_site__c" cntr="{!controller}" options="{!sysites}"/>
+			</apex:pageBlockSectionItem>
+		</apex:pageBlockSection>
+		
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+        	<apex:pageBlockSectionItem helpText="{!f.rstk__wocst_ordsts_pl__c.inlineHelpText}">
+		         <apex:outputLabel value="{!f.rstk__wocst_ordsts_pl__c.label}"/>
+		         <c:selectList id="wocst_ordsts_pl__c" cntr="{!controller}" required="true" options="{!Statuses}"/>
+			</apex:pageBlockSectionItem>
+			
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_duedte__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_duedte__c.label}"/>
+                <c:inputField id="wocst_duedte__c" cntr="{!controller}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_proj__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_proj__c.label}"/>
+                <c:autocomplete id="wocst_proj__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_completed__c = false and pjproj_div__c = 'prm'" queryParms="[['wocst_div__c','Division']]" slDesc="{!projectDesc}"/>
+            </apex:pageBlockSectionItem>
+            
+        	<apex:pageBlockSectionItem helpText="{!f.rstk__wocst_resp__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_resp__c.label}"/>
+                <c:selectList id="wocst_resp__c" cntr="{!controller}" options="{!sl.syusrs}"/>
+            </apex:pageBlockSectionItem>
+                       
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_item__c.label}"/>
+                <c:autocomplete id="wocst_item__c" cntr="{!controller}" query="select id, name from icitem__c where icitem_div__c = 'prm'" queryParms="[['wocst_div__c','Division']]"/>
+        	</apex:pageBlockSectionItem> 
+        </apex:pageBlockSection>
+        
+        <apex:outputPanel id="op_WOList" style="width:100%; scroll:auto;">
+	        	<apex:pageBlock rendered="{!wosFound}">
+       			&nbsp;<apex:inputCheckbox id="selectAll" onclick="markAll(this.checked)"/>&nbsp;<apex:outputLabel value="{!$Label.rstk__selectfirst25}"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+       			<script>var allReqs = [];document.getElementById("{!$Component.selectAll}").checked = false;</script>
+       			<apex:outputLabel value="{!$Label.rstk__numberofworkordersfound}:"/>&nbsp;<apex:outputText value="{!numberOfWosFound}"/>&nbsp;<apex:outputPanel rendered="{!numberOfWosFound > 500}"> Showing 500</apex:outputPanel>
+        	<apex:pageBlockTable id="pbt" value="{!wocsts}" var="rec">
+        			<apex:column headerValue="{!$Label.rstk__select}">
+       					<apex:inputCheckbox id="wocst_selected" value="{!rec.rstk__temp_select__c}"/>
+	        			<script>allReqs.push(document.getElementById("{!$Component.wocst_selected}"));</script>
+       				</apex:column>
+				<apex:column headerValue="{!f.rstk__wocst_ordno__c.label}">
+					<apex:outputLink value="{!URLFOR($Action.rstk__wocst__c.View,rec.id)}">{!rec.rstk__wocst_ordno__c}</apex:outputLink>
+				</apex:column>
+				<apex:column headerValue="{!$Label.rstk__item}">
+					<apex:outputLink value="{!URLFOR($Action.rstk__icitem__c.View,rec.rstk__wocst_item__c)}">{!rec.wocst_item__r.Name}</apex:outputLink>
+				</apex:column>
+				<apex:column headerValue="{!$Label.rstk__planner}">
+					<apex:outputLink value="{!URLFOR($Action.rstk__syusr__c.View,rec.rstk__wocst_resp__c)}">{!rec.wocst_resp__r.Name}</apex:outputLink>
+				</apex:column>
+				<apex:column headerValue="{!f.rstk__wocst_qtyreq__c.label}" value="{!rec.rstk__wocst_qtyreq__c}" headerClass="rl-rightalign" styleClass="rl-rightalign"/>
+				<apex:column headerValue="{!f.rstk__wocst_qtyacc__c.label}" value="{!rec.rstk__wocst_qtyacc__c}" headerClass="rl-rightalign" styleClass="rl-rightalign"/>
+				<apex:column headerValue="{!f.rstk__wocst_qtyinwip__c.label}" value="{!rec.rstk__wocst_qtyinwip__c}" headerClass="rl-rightalign" styleClass="rl-rightalign"/>
+				<apex:column headerValue="{!f.rstk__wocst_qtyscrap__c.label}" value="{!rec.rstk__wocst_qtyscrap__c}" headerClass="rl-rightalign" styleClass="rl-rightalign"/>
+				<apex:column headerValue="{!f.rstk__wocst_duedte__c.label}" value="{!rec.rstk__wocst_duedte__c}"/>
+				<apex:column headerValue="{!f.rstk__wocst_effdte__c.label}" value="{!rec.rstk__wocst_effdte__c}"/>
+				<apex:column headerValue="{!$Label.rstk__project}">
+					<apex:outputLink value="{!URLFOR($Action.rstk__pjproj__c.View,rec.rstk__wocst_proj__c)}">{!rec.wocst_proj__r.Name}</apex:outputLink>
+				</apex:column>
+        	</apex:pageBlockTable>
+	        	</apex:pageBlock>
+        </apex:outputPanel>
+    
+        
+    </apex:pageBlock>
+    </apex:form>
+      
+	<c:footerInclude cntr="{!controller}" />
+	
+	<script>
+    	var SelectedEntry = "{!$Label.SelectedEntries}";
+    	var SelectedZeroEntry = "{!$Label.SelectedZeroentries}";
+    </script>
+</apex:page>

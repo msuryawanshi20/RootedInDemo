@@ -1,0 +1,391 @@
+<apex:page id="pg" standardController="rstk__supreq__c"
+    extensions="rstk.ControllerExtnSupreq,rstk.RemoteQueryController" sideBar="true"
+    action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__supreq__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__supreq__c.fields}" />
+    <apex:variable var="fs" value="{!$ObjectType.rstk__supitem__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}"
+        title="{!$Label.rstk__supplierrequisitionmaintenance}" />
+    <apex:includeScript value="{!$Resource.rstk__supreq_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}"
+            immediate="true" />
+        <apex:actionFunction name="doView" action="{!view}" immediate="true" />
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+        <apex:actionFunction name="doCancel" action="{!cancel}"
+            immediate="true" />
+        <apex:actionFunction name="doListview" action="{!doListview}"
+            immediate="true" />
+        <apex:actionFunction name="doSave" action="{!save}" />
+        <apex:actionFunction name="saveSplitSupplier"
+            action="{!saveSplitSupplier}" immediate="false" />
+
+        <style>
+.modal {
+    background-color: #fff;
+    display: none;
+    width: 480px;
+    padding: 15px;
+    text-align: left;
+    font-size: 1em;
+    border: 2px solid #333;
+    opacity: 1.0;
+    -moz-border-radius: 6px;
+    -webkit-border-radius: 6px;
+    -moz-box-shadow: 0 0 50px #ccc;
+    -webkit-box-shadow: 0 0 50x #ccc;
+}
+
+.ac_results {
+    z-index: 9999;
+    background-color: #eee;
+}
+
+#datePicker {
+    z-index: 9999;
+}
+</style>
+
+        <script>
+        var qtyreq = '{!o.rstk__supreq_qtyreq__c}';
+        var qtyship = '{!o.rstk__supreq_qtyship__c}';
+        var currPickupDate = '{!o.rstk__supreq_currpickupdate__c}';
+        var isView = {!isView};
+        var supreqID ='';
+        if(isView){
+            supreqID = '{!o.id}';
+        }
+        var isDisSplitSupreqBtn = {!isDisSplitSupreqBtn};
+        
+        function localeDateForm(currDate){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnSupreq.localeDateForm}', //NameSpace  
+                currDate,   
+                function(result, event){
+                    if (event.status) {
+                       defaultSplitinfo(result) ;
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.rstk__exception1}" + event.message);
+                    } else {
+                        alert("{!$Label.rstk__unexpectedstatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function verifyDate(currDate,fieldID){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnSupreq.verifyDate}', //NameSpace  
+                currDate,   
+                function(result, event){
+                    if (event.status) {
+                        if(result){
+                            alert("{!$Label.rstk__pickupdatecantbelttoday}");
+                            document.getElementById(fieldID).value ='';
+                            return true;
+                        }
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.rstk__exception1}"+event.message);
+                    } else {
+                        alert("{!$Label.rstk__unexpectedstatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+ 
+        jQuery(document).ready(function() {
+        
+            jQuery("button[rel]").overlay({
+            
+                top: "10%",
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                fixed: false,
+                
+                closeOnClick: false
+            });
+            
+            initHoverPopups(jQuery("table[id$=':pbt_splitSup']"), {manualLoad:false, displayUp:true});
+        }); 
+    </script>
+
+        <div class="overlayStyle" id="splitSup">
+            <apex:pageBlock id="ovr_splitSup">
+                <apex:pageBlockSection id="pbs_splitSup" showHeader="true"
+                    title="{!$Label.rstk__splitsupplierrequisition}" collapsible="false" columns="1">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!f.rstk__supreq_qtyreq__c.label}" />
+                            <apex:outputText value="{0,number,##0}">
+                                <apex:param value="{!o.rstk__supreq_qtyreq__c}" />
+                            </apex:outputText>
+                    &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!f.rstk__supreq_currpickupdate__c.label}" />
+                            <apex:outputText id="currpckdate__c" value="{0,date,short}">
+                                <apex:param value="{!o.rstk__supreq_currpickupdate__c}" />
+                            </apex:outputText>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockTable id="pbt_splitSup" value="{!splitsupdetails}" var="s">
+                        <apex:inputHidden id="lineno__c" value="{!s.lineno}" />
+                        <apex:inputHidden id="org_qtyreq__c" value="{!o.rstk__supreq_qtyreq__c}" />
+
+                        <apex:column headerValue="{!$Label.rstk__splitquantity}" style="width:100px;">
+                            <apex:inputField id="qtyreq__c"
+                                value="{!s.supreq.rstk__supreq_qtyreq__c}"
+                                onchange="verifyqty('{!s.lineno}', this.value);" />
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__pickupdate}" style="width:100px;">
+                            <c:inputDateNoLink >
+                                <!--<apex:inputField id="pckdt__c" value="{!s.supreq.supreq_currpickupdate__c}" onchange="verifyDate(this.value,this.id);return false;" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}"/>   -->
+                                <apex:inputField id="pckdt__c" value="{!s.custextnObj.rstk__custom_date__c}" onchange="verifyDate(this.value,this.id);return false;" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}"/>
+                            </c:inputDateNoLink>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+            <button type="button" onclick="return saveSplitSup();">{!$Label.pagebtn_supreq_Save}</button>
+            <button type="button" class="close"
+                onclick="splitRequisition_cancel()">{!$Label.pagebtn_supreq_Cancel}</button>
+        </div>
+
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableDelete="true"/>
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_supreq_requisitionprint}" onclick="window.open('{!$Site.BaseUrl}/apex/{!pageDetails}?actionType=view&id={!o.id}');return false;" rendered="{!isView}" />
+            </apex:pageBlockButtons>
+
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+
+            <c:division id="supreq_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false"
+                title="{!$Label.rstk__information}" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_ordno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_ordno__c.label}" />
+                    <apex:outputField id="supreq_ordno__c" value="{!o.rstk__supreq_ordno__c}" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_accepted__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_accepted__c.label}" />
+                    <c:inputField id="supreq_accepted__c" required="false"
+                        cntr="{!controller}" disabled="{!isAcceptedDisabled}"
+                        tabIndex="100" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_supitem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_supitem__c.label}" />
+                    <apex:outputField id="supreq_supitem__c"
+                        value="{!o.rstk__supreq_supitem__c}" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_dateaccepted__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_dateaccepted__c.label}" />
+                    <apex:outputField value="{!o.rstk__supreq_dateaccepted__c}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_venditem__c.inlineHelpText}" rendered="{!OR(isEdit,isView)}" >
+                    <apex:outputLabel value="{!f.rstk__supreq_venditem__c.label}" />
+                    <apex:outputField value="{!o.rstk__supreq_venditem__c}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem rendered="{!OR(isEdit,isView)}"/>
+ 
+                <apex:pageBlockSectionItem rendered="{!isNew}"/>
+                <apex:pageBlockSectionItem helpText="{!fs.rstk__supitem_desc__c.inlineHelpText}" rendered="{!OR(isEdit,isView)}" >
+                    <apex:outputLabel value="{!fs.rstk__supitem_desc__c.label}" />
+                    <apex:outputField value="{!o.supreq_supitem__r.rstk__supitem_desc__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                
+                <apex:pageBlockSectionItem >
+                    <button id="SplitReqBtn" name="SplitReqBtn" type="button" onclick="splitSupplierBtn(); return false;"
+                        class="btn" rel="#splitSup" style="width: 200px;display: {!IF(isView, '', 'none')};" >
+                        {!$Label.pagebtn_supreq_SplitRequisition}</button>
+                </apex:pageBlockSectionItem>
+
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_qtyreq__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_qtyreq__c.label}" />
+                    <apex:outputText value="{0,number,##0}"> <apex:param value="{!o.rstk__supreq_qtyreq__c}"  /> </apex:outputText>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_qtyship__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_qtyship__c.label}" />
+                    <apex:outputText value="{0,number,##0}"> <apex:param value="{!o.rstk__supreq_qtyship__c}" /> </apex:outputText>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_povend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_povend__c.label}" />
+                    <apex:outputField id="supreq_povend__c"
+                        value="{!o.rstk__supreq_povend__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_datepickedup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_datepickedup__c.label}" />
+                    <apex:outputField id="supreq_datepickedup__c"
+                        value="{!o.rstk__supreq_datepickedup__c}" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_povendpoaddr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_povendpoaddr__c.label}" />
+                    <apex:outputField id="supreq_povendpoaddr__c"
+                        value="{!o.rstk__supreq_povendpoaddr__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_datereceived__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_datereceived__c.label}" />
+                    <apex:outputField id="supreq_datereceived__c"
+                        value="{!o.rstk__supreq_datereceived__c}" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_currpickupdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_currpickupdate__c.label}" />
+                    <c:inputField id="supreq_currpickupdate__c" required="false"
+                        cntr="{!controller}" tabIndex="110" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_datereceivedcon__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_datereceivedcon__c.label}" />
+                    <apex:outputField id="supreq_datereceivedcon__c"
+                        value="{!o.rstk__supreq_datereceivedcon__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_currwmsdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_currwmsdate__c.label}" />
+                    <apex:outputField id="supreq_currwmsdate__c"
+                        value="{!o.rstk__supreq_currwmsdate__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!isNew}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_transittype__c.inlineHelpText}" rendered="{! OR(isEdit,isView)}">
+                    <apex:outputLabel value="{!f.rstk__supreq_transittype__c.label}" />
+                    <apex:outputPanel > 
+                        <apex:outputField value="{!o.rstk__supreq_transittype__c}" />
+                    </apex:outputPanel>    
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_currconsoldate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_currconsoldate__c.label}" />
+                    <apex:outputField id="supreq_currconsoldate__c"
+                        value="{!o.rstk__supreq_currconsoldate__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!isNew}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_poasn__c.inlineHelpText}" rendered="{!OR(isEdit,isView)}">
+                    <apex:outputLabel value="{!f.rstk__supreq_poasn__c.label}" />
+                    <apex:outputField value="{!o.rstk__supreq_poasn__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_poshipcontcc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_poshipcontcc__c.label}" />
+                    <apex:outputField id="supreq_poshipcontcc__c"
+                        value="{!o.rstk__supreq_poshipcontcc__c}" />
+                </apex:pageBlockSectionItem> 
+                <!-- 
+                <apex:pageBlockSectionItem rendered="{!!isView}"/>
+                <apex:pageBlockSectionItem helpText="{!f.supreq_origicreq__c.inlineHelpText}" rendered="{!isView}">
+                    <apex:outputLabel value="{!f.supreq_origicreq__c.label}" />
+                    <apex:outputField value="{!o.supreq_origicreq__c}" />
+                </apex:pageBlockSectionItem>  -->
+                
+                <apex:pageBlockSectionItem rendered="{!!isView}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_origsupreq__c.inlineHelpText}" rendered="{!isView}">
+                    <apex:outputLabel value="{!f.rstk__supreq_origsupreq__c.label}" />
+                    <apex:outputField value="{!o.rstk__supreq_origsupreq__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_poshipcontwms__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_poshipcontwms__c.label}" />
+                    <apex:outputField id="supreq_poshipcontwms__c"
+                        value="{!o.rstk__supreq_poshipcontwms__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!!isView}"/> 
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_poshipShipmentid__c.inlineHelpText}" rendered="{!isView}">
+                    <apex:outputLabel value="{!f.rstk__supreq_poshipShipmentid__c.label}" />
+                    <apex:outputField value="{!o.rstk__supreq_poshipShipmentid__c}" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_containerpct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_containerpct__c.label}" />
+                    <apex:outputField id="supreq_containerpct__c"
+                        value="{!o.rstk__supreq_containerpct__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!!isView}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_poshipcontSerialno__c.inlineHelpText}" rendered="{!isView}">
+                    <apex:outputLabel value="{!f.rstk__supreq_poshipcontSerialno__c.label}" />
+                    <apex:outputField value="{!o.rstk__supreq_poshipcontSerialno__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_pickedup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_pickedup__c.label}" />
+                    <apex:outputField id="supreq_pickedup__c"
+                        value="{!o.rstk__supreq_pickedup__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_received__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_received__c.label}" />
+                    <apex:outputField id="supreq_received__c"
+                        value="{!o.rstk__supreq_received__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supreq_receivedcon__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supreq_receivedcon__c.label}" />
+                    <apex:outputField id="supreq_receivedcon__c"
+                        value="{!o.rstk__supreq_receivedcon__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            <apex:tabPanel switchType="client" selectedTab="tab_MRP_Policies" id="theTabPanel">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_peitemrev_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_CurrPickupDateCantBeLessThanToday = "{!$Label.rstk__currpickupdatecantbelessthantoday}";
+        var LABEL_ProvidePickupDate = "{!$Label.rstk__providepickupdate}";
+        var LABEL_PickupDateCantBeLessThanToday = "{!$Label.rstk__pickupdatecantbelessthantoday}";
+        var LABEL_PickupDateCantSameAsOtherPickupDate = "{!$Label.rstk__pickupdatecantsameasotherpickupdate}";
+        var LABEL_SplitQtyMustEqualOrgRequisitionQty = "{!$Label.rstk__splitqtymustequalorgrequisitionqty}";
+        var LABEL_InvalidVal = "{!$Label.rstk__invalidval}";
+        var LABEL_PickupDatesMustBeUniqueForEachQtySplit = "{!$Label.rstk__pickupdatesmustbeuniqueforeachqtysplit}";
+        var LABEL_SplitQtyMustBeGrtrThan0 = "{!$Label.rstk__splitqtymustbegrtrthan0}";
+        var LABEL_FirstRowMustRetainAtleastEntireShippedQty = "{!$Label.rstk__firstrowmustretainatleastentireshippedqty}";
+        var LABEL_SplitQtyCantBeGrtrThanTotQty = "{!$Label.rstk__splitqtycantbegrtrthantotqty}";
+        var LABEL_TotSplitQtyMustEqualTotQty = "{!$Label.rstk__totsplitqtymustequaltotqty}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

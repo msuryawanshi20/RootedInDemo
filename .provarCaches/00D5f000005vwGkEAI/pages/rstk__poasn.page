@@ -1,0 +1,897 @@
+<apex:page id="pg" standardController="rstk__poasn__c" extensions="rstk.ControllerExtnPoasn" sidebar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__poasn__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__poasn__c.fields}" />
+    <apex:variable var="fp" value="{!$ObjectType.rstk__poasnreq__c.fields}" />
+    <apex:variable var="f_supreq" value="{!$ObjectType.rstk__supreq__c.fields}" />
+    
+    <script>
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+        var isView = {!isView};
+        var isVendorExist = {!userVendor}; 
+        var supplierDetails ='{!o.rstk__poasn_povend__c}';
+        var divDetails = '{!o.rstk__poasn_div__c}';
+        var recStatus = '{!o.rstk__poasn_status__c}';
+        var shipID ='';
+        var poasnID = '';  
+        if(!isNew){
+            poasnID = '{!o.id}';
+        }
+        if('{!o.rstk__poasn_status__c}' == Enums.StaticList.PoasnStatus.Approved_In_Process && '{!o.rstk__poasn_poship__c}' == ''){
+            shipID = '{!poshipId}';
+        }
+        
+        function localeDateForm(currDate){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnPoasn.localeDateForm}', //NameSpace  
+                currDate,   
+                function(result, event){
+                    if (event.status) {
+                       updateField(result) ;
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.rstk__exception1}" + event.message);
+                    } else {
+                        alert("{!$Label.rstk__unexpectedstatus}");
+                    }
+                }, {escape:false}
+            );
+        }
+       
+        function verifyDate(currDate,fieldID){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnPoasn.verifyDate}', //NameSpace  
+                currDate,   
+                function(result, event){
+                    if (event.status) {
+                        if(result){
+                            alert("{!$Label.rstk__pickupdatecantbelttoday}");
+                            document.getElementById(fieldID).value ='';
+                            return true;
+                        }
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.rstk__exception1}" + event.message);
+                    } else {
+                        alert("{!$Label.rstk__unexpectedstatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function uploadDGN() {
+            if(checkUploadFlag('{!o.id}' , 'poasn_havedgn__c')){
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=poasn__c&parms=set_poasn_havedgn");
+                } finally {
+                    return false;
+                }
+            }else{
+                return false;
+            }
+        }
+        
+        function uploadCMINV() {
+            if(checkUploadFlag('{!o.id}' , 'poasn_haveci__c')){
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=poasn__c&parms=set_poasn_haveci");
+                } finally {
+                    return false;
+                }
+            }else{
+                return false;
+            }
+        }
+        
+        function uploadPKS() {
+            if(checkUploadFlag('{!o.id}' , 'poasn_havepack__c')){
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=poasn__c&parms=set_poasn_havepack");
+                } finally {
+                    return false;
+                }   
+            }else{
+                return false;
+            }
+        }
+        
+        function uploadSWB() {
+            if(checkUploadFlag('{!o.id}' , 'poasn_haveswb__c')){
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=poasn__c&parms=set_poasn_haveswb");
+                } finally {
+                    return false;
+                }
+            }else{
+                return false;
+            }
+        }
+        
+        function checkUploadFlag(recId,field){
+            var poasnRecord = execQuery("select poasn_haveci__c,poasn_havedgn__c,poasn_havepack__c,poasn_haveswb__c from poasn__c where id = '" + recId + "'",true);
+            if(poasnRecord.length > 0){
+                if(field == 'poasn_haveci__c' && poasnRecord[0].poasn_haveci__c == 'true'){
+                    alert("{!$Label.rstk__commercialinvoicedocalreadyattached}");
+                    return false;
+                }
+                if(field == 'poasn_havedgn__c' && poasnRecord[0].poasn_havedgn__c == 'true'){
+                    alert("{!$Label.rstk__dgndocalreadyattached}");
+                    return false;
+                }
+                if(field == 'poasn_havepack__c' && poasnRecord[0].poasn_havepack__c == 'true'){
+                    alert("{!$Label.rstk__packinglistdocalreadyattached}");
+                    return false;
+                }
+                if(field == 'poasn_haveswb__c' && poasnRecord[0].poasn_haveswb__c == 'true'){
+                    alert("SWB is already attached by TMM Freight");
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        function reqUploadDGN(recID) {
+            if(checkFlag(recID , 'poasnreq_havedgn__c') && validPoasnReqGrid()){
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id="+recID+"&objname=poasnreq__c&parms=set_poasnreq_havedgn");
+                } finally {
+                    return false;
+                }
+            }
+        }
+        
+        function reqUploadCMINV(recID) {
+            if(checkFlag(recID , 'poasnreq_haveci__c') && validPoasnReqGrid()){
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id="+recID+"&objname=poasnreq__c&parms=set_poasnreq_haveci");
+                } finally {
+                    return false;
+                }
+            }
+        }
+        
+        function reqUploadPKS(recID) {
+            if(checkFlag(recID , 'poasnreq_havepack__c') && validPoasnReqGrid()){
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id="+recID+"&objname=poasnreq__c&parms=set_poasnreq_havepack");
+                } finally {
+                    return false;
+                }
+            }
+        }
+        
+        function reqUploadSWB(recID) {
+            if(checkFlag(recID , 'poasnreq_haveswb__c') && validPoasnReqGrid()){
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id="+recID+"&objname=poasnreq__c&parms=set_poasnreq_haveswb");
+                } finally {
+                    return false;
+                }
+            }
+        }
+        
+        function checkFlag(recId , field){
+            var poasnreqs = execQuery("select poasnreq_dgnrequired__c, poasnreq_havepack__c,poasnreq_havedgn__c,poasnreq_haveci__c,poasnreq_haveswb__c from poasnreq__c where id = '" + recId + "'",true);
+            if(poasnreqs.length > 0){
+                if(field == 'poasnreq_havepack__c' && poasnreqs[0].poasnreq_havepack__c == 'true'){
+                    alert("{!$Label.rstk__packinglistdocalreadyattached}");
+                    return false;
+                }
+                if(field == 'poasnreq_havedgn__c' && poasnreqs[0].poasnreq_havedgn__c == 'true'){
+                    alert("{!$Label.rstk__dgndocalreadyattached}");
+                    return false;
+                }
+                
+                if(field == 'poasnreq_havedgn__c' && poasnreqs[0].poasnreq_havedgn__c == 'false' && poasnreqs[0].poasnreq_dgnrequired__c == 'false'){
+                    alert("{!$Label.rstk__dangerousgoodsnoticeisnotreqd}");
+                    return true;
+                }
+                
+                if(field == 'poasnreq_haveci__c' && poasnreqs[0].poasnreq_haveci__c == 'true'){
+                    alert("{!$Label.rstk__comercialinvoicealreadyattached}");
+                    return false;
+                }
+                
+                if(field == 'poasnreq_haveswb__c' && poasnreqs[0].poasnreq_haveswb__c == 'true'){
+                    alert("SWB is already attached by TMM Freight");
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        function validateGrids() {
+            if(isNew) {
+                return true;
+            } else {
+                if(!poasnreq.isDirty()) {
+                    return true;
+                } else {
+                    var crfm = confirm("{!$Label.rstk__unavedchangesinasnrequisitiontab_savechangesbeforesavingheader_ignorechanges}");
+                    if(crfm) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+        }
+        
+        function validPoasnReqGrid() {
+            if(!poasnreq.isDirty()) {
+                return true;
+            } else {
+                alert("{!$Label.rstk__savechangesbeforeuploading}");
+                return false;
+            }
+        }
+        
+        jQuery(document).ready(function() {
+            jQuery(".numericonly").keydown(function (e) {
+                // Allow: backspace, delete, tab, escape, enter
+                if (jQuery.inArray(e.keyCode, [46, 8, 9, 27, 13, 110]) !== -1 ||
+                     // Allow: Ctrl+A
+                    (e.keyCode == 65 && e.ctrlKey === true) || 
+                     // Allow: home, end, left, right
+                    (e.keyCode >= 35 && e.keyCode <= 39)) {
+                         // let it happen, don't do anything
+                         return;
+                }
+                if(e.srcElement.value.length == 10) {
+                    e.preventDefault();
+                }
+                // Ensure that it is a number and stop the keypress
+                if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                    e.preventDefault();
+                }
+            });
+        });
+        
+        function verifyLotExpirationDate(expDate,shelfLife){
+             Visualforce.remoting.Manager.invokeAction(  
+            '{!$RemoteAction.ControllerExtnPoasn.verifyLotExpirationDate}', //NameSpace  
+            expDate,shelfLife,   
+            function(result, event){
+                if (event.status) {
+                    if(result){
+                        alert("Warning - the expiration date you entered is shorter than the recommended Intel shelf life -  please contact TMM for approval");
+                        return true;
+                    }
+                } else if (event.type === 'exception') {
+                    alert("{!$Label.rstk__exception1}" + event.message);
+                } else {
+                    alert("{!$Label.rstk__unexpectedstatus}", event.message);
+                }
+            }, {escape:false}
+        );
+       }
+    </script>
+    
+     <apex:outputPanel id="emailtemplateInfo" >
+        <script>
+            var tempLateInfoRecID = '{!tempLateInfoRecID}';
+            var tempLateID = '{!tempLateID}';
+            var forecastRec = {!forecastRec};
+        </script>
+    </apex:outputPanel>
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poasn}" customInclude="{!$Resource.rstk__poasn_cli}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" />
+        <apex:actionFunction name="doView" action="{!view}" immediate="true" />
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true" />
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true" />
+        <apex:actionFunction name="doSave" action="{!save}" />
+        <apex:actionFunction name="supreqOb" action="{!supreqOb}" oncomplete="unblockUI();" immediate="true" rerender="">
+            <apex:param name="supreqId" assignTo="{!supreqId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="saveSplitSupplier" action="{!saveSplitSupplier}"  immediate="false" />
+        <apex:actionFunction name="doShipmentProcess" action="{!createPoShipment}" oncomplete="unblockUI();openEmailTemplateWindow();" rerender="emailtemplateInfo,pageMessages"  />
+        <style>
+            .modal {
+                background-color: #fff;
+                display: none;
+                width: 480px;
+                padding: 15px;
+                text-align: left;
+                font-size: 1em;
+                border: 2px solid #333;
+                opacity: 1.0;
+                -moz-border-radius: 6px;
+                -webkit-border-radius: 6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+                }
+                
+                .ac_results {
+                    z-index: 9999;
+                    background-color: #eee;
+                }
+                
+                #datePicker {
+                    z-index: 9999;
+                }
+        </style>
+        <script>    
+             function initOverlays() {
+                jQuery("button[rel]").overlay({
+                
+                    top: "10%",
+                
+                    // some mask tweaks suitable for modal dialogs
+                    mask: {
+                        color: '#ebecff',
+                        loadSpeed: 200,
+                        opacity: 0.8
+                    },
+                    
+                    fixed: false,
+                    
+                    closeOnClick: false
+                });
+                initHoverPopups(jQuery("table[id$=':pbt_splitSup']"), {manualLoad:false, displayUp:true});
+            }
+        </script>
+        
+        <div class="overlayStyle" id="splitSup">
+            <apex:pageBlock id="ovr_splitSup">
+                <apex:pageBlockSection id="pbs_splitSup" showHeader="true"
+                    title="{!$Label.rstk__splitsupplierrequisition}" collapsible="false" columns="1">
+                     <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!f_supreq.rstk__supreq_qtyreq__c.label}" />
+                            <apex:outputText id="qnty__c" value="{0,number,##0}">
+                                <apex:param value="{!supreq.rstk__supreq_qtyreq__c}" />
+                            </apex:outputText>
+                    &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!f_supreq.rstk__supreq_currpickupdate__c.label}" />
+                            <apex:outputText id="currpckdate__c" value="{0,date,short}">
+                                <apex:param value="{!supreq.rstk__supreq_currpickupdate__c}" />
+                            </apex:outputText>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem> 
+                </apex:pageBlockSection>
+ 
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockTable id="pbt_splitSup" value="{!splitsupdetails}"
+                        var="s">
+                        <apex:inputHidden id="lineno__c" value="{!s.lineno}" />
+                         <apex:inputHidden id="org_qtyreq__c" value="{!supreq.rstk__supreq_qtyreq__c}" /> 
+                         
+                        <apex:column headerValue="{!$Label.rstk__splitquantity}" style="width:100px;">
+                            <apex:inputField id="qtyreq__c"
+                                value="{!s.supreq.rstk__supreq_qtyreq__c}"
+                                onchange="verifyqty('{!s.lineno}', this.value);" />
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__pickupdate}" style="width:100px;">
+                            <c:inputDateNoLink >
+                                <apex:inputField id="pckdt__c" value="{!s.supreq.rstk__supreq_currpickupdate__c}" onchange="verifyDate(this.value,this.id);return false;" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}"/>
+                            </c:inputDateNoLink>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection> 
+            </apex:pageBlock>
+            <button type="button" onclick="return saveSplitSup();">{!$Label.Save}</button>
+            <button type="button" class="close"
+                onclick="splitRequisition_cancel()">{!$Label.so_pagebtn_Cancel}</button>
+        </div>
+        
+        <apex:pageblock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_poasn_createinboundshipment}" onclick="if(true){defaultShipmentDetails();jQuery.blockUI({message: jQuery('#shipmentDetails')});}" style="width:160px;" rendered="{!isView && !userVendor && o.rstk__poasn_status__c == 'Approved & In Process' && ISBLANK(o.rstk__poasn_poship__c)}" />
+                <apex:commandButton onclick="window.open('{!$Site.BaseUrl}/apex/{!pageDetails}?actionType=view&id={!o.id}');return false;" value="{!$Label.rstk__poasn_pagebtn_asnprint}" rendered="{!isView}"/>
+            </apex:pageBlockButtons>
+            
+             <apex:outputPanel style="display:none;">
+                <apex:inputHidden id="poasn_div__c" value="{!o.rstk__poasn_div__c}"/>
+                <apex:inputHidden id="shipId__c" value="{!shipId}"/>
+                <apex:inputHidden id="shipRoute__c" value="{!shipRoute}"/>
+                <apex:inputHidden id="containerType__c" value="{!containerType}"/>
+                <apex:inputHidden id="poasn_status__c" value="{!o.rstk__poasn_status__c}" rendered="{!OR(isView, !ISBLANK(o.rstk__poasn_poship__c))}"/>
+                <apex:inputHidden id="poasn_havedgn__c" value="{!o.rstk__poasn_havedgn__c}" rendered="{!!isView}"/>
+                <apex:inputHidden id="poasn_dgnrequired__c" value="{!o.rstk__poasn_dgnrequired__c}" rendered="{!!isView}"/>
+                <apex:inputHidden id="poasn_haveci__c" value="{!o.rstk__poasn_haveci__c}" rendered="{!!isView}"/>
+                <apex:inputHidden id="poasn_havepack__c" value="{!o.rstk__poasn_havepack__c}" rendered="{!!isView}"/>
+                
+             </apex:outputPanel>
+            
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!isNew}">
+                <!-- <apex:outputField value="{!o.rstk__poasn_div__c}"/>   -->
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poasn_div__c.label}" />
+                    <apex:outputField value="{!o.rstk__poasn_div__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_asnno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poasn_asnno__c.label}" />
+                    <apex:inputField id="poasn_asnno__c" styleclass="numericonly" value="{!o.rstk__poasn_asnno__c}" required="true" taborderhint="10" />
+                </apex:pageBlockSectionItem>
+                
+                
+                <apex:pageBlockSectionItem helptext="{!fp.rstk__poasnreq_expdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!fp.rstk__poasnreq_expdate__c.label}" />
+                    <c:inputDateNoLink >
+                        <apex:inputField id="poasnreq_expdate__c" value="{!poasnreq.rstk__poasnreq_expdate__c}" onchange="return false;" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}" taborderhint="14"/>
+                   </c:inputDateNoLink>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_povend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poasn_povend__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList id="poasn_povend__c" required="true" cntr="{!controller}" options="{!supplier}" tabIndex="110"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem> 
+                
+                <apex:inputField id="poasn_transittype__c"  value="{!o.rstk__poasn_transittype__c}" taborderhint="15"/>
+                
+                <apex:pageBlockSectionItem helptext="{!fp.rstk__poasnreq_supreq__c.inlineHelpText}">
+                    <apex:outputLabel value="{!fp.rstk__poasnreq_supreq__c.label}" />
+                    <c:LocalSelect id="poasnreq_supreq__c" value="{!poasnreq.rstk__poasnreq_supreq__c}" width="250px" loadingText=" " tabIndex="111"/>
+                </apex:pageBlockSectionItem>   
+              
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_pickupdate__c.inlineHelpText}">
+                   <apex:outputLabel value="{!f.rstk__poasn_pickupdate__c.label}" />
+                   <apex:outputPanel >
+                       <c:inputDateNoLink >
+                            <apex:inputField id="poasn_pickupdate__c" required="true" value="{!o.rstk__poasn_pickupdate__c}" onchange="return false;" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}" taborderhint="16"/>
+                       </c:inputDateNoLink>
+                   </apex:outputPanel>    
+                </apex:pageBlockSectionItem>
+              
+                <apex:pageBlockSectionItem helptext="{!fp.rstk__poasnreq_qtyship__c.inlineHelpText}">
+                    <apex:outputLabel value="{!fp.rstk__poasnreq_qtyship__c.label}" />
+                    <apex:inputField id="poasnreq_qtyship__c" required="true" value="{!poasnreq.rstk__poasnreq_qtyship__c}" taborderhint="12"/>
+                </apex:pageBlockSectionItem>
+              
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_poconctr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poasn_poconctr__c.label}" />
+                    <apex:selectList id="poasn_poconctr__c" value="{!o.rstk__poasn_poconctr__c}" size="1" style="width:250px;" tabIndex="170">
+                        <apex:selectOptions value="{!consolidationCenter}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+              
+                <apex:pageBlockSectionItem helptext="{!fp.rstk__poasnreq_lotnos__c.inlineHelpText}">
+                    <apex:outputLabel value="{!fp.rstk__poasnreq_lotnos__c.label}" />
+                    <apex:inputField id="poasnreq_lotnos__c" value="{!poasnreq.rstk__poasnreq_lotnos__c}" taborderhint="13"/>
+                </apex:pageBlockSectionItem>    
+              
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_conctrdate__c.inlineHelpText}" >
+                   <apex:outputLabel value="{!f.rstk__poasn_conctrdate__c.label}" />
+                   <apex:outputPanel >
+                       <c:inputDateNoLink >
+                            <apex:inputField id="poasn_conctrdate__c" value="{!o.rstk__poasn_conctrdate__c}" onchange="return false;" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}" taborderhint="18"/>
+                       </c:inputDateNoLink>
+                   </apex:outputPanel>    
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>  
+            
+                    
+            <apex:pageBlockSection id="pbs_main_Edit" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!OR(isEdit,isView)}">
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poasn_div__c.label}" />
+                    <apex:outputField value="{!o.rstk__poasn_div__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_lotwarning__c.inlineHelpText}" rendered="{!isView}">
+                    <apex:outputLabel value="{!f.rstk__poasn_lotwarning__c.label}" />
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__poasn_lotwarning__c}"/>
+                        <apex:outputText style="color:Red" value="WARNING: Lot Expiration Date is less than the recommended Intel shelf life." rendered="{!o.rstk__poasn_lotwarning__c}"/>    
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!isEdit}" />
+                
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_asnno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poasn_asnno__c.label}" />
+                    <apex:outputText value="{!o.rstk__poasn_asnno__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_allreceived__c.inlineHelpText}" rendered="{!isView}">
+                    <apex:outputLabel value="{!f.rstk__poasn_allreceived__c.label}" />
+                    <apex:outputField value="{!o.rstk__poasn_allreceived__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!isEdit}" />
+                
+                <apex:selectList id="poasn_status__c" value="{!o.rstk__poasn_status__c}" rendered="{!!OR(isView, !ISBLANK(o.rstk__poasn_poship__c))}" size="1" style="width:250px;" tabIndex="100">
+                    <apex:selectOptions value="{!statuses}" />
+                </apex:selectList> 
+                <apex:outputField value="{!o.rstk__poasn_status__c}" rendered="{!OR(isView, !ISBLANK(o.rstk__poasn_poship__c))}" />
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_conctrdate__c.inlineHelpText}"  rendered="{!isEdit}">
+                   <apex:outputLabel value="{!f.rstk__poasn_conctrdate__c.label}" />
+                   <apex:outputPanel >
+                       <c:inputDateNoLink >
+                            <apex:inputField id="poasn_conctrdate__c" value="{!o.rstk__poasn_conctrdate__c}" onchange="return false;" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}" taborderhint="40"/>
+                       </c:inputDateNoLink>
+                   </apex:outputPanel>    
+                </apex:pageBlockSectionItem> 
+                <apex:outputField value="{!o.rstk__poasn_conctrdate__c}" rendered="{!isView}"/>
+                
+               <apex:outputField value="{!o.rstk__poasn_povend__c}" />
+                   
+               <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_carrier__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poasn_carrier__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="poasn_carrier__c" value="{!o.rstk__poasn_carrier__c}" size="1" style="width:250px;" tabIndex="410" rendered="{!isEdit}">
+                            <apex:selectOptions value="{!carrierCode}" />
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__poasn_carrier__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+               </apex:pageBlockSectionItem>
+               
+                   
+               <apex:inputField id="poasn_transittype__c"  value="{!o.rstk__poasn_transittype__c}" rendered="{!isEdit}" taborderhint="20"/>
+               <apex:outputField value="{!o.rstk__poasn_transittype__c}" rendered="{!isView}" />
+               
+               <apex:inputField id="poasn_trackingno__c" value="{!o.rstk__poasn_trackingno__c}" rendered="{!isEdit}" taborderhint="50"/>
+               <apex:outputField value="{!o.rstk__poasn_trackingno__c}" rendered="{!isView}"/>
+               
+               <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_pickupdate__c.inlineHelpText}"  rendered="{!isEdit}">
+                   <apex:outputLabel value="{!f.rstk__poasn_pickupdate__c.label}" />
+                   <apex:outputPanel >
+                       <c:inputDateNoLink >
+                            <apex:inputField id="poasn_pickupdate__c" required="true" value="{!o.rstk__poasn_pickupdate__c}" onchange="return false;" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}" taborderhint="30"/>
+                       </c:inputDateNoLink>
+                   </apex:outputPanel>    
+                </apex:pageBlockSectionItem>
+               <apex:outputField value="{!o.rstk__poasn_pickupdate__c}" rendered="{!isView}"/>
+                
+               <apex:outputField value="{!o.rstk__poasn_poship__c}" rendered="{!AND(isView, !UserVendor)}"/>
+               <apex:pageBlockSectionItem rendered="{!!AND(isView, !UserVendor)}"/>
+               
+               <apex:outputField value="{!o.rstk__poasn_poconctr__c}" rendered="{!isView}"/> 
+               <apex:pageBlockSectionItem helptext="{!f.rstk__poasn_poconctr__c.inlineHelpText}" rendered="{!isEdit}">
+                    <apex:outputLabel value="{!f.rstk__poasn_poconctr__c.label}" />
+                    <apex:selectList id="poasn_poconctr__c" value="{!o.rstk__poasn_poconctr__c}" size="1" style="width:250px;" tabIndex="310">
+                        <apex:selectOptions value="{!consolidationCenter}" />
+                    </apex:selectList>
+               </apex:pageBlockSectionItem>
+               
+               <apex:inputField id="poasn_alllines__c"  value="{!o.rstk__poasn_alllines__c}" rendered="{!!isView}" taborderhint="51"/>
+               <apex:outputField value="{!o.rstk__poasn_alllines__c}" rendered="{!isView}"/>  
+               
+               <apex:inputField id="poasn_rejectreason__c"  value="{!o.rstk__poasn_rejectreason__c}" rendered="{!AND(isEdit,!UserVendor)}" taborderhint="32"/>
+               <apex:outputField value="{!o.rstk__poasn_rejectreason__c}" rendered="{!OR(isView,AND(isEdit,UserVendor))}" />
+               
+               <apex:inputField id="poasn_departedforcon__c"  value="{!o.rstk__poasn_departedforcon__c}" rendered="{!!isView}" taborderhint="52"/>
+               <apex:outputField value="{!o.rstk__poasn_departedforcon__c}" rendered="{!isView}"/>
+               
+               <apex:pageBlockSectionItem />
+               
+               <apex:inputField id="poasn_arrivedconsol__c"  value="{!o.rstk__poasn_arrivedconsol__c}" rendered="{!!isView}" taborderhint="53"/>
+               <apex:outputField value="{!o.rstk__poasn_arrivedconsol__c}" rendered="{!isView}"/>
+            </apex:pageBlockSection> 
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_AsnRequisition" id="theTabPanel" >
+                <apex:tab label="{!$Label.rstk__pagetab_poasn_asnrequisition}" name="tab_Sites" rendered="{!!isNew}">
+                
+                    <c:EditableGrid width="1150" jsController="poasnreq" data="{!poasnreqGrid}" editable="true" ispopup="false" disableSave="{!OR(o.poasn_status__c == 'Submitted',o.poasn_status__c == 'Approved & In Process') }" disableAdd="{!OR(o.rstk__poasn_status__c == 'Submitted',o.rstk__poasn_status__c == 'Approved & In Process')}"/>
+                    <script>
+                        poasnreq.onGridLoad = function() {
+                            self = this;
+                            if (poasnreq.rowIds.length )
+                              this.getRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                poasnreq.getRowObj(row, 'poasnreq_expdate__c')[0].nextSibling.style.display= 'none';
+                                var rowId = self.getRowValue(row, 'Id');
+                                if (isEmpty(rowId)) rowId = poasnreq.rowIds[index];
+                                 if (!isEmpty(rowId)) {
+                                 	self.getRowObj(row, 'poasnreq_supreq__c').attr('disabled', true);
+                                    if(recStatus == Enums.StaticList.PoasnStatus.Approved_In_Process || recStatus == Enums.StaticList.PoasnStatus.Submitted || poasnreq.getRowObj(row, 'poasnreq_havedgn__c')[0].value == 'true'){
+                                        if(poasnreq.getRowObj(row, 'poasnreq_havedgn__c')[0].value == 'true'){
+                                            self.getRowObj(row, 'dgn__g').html((isEdit ? '' : '<button type="button" class="btn" disabled="true" onclick="reqUploadDGN(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="havedgn" name="havedgn" value="havedgn"  disabled="true" checked>');
+                                        }else{
+                                            self.getRowObj(row, 'dgn__g').html((isEdit ? '' : '<button type="button" class="btn" disabled="true" onclick="reqUploadDGN(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="havedgn" name="havedgn" value="havedgn"  disabled="true">');
+                                        }
+                                    }else{
+                                        self.getRowObj(row, 'dgn__g').html((isEdit ? '' : '<button type="button" class="btn" onclick="reqUploadDGN(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" name="havedgn" value="havedgn" disabled="true">');
+                                    }
+                                    
+                                    if(recStatus == Enums.StaticList.PoasnStatus.Approved_In_Process || recStatus == Enums.StaticList.PoasnStatus.Submitted || poasnreq.getRowObj(row, 'poasnreq_haveci__c')[0].value == 'true'){
+                                        if(poasnreq.getRowObj(row, 'poasnreq_haveci__c')[0].value == 'true'){
+                                            self.getRowObj(row, 'comInvoice__g').html((isEdit ? '' : '<button type="button" class="btn" disabled="true" onclick="reqUploadCMINV(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="haveci" name="haveci" value="haveci"  disabled="true" checked>');
+                                        }else{
+                                            self.getRowObj(row, 'comInvoice__g').html((isEdit ? '' : '<button type="button" class="btn" disabled="true" onclick="reqUploadCMINV(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="haveci" name="haveci" value="haveci"  disabled="true">');
+                                        }
+                                    }else{
+                                        self.getRowObj(row, 'comInvoice__g').html((isEdit ? '' : '<button type="button" class="btn" onclick="reqUploadCMINV(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="haveci" name="haveci" value="haveci"  disabled="true">');
+                                    }
+                                    
+                                    if(recStatus == Enums.StaticList.PoasnStatus.Approved_In_Process || recStatus == Enums.StaticList.PoasnStatus.Submitted || poasnreq.getRowObj(row, 'poasnreq_havepack__c')[0].value == 'true'){
+                                        if(poasnreq.getRowObj(row, 'poasnreq_havepack__c')[0].value == 'true'){
+                                            self.getRowObj(row, 'pkSlip__g').html((isEdit ? '' : '<button type="button" class="btn" disabled="true" onclick="reqUploadPKS(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="havepack" name="havepack" value="havepack"  disabled="true" checked>');
+                                        }else{
+                                            self.getRowObj(row, 'pkSlip__g').html((isEdit ? '' : '<button type="button" class="btn" disabled="true" onclick="reqUploadPKS(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="havepack" name="havepack" value="havepack"  disabled="true">');
+                                        }
+                                    }else{
+                                        self.getRowObj(row, 'pkSlip__g').html((isEdit ? '' : '<button type="button" class="btn" onclick="reqUploadPKS(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="havepack" name="havepack" value="havepack"  disabled="true">');
+                                    }
+                                    
+                                    
+                                    if(poasnreq.getRowObj(row, 'poasnreq_haveswb__c')[0].value == 'true'){
+                                        self.getRowObj(row, 'swbAttachedByTmm__g').html((isEdit ? '' : '<button type="button" class="btn" disabled="true" onclick="reqUploadSWB(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="haveswb" name="haveswb" value="haveswb"  disabled="true" checked>');
+                                    }else{
+                                        if(isVendorExist){
+                                        	self.getRowObj(row, 'swbAttachedByTmm__g').html((isEdit ? '' : '<button type="button" class="btn" disabled="true" onclick="reqUploadSWB(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="haveswb" name="haveswb" value="haveswb"  disabled="true">');
+                                        }else{
+                                        	self.getRowObj(row, 'swbAttachedByTmm__g').html((isEdit ? '' : '<button type="button" class="btn" onclick="reqUploadSWB(\'' + rowId + '\');">Upload</button>') + '<input type="checkbox" id="haveswb" name="haveswb" value="haveswb"  disabled="true">');
+                                        }
+                                    }
+                                    
+                                    var shipqnty = poasnreq.getRowObj(row, 'poasnreq_qtyship__c')[0].value ;
+                                    if(shipqnty)
+                                        poasnreq.getRowObj(row, 'poasnreq_qtyship__c')[0].value = toNumber(shipqnty).toFixed(0);
+                                        
+                                    if (!isEdit) {
+                                        var poasnreqs = execQuery("select poasnreq_supreq__c,poasnreq_poasn__r.poasn_status__c,poasnreq_supreq__r.supreq_accepted__c, poasnreq_supreq__r.supreq_qtyship__c, poasnreq_supreq__r.supreq_icitem__r.icitem_item__r.peitem_tracklot_pl__c from poasnreq__c where id = '" + rowId + "'");
+                                        if(poasnreqs.length > 0){
+                                            if(toNumber(poasnreqs[0].poasnreq_supreq__r.supreq_qtyship__c) == 0 && (poasnreqs[0].poasnreq_poasn__r.poasn_status__c == Enums.StaticList.PoasnStatus.New || poasnreqs[0].poasnreq_poasn__r.poasn_status__c == Enums.StaticList.PoasnStatus.Rejected )){
+                                                self.getRowObj(row, 'split__g').html('<button name="SplitReqBtn" type="button" onclick="splitSupplierBtn(\'' + poasnreqs[0].poasnreq_supreq__c + '\');return false;" class="modalbtn" rel="#splitSup" style="width: 100px;" >Split Req</button>');
+                                            }
+                                            var isLot =  (poasnreqs[0].poasnreq_supreq__r.supreq_icitem__r.icitem_item__r.peitem_tracklot_pl__c == Enums.StaticList.YesNo.Yes);
+                                            self.getRowObj(row, 'poasnreq_lotnos__c').attr('disabled', !isLot);
+                                            self.getRowObj(row, 'poasnreq_expdate__c').attr('disabled', !isLot);
+                                            if (!isLot) {
+                                                poasnreq.getRowObj(row, 'poasnreq_lotnos__c')[0].value = '';
+                                                poasnreq.getRowObj(row, 'poasnreq_expdate__c')[0].value = '';
+                                            }
+                                        }
+                                    }
+                                    if(recStatus == Enums.StaticList.PoasnStatus.Approved_In_Process || recStatus == Enums.StaticList.PoasnStatus.Submitted){
+                                        self.getRowObj(row, 'poasnreq_lotnos__c').attr('disabled', true);
+                                        self.getRowObj(row, 'poasnreq_expdate__c').attr('disabled', true);
+                                        self.getRowObj(row, 'poasnreq_qtyship__c').attr('disabled', true);
+                                    }
+                                }
+                            });
+                             
+                            initOverlays();
+                        }
+                        
+                        poasnreq.onSaved = function() {
+                            window.location.replace(window.location);
+                        }
+                        
+                        
+                        poasnreq.deleteSelectedRows = function() {
+                            self = this;
+                            var isvalid = true;
+                            var row ;
+                            this.getVisibleRows().each(function (index, el) {
+                                 row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                                var poasnreqs = execQuery("select poasnreq_poasn__r.poasn_status__c from poasnreq__c where id = '" + rowId + "'");
+                                if(poasnreqs.length > 0){
+                                        if(poasnreqs[0].poasnreq_poasn__r.poasn_status__c !=Enums.StaticList.PoasnStatus.New  &&  poasnreqs[0].poasnreq_poasn__r.poasn_status__c != Enums.StaticList.PoasnStatus.Rejected ){
+                                            alert("{!$Label.UserCantAddOrDelAnyRec_OtherRecsNotModifAsAdvShipmNotifSubm_Approved_InProcess}");
+                                            isvalid = false;
+                                            return false;
+                                        }
+                                    }
+                                return;     
+                            });
+                            if(isvalid){
+                                poasnreqHandler.prototype.deleteSelectedRows.call(self, row);
+                            }
+                            return isvalid;
+                        } 
+                        
+                        poasnreq.resetRow = function(row) {
+                            self = this;
+                            poasnreqHandler.prototype.resetRow.call(self, row);
+                        }
+                        
+                        poasnreq.addRow = function(rowCallback) {
+                            self = this;
+                            poasnreqHandler.prototype.addRow.call(self, rowCallback);
+                                                         
+                            this.getVisibleRows().each(function (index, el) {
+                               var row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                                if(rowId =='' && poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].value == ''){
+                                poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].length = 0;
+                                poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].options[0] = new Option("--None--", "");
+                                
+                                var supreq = execQuery("select Id, Name,(Select Id from poasnreqs__r) from supreq__c where supreq_povend__c = '" + supplierDetails + "' and supreq_accepted__c = true and supreq_div__c = '" + divDetails + "'",true);
+                                    for(i=0; i<supreq.length; i++) {
+                                        if(!supreq[i].poasnreqs__r){
+                                            poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].options[poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].length] = new Option( supreq[i].Name,supreq[i].Id, false, false);
+                                        }
+                                    }
+                                self.getRowObj(row, 'poasnreq_lotnos__c').attr('disabled', true);
+                                self.getRowObj(row, 'poasnreq_expdate__c').attr('disabled', true);
+                                }
+                            });
+                        }
+                        
+                        poasnreq.entryChanged = function(row, rowNum, name, value) {
+                        
+                            if (name == 'poasnreq_supreq__c') {
+                                var supreqId = poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].value;
+                                if(supreqId){
+                                    var i = 0;
+                                    poasnreq.getVisibleRows().each(function (index, el) {
+                                        var row = jQuery(this);
+                                        var suId= poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].value;
+                                        if(suId == supreqId){
+                                            i += 1;
+                                        }
+                                    });
+                                    self.getRowObj(row, 'poasnreq_expdate__c').attr('disabled', false);
+                                    if(i > 1){
+                                        alert("{!$Label.RequisitionAlreadySelected}");
+                                        poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].value = '';
+                                    }else{
+                                        var supreq = execQuery("select supreq_qtyreq__c,supreq_icitem__r.icitem_item__r.peitem_tracklot_pl__c from supreq__c where id = '" + supreqId + "'");
+                                        if(supreq.length > 0){
+                                            poasnreq.getRowObj(row, 'poasnreq_qtyship__c')[0].value = supreq[0].supreq_qtyreq__c;
+                                            var isLot =  (supreq[0].supreq_icitem__r.icitem_item__r.peitem_tracklot_pl__c == Enums.StaticList.YesNo.Yes);
+                                            self.getRowObj(row, 'poasnreq_lotnos__c').attr('disabled', !isLot);
+                                            self.getRowObj(row, 'poasnreq_expdate__c').attr('disabled', !isLot);
+                                            if (!isLot) {
+                                                poasnreq.getRowObj(row, 'poasnreq_lotnos__c')[0].value = '';
+                                                poasnreq.getRowObj(row, 'poasnreq_expdate__c')[0].value = '';
+                                            }
+                                        }
+                                    }
+                                }else{
+                                    poasnreq.getRowObj(row, 'poasnreq_qtyship__c')[0].value = '';
+                                    poasnreq.getRowObj(row, 'poasnreq_expdate__c')[0].value = '';
+                                    self.getRowObj(row, 'poasnreq_expdate__c').attr('disabled', true);
+                                }
+                            }
+                            
+                            if (name == 'poasnreq_expdate__c') {
+                                var expirationDate = poasnreq.getRowObj(row, 'poasnreq_expdate__c')[0];
+                                if(expirationDate.value){
+                                    var supreqId = poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0].value;
+                                    var supreq = execQuery("select supreq_supitem__r.supitem_ishelflife__c from supreq__c where id = '" + supreqId + "'");
+                                    if( supreq.length > 0 && supreq[0].supreq_supitem__r.supitem_ishelflife__c >= 0){
+                                        verifyLotExpirationDate(expirationDate.value,supreq[0].supreq_supitem__r.supitem_ishelflife__c);
+                                    }
+                                }
+                            }
+                        }
+                      
+                        poasnreq.validate = function() {
+                            self = this;
+                            var isvalid = true;
+                           this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                                var lot = poasnreq.getRowObj(row, 'poasnreq_lotnos__c')[0];
+                                var expirationDate = poasnreq.getRowObj(row, 'poasnreq_expdate__c')[0];
+                                var shipQty = poasnreq.getRowObj(row, 'poasnreq_qtyship__c')[0];
+                                var supreqID ;
+                                var supreq ;
+                                var supreqShipQty;
+                                var isLot ;
+                                if(rowId){
+                                    var poasnreqs = execQuery("select poasnreq_poasn__r.poasn_status__c,poasnreq_expdate__c,poasnreq_qtyship__c,poasnreq_lotnos__c,poasnreq_supreq__c,poasnreq_supreq__r.supreq_qtyreq__c,poasnreq_supreq__r.supreq_icitem__r.icitem_item__r.peitem_tracklot_pl__c from poasnreq__c where id = '" + rowId + "'");
+                                    if(poasnreqs.length > 0){
+                                        if(poasnreqs[0].poasnreq_poasn__r.poasn_status__c !=Enums.StaticList.PoasnStatus.New  &&  poasnreqs[0].poasnreq_poasn__r.poasn_status__c != Enums.StaticList.PoasnStatus.Rejected ){
+                                            alert("{!$Label.UserCantAddOrDelAnyRec_OtherRecsNotModifAsAdvShipmNotifSubm_Approved_InProcess}");
+                                            isvalid = false;
+                                            return false;
+                                        }
+                                        supreqID = poasnreqs[0].poasnreq_supreq__c;
+                                        isLot = poasnreqs[0].poasnreq_supreq__r.supreq_icitem__r.icitem_item__r.peitem_tracklot_pl__c;
+                                        supreqShipQty = poasnreqs[0].poasnreq_supreq__r.supreq_qtyreq__c;
+                                    }
+                                }else{
+                                    supreq = poasnreq.getRowObj(row, 'poasnreq_supreq__c')[0];
+                                    supreqID = supreq.value;
+                                    var supreqObjs = execQuery("select supreq_qtyreq__c,supreq_icitem__r.icitem_item__r.peitem_tracklot_pl__c from supreq__c where id = '" + supreqID + "'");
+                                    if(supreqObjs.length > 0){
+                                        isLot = supreqObjs[0].supreq_icitem__r.icitem_item__r.peitem_tracklot_pl__c;
+                                        supreqShipQty = toNumber(supreqObjs[0].supreq_qtyreq__c);
+                                    }
+                                }
+                                if(!supreqID) {
+                                    alert("{!$Label.RequisitionCantBeBlank}");
+                                    isvalid = false;
+                                    return false;
+                                }
+                                if(!shipQty.value){
+                                    alert("{!$Label.ShipmentQtyCantBeBlank}");
+                                    shipQty.focus();
+                                    isvalid = false;
+                                    return false;
+                                }else if(toNumber(shipQty.value) < toNumber(supreqShipQty)){
+                                    alert("{!$Label.ShipmentQtyCantBeLTSupplierRequistionQty}");
+                                    shipQty.focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                if(isLot =='Yes' && (!lot.value || !expirationDate.value) ) {
+                                    if(!lot.value){
+                                        alert("{!$Label.LotNumCantBeBlank}");
+                                        lot.focus();
+                                        isvalid = false;
+                                        return false;
+                                    }
+                                    if(!expirationDate.value){
+                                        alert("{!$Label.LogExpirationDateCantBeBlank}");
+                                        expirationDate.focus();
+                                        isvalid = false;
+                                        return false;
+                                    }
+                                } 
+                            }); 
+                            return isvalid;
+                        }
+                    </script>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__info}" name="tab_Info" id="tab_Info" rendered="{!!isNew}">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        
+        </apex:pageblock>
+        <script>
+            setSelectListRequired("poasnreq_supreq__c");
+        </script>    
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+        <c:Popup popupId="notesAttach" title="{!$Label.rstk__pagepopup_poasn_notesandattachments}" cancelCaption="Close">
+            <iframe id="NotesAndAttachments" height="320px" width="100%" frameborder="0" src="about:blank"></iframe>
+        </c:Popup>  
+    </apex:form>
+<c:footerInclude cntr="{!controller}" />
+
+<div id="shipmentDetails" style="display:none">
+    <h2>{!$Label.poasn_InboundShipmentDetails}</h2>
+    <hr></hr>
+    <div>
+        <p style="text-align:left;margin-left:10px;"><b><label>Shipment ID :</label></b><input type="text" id="shipID" /></p>
+        <p style="text-align:left;margin-left:10px;"><b><label>Source Shipment Route :</label><select id="shipRoute" style="width:200px"><option value="None">--None--</option></select></b></p>
+        <p style="text-align:left;margin-left:10px;"><b><label>Container Type :</label><select id="containerType" style="width:200px"><option value="None">--None--</option></select></b></p>
+        <p style="text-align:left;margin-left:10px;"><b><input type="checkbox" id="tempCheck" /><label>Temperature Controlled Materials</label></b></p>
+        <p style="text-align:left;margin-left:10px;"><b><label>Minimum Temperature Value :</label><input type="text" id="minValue" /></b></p>
+        <p style="text-align:left;margin-left:10px;"><b><label>Maximum Temperature Value :</label><input type="text" id="maxValue" /></b></p>
+        <p style="text-align:left;margin-left:10px;"><b><label>Suggested Container Temperature :</label><input type="text" id="suggTemp" /></b></p>
+    </div>
+    <p><input id="setbutton" type="button" value="{!$Label.poasn_pagebtn_CreateIBS}" onclick="processShipDetails();"/><input type="button" value="{!$Label.pagebtn_Cancel}" onclick="unblockUI();"/></p>
+</div>
+
+<script>
+    var LABEL_AdvShipmNotifStatusCantBeSubmited_ReqdDocsNotAttached = "{!$Label.AdvShipmNotifStatusCantBeSubmited_ReqdDocsNotAttached}";
+    var LABEL_CosolidationCenterReqd = "{!$Label.CosolidationCenterReqd}";
+    var LABEL_ContainerTypeReqd = "{!$Label.ContainerTypeReqd}";
+    var LABEL_ETAatConsolidationReqd = "{!$Label.ETAatConsolidationReqd}";
+    var LABEL_InvalidVal = "{!$Label.InvalidVal}";
+    var LABEL_LotExpirationDateReqd = "{!$Label.LotExpirationDateReqd}";
+    var LABEL_LotNumReqd = "{!$Label.LotNumReqd}";
+    var LABEL_PickupDateReqdAndMustBeGrtrOrEqualToToday = "{!$Label.PickupDateReqdAndMustBeGrtrOrEqualToToday}";
+    var LABEL_ProvidePickupDateALine = "{!$Label.ProvidePickupDateALine}";
+    var LABEL_RequisitionReqd = "{!$Label.RequisitionReqd}";
+    var LABEL_ShipmentIdReqd = "{!$Label.ShipmentIdReqd}";
+    var LABEL_ShipmentQtyShouldBeEqualOrGrtrThanSupplierRequisitionQty = "{!$Label.ShipmentQtyShouldBeEqualOrGrtrThanSupplierRequisitionQty}";
+    var LABEL_SourceShipmentRouteReqd = "{!$Label.SourceShipmentRouteReqd}";
+    var LABEL_SplitQtyMustBeGrtrThan0 = "{!$Label.SplitQtyMustBeGrtrThan0}";
+    var LABEL_FirstRowMustRetainAtleastEntireShippedQty = "{!$Label.FirstRowMustRetainAtleastEntireShippedQty}";
+    var LABEL_PickupDateCantSameAsOtherPickupDate = "{!$Label.PickupDateCantSameAsOtherPickupDate}";
+    var LABEL_SplitQtyCantBeGrtrThanTotQty = "{!$Label.SplitQtyCantBeGrtrThanTotQty}";
+    var LABEL_SplitQtyMustEqualOrgRequisitionQty = "{!$Label.SplitQtyMustEqualOrgRequisitionQty}";
+    var LABEL_TotSplitQtyMustEqualTotQty = "{!$Label.TotSplitQtyMustEqualTotQty}";
+</script>
+<apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

@@ -1,0 +1,662 @@
+<apex:page id="pg" standardController="rstk__pjprojwbs__c" extensions="rstk.ControllerExtnPjprojwbs,rstk.RemoteQueryController" sidebar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__pjprojwbs__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__pjprojwbs__c.fields}" />
+    <apex:variable var="f_prj" value="{!$ObjectType.rstk__pjprojwbscst__c.fields}" />
+    <apex:variable var="o_proj" value="{!pjproj}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_pjprojwbs}" customInclude="{!$Resource.rstk__pjprojwbs_cli}"/>
+    <c:jquery_client_labels />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__messageformat}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_autocomplete}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__autocomplete, 'autocomplete/css/jquery.autocomplete.css')}" /> 
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" />
+        <apex:actionFunction name="doView" action="{!view}" immediate="true" />
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true" />
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true" />
+        <apex:actionFunction name="doSave" action="{!save}" />
+
+        <script>
+          function updateDetails() {
+            showTopDialog('pleaseWaitPopup');
+            rerenderDetails();
+          }
+        </script>
+ 
+        <c:Popup popupId="mtldtlpopup" title="{!$Label.rstk__pagepopup_pjprojwbs_materialsdetails}" onOk="{!IF(mtldtlpopupEnabled,'mtldtl_saveAndClose();', '')}" buttonsOnTop="true">
+            <c:FrameGrid jsController="mtldtl" page="/apex/PjprojwbsPopups" rootId="{!Id}" onload="mtldtlLoaded()"/>
+        </c:Popup>
+        
+        <c:Popup popupId="labdtlpopup" title="{!$Label.rstk__pagepopup_pjprojwbs_labordetails}" onOk="{!IF(labdtlpopupEnabled,'labdtl_saveAndClose();','')}" buttonsOnTop="true">
+            <c:FrameGrid jsController="labdtl" page="/apex/PjprojwbsPopups" rootId="{!Id}" onload="labdtlLoaded()"/>
+        </c:Popup>
+
+        <c:Popup popupId="odcdtlpopup" title="{!$Label.rstk__pagepopup_pjprojwbs_odcdetails}" onOk="{!IF(odcdtlpopupEnabled,'odcdtl_saveAndClose();','')}" buttonsOnTop="true">
+            <c:FrameGrid jsController="odcdtl" page="/apex/PjprojwbsPopups" rootId="{!Id}" onload="odcdtlLoaded()"/>
+        </c:Popup>
+        
+         <script>
+            var jobact = '{!o_proj.rstk__pjproj_jobcodeact__c}' == 'true' ? true : false;
+            var wbsact = '{!o_proj.rstk__pjproj_wbsact__c}' == 'true' ? true : false;
+            
+            /*************** Material Details *****************/
+            // Initial
+            function onMTLClicked() 
+            {
+              if (mtldtl != null) {
+                mtldtl.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    mtldtl.getRowObj(row, 'pjwbsmtl_total__c').attr('disabled', true);
+                    mtldtl.getRowObj(row, 'pjwbsmtl_totalmohd__c').attr('disabled', true);
+                    if (!jobact && !wbsact) {
+                        mtldtl.getRowObj(row, 'pjwbsmtl_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                    }
+                    var qtyval = parseLocaleFloat(mtldtl.getRowValue(row, 'pjwbsmtl_qtyreq__c'));
+                    var cstval = parseLocaleFloat(mtldtl.getRowValue(row, 'pjwbsmtl_unitcost__c'));
+                    var rteval = parseLocaleFloat(mtldtl.getRowValue(row, 'pjwbsmtl_ohdmtlrate__c'));
+                    mtldtl.setRowValue(row, "pjwbsmtl_qtyreq__c", formatLocaleFloat(qtyval, 2));
+                    mtldtl.setRowValue(row, "pjwbsmtl_unitcost__c", formatLocaleFloat(cstval, 2));
+                    mtldtl.setRowValue(row, "pjwbsmtl_ohdmtlrate__c", formatLocaleFloat(rteval, 2));
+                    mtldtl.setRowValue(row, "pjwbsmtl_total__c", formatLocaleFloat((qtyval * cstval), 2));
+                    mtldtl.setRowValue(row, "pjwbsmtl_totalmohd__c", formatLocaleFloat((qtyval * cstval * rteval / 100), 2));
+                });
+              }
+            }
+            
+        function mtldtlLoaded() {
+            if (mtldtl == null) {
+              // It's a related list rather thasn an editable dialog
+              return;
+            }
+            mtldtl.validate = function() {
+                var self = this;
+                var valid = true;
+                var sumdetmtl = 0;
+                var sumdetohdmtl = 0;
+                self.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    if (isEmpty(self.getRowValue(row, 'pjwbsmtl_pjprojwbs__c')) && (jobact || wbsact)) {
+                        alert("{!$Label.rstk__please_enter_a_value_for_required_field_project_charge_code}");
+                        valid = false;
+                    }
+                    var qtyval = parseLocaleFloat(self.getRowValue(row, 'pjwbsmtl_qtyreq__c'));
+                    var cstval = parseLocaleFloat(self.getRowValue(row, 'pjwbsmtl_unitcost__c'));
+                    var rteval = parseLocaleFloat(self.getRowValue(row, 'pjwbsmtl_ohdmtlrate__c'));
+                    if (valid) valid = verifyG0Value(qtyval, 'Quantity');
+                    if (valid) valid = verifyValue(cstval, 'Unit Cost');
+                    if (valid) valid = verifyValue(rteval, 'Material Overhead Rate');
+                    if(valid) {
+                        sumdetmtl += (Number(qtyval) * Number(cstval));
+                        sumdetohdmtl += (Number(qtyval) * Number(rteval) / 100);
+                    }
+                    self.getRowValue(row, 'pjwbsmtl_icitem__c');
+                });
+                return valid;
+            }
+        
+            mtldtl.resetRow = function(row) { 
+                self=this;
+                mtldtlHandler.prototype.resetRow.call(self, row);
+                var rowind = -1;
+                self.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    self.getRowObj(row, 'pjwbsmtl_total__c').attr('disabled', true);
+                    self.getRowObj(row, 'pjwbsmtl_totalmohd__c').attr('disabled', true);
+                    if (!jobact && !wbsact) {
+                        self.getRowObj(row, 'pjwbsmtl_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                    }
+                    rowind = index;
+                });
+                self.getRowObj(row, 'pjwbsmtl_total__c').attr('disabled', true);
+                self.getRowObj(row, 'pjwbsmtl_totalmohd__c').attr('disabled', true);
+                if (!jobact && !wbsact) {
+                    self.getRowObj(row, 'pjwbsmtl_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                }
+            };
+         
+            mtldtl.entryChanged = function(row, rowNum, name, value) {
+                self = this;
+                if (name == 'pjwbsmtl_icitem__c') {
+                    if ('{!divCosttype}' == Enums.StaticList.CostType.StandardCost) {
+                        var stdInfo = execQuery("select icitemstd_stducsttot__c from icitemstd__c where icitemstd_item__c = '" + value + "'");
+                        if (stdInfo.length > 0) {
+                            self.setRowValue(row, "pjwbsmtl_unitcost__c", formatLocaleFloat(stdInfo[0].icitemstd_stducsttot__c, 2));
+                        }
+                    } else {
+                        var cstInfo = execQuery("select icitemcst_lstactucsttot__c from icitemcst__c where icitemcst_item__c = '" + value + "'");
+                        if (cstInfo.length > 0) {
+                            self.setRowValue(row, "pjwbsmtl_unitcost__c", formatLocaleFloat(cstInfo[0].icitemcst_lstactucsttot__c, 2));
+                        }
+                    }
+                    var icitemInfo = execQuery("select icitem_ohdmtlrate__c, icitem_ohdmtlrateind__c, icitem_iccomcod__r.iccomcod_ohdmtlrate__c from icitem__c where Id = '" + value + "'");
+                    if (icitemInfo.length > 0) {
+                        if (icitemInfo[0].icitem_ohdmtlrateind__c == 'true') {
+                            self.setRowValue(row, "pjwbsmtl_ohdmtlrate__c", formatLocaleFloat(icitemInfo[0].icitem_iccomcod__r.iccomcod_ohdmtlrate__c, 2));
+                        } else {
+                            self.setRowValue(row, "pjwbsmtl_ohdmtlrate__c", formatLocaleFloat(icitemInfo[0].icitem_ohdmtlrate__c, 2));
+                        }
+                    }
+                    var qtyval = parseLocaleFloat(self.getRowValue(row, "pjwbsmtl_qtyreq__c"));
+                    var cstval = parseLocaleFloat(self.getRowValue(row, "pjwbsmtl_unitcost__c"));
+                    var rteval = parseLocaleFloat(self.getRowValue(row, 'pjwbsmtl_ohdmtlrate__c'));
+                    var mtltotal = qtyval * cstval;
+                    var mohdtotal = qtyval * cstval * rteval / 100;
+                    self.setRowValue(row, "pjwbsmtl_total__c", formatLocaleFloat(mtltotal, 2));
+                    self.setRowValue(row, "pjwbsmtl_totalmohd__c", formatLocaleFloat(mohdtotal, 2));
+                }
+                if (name == 'pjwbsmtl_qtyreq__c') {
+                    if (!verifyG0Value(value, 'Quantity')) return;
+                }
+                if (name == 'pjwbsmtl_unitcost__c') {
+                    if (!verifyValue(value, 'Unit Cost')) return;
+                }
+                if (name == 'pjwbsmtl_ohdmtlrate__c') {
+                    if (!verifyPctValue(value, 'Material Overhead Rate')) return;
+                }
+                self=this;
+                var qtyval = parseLocaleFloat(self.getRowValue(row, "pjwbsmtl_qtyreq__c"));
+                var cstval = parseLocaleFloat(self.getRowValue(row, "pjwbsmtl_unitcost__c"));
+                var rteval = parseLocaleFloat(self.getRowValue(row, 'pjwbsmtl_ohdmtlrate__c'));
+                var mtltotal = qtyval * cstval;
+                var mohdtotal = qtyval * cstval * rteval / 100;
+                self.setRowValue(row, "pjwbsmtl_total__c", formatLocaleFloat(mtltotal, 2));
+                self.setRowValue(row, "pjwbsmtl_totalmohd__c", formatLocaleFloat(mohdtotal, 2));
+            }
+            
+            mtldtl.onSaved = function() {
+                updateDetails();
+            }
+        }
+            
+            /*************** Labor Details *****************/
+            // Initial
+            function onLABClicked()
+            {
+              if (labdtl != null) {
+                labdtl.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    if (!jobact && !wbsact) {
+                        labdtl.getRowObj(row, 'pjwbslab_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                    }
+                    var hr = parseLocaleFloat(labdtl.getRowValue(row, 'pjwbslab_hours__c'));
+                    var hrate = parseLocaleFloat(labdtl.getRowValue(row, 'pjwbslab_rate__c'));
+                    labdtl.setRowValue(row, 'pjwbslab_total__c', formatLocaleFloat((hr * hrate), 2));
+                });
+              }
+            }
+        function labdtlLoaded() {
+            if (labdtl == null) {
+              // It's a related list rather thasn an editable dialog
+              return;
+            }
+            labdtl.validate = function() {
+                var self = this;
+                var valid = true;
+                var sumlabtotal = 0;
+                var sumlabtotalohd = 0;
+                var sumlabtotalfohd = 0;
+                var sumlabtotalmodh = 0;
+                self.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    if (isEmpty(self.getRowValue(row, 'pjwbslab_pjprojwbs__c')) && (jobact || wbsact)) {
+                        alert("{!$Label.rstk__please_enter_a_value_for_required_field_project_charge_code}");
+                        valid = false;
+                    }
+                    var hr = parseLocaleFloat(self.getRowValue(row, 'pjwbslab_hours__c'));
+                    var hrate = parseLocaleFloat(self.getRowValue(row, 'pjwbslab_rate__c'));
+                    valid = verifyG0Value(hr, 'Hours');
+                    if (valid) valid = verifyValue(hrate, 'Hourly Rate');
+                    if(valid) {
+                        sumlabtotal += (hr * hrate);
+                    }
+                });
+                return valid;
+            }
+            
+            labdtl.resetRow = function(row) { 
+                self=this;
+                labdtlHandler.prototype.resetRow.call(self, row);
+                var rowind = -1;
+                
+                self.getSelectableRows().each(function (index, el) {
+                    if (!jobact && !wbsact) {
+                        self.getRowObj(row, 'pjwbslab_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                    }
+                });
+                if (!jobact && !wbsact) {
+                    self.getRowObj(row, 'pjwbslab_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                }
+            };
+            
+            labdtl.entryChanged = function(row, rowNum, name, value) {
+                self = this;
+                
+                if (name == 'pjwbslab_rtwctr__c') {
+
+                } else if (name == 'pjwbslab_rtlabgrd__c') {
+                    if (!isEmpty(value)) {
+                        var rec = execQuery("select rtlabgrd_hrrate__c from rtlabgrd__c where id = '" + value + "'");
+                        if (rec.length > 0) {
+                            self.setRowValue(row, 'pjwbslab_rate__c', formatLocaleFloat(rec[0].rtlabgrd_hrrate__c, 2));
+                        }
+                    }
+                } else if (name == 'pjwbslab_hours__c') {
+                    if (!verifyG0Value(value, 'Hours')) return;
+                } else if (name == 'pjwbslab_rate__c') {
+                    if (!verifyValue(value, 'Hourly Rate')) return;
+                }
+                var hr = parseLocaleFloat(self.getRowValue(row, 'pjwbslab_hours__c'));
+                var hrate = parseLocaleFloat(self.getRowValue(row, 'pjwbslab_rate__c'));
+                self.setRowValue(row, 'pjwbslab_total__c', formatLocaleFloat((hr * hrate), 2));
+            }
+            labdtl.onSaved = function() {
+                updateDetails();
+            }
+        }    
+            /*************** ODC Details *****************/
+            // Initial
+            function onODCClicked()
+            {
+              if (odcdtl != null) {
+                odcdtl.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    odcdtl.getRowObj(row, 'pjwbsodc_total__c').attr('disabled', true);
+                    if (!jobact && !wbsact) {
+                        odcdtl.getRowObj(row, 'pjwbsodc_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                    }
+                    if (isEmpty(odcdtl.getRowValue(row, 'pjwbsodc_syodc__c'))) {
+                        odcdtl.getRowObj(row, 'pjwbsodc_type__c').closest('td').find('.ac_input').attr('disabled', true);
+                    }
+                    var qtyval = parseLocaleFloat(odcdtl.getRowValue(row, 'pjwbsodc_qty__c'));
+                    var cstval = parseLocaleFloat(odcdtl.getRowValue(row, 'pjwbsodc_unitcost__c'));
+                    odcdtl.setRowValue(row, 'pjwbsodc_total__c' , formatLocaleFloat((qtyval * cstval), 2));
+                });
+              }
+            }
+        function odcdtlLoaded()  {
+            if (odcdtl == null) {
+              // It's a related list rather thasn an editable dialog
+              return;
+            }
+            odcdtl.validate = function() {
+                var self = this;
+                var valid = true;
+                var totalI = 0;
+                var totalL = 0;
+                var totalS = 0;
+                var totalM = 0;
+                self.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    if (isEmpty(self.getRowValue(row, 'pjwbsodc_pjprojwbs__c')) && (jobact || wbsact)) {
+                        alert("{!$Label.rstk__please_enter_a_value_for_required_field_project_charge_code}");
+                        valid = false;
+                    }
+                    var qtyval = parseLocaleFloat(self.getRowValue(row, 'pjwbsodc_qty__c'));
+                    var cstval = parseLocaleFloat(self.getRowValue(row, 'pjwbsodc_unitcost__c'));
+                    valid = verifyG0Value(qtyval, 'Quantity');
+                    if (valid) valid = verifyValue(cstval, 'Unit Cost');
+                    if(valid) {
+                        var type = self.getRowValue(row, 'pjwbsodc_type__c');
+                        var total = (qtyval * cstval);
+                        if (type == 'Travel') totalL += total;
+                        if (type == 'Indirect Material Purchases') totalI += total;
+                        if (type == 'Service Purchases') totalS += total;
+                        if (type == 'Miscellaneous Expenses') totalM += total;
+                    }
+                });
+                return valid;
+            }
+            
+            odcdtl.resetRow = function(row) { 
+                self=this;
+                odcdtlHandler.prototype.resetRow.call(self, row);
+                var rowind = -1;
+                
+                self.getSelectableRows().each(function (index, el) {
+                    self.getRowObj(row, 'pjwbsodc_total__c').attr('disabled', true);
+                    if (!jobact && !wbsact) {
+                        self.getRowObj(row, 'pjwbsodc_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                    }
+                    if (isEmpty(self.getRowValue(row, 'pjwbsodc_syodc__c'))) {
+                        self.getRowObj(row, 'pjwbsodc_type__c').closest('td').find('.ac_input').attr('disabled', true);
+                    }
+                });
+                self.getRowObj(row, 'pjwbsodc_total__c').attr('disabled', true);
+                if (!jobact && !wbsact) {
+                    self.getRowObj(row, 'pjwbsodc_pjprojwbs__c').closest('td').find('.ac_input').attr('disabled', true);
+                }
+            };
+            
+            odcdtl.entryChanged = function(row, rowNum, name, value) {
+                self = this;
+                
+                if (name == 'pjwbsodc_syodc__c') {
+                    if (!isEmpty(value)) {
+                        var syodcInfo = execQuery("select syodc_descr__c, syodc_type__c from syodc__c where id = '" + value + "'");
+                        if (syodcInfo.length > 0) {
+                            self.setRowValue(row, 'pjwbsodc_type__c', syodcInfo[0].syodc_type__c);
+                            self.setRowValue(row, 'pjwbsodc_desc__c', syodcInfo[0].syodc_descr__c);
+                        }
+                        self.getRowObj(row, 'pjwbsodc_type__c').attr('disabled', true);
+                    }
+                } else if (name == 'pjwbsodc_qty__c') {
+                    if (!verifyG0Value(value, 'Quantity')) return;
+                } else if (name == 'pjwbsodc_unitcost__c') {
+                    if (!verifyValue(value, 'Unit Cost')) return;
+                }
+                var qtyval = parseLocaleFloat(self.getRowValue(row, 'pjwbsodc_qty__c'));
+                var cstval = parseLocaleFloat(self.getRowValue(row, 'pjwbsodc_unitcost__c'));
+                self.setRowValue(row, 'pjwbsodc_total__c' , formatLocaleFloat((qtyval * cstval), 2));
+            }
+            
+            odcdtl.onSaved = function() {
+                updateDetails();
+            }
+            
+        }
+            /******************************************/
+                        
+            function verifyG0Value(val, fldName)
+            {
+                if (Number(val) <= 0) {
+                    alert("{!$Label.rstk__field_cantbegt0}", fldName);
+                    return false;
+                }
+                return true;
+            }
+            
+            function verifyValue(val, fldName) 
+            {
+                if (Number(val) < 0) {
+                    alert("{!$Label.rstk__field_cantbelt0}", fldName);
+                    return false;
+                }
+                return true;
+            }
+            
+            function verifyPctValue(val, fldName) 
+            {
+                if (Number(val) < 0 || Number(val) > 100) {
+                    alert("{!$Label.rstk__field_mustbebetween0to100}", fldName);
+                    return false;
+                }
+                return true;
+            }
+        </script>
+ 
+        <apex:pageblock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" />
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="1" rendered="{!OR(isNew, isEdit)}" >
+            
+            	<apex:pageBlockSectionItem helptext="{!$Label.rstk__division_label}" rendered="{!isNew}">
+	            	<apex:outputLabel value="{!$Label.rstk__division_label}" />
+	            	<apex:outputLink value="{!URLFOR($Action.rstk__sydiv__c.View, currDivision.id)}{!ReturnUrlParms}">{!currDivision.Name}</apex:outputLink>
+            	</apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helptext="{!f.rstk__pjprojwbs_proj__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pjprojwbs_proj__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="pjprojwbs_proj__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_div__c = '{!currDivision.Id}' and (pjproj_wbsact__c = true or pjproj_jobcodeact__c = true)" slDesc="{!projectDesc}" tabIndex="2" rendered="{!isNew}" />
+                        <apex:outputField value="{!o.rstk__pjprojwbs_proj__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__pjprojwbs_wbs__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pjprojwbs_wbs__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="pjprojwbs_wbs__c" value="{!o.rstk__pjprojwbs_wbs__c}" required="true" rendered="{!isNew}" taborderhint="25"/>
+                        <apex:outputfield value="{!o.rstk__pjprojwbs_wbs__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__pjprojwbs_jobcode__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pjprojwbs_jobcode__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="pjprojwbs_obcode__c" value="{!o.rstk__pjprojwbs_jobcode__c}" size="1" style="width:250px;" tabindex="4" rendered="{!isNew}">
+                            <apex:selectOptions value="{!JobCodes}" />
+                        </apex:selectList>
+                        <apex:outputfield value="{!o.rstk__pjprojwbs_jobcode__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="pjprojwbs_descr__c" value="{!o.rstk__pjprojwbs_descr__c}" taborderhint="50" />
+                
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_main_view" showHeader="false" title="{!$Label.rstk__information}" columns="1" rendered="{!isView}" >
+                <apex:outputField value="{!o.rstk__pjprojwbs_proj__c}" />
+                <apex:outputField value="{!o.rstk__pjprojwbs_wbs__c}" />
+                <apex:outputField value="{!o.rstk__pjprojwbs_jobcode__c}" />
+                <apex:outputField value="{!o.rstk__pjprojwbs_descr__c}" />
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="Budget" id="theTabPanel" rendered="{!!isNew}">
+                <apex:tab label="{!$Label.rstk__pagetab_pjprojwbs_budget}" name="tab_Budget" id="tab_Budget" rendered="{!pjprojwbscst!=null}">
+                    <apex:pageBlockSection id="budget_Attributes" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_bacmtl__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_bacmtl__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputPanel >
+                                	<apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_bacmtl__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                                	<apex:inputField id="pjprojwbscst_bacmtl__c" value="{!pjprojwbscst.rstk__pjprojwbscst_bacmtl__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_baciodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_baciodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="pjprojwbscst_baciodc__c" value="{!pjprojwbscst.rstk__pjprojwbscst_baciodc__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_baciodc__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem> 
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_baclab__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_baclab__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_baclab__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                                <apex:inputField id="pjprojwbscst_baclab__c" value="{!pjprojwbscst.rstk__pjprojwbscst_baclab__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_baclodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_baclodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="pjprojwbscst_baclodc__c" value="{!pjprojwbscst.rstk__pjprojwbscst_baclodc__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_baclodc__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem> 
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_bacohdlab__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_bacohdlab__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="pjprojwbscst_bacohdlab__c" value="{!pjprojwbscst.rstk__pjprojwbscst_bacohdlab__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_bacohdlab__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_bacmodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_bacmodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="pjprojwbscst_bacmodc__c" value="{!pjprojwbscst.rstk__pjprojwbscst_bacmodc__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_bacmodc__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_bacohdmach__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_bacohdmach__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="pjprojwbscst_bacohdmach__c" value="{!pjprojwbscst.rstk__pjprojwbscst_bacohdmach__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_bacohdmach__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_bacsodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_bacsodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="pjprojwbscst_bacsodc__c" value="{!pjprojwbscst.rstk__pjprojwbscst_bacsodc__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_bacsodc__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_bacohdmtl__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_bacohdmtl__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="pjprojwbscst_bacohdmtl__c" value="{!pjprojwbscst.rstk__pjprojwbscst_bacohdmtl__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_bacohdmtl__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_bacsublab__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_bacsublab__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_bacsublab__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                                <apex:inputField id="pjprojwbscst_bacsublab__c" value="{!pjprojwbscst.rstk__pjprojwbscst_bacsublab__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_bacsubmtl__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_bacsubmtl__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="pjprojwbscst_bacsubmtl__c" value="{!pjprojwbscst.rstk__pjprojwbscst_bacsubmtl__c}" rendered="{!!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c && !isView}"/>
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_bacsubmtl__c}" rendered="{!pjprojwbscst.pjprojwbscst_pjprojcst__r.rstk__pjprojcst_sumasbudget__c || isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_pjprojwbs_actuals}" name="tab_Actuals" id="tab_Actuals" rendered="{!pjprojwbscst!=null}">
+                    <apex:pageBlockSection id="actuals_Attributes" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcummtl__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcummtl__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcummtl__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumiodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumiodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumiodc__c}" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumlab__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumlab__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumlab__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumlodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumlodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumlodc__c}" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumohdlab__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumohdlab__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumohdlab__c}" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcummodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcummodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcummodc__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumohdmach__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumohdmach__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumohdmach__c}" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumsodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumsodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumsodc__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumohdmtl__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumohdmtl__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumohdmtl__c}" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_icstiodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_icstiodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_icstiodc__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumsublab__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumsublab__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumsublab__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_icstlodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_icstlodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_icstlodc__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_acwpcumsubmtl__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_acwpcumsubmtl__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_acwpcumsubmtl__c}" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_icstmodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_icstmodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_icstmodc__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f_prj.rstk__pjprojwbscst_icstsodc__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f_prj.rstk__pjprojwbscst_icstsodc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!pjprojwbscst.rstk__pjprojwbscst_icstsodc__c}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_pjprojwbs_details}" name="tab_Details_view" id="tab_Details_view" rendered="{!!isNew}">
+                    <apex:pageBlockSection id="pbs_EditDetailsButtons" showHeader="false" columns="2">
+                            <apex:pageBlockSectionItem >
+                           <apex:outputPanel >&nbsp;</apex:outputPanel>
+                           <apex:outputPanel >
+                                <apex:commandbutton value="{!$Label.rstk__pjproj_pagebtn_materialdetails}" onclick="_showDialog('mtldtlpopup',1200);onMTLClicked();return false;" style="width:120px;"/>
+                                &nbsp;
+                                <apex:commandbutton value="{!$Label.rstk__pjproj_pagebtn_labordetails}" onclick="_showDialog('labdtlpopup',1200);onLABClicked();return false;" style="width:120px;"/>
+                                &nbsp;
+                                <apex:commandbutton value="{!$Label.rstk__pjproj_pagebtn_odcdetails}" onclick="_showDialog('odcdtlpopup',1200);onODCClicked();return false;" style="width:120px;" />
+                            </apex:outputPanel>
+                         </apex:pageBlockSectionItem>
+                   </apex:pageBlockSection>
+                </apex:tab>
+                
+            </apex:tabPanel>
+            
+         </apex:pageblock>
+         <script>
+            setSelectListRequired("pjprojwbs_proj__c");
+        </script>
+   </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

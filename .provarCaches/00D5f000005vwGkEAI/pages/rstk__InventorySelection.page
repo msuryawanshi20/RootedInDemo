@@ -1,0 +1,256 @@
+<apex:page id="pg" standardController="rstk__invselect__c" extensions="rstk.ControllerExtnInventorySelection" sideBar="false" showHeader="{!selectionType == 'none'}" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__invselect__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__invselect__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_inventoryselection}" enableQuickMenu="{!selectionType == 'none'}"/> 
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    
+    <script>
+    	var maxselect = {!maxselect};
+    	var selectionType = '{!JSENCODE(selectionType)}';
+		function setSelectedItems() {
+			var table = document.getElementById('pg:fm:pb:pbt_results');
+			if (table) {
+				var body = table.tBodies[0];
+				var rowCount = body.rows.length;
+				var selected = 0;
+				var buff = '';
+				var lotno = '';
+				var projid = '';
+				var icitemdata = [];
+				for (var i = 0; i < rowCount; i++) {
+					if(document.getElementById('pg:fm:pb:pbt_results:' + i + ':inv_selected').checked) {
+						selected++;
+						if (maxselect > -1 && selected > maxselect) {
+							alert("{!$Label.SelectOnly_Items}", maxselect);
+							return false;
+						}
+						var itemid = document.getElementById('pg:fm:pb:pbt_results:' + i + ':itemid').value;
+						buff += (buff == "" ? "" : ",") + (maxselect != 1 ? "'" : "") +  itemid + (maxselect != 1 ? "'" : "");
+						lotno = document.getElementById('pg:fm:pb:pbt_results:' + i + ':lotnumber').value;
+						projid = document.getElementById('pg:fm:pb:pbt_results:' + i + ':projid').value;
+						icitemdata.push({ itemid:itemid, lotno:lotno, projid:projid, soprods:[] });
+					}
+				}
+				if (buff) {
+					sfffSetFieldValue('selectedlist__c', buff);
+					if (parent && parent.setInvData) {
+						if (selectionType == 'disassembly') {
+							parent.setInvData(buff, lotno, projid);
+						} else if (selectionType == 'opportunity' || selectionType == 'solineprod') {
+							var inStr = (maxselect == 1)?("='"+buff+"'"):("in (" + buff + ")");
+							var soprods = execQuery("select soprod_icitem__c, Id from soprod__c WHERE soprod_icitem__c "+inStr, true);
+							if (soprods != null && soprods.length > 0) {
+								var soprodIds = [];
+								for (var i=0;i<soprods.length;i++) {
+									soprodIds.push(soprods[i].Id);
+									for (var ididx=0;ididx<icitemdata.length;ididx++) {
+									  idata = icitemdata[ididx];
+									  if (idata.itemid == soprods[i].soprod_icitem__c) {
+									  	idata.soprods.push(soprods[i].Id);
+									  }
+									}
+								}
+								parent.setInvData(soprodIds, icitemdata);
+							}
+						}
+						parent.unblockUI();
+					}
+					return false;
+				}
+			}
+			
+			sfffSetFieldValue('selectedlist__c', '');
+			alert("{!$Label.SelectAtLeastOneItem}");
+			return false;
+		}
+		
+		function selectedChanged(elem) {
+			var table = document.getElementById('pg:fm:pb:pbt_results');
+			if (table) {
+				var body = table.tBodies[0];
+				var rowCount = body.rows.length;
+				var selectedCount = 0;
+				if (elem.checked && maxselect == 1) {
+					for (var i = 0; i < rowCount; i++) {
+						var el = document.getElementById('pg:fm:pb:pbt_results:' + i + ':inv_selected');
+						if (el.checked) el.checked = false;
+					}
+					elem.checked = true;
+					selectedCount = 1;		
+				} else {
+					for (var i = 0; i < rowCount; i++) {
+						if(document.getElementById('pg:fm:pb:pbt_results:' + i + ':inv_selected').checked) {
+							selectedCount++;
+						}
+					}
+				}
+				enableButton(document.getElementById('pg:fm:pb:pbb:cb_use'), selectedCount > 0);
+				enableButton(document.getElementById('pg:fm:pb:pbb:bottom:cb_use'), selectedCount > 0);
+			}
+		}
+		
+		function enableButton(btn, isEnabled) {
+			if (btn) {
+				btn.disabled = (isEnabled?false:true);
+				btn.className = (isEnabled?'btn':'btnDisabled');
+			}
+		}
+		
+		function pageInit(type) {
+			enableButton(document.getElementById('pg:fm:pb:pbb:cb_use'), false);
+			enableButton(document.getElementById('pg:fm:pb:pbb:bottom:cb_use'), false);
+			return true;
+		}
+
+		function saveRecord() {
+			return false;
+		}
+
+		function doDisplayResults() {
+			blockUI();
+			displayResults();
+			return false;
+		}
+		
+		function enableFixedHeaderSort(tableId) {
+			var tbl = jQuery("table[id$=" + tableId + "]");
+			var sortOptions = ((selectionType == 'none') ? {} : { 0: { sorter: false }});
+
+			if (tbl) {
+				tbl.vfFloatingHeaders();
+				tbl.tablesorter({
+					headers: sortOptions
+				});
+			}
+		}
+		
+		function cancelPressed() {
+		 if (parent) {
+			 parent.unblockUI();
+		  	 if (parent.cancelInvData) {
+		  	 	parent.cancelInvData();
+		  	 }
+		 }
+		 return false;
+		}
+		
+		function clearSearchCriteria() {
+			sfffSetFieldValue('fromwidth__c', '');
+			sfffSetFieldValue('towidth__c', '');
+			sfffSetFieldValue('fromlength__c', '');
+			sfffSetFieldValue('tolength__c', '');
+			sfffSetFieldValue('fromthickness__c', '');
+			sfffSetFieldValue('tothickness__c', '');
+			sfffSetFieldValue('fromweight__c', '');
+			sfffSetFieldValue('toweight__c', '');
+			sfffSetFieldValue('lotnum__c', '');
+			sfffSetFieldValue('locid__c', '');
+			sfffSetFieldValue('locnumtext__c', '');
+			sfffSetFieldValue('purchasedonly__c', '0');
+			return false;
+		}
+
+    </script>
+   
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    	<apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+    	<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    	<apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="displayResults" action="{!doDisplayResults}" 
+        	oncomplete="enableFixedHeaderSort('pg:fm:pb:pbt_results'); unblockUI();" 
+        	rerender="pageMessages,op_InvItems" immediate="false"/>
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons id="pbb" location="top">
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_inventoryselection_searchinventory}" onclick="return doDisplayResults();" style="width:130px;"/>
+            <apex:commandButton id="cb_use" value="{!$Label.rstk__pagebtn_inventoryselection_useselected}" onclick="return setSelectedItems();" style="width:130px;" rendered="{!selectionType != 'none'}"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_inventoryselection_clearsearchcriteria}" onclick="return clearSearchCriteria();" style="width:130px;"/>
+            <apex:commandButton onclick="return cancelPressed();" value="{!$Label.rstk__pagebtn_inventoryselection_cancel}" immediate="true" style="width:50px" rendered="{!selectionType != 'none'}"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+        	<apex:inputHidden id="selectedlist__c" value="{!o.rstk__selectedlist__c}" />
+        </apex:outputPanel>
+
+        <c:division id="div__c" cntr="{!controller}" />
+        <BR/>
+		<apex:panelGrid columns="11" id="theGrid" style="text-align:right;">
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__fromthickness__c.label}" />
+                <apex:inputField id="fromthickness__c" value="{!o.rstk__fromthickness__c}" style="width:110px"/>
+                <apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__tothickness__c.label}" />
+                <apex:inputField id="tothickness__c" value="{!o.rstk__tothickness__c}" style="width:110px"/>
+                <apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__fromlength__c.label}" />
+                <apex:inputField id="fromlength__c" value="{!o.rstk__fromlength__c}" style="width:110px"/>
+                <apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__tolength__c.label}" />
+                <apex:inputField id="tolength__c" value="{!o.rstk__tolength__c}" style="width:110px"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__fromwidth__c.label}" />
+                <apex:inputField id="fromwidth__c" value="{!o.rstk__fromwidth__c}" style="width:110px"/>
+                <apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__towidth__c.label}" />
+                <apex:inputField id="towidth__c" value="{!o.rstk__towidth__c}" style="width:110px"/>
+                <apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__fromweight__c.label}" />
+                <apex:inputField id="fromweight__c" value="{!o.rstk__fromweight__c}" style="width:110px"/>
+                <apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__toweight__c.label}" />
+                <apex:inputField id="toweight__c" value="{!o.rstk__toweight__c}" style="width:110px"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__lotnum__c.label}" />
+                <apex:inputField id="lotnum__c" value="{!o.rstk__lotnum__c}" style="width:110px"/>
+                <apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+				<apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__locid__c.label}"/>
+				<apex:selectlist id="locid__c" size="1" style="width:150px">
+					<apex:selectOptions value="{!Sylocids}"/>
+				</apex:selectlist>
+				<apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+				<apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__locnumtext__c.label}" />
+				<apex:inputField id="locnumtext__c" value="{!o.rstk__locnumtext__c}" style="width:110px"/>
+                <apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstk__purchasedonly__c.label}" />
+                <apex:inputField id="purchasedonly__c" value="{!o.rstk__purchasedonly__c}"/>
+	    </apex:panelGrid>
+		<BR/>
+        <apex:outputPanel id="op_InvItems">
+        	<apex:outputPanel rendered="{!displayResults}">
+        	<apex:outputPanel id="op_gridList" style="height:390px;overflow:auto;display:block">
+        	<apex:pageBlockTable id="pbt_results" value="{!invItems}" var="rec">
+        		<apex:column headerValue="{!$Label.rstk__select}" style="width:35px;" rendered="{!selectionType != 'none'}">
+        			<apex:inputCheckbox id="inv_selected" onchange="selectedChanged(this);"/>
+        			<apex:inputHidden id="itemid" value="{!rec.itemid}"/>
+        			<apex:inputHidden id="lotnumber" value="{!rec.lotno}"/>
+        			<apex:inputHidden id="projid" value="{!rec.pjprojid}"/>
+        		</apex:column>
+         		<apex:column headerValue="{!$Label.rstk__item}" style="width:250px;">
+         			<apex:outputLink value="/apex/icitem?actionType=view&id={!rec.itemid}" target="_blank">{!rec.itemno}</apex:outputLink>
+         		</apex:column>
+        		<apex:column headerValue="{!$Label.rstk__lotnumber}" value="{!rec.lotno}" style="width:130px;"/>
+         		<apex:column headerValue="{!$Label.rstk__locationid}" style="width:160px;">
+         			<apex:outputLink value="/apex/sylocid?actionType=view&id={!rec.locid}" target="_blank">{!rec.locidname}</apex:outputLink>
+         		</apex:column>
+        		<apex:column headerValue="{!$Label.rstk__locationno}" value="{!rec.locnum}" style="width:90px;"/>
+        		<apex:column headerValue="{!$Label.rstk__project}" value="{!rec.pjprojName}" style="width:60px;"/>
+        		<apex:column headerValue="{!$Label.rstk__width}" value="{!rec.width}"/>
+        		<apex:column headerValue="{!$Label.rstk__length}" value="{!rec.length}"/>
+        		<apex:column headerValue="{!$Label.rstk__thickness}" value="{!rec.thickness}"/>
+        		<apex:column headerValue="{!$Label.rstk__weight}" value="{!rec.weight}"/>
+        		
+			    <apex:repeat value="{!controller.customFields}" var="f">
+			    	<apex:column headerValue="{!f.label}" value="{!rec.cfmap[f.fieldPath]}"/>
+			    </apex:repeat>  
+
+        	</apex:pageBlockTable>
+        	</apex:outputPanel>
+        	</apex:outputPanel>
+        </apex:outputPanel>
+    </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

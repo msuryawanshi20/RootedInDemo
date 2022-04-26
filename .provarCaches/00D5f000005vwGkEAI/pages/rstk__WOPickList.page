@@ -1,0 +1,239 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_wopicklist}" standardController="rstk__wocst__c" extensions="rstk.ControllerExtnWOPickList,rstk.RemoteQueryController" sideBar="false">
+    <apex:variable var="o" value="{!wocst}" />
+    <apex:variable var="pf" value="{!$ObjectType.rstk__peitem__c.fields}" />
+    <apex:variable var="if" value="{!$ObjectType.rstk__icitem__c.fields}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__wocst__c.fields}" />
+    <apex:variable var="lf" value="{!$ObjectType.rstk__icdmdpickloc__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_wopicklist}" customInclude="{!$Resource.rstk__wopicklist_cli}" enableAutocomplete="true"/>
+    	<script>
+		  	 var isRootDox = {!isRootDox};
+		   	 var rootDoxTemplate ;
+		   	 var wocstID;
+	   </script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" immediate="true"/>
+        <apex:actionFunction name="setLogoOption" action="{!setLogoOption}" immediate="true" rerender="">
+            <apex:param name="displayLogo" assignTo="{!displayLogo}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="setReferenceOption" action="{!setReferenceOption}" immediate="true" rerender="">
+            <apex:param name="referenceItem" assignTo="{!referenceItem}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="setSeqByLocOption" action="{!setSeqByLocOption}" immediate="true" rerender="">
+            <apex:param name="sortByLoc" assignTo="{!sortByLoc}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="setSortBySeqOption" action="{!setSortBySeqOption}" immediate="true" rerender="">
+            <apex:param name="sortBySeq" assignTo="{!sortBySeq}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="setBarcodeOption" action="{!setBarcodeOption}" immediate="true" rerender="">
+            <apex:param name="barcodeDisp" assignTo="{!barcodeDisp}" value="" />
+        </apex:actionFunction>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputHidden id="wocst_div__c" value="{!o.rstk__wocst_div__c}"/>
+        </apex:outputPanel>
+        <apex:pageBlock id="pb" mode="detail">
+        
+        <apex:pageBlockButtons location="top">
+            <apex:outputPanel id="buttonPanel" layout="block">
+            <apex:commandButton id="genPickList" action="{!generatePickList}" rerender="pageMessages, pbs_Main, pbs_picklistlines, buttonPanel, logooptionlabel, logooption, barcodeoptionlabel, barcodeoption,referenceItemLabel,referenceItemOption" value="{!$Label.rstk__pagebtn_wopicklist_generatepicklist}" style="width:120px" status="genPickListStatus"/>
+            <apex:actionStatus id="genPickListStatus" startText=" generating..." stopText="" style="width:100px"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_wopicklist_displaypdf}" onClick="return createPdf();" style="width:120px" rendered="{!showResults}"/>
+            <apex:inputhidden id="woord__c" value="{!woord}" />
+            </apex:outputPanel>
+        </apex:pageBlockButtons>
+        
+        <c:division id="wocst_div__c" cntr="{!controller}"/>
+        <apex:pageBlockSection id="pbs_Header" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_ordno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_ordno__c.label}"/>
+                <apex:outputPanel layout="block">
+                
+                <apex:outputPanel styleClass="requiredInput" layout="block">
+                    <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+                    <input type="text" name="icdmdpickloc_id_autocomplete" id="icdmdpickloc_id_autocomplete" class="ac_input" style="width:250px" tabindex="1" value="{!WoOrdno}"/>
+                    <apex:inputText id="icdmdpickloc_id" value="{!icdmdpickloc_id}" style="display:none"/>
+                    <script>autocompleteParms["icdmdpickloc_id"] = {query:"select min(id) id, icdmdpickloc_ordno__c name from icdmdpickloc__c where icdmdpickloc_ordtype__c='6' and icdmdpickloc_div__c = 'prm' group by icdmdpickloc_ordno__c", queryParms:[['wocst_div__c','Division']]};</script>
+                </apex:outputPanel>
+
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__placeholder}" style="display:none" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__sequencebylocation}"/>
+                <apex:inputCheckbox id="sortbyloc__c" value="{!sortByLoc}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputPanel id="logooptionlabel">
+                    <apex:outputLabel value="{!$Label.rstk__displaylogoonpicklist}" style="display:{!IF(showResults,'block','none')};" />
+                </apex:outputPanel>
+                <apex:outputPanel id="logooption">
+                    <apex:inputCheckbox id="logo__c" onchange="logoChanged()" value="{!displayLogo}" style="display:{!IF(showResults,'block','none')};" />
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__uselocationpicksequence}"/>
+                <apex:inputCheckbox id="sortbyseq__c" value="{!sortBySeq}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputPanel id="referenceItemLabel">
+                    <apex:outputLabel value="{!$Label.rstk__include_reference_items}" style="display:{!IF(showResults,'block','none')};" />
+                </apex:outputPanel>
+                <apex:outputPanel id="referenceItemOption">
+                    <apex:inputCheckbox id="referenceItem__c" onchange="referenceItemChanged()" value="{!referenceItem}" style="display:{!IF(showResults,'block','none')};" />
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+
+             <apex:pageBlockSectionItem />
+             
+             <apex:pageBlockSectionItem >
+                <apex:outputPanel id="barcodeoptionlabel">
+                    <apex:outputLabel value="{!$Label.rstk__printbarcodesonpicklist}" style="display:{!isBarcodeZone};" />
+                </apex:outputPanel>
+                <apex:outputPanel id="barcodeoption">
+                    <apex:inputCheckbox id="barcode__c" value="{!barcodeDisp}" onchange="setBarcodeOption(this.checked)" style="display:{!isBarcodeZone};"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+           
+       </apex:pageBlockSection>            
+        <apex:pageBlockSection id="pbs_Main" showHeader="true" title="{!$Label.rstk__pagetab_wopicklist_workorder}" columns="2" collapsible="false">
+        	<script>
+			  	 	wocstID = '{!o.id}';
+			  	 	rootDoxTemplate = '{!rootDoxTemplate}';
+			</script>
+            <apex:pageBlockSectionItem helpText="{!pf.rstk__peitem_item__c.inlineHelpText}" rendered="{!showResults}">
+                <apex:outputLabel value="{!pf.rstk__peitem_item__c.label}"/>
+                <apex:outputField value="{!o.wocst_item__r.icitem_item__r.rstk__formula_item__c}" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_qtyreq__c.inlineHelpText}" rendered="{!showResults}">
+                <apex:outputLabel value="{!f.rstk__wocst_qtyreq__c.label}"/>
+                <apex:outputField id="wocst_qtyreq__c" value="{!o.rstk__wocst_qtyreq__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!pf.rstk__peitem_descr__c.inlineHelpText}" rendered="{!showResults}">
+                <apex:outputLabel value="{!pf.rstk__peitem_descr__c.label}"/>
+                <apex:outputField value="{!o.wocst_item__r.icitem_item__r.rstk__peitem_descr__c}" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_ordsts_pl__c.inlineHelpText}" rendered="{!showResults}">
+                <apex:outputLabel value="{!f.rstk__wocst_ordsts_pl__c.label}"/>
+                <apex:outputText id="wocst_ordsts_pl__c" value="{!status}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_duedte__c.inlineHelpText}" rendered="{!showResults}">
+                <apex:outputLabel value="{!f.rstk__wocst_duedte__c.label}"/>
+                <apex:outputField id="wocst_duedte__c" value="{!o.rstk__wocst_duedte__c}" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_proj__c.inlineHelpText}" rendered="{!showResults}">
+                <apex:outputLabel value="{!f.rstk__wocst_proj__c.label}"/>
+                <apex:outputField id="wocst_proj__c" value="{!o.rstk__wocst_proj__c}"/>
+            </apex:pageBlockSectionItem>
+          
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_resp__c.inlineHelpText}" rendered="{!showResults}">
+                <apex:outputLabel value="{!f.rstk__wocst_resp__c.label}"/>
+                <apex:outputField id="wocst_resp__c" value="{!o.rstk__wocst_resp__c}"/>
+            </apex:pageBlockSectionItem>
+            
+        </apex:pageBlockSection>
+
+        <apex:pageBlockSection id="pbs_picklistlines" showHeader="true" title="{!$Label.rstk__pagetab_wopicklist_picklist}" columns="1" collapsible="false" >
+        <apex:outputPanel >
+            <table border="1" cellpadding="3" cellspacing="0" bgcolor="#ffffff" bordercolor="#eeeeee">
+                <tr bgcolor="#eeeeee">
+                    <th width="200px">{!lf.icdmdpickloc_compitem__c.label}</th>
+                    <th width="30px">{!lf.icdmdpickloc_orddmdlne__c.label}</th>
+                    <th width="30px">{!lf.icdmdpickloc_totqtypickreqd__c.label}</th>
+                    <th width="100px">{!lf.icdmdpickloc_locid__c.label}</th>
+                    <th width="100px">{!lf.icdmdpickloc_locnum__c.label}</th>
+                    <th width="40px">{!lf.icdmdpickloc_locqty__c.label}</th>
+                    <th width="60px">{!lf.icdmdpickloc_expiredate__c.label}</th>
+                    <th width="100px">{!lf.icdmdpickloc_locsec__c.label}</th>
+                    <th width="60px">{!lf.icdmdpickloc_dtereqd__c.label}</th>
+                    <th width="200px">{!lf.icdmdpickloc_proj__c.label}</th>
+                    <th width="100px">{!lf.icdmdpickloc_wctr__c.label}</th>
+                    <th width="40px">{!if.icitem_invuom__c.label}</th>
+                    <th width="100px">{!$Label.WOPickList_QtyPicked}</th>
+                </tr>
+                <apex:repeat value="{!pickListLines}" var="d">
+                <tr>
+                    <td align="left"><table><tr><td><c:hoverDetail recId="{!d.p.rstk__icdmdpickloc_compitem__c}" recName="{!d.p.icdmdpickloc_compitem__r.icitem_item__r.rstk__formula_item__c}"/></td></tr></table></td>
+                    <td align="left"><table><tr><td><c:outputFormattedNumber value="{!d.p.rstk__icdmdpickloc_orddmdlne__c}" decimals="0"/></td></tr></table></td>
+                    <td align="right"><table><tr><td><c:outputFormattedNumber value="{!d.p.rstk__icdmdpickloc_totqtypickreqd__c}" decimals="{!d.p.icdmdpickloc_compitem__r.rstk__formula_qtydecimal__c}"/></td></tr></table></td>
+                    <td align="left"><table><tr><td>{!d.p.icdmdpickloc_locid__r.rstk__sylocid_locid__c}</td></tr></table></td>
+                    <td align="left"><table><tr><td>{!d.p.rstk__icdmdpickloc_locnum__c}</td></tr></table></td>
+                    <td align="right"><table><tr><td><c:outputFormattedNumber value="{!d.p.rstk__icdmdpickloc_locqty__c}" decimals="{!d.p.icdmdpickloc_compitem__r.rstk__formula_qtydecimal__c}"/></td></tr></table></td>
+                    <td align="left"><table><tr><td><apex:outputText value="{0, date, M/d/yyyy}"><apex:param value="{!d.p.rstk__icdmdpickloc_expiredate__c}"/></apex:outputText></td></tr></table></td>
+                    <!--<td align="left"><table><tr><td>{!d.p.rstk__icdmdpickloc_locsec__c}</td></tr></table></td>  -->
+                    <td align="left">
+	                    <table>
+		                    <tr>
+			                    <td> 
+			                    	<apex:outputField value="{!d.p.rstk__icdmdpickloc_locsec__c}" rendered="{!d.p.rstk__icdmdpickloc_serials__c == ''}"  />
+			                    	<apex:outputPanel rendered="{!d.p.rstk__icdmdpickloc_serials__c != ''}">
+			                    		<apex:inputTextarea id="serials" value="{!d.p.rstk__icdmdpickloc_serials__c}" rows="3" />
+										<script>document.getElementById("{!$Component.serials}").disabled = true;</script>
+			                    	</apex:outputPanel>
+			                    	<!-- <apex:outputField value="{!d.p.rstk__icdmdpickloc_serials__c}" rendered="{!d.p.icdmdpickloc_compitem__r.icitem_picklistsrloptfrm__c}" /> -->
+			                    </td>
+		                    </tr>
+	                    </table>
+                    </td>
+                    
+                    <td align="left"><table><tr><td><apex:outputField value="{!d.p.rstk__icdmdpickloc_dtereqd__c}"/></td></tr></table></td>
+                    <td align="left"><table><tr><td><c:hoverDetail recId="{!d.p.rstk__icdmdpickloc_proj__c}" recName="{!d.p.icdmdpickloc_proj__r.rstk__pjproj_proj__c}" /></td></tr></table></td>
+                    <td align="left"><table><tr><td>{!d.p.icdmdpickloc_wctr__r.Name}</td></tr></table></td>
+                    <td align="left"><table><tr><td>{!d.p.icdmdpickloc_compitem__r.icitem_invuom__r.syuom_uom__c}</td></tr></table></td>
+                    <td align="right" rowspan="2"><table><tr><td></td></tr></table></td>    
+               </tr>
+               <tr>
+                    <td colspan="12" align="left"><table><tr><td>{!d.p.icdmdpickloc_compitem__r.icitem_item__r.peitem_descr__c}</td></tr></table></td>
+               </tr>
+                <tr style="{!IF(d.p.icdmdpickloc_div__r.sydiv_worefdesig__c == true && d.p.icdmdpickloc_refdes__c != null, '', 'display:none;')}">
+                    <td>&nbsp;</td>
+                    <td colspan="12">
+                        <table width="100%"><tr bgcolor="#cccccc" class="tablehead" style="{!IF(d.refdeslines.size > 0, '', 'display:none;')}"><th colspan="2" style="font-weight:bold;">Reference Designators</th></tr>
+                        <apex:repeat value="{!d.refdeslines}" var="refdes">
+                        <tr>
+                            <td>
+                            <apex:outputPanel >
+                                <table width="100%">
+                                    <apex:repeat value="{!refdes}" var="n">
+                                        <tr width="100%">
+                                            <td width="100%" style="white-space: pre;">{!n}</td>
+                                        </tr>
+                                    </apex:repeat>
+                                </table>
+                            </apex:outputPanel>
+                            </td>
+                        </tr>
+                        </apex:repeat>
+                        </table>
+                    </td>
+                </tr>
+               </apex:repeat>
+            </table>
+        </apex:outputPanel>
+        </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    
+    <script>
+        var SelectDiv = "{!$Label.rstk__pleaseselectdivision}";
+        var SelectWO = "{!$Label.rstk__pleaseselectwordorder}";
+    </script>
+    
+</apex:page>

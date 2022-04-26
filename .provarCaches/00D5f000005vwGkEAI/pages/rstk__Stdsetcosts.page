@@ -1,0 +1,172 @@
+<apex:page id="pg" title="{!title}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnStdCosts,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__customext__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!title}" enableAutocomplete="true"/>
+    
+    <script>
+    	var processLogId;
+    	function __updateStatus() {
+    		if(__uiBlocked) {
+    			if(processLogId) {
+	    			getController("ControllerJobStatus").getJobStatus(
+	    				processLogId, 
+	    				function(processlog) {
+	    					var pl;
+	    					if(processlog) {
+	    						//console.log(processlog);
+	    						pl = {
+	    							status__c: sobjectValue(processlog, 'status__c'),
+	    							substatus__c: sobjectValue(processlog, 'substatus__c'),
+									iserror__c: sobjectValue(processlog, 'iserror__c'),
+									completed__c: sobjectValue(processlog, 'completed__c'),
+									errormessage__c: sobjectValue(processlog, 'errormessage__c')
+	    						};
+	    						//console.log(pl);
+	    						
+	    						if(pl && pl.status__c) {
+		    						setPopStatus1(pl.status__c + (pl.substatus__c ? ("...(" + pl.substatus__c + ")") : ""));
+		    					}
+		    					if(!pl.iserror__c && !pl.completed__c)
+	    							setTimeout(__updateStatus, 2000);
+	    						else {
+	    							if(pl.iserror__c)
+										alert("{!$Label.ErrorOccuredWhileProcessingTask_2}",  (pl.errormessage__c ? pl.errormessage__c : ''));
+									else
+										alert("{!$Label.TaskCompletedSuccessfully}");
+	    							unblockUI();
+	    						}
+	    					} else {
+	    						//alert(LABEL_ProcessLogEntryNotFoundFor,processlogId);
+								unblockUI();
+	    					}
+	    				},
+	    				{escape: true}
+	    			);
+	    		} else {
+	    			unblockUI();
+	    		}
+    		}
+    	}
+    	var stdcostautoindfld;
+    	function allowRun() {
+    		var results = execQuery("select id, name, value__c from appsettings__c where name = '{!mode}_Running'", true);
+    		if (results.length > 0) {
+    			var cs = results[0];
+    			if (cs.value__c == 'true') {
+    				alert("{!$Label.StdsetAnother_instance_of_this_process_is_already_running_Please_try_again_later}");
+    				return false;
+    			} else {
+    				if (stdcostautoindfld && !stdcostautoindfld.value) {
+    					alert("{!$Label.A_value_must_be_specified_for_Txn_Type}");
+    					stdcostautoindfld.focus();
+    					return false;
+    				}
+    				
+    				var actionToNameMap = {
+    					'posetmtlcost_Running' : "{!$Label.menuitem_DerivePurchaseMtlCostsfromPOActivity}",
+    					'icsetmtlsimcost_Running' : "{!$Label.SetSimulatedPurchasePriceFromPODerivedCosts}",
+    					'costrollup_Running' : "{!$Label.GenerateApplySimulatedRollupCosts}",
+    					'cssimstdmove_Running' : "{!$Label.menuitem_SetStandardCostsfromSimulated}"
+    				};
+					delete actionToNameMap['{!mode}_Running'];
+					var otherresults = execQuery("select id, name, value__c from appsettings__c where name in ('posetmtlcost_Running','icsetmtlsimcost_Running','costrollup_Running','cssimstdmove_Running') and name != '{!mode}_Running' and value__c = 'true'", true);
+					if (otherresults.length > 0) {
+						var res = otherresults[0];
+						if (res.value__c == 'true') {
+							alert('{!$Label.cannotrunprocesssinceotherrunning}', [actionToNameMap[res.Name]]);
+							return false;
+						}
+					}
+    				
+    				cs.value__c = 'true';
+    				var rtn = sforce.connection.update([cs]);
+					if (!rtn[0].getBoolean("success")) {
+						//do nothing
+					}
+    			}
+    		}
+    		return true;
+    	}
+
+		function doProcess() {
+			blockUI(); 
+			processMode();
+			return false;
+		}
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    	<apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+    	<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    	<apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="processMode" action="{!processMode}" oncomplete="__updateStatus();" rerender="pageMessages, processLogId"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+        	<apex:commandButton value="{!$Label.rstk__pagebtn_stdsetcosts_submit}" onclick="if (allowRun()) {validateOAuthToken(doProcess, {!!isRunOnHeroku});} return false;" style="width:150px;"/>
+            <c:standardButtons cntr="{!controller}" disableSave="true"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="processLogId"><script>processLogId = "{!processLogId}";</script></apex:outputPanel>
+        
+        <c:division id="div__c" cntr="{!controller}" disabled="false"/>
+        
+        <apex:pageBlockSection id="pbs_Main1" showHeader="false" columns="1" rendered="{!isCssimstdmove}">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__stdcost_autoind__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__stdcost_autoind__c.label}" />
+                <apex:outputPanel >
+                	<apex:inputField id="stdcost_autoind__c" value="{!o.rstk__stdcost_autoind__c}" required="true" />
+                	<script>stdcostautoindfld = document.getElementById("{!$Component.stdcost_autoind__c}");</script>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__stdcost_usetodaysdate__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__stdcost_usetodaysdate__c.label}" />
+                <c:inputField id="stdcost_usetodaysdate__c" cntr="{!controller}" tabIndex="3" />
+            </apex:pageBlockSectionItem>
+		</apex:pageBlockSection>
+        <apex:pageBlockSection id="pbs_Main2" showHeader="false" columns="1" rendered="{!isCostRollup}">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__stdcost_costrollupsimulationrun__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__stdcost_costrollupsimulationrun__c.label}" />
+                <apex:inputCheckbox id="stdcost_costrollupsimulationrun__c" value="{!o.rstk__stdcost_costrollupsimulationrun__c}" tabIndex="2" onclick="sfffSetFieldValue('stdcost_effectivedate__c', sfffDateToString(this.checked ? new Date() : null));sfffDisableField('stdcost_effectivedate__c', !this.checked);"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__stdcost_effectivedate__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__stdcost_effectivedate__c.label}" />
+                <c:inputField id="stdcost_effectivedate__c" cntr="{!controller}" tabIndex="3" disabled="true"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__stdcost_movecoststostdcostsimelems__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__stdcost_movecoststostdcostsimelems__c.label}" />
+                <c:inputField id="stdcost_movecoststostdcostsimelems__c" cntr="{!controller}" tabIndex="4" />
+            </apex:pageBlockSectionItem>
+
+			<apex:pageBlockSectionItem helpText="{!f.rstk__stdcost_rollupforindividualicitemid__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__stdcost_rollupforindividualicitemid__c.label}" />
+                <apex:outputPanel >
+				<input type="text" id="rollupforindividualicitemid_autocomplete" name="rollupforindividualicitemid_autocomplete" class="ac_input" style="width:400px" tabindex="5"/>
+        		<apex:inputText id="rollupforindividualicitemid" value="{!rollupforindividualicitemid}" style="display:none"/>
+				<script>
+					autocompleteParms["rollupforindividualicitemid"] = 
+					{query:"select id, name from icitem__c where icitem_div__c = '{!o.div__c}'", queryParms:[], codeColumn:"id", descColumn:"Name", displayColumn:"name"};
+				</script>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+
+			<apex:pageBlockSectionItem helpText="{!f.rstk__stdcost_individualitemrollupmethod__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__stdcost_individualitemrollupmethod__c.label}" />
+                <c:inputField id="stdcost_individualitemrollupmethod__c" cntr="{!controller}" tabIndex="6" />
+            </apex:pageBlockSectionItem>
+		</apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

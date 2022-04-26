@@ -1,0 +1,340 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_podmd}" standardController="rstk__poline__c" extensions="rstk.ControllerExtnPodmdProcess,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__poline__c}" />
+     <apex:variable var="f" value="{!$ObjectType.rstk__poline__c.fields}" />
+     <apex:variable var="f_podmd" value="{!$ObjectType.rstk__podmd__c.fields}" />
+     <apex:variable var="f_pohdr" value="{!$ObjectType.rstk__pohdr__c.fields}" />
+   
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_podmd}" customInclude="{!$Resource.rstk__podmdprocess_sl_cli}"  enableAutocomplete="true"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    
+    <apex:form id="fm" > 
+    <apex:actionFunction name="doSave" action="{!save}"/>
+	<apex:actionFunction name="deletepodmd" action="{!deletepodmd}"  immediate="true" rerender="pageMessages,ComponentDet" > <!-- rerender="pageMessages,ComponentDetail"" -->
+		<apex:param name="podmdId" assignTo="{!podmdId}" value="" />
+	</apex:actionFunction>
+	<apex:actionFunction name="repopulatepolinedetail" action="{!doprocess}" immediate="true"  status="statusProcessing"/>
+       		
+	<apex:pageBlock id="pb_main" mode="detail">
+		<apex:outputPanel id="op_polinedetail">
+		<apex:pageBlock id="pb" mode="detail">
+			<apex:pageBlockButtons >
+	           	<apex:commandButton value="{!$Label.rstk__pagebtn_podmd_allocate}" onclick="allocateDemand(); return false;" rendered="{!AllocationsActive}"/> 
+	            <apex:commandButton value="{!$Label.rstk__pagebtn_podmd_deallocate}" onclick="deallocateDemand(); return false;" rendered="{!DeAllocationsActive}"/>
+	        </apex:pageBlockButtons>
+	        
+	        <c:division id="poline_div__c" cntr="{!controller}" />
+         
+			<apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+	             <apex:pageBlockSectionItem helpText="{!f.rstk__poline_ordno__c.inlineHelpText}" rendered="{!ShowPOName}" >
+					<apex:outputLabel value="{!f.rstk__poline_ordno__c.label}"/>
+					<apex:outputField value="{! o.poline_ordno__c}" />
+	            </apex:pageBlockSectionItem> 
+            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__poline_ordno__c.inlineHelpText}" rendered="{!ShowPOList}" >
+                      <apex:outputLabel value="{!f.rstk__poline_ordno__c.label}"/>
+                      <c:selectList id="poline_ordno__c"  cntr="{!controller}"    options="{!PoList}" />
+             	</apex:pageBlockSectionItem> 
+            
+             	<apex:pageBlockSectionItem helpText="{!f.rstk__poline_ordno__c.inlineHelpText}" rendered="{!ShowAllPOList}" >
+	                 <apex:outputLabel value="{!f.rstk__poline_ordno__c.label}"/>
+	           		 <c:autocomplete id="poline_ordno__c" cntr="{!controller}"    required="true" slDesc="{!PoName}"  query="select id, name from pohdr__c where pohdr_div__c = 'prm' and id in (select poline_ordno__c from poline__c where poline_potype__c = 'Subcontract' and poline_ordsts__c != '9-Closed') " queryParms="[['poline_div__c','Division']]" minChars="{!minCharForAutoComplete}"  tabIndex="4" />
+            	</apex:pageBlockSectionItem>
+	        
+	        
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__poline_item__c.inlineHelpText}"   >
+	                <apex:outputLabel value="{!f.rstk__poline_item__c.label}"/> 
+	                <apex:outputField value="{! o.poline_item__c}" /> 
+				</apex:pageBlockSectionItem>
+				
+				    
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__poline_lne__c.inlineHelpText}"  rendered="{!ShowPOName}" >
+					<apex:outputLabel value="{!f.rstk__poline_lne__c.label}"/>
+					<apex:outputField value="{! o.poline_lne__c}" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helpText="{!f.rstk__poline_lne__c.inlineHelpText}" rendered="{!!ShowPOName}"  >
+	                <apex:outputLabel value="{!f.rstk__poline_lne__c.label}"/>
+	                <c:selectList id="poline_lne__c" value="{!o.rstk__poline_lne__c}" cntr="{!controller}"    options="{!PoLineList}"/>
+             	</apex:pageBlockSectionItem>  
+				
+     
+				<apex:pageBlockSectionItem helpText="{!f.rstk__poline_qtyreq__c.inlineHelpText}" >
+					<apex:outputLabel value="{!f.rstk__poline_qtyreq__c.label}"/>
+					<apex:outputField value="{! o.poline_qtyreq__c}" /> 
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__poline_ordsts__c.inlineHelpText}" >
+					<apex:outputLabel value="{!f.rstk__poline_ordsts__c.label}"/>
+					<apex:outputField value="{! o.poline_ordsts__c}" /> 
+	            </apex:pageBlockSectionItem>
+             	
+             	<apex:pageBlockSectionItem >
+             	</apex:pageBlockSectionItem> 
+			</apex:pageBlockSection> 
+		</apex:pageBlock>
+             
+		<apex:pageBlock id="pb_1" mode="ComponentDetail" >
+			<apex:commandButton onclick="newPOComponentsDemand(pageParms.recordId); return false;" value="{!$Label.rstk__pagebtn_new_po_components_demand}" rendered="{!AND(showButton,showSubmitToVendor)}" /> &nbsp;  
+			<apex:commandbutton value="{!$Label.rstk__pagebtn_show_po_component_list}" onclick="_showDialog('solpopup',1350);return false;" rendered="{!AND(showButton,showSubmitToVendor)}" />
+			<apex:pageBlockSection >
+			</apex:pageBlockSection>
+			<apex:outputPanel id="ComponentDet">	
+				<apex:pageblocksection title="{!$Label.rstk__po_components_list}"  collapsible="false" columns="1" >
+					<apex:pageblocktable id="ComponentList" value="{!ComponentList}" var="cl"  width="100%" >
+						<apex:column headerValue="Edit" rendered="{!showSubmitToVendor}" >
+				    		<apex:outputLink value="/apex/podmd?actionType=edit&req=process&id={!cl.id}"  id="theEditLink">Edit</apex:outputLink>
+						</apex:column>
+						<apex:column headerValue="Delete" rendered="{!showSubmitToVendor}"> 
+							<apex:outputLink onclick="if(confirm('Are you sure to delete this record ?')) deletepodmd('{!cl.id}'); return false; "  >Delete</apex:outputLink>
+						</apex:column>
+						<apex:column headerValue="PODMD Name">
+							<apex:outputLink value="/apex/podmd?actionType=view&req=process&id={!cl.id}"  id="theViewLink">{!cl.Name}</apex:outputLink> 
+						</apex:column>
+						<apex:column value="{!cl.rstk__podmd_qtyper__c}"/>
+						<apex:column value="{!cl.rstk__podmd_qtyreq__c}"/>
+						<apex:column value="{!cl.podmd_compitem__r.rstk__formula_allocpol__c}"/>
+						<apex:column value="{!cl.rstk__podmd_qtyalloc__c}"/>
+						<apex:column value="{!cl.rstk__podmd_qtyiss__c}"/>
+						<apex:column value="{!cl.rstk__podmd_dtereqd__c}"/>
+						<apex:column value="{!cl.rstk__podmd_invsite__c}"/>
+						<apex:column value="{!cl.rstk__podmd_isslocid__c}"/>
+						<apex:column value="{!cl.rstk__podmd_backflushpol__c}"/>
+					</apex:pageblocktable>
+				</apex:pageblocksection>
+			</apex:outputPanel>
+			
+			<!--  <c:Popup popupId="solpopup" title="PO Component List"  onOk="sol_saveAndClose();window.location.reload();">-->
+			<c:Popup popupId="solpopup" title="PO Component List"  onOk="window.location.reload();">
+					<c:FilterGrid pageSize="20" jsController="sol" data="{!pocomplines}" editable="{!IF(showSubmitToVendor, 'true', 'false')}" ispopup="true" confirmSave="true" tableSort="false" allowFiterSearch="false" />
+			</c:Popup> 
+			
+	 		<script>
+	 		
+	 		/*sol.onSaved = function() {
+                           	window.location.reload();
+                        }*/
+                        
+			sol.onGridLoad = function() {
+				sol.getSelectableRows().each(
+						function(index, el) {
+							var row = jQuery(this);
+							var recId = sol.getRowValue(row, 'Id');
+							sol.setRowValue(row, 'triggeroptions__c', '{"UI":"1"}');
+							if (!isEmpty(recId)) {
+								sol.getRowObj(row, 'podmd_isslocid__c').attr('disabled', true);
+								var qtyiss = sol.getRowObj(row, 'podmd_qtyiss__c')[0].value;
+								var qtyalloc = sol.getRowObj(row, 'podmd_qtyalloc__c')[0].value;
+								
+								sol.getRowObj(row, 'podmd_qtyreq__c').attr('disabled', true)
+								
+								if(qtyiss!= 0 || qtyalloc != 0){
+								sol.getAutocompleteTextField(row, 'podmd_invsite__c').attr('disabled', true);
+								}
+								
+								if(qtyiss == 0 && qtyalloc != 0){
+								sol.getRowObj(row, 'podmd_isslocid__c').attr('disabled', false);
+								}
+								
+								var podmdId = sol.getRowObj(row, 'podmd_poline__c')[0].value;
+								var podmdresults = execQuery("select poline_site__c,poline_div__c,poline_ordsts__c,poline_proj__c,poline_lne__c from poline__c  where Id = '" + podmdId + "'");
+			    				if (podmdresults != null && podmdresults.length > 0) {
+			    				sol.setRowValue(row, 'podmd_dmdsts__c', podmdresults[0].poline_ordsts__c.substring(0,1));
+// RCB: RSTK-1264
+			        			sol.setRowValue(row, 'podmd_proj__c', null);
+			        			sol.setRowValue(row, 'podmd_issproj__c', null);
+			        			
+			        			//sol.setRowValue(row, 'podmd_lne__c', podmdresults[0].poline_lne__c);
+			        			sol.setRowValue(row, 'podmd_div__c', podmdresults[0].poline_div__c);
+			        			sol.setRowValue(row, 'podmd_invdiv__c', podmdresults[0].poline_div__c);
+			        			sol.setRowValue(row, 'podmd_site__c', podmdresults[0].poline_site__c);
+								}
+								var compItemId = sol.getRowObj(row, 'podmd_compitem__c')[0].value;
+								var icitemresults = execQuery("select icitem_invuom__c,formula_qtydecimal__c from icitem__c  where id = '" + compItemId + "'"); 
+								if (icitemresults != null && icitemresults.length > 0) {
+			        			sol.setRowValue(row, 'podmd_invuom__c', icitemresults[0].icitem_invuom__c);
+			        		    }
+							}
+						});
+						unblockUI();
+			}
+
+			sol.addRow = function(rowCallback) {
+                console.log('sol.addRow');			    
+				self = this;
+				solHandler.prototype.addRow.call(self, rowCallback);
+				this
+						.getRows()
+						.each(
+								function(index, el) {
+									var row = jQuery(this);
+									sol.setRowValue(row, 'triggeroptions__c', '{"UI":"1"}');
+									var rowId = self.getRowValue(row, 'Id');
+// RCB: RSTK-1264
+									if (rowId == ''	&& sol.getRowObj(row, 'podmd_isslocid__c')[0].value == '' && parseLocaleFloat(sol.getRowObj(row, 'podmd_qtyper__c')[0].value) == 0) {
+										sol.getRowObj(row, 'podmd_isslocid__c').attr('disabled', true);
+										sol.getRowObj(row, 'podmd_qtyreq__c').attr('disabled', true)		
+									
+									    var qtyper = formatLocaleFloat(1.0, 2);
+				                        var qtyreq = sol.getRowObj(row, 'podmd_poline__r.poline_qtyreq__c')[0].value;
+				                        var poumcf = sol.getRowObj(row, 'podmd_poline__r.poline_poumcf__c')[0].value;
+				                        var qtyreq = formatLocaleFloat((qtyreq * poumcf), 2);
+				                        sol.setRowValue(row, 'podmd_qtyper__c', qtyper);
+				                        sol.setRowValue(row, 'podmd_qtyreq__c', qtyreq);
+// RCB: RSTK-1264
+                                        sol.setRowValue(row, 'podmd_proj__c', null);
+                                        sol.setRowValue(row, 'podmd_issproj__c', null);
+									
+								        var podmdId = sol.getRowObj(row, 'podmd_poline__c')[0].value;
+										var podmdresults = execQuery("select poline_site__c,  poline_div__c, poline_ordsts__c, poline_proj__c, poline_item__r.poitem_comcod__r.pocomcod_subdmdsite__c, poline_item__r.poitem_comcod__r.pocomcod_subdmdsite__r.Name, poline_item__r.poitem_subdmdsite__c, poline_item__r.poitem_subdmdsiteind__c, poline_item__r.poitem_subdmdsite__r.Name, poline_lne__c from poline__c  where Id = '" + podmdId + "'");
+										
+			    				        if (podmdresults != null && podmdresults.length > 0) {
+			    				            sol.setRowValue(row, 'podmd_dmdsts__c', podmdresults[0].poline_ordsts__c.substring(0,1));
+			        			            //sol.setRowValue(row, 'podmd_lne__c', podmdresults[0].poline_lne__c);
+			        			            sol.setRowValue(row, 'podmd_div__c', podmdresults[0].poline_div__c);
+											sol.setRowValue(row, 'podmd_invdiv__c', podmdresults[0].poline_div__c);
+											sol.setRowValue(row, 'podmd_site__c', podmdresults[0].poline_site__c);
+											//RSTK-4353 -  Initializing "Inv Site "value to PO item master's "Subcontract Component Issue From Site"
+											//Added by: Parthiban C
+											if(podmdresults[0].poline_item__r.poitem_subdmdsiteind__c == true || podmdresults[0].poline_item__r.poitem_subdmdsiteind__c =='true' ) {
+												if(podmdresults[0].poline_item__r.poitem_comcod__r.pocomcod_subdmdsite__c != null) {
+													var invSite = podmdresults[0].poline_item__r.poitem_comcod__r.pocomcod_subdmdsite__c;
+													var invSiteName = podmdresults[0].poline_item__r.poitem_comcod__r.pocomcod_subdmdsite__r.Name;
+													sol.setRowValue(row, 'podmd_invsite__c',invSite);
+													sol.setRowAutoValue(row, 'podmd_invsite__c',invSiteName);
+												}		
+											}
+											else {
+												if(podmdresults[0].poline_item__r.poitem_subdmdsite__c != null) {
+													sol.setRowValue(row, 'podmd_invsite__c',podmdresults[0].poline_item__r.poitem_subdmdsite__c);
+													sol.setRowAutoValue(row, 'podmd_invsite__c',podmdresults[0].poline_item__r.poitem_subdmdsite__r.Name);
+												}	
+											}
+			        			            //
+								        }
+									}
+								});
+			}
+
+			sol.entryChanged = function(row, rowNum, name, value) {
+			    console.log('sol.entryChanged name:' +name);
+				if (name == 'podmd_invsite__c') {
+
+					var salesDiv = sol.getRowObj(row, 'podmd_invsite__c')[0].value;
+					var currInvDiv = sol.getRowObj(row, 'podmd_isslocid__c')[0].value;
+					sol.getRowObj(row, 'podmd_isslocid__c')[0].length = 0;
+					sol.getRowObj(row, 'podmd_isslocid__c')[0].options[0] = new Option(
+							"--None--", "");
+					if (salesDiv) {
+						var syInvDivs = execQuery("select id, name from sylocid__c where sylocid_site__c = '"
+								+ value + "' order by name ");
+						for (i = 0; i < syInvDivs.length; i++) {
+							sol.getRowObj(row, 'podmd_isslocid__c')[0].options[sol.getRowObj(row, 'podmd_isslocid__c')[0].length] = new Option(syInvDivs[i].Name, syInvDivs[i].Id, false,false);
+						}
+						sol.getRowObj(row, 'podmd_isslocid__c')[0].value = currInvDiv;
+						sol.getRowObj(row, 'podmd_isslocid__c').attr('disabled', false);
+					}
+				}
+				
+				if (name == 'podmd_isslocid__c') {
+					var locationid = sol.getRowObj(row, 'podmd_isslocid__c')[0].value;
+					var results = execQuery("select id, name,sylocid_vendlocind__c from sylocid__c where sylocid_vendlocind__c = false and id = '" + locationid + "'");
+					if (results != null && results.length > 0) {
+						alert(LABEL_Thislocationdoesnotsupportbackflushing);
+					}
+				}
+				
+				if (name == 'podmd_qtyper__c') {
+				var qtyper = parseLocaleFloat(sol.getRowObj(row, 'podmd_qtyper__c')[0].value);
+				var qtyreq = sol.getRowObj(row, 'podmd_poline__r.poline_qtyreq__c')[0].value;
+				var poumcf = sol.getRowObj(row, 'podmd_poline__r.poline_poumcf__c')[0].value;
+				var newqrec = formatLocaleFloat(qtyper * (qtyreq * poumcf), 2);
+				console.log('sol.entryChanged qtyper:' +qtyper);
+				console.log('sol.entryChanged qtyreq:' +qtyreq);
+				console.log('sol.entryChanged poumcf:' +poumcf);
+				console.log('sol.entryChanged newqrec:' +newqrec);
+// RCB: RSTK-1264
+				sol.setRowValue(row, 'podmd_qtyreq__c', newqrec);
+				qtyreq = parseLocaleFloat(sol.getRowObj(row, 'podmd_qtyreq__c')[0].value);
+				var qtyiss = parseLocaleFloat(sol.getRowObj(row, 'podmd_qtyiss__c')[0].value);
+				var qtyremain = qtyreq - qtyiss;
+				sol.setRowValue(row, 'podmd_qtyoutstdg__c', qtyremain);
+				}
+				
+				if (name == 'podmd_compitem__c') {
+					var compItemId = sol.getRowObj(row, 'podmd_compitem__c')[0].value;
+					var podmdId = sol.getRowObj(row, 'podmd_poline__c')[0].value;
+					var podmdresults = execQuery("select podmd_compitem__c from podmd__c  where podmd_compitem__c = '" + compItemId + "' and podmd_poline__c = '" + podmdId + "'");
+			    	if (podmdresults == null || podmdresults.length == 0) {
+			        } else {
+			        alert(LABEL_POComponentdemandisalreadyaddedforthisComponent);
+			        sol.setRowValue(row, 'podmd_compitem__c', '');
+			        return true;
+			    	}
+			    	
+			    	var results = execQuery("select  poline_item__r.poitem_item__c from poline__c  where id = '" + podmdId + "'");
+					if (results != null && results.length > 0) {
+							if(compItemId == results[0].poline_item__r.poitem_item__c ){
+							alert(ParentItemandComponentItemcannotbethesame+": ("+compItemId+")");
+							sol.setRowValue(row, 'podmd_compitem__c', '');
+							return true;
+					 		}
+					}
+					
+					var icitemresults = execQuery("select icitem_invuom__c from icitem__c  where id = '" + compItemId + "'"); 
+					if (icitemresults != null && icitemresults.length > 0) {
+			        sol.setRowValue(row, 'podmd_invuom__c', icitemresults[0].icitem_invuom__c);
+			       	}
+				}
+			}
+
+			sol.validate = function() {
+				// alert('in validate');
+				var self = this;
+				var valid = true;
+				self
+						.getSelectableRows()
+						.each(
+								function(index, el) {
+									var row = jQuery(this);
+									if (self.getRowValue(row,'podmd_compitem__c') == null || self.getRowValue(row, 'podmd_compitem__c').length <= 0.0) {
+										alert(ComponentQtyGreater);
+										valid = false;
+									}
+									if (self.getRowValue(row,'podmd_qtyper__c') <= 0.0) {
+										alert("{!$Label.QtyPerMustBeGreater}");
+										valid = false;
+									}  else {
+// RCB: RSTK-1264
+									sol.getRowObj(row, 'podmd_qtyreq__c').attr('disabled', false);
+									}
+								});
+								
+								if(valid){
+								blockUI();
+								}
+				return valid;
+			}
+			
+			sol.onSaved = function() {
+			unblockUI();			
+			}
+			</script>
+   		</apex:pageBlock>
+   		</apex:outputPanel> 
+	</apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+    	 var ComponentQtyGreater = "{!$Label.ComponentQtyMustBeGreater}";
+    	 var LABEL_POComponentdemandisalreadyaddedforthisComponent = '{!$Label.LABEL_POComponentdemandisalreadyaddedforthisComponent}';
+         var ParentItemandComponentItemcannotbethesame = '{!$Label.ParentItemAndComponentItemCannotBeTheSame}';
+         var LABEL_AllocationComplete = "{!$Label.AllocationComplete}";
+         var LABEL_DeAllocationComplete = "{!$Label.DeAllocationcomplete}";
+         var LABEL_ErrorOccuredDuringProcesing = "{!$Label.ErrorOccuredDuringProcesing}";
+         var LABEL_Thislocationdoesnotsupportbackflushing = '{!$Label.Thislocationdoesnotsupportbackflushing}';
+        
+    </script>
+  </apex:page>

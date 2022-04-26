@@ -1,0 +1,1429 @@
+<apex:page id="pg" standardController="rstk__soline__c" extensions="rstk.ControllerExtnSalesOrderComponent,rstk.RemoteQueryController" 
+	action="{!doBeforePageLoad}" sideBar="false" showHeader="false">
+	<style>
+		td.dataCell {
+			word-wrap: break-word !important;
+		}
+		
+		td.dataCell a {
+			display: inline-block; 
+			max-width: 250px; 
+			vertical-align: middle;
+		}
+		
+		td.dataCell select {
+		    max-width: 250px;
+		    text-overflow: hidden;
+		}
+		
+		table.list td {
+			max-width: 250px; !important;
+		}
+
+		.headerlight {
+			background-image: url(/img/colTitle_uparrow.gif) , url(/img/colTitle_downarrow.gif) !important;
+			background-position: top right, bottom right !important;
+			background-repeat: no-repeat, no-repeat  !important;
+			cursor: pointer !important;
+		}
+		.headerSortUplight {
+			background-image: url(/img/colTitle_uparrow.gif) !important;
+			background-position: top right !important;
+		}
+		.headerSortDownlight {
+			background-image: url(/img/colTitle_downarrow.gif) !important;
+			background-position: bottom right !important;
+		}
+	</style>
+	<apex:variable var="o" value="{!rstk__soline__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soline__c.fields}" />
+    <apex:variable var="f_sohdr" value="{!$ObjectType.rstk__sohdr__c.fields}" />
+    <apex:variable var="f_component" value="{!$ObjectType.rstk__soconfig__c.fields}" />
+    <apex:variable var="f_soorddmd" value="{!$ObjectType.rstk__soorddmd__c.fields}" />
+    <apex:variable var="f_solinenic" value="{!$ObjectType.rstk__solinenic__c.fields}" />
+    <apex:variable var="f_itemproj" value="{!$ObjectType.rstk__icitemproj__c.fields}" />
+    <apex:variable var="f_iclocitem" value="{!$ObjectType.rstk__iclocitem__c.fields}" />
+    <apex:variable var="f_icitemsrl" value="{!$ObjectType.rstk__icitemsrl__c.fields}" />
+    <apex:variable var="f_icitemlot" value="{!$ObjectType.rstk__icitemlot__c.fields}" />
+
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_salesordercomponents}" enableAutocomplete="true" enableQuickMenu="false"/>
+ 	<apex:includeScript value="{!$Resource.rstk__sublist}"/>
+ 	<apex:includeScript value="{!$Resource.rstk__salesordercomponents_cli}"/>
+  	<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+ 	
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    	<apex:actionFunction name="doCancel" action="{!cancel}" />
+        <apex:actionFunction name="doSave" action="{!save}" />
+        <apex:actionFunction name="doEditTab" action="{!editTab}" immediate="true" reRender="fm">
+          <apex:param name="tabId" value=""/>
+        </apex:actionFunction>
+        <script>
+          function editTab(tabName) {
+            if (!{!ISNULL(editTab)}) {
+            	try {
+            		var editTabVar = eval("{!editTab}");
+	            	if (editTabVar.isDirty()) {
+	            	  if (!confirm("{!$Label.There_is_unsaved_data_on_another_tab_of_this_page_continuing_will_discard_those}")) {
+	            	    return false;
+	            	  }
+	            	}
+            	} catch (e) {
+            	  console.log(e);
+            	  console.log(e.stack);
+            	}
+            } 
+            showTopDialog('pleaseWaitPopup');
+            doEditTab(tabName);
+            return false;
+          }
+          var solineId = '{!o.Id}';
+        </script>
+        
+<apex:outputpanel id="localVariables">
+	<c:LocalData jsname="icitems" objectName="icitem__c" deferLoad="true" manualInit="true"
+	    filter="icitem_div__c={0}" filterBy="{!o.rstk__soline_shipdiv__c}"
+	    type1="S" field1="icitem_invuom__r.Name" key1="UOMName"
+	    type2="B" field2="icitem_qtydecimalind__c" key2="qtydecimalind"
+	    type3="N" field3="icitem_iccomcod__r.iccomcod_qtydecimal__c" key3="comQtydecimal"
+	    type4="N" field4="icitem_qtydecimal__c" key4="itemQtydecimal"
+	    type5="N" field5="icitem_icitemstd__r.icitemstd_stducsttot__c" key5="itemstdStducsttot"
+	    type6="N" field6="icitem_icitemcst__r.icitemcst_lstactucsttot__c" key6="lstactucsttot"/>
+
+	<c:LocalData jsname="iclocitems" objectName="iclocitem__c" deferLoad="true"
+	    filter="iclocitem_div__c={0} and iclocitem_icitem__c={1} and Id not in (select solineser_iclocitem__c from solineser__c where solineser_soline__r.soline_firm__c = true){!IF(restrictProjects,' and iclocitem_proj__c in ({2},{3})','')}"
+	    filterBy="{!o.rstk__soline_shipdiv__c}" filterBy1="{!o.soline_prod__r.rstk__soprod_icitem__c}"
+	    filterBy2="{!o.rstk__soline_project__c}" filterBy3="{!o.soline_shipdiv__r.rstk__sydiv_dflthomeproj__c}"
+	    type1="S" field1="iclocitem_proj__c" key1="projId"
+	    type2="S" field2="iclocitem_proj__r.pjproj_proj__c" key2="projName"
+	    type3="S" field3="iclocitem_locsec__c" key3="serialNum"
+	    type4="S" field4="iclocitem_locid__r.Name" key4="locIdName"
+	    type5="S" field5="iclocitem_locnum__c" key5="locNum"
+	    postClause="order by iclocitem_proj__r.pjproj_proj__c, iclocitem_locsec__c"/>
+
+	<c:LocalData jsname="icitemsrls" objectName="icitemsrl__c" deferLoad="true"
+	    filter="icitemsrl_item__c={0}" filterBy="{!o.soline_prod__r.rstk__soprod_icitem__c}"
+	    type1="S" field1="icitemsrl_lotno__c" key1="lotNo"
+	    type2="S" field2="icitemsrl_srlno__c" key2="serialNum"/>
+
+	<c:LocalData jsname="icitemlots" objectName="icitemlot__c" deferLoad="true"
+	    filter="icitemlot_item__c={0}" filterBy="{!o.soline_prod__r.rstk__soprod_icitem__c}"
+	    type1="D" field1="icitemlot_expiredate__c" key1="expireDate"
+	    type2="S" field2="icitemlot_lotno__c" key2="lotNo"
+	    type3="S" field3="icitemlot_lotdesc__c" key3="description"
+	    type4="S" field4="icitemlot_lotref__c" key4="ref"/>
+
+	<c:LocalData jsname="projects" objectName="pjproj__c" deferLoad="true"
+	    filter="pjproj_div__c={0}{!IF(restrictProjects,' and Id in ({1},{2})','')}" filterBy="{!o.rstk__soline_shipdiv__c}"
+	    filterBy1="{!o.rstk__soline_project__c}" filterBy2="{!o.soline_shipdiv__r.rstk__sydiv_dflthomeproj__c}"
+	    type1="S" field1="pjproj_proj__c" key1="projName"
+	    type2="S" field2="Name" key2="Name"
+	    type3="B" field3="pjproj_completed__c" key3="completed"
+	    postClause="order by pjproj_proj__c"/>
+	    
+	<c:LocalData jsname="itemprojects" objectName="icitemproj__c" deferLoad="true"
+	    filter="icitemproj_div__c={0} {!IF(restrictProjects,' and icitemproj_proj__c in ({1},{2})','')}" filterBy="{!o.rstk__soline_shipdiv__c}"
+	    filterBy1="{!o.rstk__soline_project__c}" filterBy2="{!o.soline_shipdiv__r.rstk__sydiv_dflthomeproj__c}"
+	    type1="N" field1="icitemproj_actucsttot__c" key1="actucsttot"
+	    type2="S" field2="icitemproj_item__c" key2="item"
+	    type3="S" field3="icitemproj_proj__c" key3="proj"/>
+
+	<c:LocalData jsname="rtlabgrds" objectName="rtlabgrd__c" deferLoad="true" rendered="{!soRtOpersVisible}"
+	    filter="rtlabgrd_div__c={0}" filterBy="{!o.rstk__soline_shipdiv__c}"
+	    type1="N" field1="rtlabgrd_hrrate__c" key1="hrrate"
+	    type2="N" field2="rtlabgrd_price__c" key2="price"/>
+	<c:LoadDeferredLocalData rendered="{!OR(isEdit,!ISNULL(editTab))}"/>
+</apex:outputpanel>
+
+<script>
+ var divId = '{!o.rstk__soline_shipdiv__c}';
+ var homeProjectId = '{!homeProjectId}';
+ var headerDivId = '{!socntl.socntl_div__c}';
+ var enableAddFromList = {!enableAddFromList};
+ var isAltMethodForSOLineCostPlusCalc = {!isAltMethodForSOLineCostPlusCalc};
+ var compthenmarkup = {!socntl.socntl_compthenmarkup__c};
+ 
+  function initIcitem(storage, fieldName) {
+     var icitemIdsMap = {};
+     storage.getRows().each(function(){
+       var row=jQuery(this);
+       var icitemId = storage.getRowValue(row, fieldName);
+       if (icitemId) {
+       	icitemIdsMap[icitemId] = true;
+       }
+     });
+     var initIds = Object.keys(icitemIdsMap);
+     if (initIds.length > 0) {
+     	icitems.init(initIds);
+     }
+ }
+
+var selectCache = {};
+
+ function setSelectList(rowCtrl, row, fieldId, values, valueFieldId, withNone, completedOnly) {
+    completedOnly = !!completedOnly;
+ 	var col = rowCtrl.getRowObj(row, fieldId);
+ 	var nameOf = rowCtrl.nameOf();
+ 	col.children().remove();
+ 	col.html('<select style="max-width:90%;" class="'+nameOf+'-'+rowCtrl.getRowNum(row)+'-select_'+fieldId+'" onchange="'+nameOf+'.rowChanged(event);"/>');
+ 	var theSel = col.find('select');
+ 	if (!!withNone) {
+ 		theSel.append('<option value="">--None--</option>');
+ 	}
+ 	var defaultValue =null;
+ 	if (valueFieldId != null && valueFieldId != '') {
+ 		defaultValue = rowCtrl.getRowValue(row, valueFieldId);
+ 	}
+ 	
+ 	var completedKey = '';
+ 	if (completedOnly) { completedKey = defaultValue; }
+ 	var key = fieldId + '!'+ values.length +'!'+ valueFieldId + '!' + completedKey;
+ 	var opts = selectCache[key];
+ 	
+ 	if (!opts) {
+ 	    opts = [];
+	 	for (var i=0;i <values.length; i++) {
+		  	var val = values[i].value;
+		  	if (!completedOnly || !val.completed || val.ID == defaultValue) {
+			    var opt = document.createElement('option');
+	    		opt.value = val.ID;
+	    		opt.innerHTML = val.Name;
+	    		opts.push(opt);
+	//    		opts.push('<option value="'+val.ID+'">'+escapeHtml(val.Name)+'</option>');
+	//    		theSel.append(opt);		  	
+	//		  	theSel.append('<option value="'+val.ID+'">'+escapeHtml(val.Name)+'</option>');
+			}
+	 	}
+	 	selectCache[key] = opts;
+	 } else {
+	    opts = jQuery(opts).clone();
+	 }
+	 theSel.append(opts);
+	 
+ 	if (valueFieldId != null && valueFieldId != '') {
+ 		jQuery(theSel).val(defaultValue);
+	 	rowCtrl.setRowValue(row, valueFieldId, jQuery(theSel).val());
+ 	}
+ }
+ function decimalPlaces(number) {
+	  return ((+removeLocaleFormatting(number)).toFixed(10)).replace(/^-?\d*\.?|0+$/g, '').length;
+  }
+  function cleanDecimalPlaces(number) {
+	  return ((+removeLocaleFormatting(number)).toFixed(10)).replace(/0+$/g, '').replace(/\.+$/g, '');
+  }
+  function setDecimalPlaces(number, requiredDecPlaces) {
+      return formatLocaleFloat(number, requiredDecPlaces);
+  }
+  function to2DecimalPlaces(number) {
+    return setDecimalPlaces(Math.round(number * 100) / 100, 2);
+  }
+  function to3DecimalPlaces(number) {
+    return setDecimalPlaces(Math.round(number * 1000) / 1000, 3);
+  }
+  function to6DecimalPlaces(number) {
+    return setDecimalPlaces(Math.round(number * 1000000) / 1000000, 6);
+  }
+  function overridableValueById(localStore, entryId, ind, ifindtrue, ifindfalse, defaultValue)
+  {
+    var indVal = localStore.valueById(entryId, ind);
+    var lookupField = indVal?ifindtrue:ifindfalse;
+    return localStore.valueById(entryId, lookupField, defaultValue);;
+  }
+  function adjustQuantityDecimal(numPlaces, d)
+  {
+    if (numPlaces == null) { numPlaces = 0; }
+  	if (decimalPlaces(d) > numPlaces) {
+  	  showError('The value may only be defined to '+numPlaces+' decimal places for this item');
+  	  d = formatLocaleFloat((+removeLocaleFormatting(d)).toFixed(numPlaces));
+  	}
+  	return d;
+  }
+  function qtyOrdered() { return parseLocaleFloat(jQuery("span[id$=soline_qtyorder__c]").text()) || 0.0; }
+  function solineDate() { return jQuery("input[id$=soline_reqdate__c]").val(); }
+  function pickDate() { return jQuery("span[id=pickDate]").text(); }
+  function solineLaborPrice() { return parseLocaleFloat(jQuery("span[id=soline_labprice__c]").text()) || 0.0; }
+  function priceMethLab() { return jQuery("span[id$=soline_pricemethlab__c]").text(); }
+  function costfromprod() { return jQuery("span[id$=socntl_costfromprod__c]").text() != "false"; }
+  
+  function getProductsForItemAndDiv(icitemId, divId) {
+  	var soprodsMatching = [];
+  	var soprods = execQuery("select soprod_div__c, soprod_antucost__c from soprod__c where soprod_icitem__c="+quote(icitemId));
+  	for (var i=0;i<soprods.length;i++) {
+  	  if (soprods[i].soprod_div__c == divId) {
+  	    soprodsMatching.push(soprods[i]);
+  	  }
+  	}
+  	return soprodsMatching;
+  }
+  
+  function getFirstNonZeroAntUCost(soprods) {
+  	var cost = 0;
+  	for (var i=0;i<soprods.length;i++) {
+  	  var prodCost = soprods[i].soprod_antucost__c || 0.0;
+  	  if (prodCost > 0) {
+  	    cost = prodCost;
+  	    break;
+  	  }
+  	}
+  	return cost;
+  }
+
+  var serialToIcItemSrl = null;
+  function getIcItemSrlBySerial(serialNum) {
+	if (serialToIcItemSrl == null) {
+	  serialToIcItemSrl = {};
+	  for (var i=0;i<icitemsrls.length;i++) {
+	    var e = icitemsrls[i];
+	    serialToIcItemSrl[e.value['serialNum']] = e.value;
+	  }
+	}
+	return serialToIcItemSrl[serialNum];
+  }
+
+  var icItemLotByLotNo = null;
+  function getIcItemLotByLotNo(lotNo) {
+	if (icItemLotByLotNo == null) {
+	  icItemLotByLotNo = {};
+	  for (var i=0;i<icitemlots.length;i++) {
+	    var e = icitemlots[i];
+	    icItemLotByLotNo[e.value['lotNo']] = e.value;
+	  }
+	}
+	return icItemLotByLotNo[lotNo];
+  }
+
+
+  jQuery(function() {
+  	if (!{!isEdit}) {
+  		var relatedListsToMove = [
+  		  'soordmds',
+  		  'solinenics',
+  		  'soconfigs',
+    	  'sortopers',
+    	  'solinesers',
+    	  'solinelots'
+  		];
+  		for (var i=0;i<relatedListsToMove.length; i++) {
+	  		if (relatedListsToMove[i] != '{!editTab}') {
+		  		var src=jQuery("[id*="+relatedListsToMove[i]+"relatedlist_body]");
+	  			var target=jQuery("#"+relatedListsToMove[i]+'_relatedlisttarget');
+	  			src.appendTo(target);
+	  			src.find('td:nth-child(1)').hide();
+	  			src.closest("table").find('th:nth-child(1)').hide();
+	  			target.find("a").each(function(){
+			       this.target="_blank";
+			    });
+	  		}
+  		}
+  	}
+  });
+ </script>
+       	
+		<apex:pageBlock id="pb" mode="detail">
+	        <apex:pageBlockSection >
+				<apex:pageBlockSectionItem helpText="{!f_sohdr.rstk__sohdr_order__c.inlineHelpText}">
+	            	<apex:outputLabel value="{!f_sohdr.rstk__sohdr_order__c.label}"/>
+	                <apex:outputText value="{!o.soline_sohdr__r.rstk__sohdr_order__c}" />
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__soline_prod__c.inlineHelpText}">
+	            	<apex:outputLabel value="{!f.rstk__soline_prod__c.label}"/>
+	            	<apex:outputText value="{!o.soline_prod__r.rstk__soprod_prod__c}" />
+	            </apex:pageBlockSectionItem>
+	    	</apex:pageBlockSection>
+	    	<apex:pageBlockSection >
+				<apex:pageBlockSectionItem helpText="{!f.rstk__soline_line__c.inlineHelpText}">
+	            	<apex:outputLabel value="{!f.rstk__soline_line__c.label}"/>
+	                <apex:outputText id="soline_line__c" value="{!o.rstk__soline_line__c}" html-decimals="0" />
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__soline_qtyorder__c.inlineHelpText}">
+	            	<apex:outputLabel value="{!f.rstk__soline_qtyorder__c.label}"/>
+	            	<apex:outputfield id="soline_qtyorder__c" value="{!o.rstk__soline_qtyorder__c}" html-decimals="6" />
+	            </apex:pageBlockSectionItem>
+	    	</apex:pageBlockSection>
+	    	<apex:pageBlockSection rendered="{!o.rstk__soline_prodtype__c == 'Stock'}">
+				<apex:pageBlockSectionItem helpText="{!f.rstk__soline_price__c.inlineHelpText}">
+	            	<apex:outputLabel value="{!f.rstk__soline_price__c.label}"/>
+	                <apex:outputtext id="soline_price__c" value="{!o.rstk__soline_price__c}" html-decimals="2" />
+	            </apex:pageBlockSectionItem>
+	    	</apex:pageBlockSection>
+	    	<apex:pageBlockSection columns="2">
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__soline_salesacct__c.inlineHelpText}">
+	            	<apex:outputLabel value="{!f.rstk__soline_salesacct__c.label}"/>
+	            	<apex:outputpanel >
+		            	<apex:outputField id="soline_salesacct__c" value="{!o.rstk__soline_salesacct__c}" />
+		            	<apex:outputText value="   [ " />
+               			  <apex:outputText id="remainingPrc" value="{0,number,##0.00}"><apex:param value="{!distRemainingPrc}"/></apex:outputText>
+		            	<apex:outputText value="% {!$Label.rstk__labelremainingamount} " />
+		            	<apex:outputText id="remainingAmt" value="{0,Number,###,###,###,###,##0.00}"><apex:param value="{!distRemainingAmt}"/></apex:outputText>
+		            	<apex:outputText value=" ]" />
+	            	</apex:outputpanel>
+	            </apex:pageBlockSectionItem>
+	        </apex:pageBlockSection>
+	    	<apex:outputpanel style="display:none;">
+           		<apex:inputField id="soline_reqdate__c" value="{!o.rstk__soline_reqdate__c}" />
+           		<span id="pickDate">{!pickDate}</span>
+           		<apex:inputField id="soline_labmarkuppct__c" value="{!o.rstk__soline_labmarkuppct__c}" />
+           		<apex:inputField id="soline_mtlmarkuppct__c" value="{!o.rstk__soline_mtlmarkuppct__c}" />
+           		<apex:outputField id="soline_pricemethlab__c" value="{!o.rstk__soline_pricemethlab__c}" />
+           		<apex:outputField id="soline_pricemethmtl__c" value="{!o.rstk__soline_pricemethmtl__c}" />
+           		<apex:outputField id="sydiv_costtype_pl__c" value="{!o.soline_shipdiv__r.rstk__sydiv_costtype_pl__c}"/>
+           		<span id="soline_project__c">{!o.rstk__soline_project__c}</span>
+          		<span id="sydiv_projact__c">{!o.soline_shipdiv__r.rstk__sydiv_projact__c}</span>
+          		<span id="soline_labprice__c">{!o.rstk__soline_labprice__c}</span>
+          		<span id="socntl_costfromprod__c">{!socntl.rstk__socntl_costfromprod__c}</span>
+ 			</apex:outputpanel>
+			<apex:pageBlockSection showHeader="false" collapsible="false" columns="1">
+				<apex:tabPanel switchType="client" id="pbs_tp" selectedTab="tab_{!defaultTab}" value="tab_{!defaultTab}">
+					<apex:tab id="tab_soordmds" name="tab_soordmds" label="{!$Label.rstk__pagetab_salesordercomponents_salesorderinventorydemands}" style="{!IF(soordmdsVisible,'','display:none;')}">
+					<table width="100%">
+					  <tr width="100%"><td width="100%">
+					  <c:PageableGrid confirmSave="true" sortcolums="light" pageSize="20" width="1150" jsController="soordmds" data="{!soorddmdGrid}" editable="{!soorddmdsEditable}" ispopup="false"
+					    disableAdd="{!!soorddmdsAddDelete}" disableDelete="{!!soorddmdsAddDelete}" rendered="{!OR(isEdit,editTab=='soordmds')}"/>
+					  <apex:commandButton onclick="return editTab('soordmds');" value="{!$Label.rstk__pagebtn_edit}" rendered="{!AND(!isEdit,editTab!='soordmds')}"/>
+					  </td></tr>
+					  <tr width="100%"><td width="100%" id='soordmds_relatedlisttarget'></td></tr>
+					</table>
+ <script>
+ if (typeof(soordmds) != "undefined") {
+ soordmds.hideEditableDate = {!!soorddmdsAddDelete};
+ soordmds.setStaticData=function(row) {
+      var icitemId = this.getRowValue(row, 'soorddmd_compicitem__c');
+      this.setRowValue(row, 'uom__g', icitems.valueById(icitemId, 'UOMName', ''));
+      
+      var totalRequired = this.getRowDecimal(row, 'soorddmd_qtyper__c');
+      if (!this.getRowValue(row, 'soorddmd_fixedqty__c'))
+      {
+         totalRequired *= qtyOrdered();
+      }
+      this.setRowValue(row, 'qtyrequired__g', formatLocaleFloat(totalRequired, null, true));
+      if (this.hideEditableDate) {
+        // Problems with the readonly date along with an editable row, disable the editable one instead and hide today's date 
+        var ed = soordmds.getRowObj(row, 'soorddmd_dtereqd__c');
+        ed.attr("disabled", true);
+        ed.parent().find('.dateFormat').hide();
+      }
+ }
+ 
+ soordmds.onGridLoad=function() {
+     var self=this;
+     
+     initIcitem(this, 'soorddmd_compicitem__c');
+   
+     soordmds.getRows().each(function(){
+       var row=jQuery(this);
+       self.setStaticData(row);
+       setSelectList(self, row, 'soorddmd_issproj__g', projects, 'soorddmd_issproj__c', false, true);
+     });
+ }
+ soordmds.resetRow = function(row) {
+	    initIcitem(this, 'soorddmd_compicitem__c');
+ 		soordmdsHandler.prototype.resetRow.call(this, row);
+ 		this.setRowValue(row, "soorddmd_dtereqd__c", solineDate());
+ 		this.setStaticData(row);
+ 		setSelectList(this, row, 'soorddmd_issproj__g', projects, 'soorddmd_issproj__c', false, true);
+ }
+ soordmds.validate = function() {
+   return true;
+ }
+ soordmds.entryChanged=function(row, rowNum, name, value) {
+   if (name == 'soorddmd_qtyper__c') {
+       var icitemId = this.getRowValue(row, 'soorddmd_compicitem__c');
+       var numDecimal = overridableValueById(icitems, icitemId, "qtydecimalind", "comQtydecimal", "itemQtydecimal", 0);
+   	var newValue = adjustQuantityDecimal(numDecimal, value);
+   	if (newValue != value)
+   	{ 
+   		this.setRowValue(row, name, newValue);
+   		this.getRowObj(row, name).focus();
+   	}
+   }
+
+   if (name=='soorddmd_qtyper__c')
+   {
+   	if (value == 0)
+   	{
+   		showError('The value must be greater than zero');
+   		value = 1;
+   		this.setRowValue(row, name, value);
+   		this.getRowObj(row, name).focus();
+   	}
+   }
+   
+   if (name=='soorddmd_qtyper__c' || name=='soorddmd_price__c')
+   {
+   	if (value < 0)
+   	{
+   		showError('The value can\'t be less than zero');
+   		value = 0;
+   		this.setRowValue(row, name, value);
+   		this.getRowObj(row, name).focus();
+   	}
+   }
+   
+   if (name == 'soorddmd_dtereqd__c')
+   {
+   	var theDate = sfffStringToDate(value);
+      	var today = sfffStringToDate(sfffDateToString(new Date()));
+       if (today > theDate)
+	{
+		showWarning("The date entered is earlier than today's date");
+	}
+   }
+   if (name == 'select_soorddmd_issproj__g') {
+     this.setRowValue(row, 'soorddmd_issproj__c', value);
+   }
+   this.setStaticData(row);
+ }
+ }
+ </script>
+		</apex:tab>
+		<apex:tab id="tab_solinenics" name="tab_solinenics" label="{!$Label.rstk__pagetab_salesordercomponents_non_inventorycomponents}" style="{!IF(solineNicsVisible,'','display:none;')}">
+		<table width="100%">
+		  <tr width="100%"><td width="100%">
+		  <c:PageableGrid pageSize="10" confirmSave="true"  sortcolums="light" width="1150" jsController="solinenics" data="{!solineNicGrid}" editable="{!solineNicsEditable}" ispopup="false" rendered="{!OR(isEdit,editTab=='solinenics')}"/>
+		  <apex:commandButton onclick="return editTab('solinenics');" value="{!$Label.rstk__pagebtn_edit}" rendered="{!AND(!isEdit,editTab!='solinenics')}"/>
+		  </td></tr>
+		  <tr width="100%"><td width="100%" id='solinenics_relatedlisttarget'></td></tr>
+		</table>
+<script>
+if (typeof(solinenics) != "undefined") {
+ solinenics.setStaticData=function(row) { 
+      var totalRequired = this.getRowDecimal(row, 'solinenic_qtyper__c');
+      if (!this.getRowValue(row, 'solinenic_fixedqty__c'))
+      {
+         totalRequired *= qtyOrdered();
+      }
+      this.setRowValue(row, 'qtyrequired__g', formatLocaleFloat(totalRequired));
+      this.setRowValue(row, 'solinenic_qtyper__c', setDecimalPlaces(this.getRowValue(row, 'solinenic_qtyper__c'), 6));
+      this.setRowValue(row, 'solinenic_price__c', setDecimalPlaces(this.getRowValue(row, 'solinenic_price__c'), 2));
+      this.setRowValue(row, 'solinenic_cost__c', setDecimalPlaces(this.getRowValue(row, 'solinenic_cost__c'), 2));
+      
+      var rowNum = this.getRowNum(row);
+      var initallyAService = !!this.initallyAService[rowNum];
+      var nowAService = this.getRowValue(row, 'solinenic_service__c');
+      
+      if (!initallyAService || !nowAService) {
+         solinenics.getRowObj(row, 'btn_details').hide();
+      } else {
+         solinenics.getRowObj(row, 'btn_details').show();
+      }
+      solinenics.getRowObj(row, 'compname__c').attr('disabled', nowAService);
+      solinenics.getRowObj(row, 'solinenic_desc__c').attr('disabled', nowAService);
+      solinenics.getRowObj(row, 'solinenic_uom__c').attr('disabled', nowAService);
+ }
+ solinenics.onGridLoad=function() {
+     var self=this;
+     self.initallyAService = {}
+     self.getRows().each(function(){
+       var row=jQuery(this);
+       var rowNum = self.getRowNum(row);
+       self.initallyAService[rowNum] = self.getRowValue(row, 'solinenic_service__c');
+       self.setStaticData(row);
+     });
+ }
+ solinenics.resetRow = function(row) { 
+ 		solinenicsHandler.prototype.resetRow.call(this, row);
+ 		this.setStaticData(row);
+ }
+solinenics.entryChanged=function(row, rowNum, name, value) {
+   if (name == 'solinenic_service__c') { console.log('solinenic_service__c now = '+value);
+     if (value == true) {
+       showSelectServiceDialog(row);
+     }
+   }
+   this.setStaticData(row);
+ }
+ 
+solinenics.__onclick = function(rowNum, name, recordId) {
+	if (isEmpty(recordId)) return false;
+	var gridWidth = 1000;
+	var gridHeight = 300;
+	var top = ((jQuery(window).height() - gridHeight) / 2);
+	var width = jQuery(window).width();
+	var left = (width - gridWidth) / 2;
+	if (gridWidth > width) {
+		left = 0;
+	} else {
+		width = gridWidth;
+	}
+	document.getElementById('soservaudGridFrame').src = '/apex/Soservaudgrid?solinenic=' + recordId;
+	jQuery.blockUI({
+		message: jQuery('#soservaudGrid'),
+		css: {
+			backgroundColor:'#fff',
+			left: (left + 'px'),
+			top: (top + 'px'),
+			width:(width + 'px'),
+			height:(gridHeight + 30) + 'px',
+			padding:'15px',
+			textAlign:'left',
+			fontSize:'1em',
+			border:'2px solid #333',
+			
+			opacity:'1.0',
+			'-moz-border-radius':'6px',
+			'-webkit-border-radius':'6px',
+			'-moz-box-shadow': '0 0 50px #ccc',
+			'-webkit-box-shadow': '0 0 50x #ccc'
+		}
+	});
+ }
+}
+
+  var selectServiceRow = null;
+  var soservicesByIdMap = null;
+  var soservicesByItemMap = null;
+  function showSelectServiceDialog(row) {
+    if (soservicesByIdMap == null) {
+      var soservices = execQuery("select Id, soservice_item__c, soservice_cost__c, soservice_desc__c, soservice_fixedqty__c, soservice_price__c, soservice_uom__c from soservice__c where soservice_div__c = "+quote(divId)+' order by soservice_item__c');
+      populateSelectList('selectedService', soservices, null, 'soservice_item__c');
+      
+      soservicesByIdMap = {};
+      soservicesByItemMap = {};
+      for (var i=0; i<soservices.length; i++) {
+        var s = soservices[i];
+        soservicesByIdMap[s.Id] = s;
+        soservicesByItemMap[s.soservice_item__c] = s;
+      }
+    }
+    selectServiceRow = row;
+    var existingValue = soservicesByItemMap[solinenics.getRowValue(row, 'compname__c')];
+    if (existingValue) {
+      jQuery("#selectedService").val(existingValue.Id);
+    } else {
+      jQuery("#selectedService").val('');
+    }
+    _showDialog("selectService", 440);
+  }
+  
+  function doSetService() {
+    var newValue = jQuery("#selectedService").val();
+    if (!newValue) {
+      doResetService();
+    } else {
+      var soservice = soservicesByIdMap[newValue];
+      if (soservice != null) {
+        solinenics.setRowValue(selectServiceRow, 'compname__c', soservice.soservice_item__c);
+        solinenics.setRowValue(selectServiceRow, 'solinenic_desc__c', soservice.soservice_desc__c);
+        solinenics.setRowValue(selectServiceRow, 'solinenic_uom__c', soservice.soservice_uom__c);
+        solinenics.setRowValue(selectServiceRow, 'solinenic_fixedqty__c', isTrue(soservice.soservice_fixedqty__c));
+        solinenics.setRowValue(selectServiceRow, 'solinenic_price__c', soservice.soservice_price__c);
+        solinenics.setRowValue(selectServiceRow, 'solinenic_cost__c', soservice.soservice_cost__c);
+      }
+    }
+    selectServiceRow = null;
+  }
+  
+  function doResetService() {
+    solinenics.setRowValue(selectServiceRow, 'solinenic_service__c', false);
+    solinenics.setStaticData(selectServiceRow);
+  }
+
+</script>
+		</apex:tab>
+		<apex:tab id="tab_soconfigs" name="tab_soconfigs" label="{!$Label.rstk__pagetab_salesordercomponents_configuredsalesordermaterial}" style="{!IF(soConfigsVisible,'','display:none;')}">
+		<table width="100%">
+		  <tr width="100%"><td width="100%">
+		 
+		  <c:PageableGrid confirmSave="true" sortcolums="light" pageSize="10" width="1150" jsController="soconfigs" data="{!soConfigGrid}" editable="{!soConfigsEditable}" ispopup="false" rendered="{!OR(isEdit,editTab=='soconfigs')}"/>
+		  <apex:commandButton onclick="return editTab('soconfigs');" value="{!$Label.rstk__pagebtn_edit}" rendered="{!AND(!isEdit,editTab!='soconfigs')}"/>
+		  </td></tr>
+		  <tr width="100%"><td width="100%" id='soconfigs_relatedlisttarget'></td></tr>
+		</table>
+<script>
+ var lastInvokedRowInput;
+ function invokeAddFromList() {
+	window.open('/apex/ComponentAddFromList?type=soconfig&soline=' + solineId, 
+		'AddFromListWindow', "width=800,height=480");
+ }
+
+if (typeof(soconfigs) != "undefined") {
+ soconfigs.setStaticData=function(row) {
+      var icitemId = this.getRowValue(row, 'soconfig_icitem__c');
+      this.setRowValue(row, 'uom__g', icitems.valueById(icitemId, 'UOMName', ''));
+      var totalRequired = this.getRowDecimal(row, 'soconfig_qtyper__c');
+      if (!this.getRowValue(row, 'soconfig_fixedqty__c'))
+      {
+         totalRequired *= qtyOrdered();
+      }
+      this.setRowValue(row, 'qtyrequired__g', formatLocaleFloat(totalRequired, null, true));
+      var meth = jQuery("span[id$=soline_pricemethmtl__c]").text();
+      if (meth == 'Cost plus Markup Pct.') {
+        this.getRowObj(row, 'soconfig_price__c').attr('readonly', true);
+      }
+ }
+
+ soconfigs.onGridLoad=function() {
+   initIcitem(this, 'soconfig_icitem__c');
+   soconfigs.rowsUpdated();
+ }
+ 
+ soconfigs.rowsUpdated=function() {
+     var self=this;
+     initIcitem(this, 'soconfig_icitem__c');
+     self.getRows().each(function(){
+       var row=jQuery(this);
+       self.setStaticData(row);
+     });
+     
+     if (enableAddFromList) {
+		if (jQuery('input[id*=addFromList]').length == 0) {
+			jQuery('input[id*=soconfigs_add]').after('<input class="btn" id="addFromList" onclick="invokeAddFromList();" type="button" value="Add From List">');
+		}
+	}
+ }
+ soconfigs.validate = function() {
+     var self=this;
+     var isValid = true;
+     return isValid;
+ }
+ soconfigs.resetRow = function(row) { 
+ 		soconfigsHandler.prototype.resetRow.call(this, row);
+ 		this.setRowValue(row, "soconfig_reqdate__c", pickDate());
+ 		if (row.find('.lookupIcon').length == 0) {
+	 		var acInput = row.find('input[name*=autocomplete]');
+	 		acInput.after('<a href="javascript:invokeLookup(\'' + acInput[0].name + '\')"><img src="/s.gif" class="lookupIcon" title="{!$Label.Lookup}"></a>');
+	 	}
+		var lineMarkup = parseLocaleFloat(jQuery("input[id$=soline_mtlmarkuppct__c]").val()) || 0.0;
+		this.setRowDecimal(row, "soconfig_markuppct__c", lineMarkup);
+ 		this.setStaticData(row);
+ }
+ 
+ 
+soconfigs.onSaved = function(row) {
+	editTab('');
+}
+ 
+soconfigs.entryChanged=function(row, rowNum, name, value) {
+    var meth = jQuery("span[id$=soline_pricemethmtl__c]").text();
+    var isCostPlusMarkup = (meth == 'Cost plus Markup Pct.');
+
+    if (name == 'soconfig_qtyper__c') {
+	   var newValue = adjustQuantityDecimal(6, value);
+	   if (newValue != value)
+	   { 
+	   		this.setRowValue(row, name, newValue);
+	   		this.getRowObj(row, name).focus();
+	   }
+   }
+
+   if (name == 'soconfig_icitem__c') {
+   		var costBasis = 0.0;
+   		if (costfromprod()) {
+   			costBasis = getFirstNonZeroAntUCost(getProductsForItemAndDiv(value, headerDivId));
+   		} else {
+	   		var costType = jQuery("span[id$=sydiv_costtype_pl__c]").text();
+	   		if (costType == "Standard Cost") {
+	            costBasis = getItemStdCost(value);
+	   		} else if (costType == "Weighted Average Cost") {
+		   		var projActive = jQuery("span[id$=sydiv_projact__c]").text() == 'true';
+	   			if (!projActive) {
+	   			  costBasis = getItemAveUnitCost(value);
+	   			} else {
+	              var proj = getProject(value);
+	   			  costBasis = getProjectCost(value, proj);
+		   		  if (costBasis == 0) {
+	   			    costBasis = getItemAveUnitCost(value);
+		   		  }
+	   			}
+	   		}
+   		}
+   		this.entryChanged(row, rowNum, 'soconfig_costbasis__c', formatLocaleFloat(costBasis));
+        if (!isCostPlusMarkup) {
+        	var socomppPrice = 0;
+        	var socompps=execQuery('select socompp_price__c from socompp__c where socompp_item__c='+quote(value)+' and socompp_invdiv__c='+quote(divId));
+        	if (socompps.length > 0) {
+        		socomppPrice = parseFloat(socompps[0].socompp_price__c);
+        		if (!compthenmarkup || socomppPrice != 0) {
+		        	this.getRowObj(row, 'soconfig_price__c').val(formatLocaleFloat(socomppPrice));
+		        }
+			}
+			if (compthenmarkup && socomppPrice == 0) {
+				// If there's no price (or it's zero) and markup is enabled as a backup for the pricing then treat this entry as if it were  Cost Plus Markup
+				isCostPlusMarkup = true;
+				this.setCostPlusMarkup(row);
+			} 
+		}
+        if (!isCostPlusMarkup) {
+			this.setRowDecimal(row, "soconfig_markuppct__c", '0');
+		}
+   }
+
+   if (name=='soconfig_qtyper__c')
+   {
+   	if (value == 0)
+   	{
+   		showError('The value must be greater than zero');
+   		value = 1;
+   		this.setRowValue(row, name, value);
+   		this.getRowObj(row, name).focus();
+   	}
+   }
+   
+   if (name=='soconfig_qtyper__c' || name=='soconfig_price__c' || name=='soconfig_oper__c' || name=='soconfig_costbasis__c' || name=='soconfig_markuppct__c')
+   {
+   	if (value < 0)
+   	{
+   		showError('The value can\'t be less than zero');
+   		value = 0;
+   		this.setRowValue(row, name, value);
+   		this.getRowObj(row, name).focus();
+   	}
+   	if (name=='soconfig_markuppct__c') {
+	   	if (value > 999.99)
+	   	{
+	   		showError('The value can\'t be more than 999.99');
+	   		value = 0;
+	   		this.setRowValue(row, name, value);
+	   		this.getRowObj(row, name).focus();
+	   	}
+   	}
+   }
+   
+   if (name == 'soconfig_reqdate__c')
+   {
+   	var theDate = sfffStringToDate(value);
+      	var today = sfffStringToDate(sfffDateToString(new Date()));
+       if (today > theDate)
+	{
+		showWarning("The date entered is earlier than today's date");
+	}
+  }
+  	
+  if (name=='soconfig_costbasis__c' || name=='soconfig_markuppct__c') {
+    var obj = this.getRowObjExt(row, name);
+    var floatValue = parseLocaleFloat(value);
+    
+    if (!obj[1]) { // It's rendered as a Locale value, format it
+      this.setRowValue(row, name, (name=='soconfig_costbasis__c')?to6DecimalPlaces(floatValue):to2DecimalPlaces(floatValue));
+    } else {
+      this.setRowValue(row, name, floatValue);
+    }
+    if (isCostPlusMarkup) {
+    	this.setCostPlusMarkup(row);
+	}
+  }
+ 
+   this.setStaticData(row);
+ }
+
+ soconfigs.setCostPlusMarkup=function(row) {
+   	var newPrice = getCostPlusMarkupPrice(this.getRowDecimal(row, 'soconfig_costbasis__c'), this.getRowDecimal(row, 'soconfig_markuppct__c'));
+    this.setRowValue(row, 'soconfig_price__c', to6DecimalPlaces(newPrice));
+ }
+
+}
+
+
+function getCostPlusMarkupPrice(costbasis, markuppct) {
+  if (isAltMethodForSOLineCostPlusCalc) {
+    var denom = (1.0 - markuppct / 100.0);
+    if (denom > 0) {
+      return costbasis / denom;
+    }
+    return costbasis;
+  }
+  return costbasis * (1.0 + markuppct / 100.0);
+}
+
+var itemprojToActCost = null;
+function getProjectCost(icitemId, projectId) {
+  if (itemprojToActCost == null) {
+	itemprojToActCost = {};
+	for (var i=0; i<itemprojects.length; i++) {
+	  var ipv = itemprojects[i].value;
+	  itemprojToActCost[ipv.item+'|'+ipv.proj] = ipv.actucsttot;
+	}
+  }
+  return itemprojToActCost[icitemId+'|'+projectId] || 0.0;
+}
+
+function getItemStdCost(icitemId) {
+	return icitems.valueById(icitemId, "itemstdStducsttot") || 0.0;
+}
+
+function getItemAveUnitCost(icitemId) {
+	return icitems.valueById(icitemId, "lstactucsttot") || 0.0;
+}
+
+ function getProject(icitemId) {
+   if (hasHomeProjInd(icitemId)) {
+     return getHomeProjectId(divId);
+   }
+   return jQuery("span[id$=soline_project__c]").text();
+ }
+
+ function getHomeProjectId(divId) {
+	return homeProjectId;
+ }
+ 
+ function hasHomeProjInd(icitemId) {
+   if (icitemId != null) {
+       var ix = getIcitemEx(icitemId);
+	   if (ix.icitem_homeprojindind__c) {
+	     return ix.icitem_iccomcod__r.iccomcod_dflthomeprojind_pl__c == 'Project Home';
+	   }
+	   return ix.icitem_homeprojind__c == 'Project Home';
+   }
+   return false;
+ }
+
+function getIcitemEx(icitemId) {
+  if (icitemId == null) {
+    return null;
+  }
+  var icitems = execQuery("select Id, icitem_homeprojind__c, icitem_homeprojindind__c, icitem_iccomcod__r.iccomcod_dflthomeprojind_pl__c"+
+                          " from icitem__c where Id='"+icitemId+"'");
+  if (icitems.length > 0) {
+    return icitems[0];
+  }
+  return null;
+}
+</script>
+		</apex:tab>
+		<apex:tab id="tab_sortopers" name="tab_sortopers" label="{!$Label.rstk__pagetab_salesordercomponents_configuredsalesorderlabor}" style="{!IF(soRtOpersVisible,'','display:none;')}">
+		<table width="100%">
+		  <tr width="100%"><td width="100%">
+		  <c:PageableGrid confirmSave="true" pageSize="5" sortcolums="light" width="1150" jsController="sortopers" data="{!soRtOperGrid}" editable="{!soRtOpersEditable}" ispopup="false" rendered="{!OR(isEdit,editTab=='sortopers')}"/>
+		  <apex:commandButton onclick="return editTab('sortopers');" value="{!$Label.rstk__pagebtn_edit}" rendered="{!AND(!isEdit,editTab!='sortopers')}"/>
+		  </td></tr>
+		  <tr width="100%"><td width="100%" id='sortopers_relatedlisttarget'></td></tr>
+		</table>
+
+ <script>
+if (typeof(sortopers) != "undefined") {
+sortopers.setStaticData=function(row) {
+      var meth = priceMethLab();
+      if (meth == 'Cost plus Markup Pct.') {
+        this.getRowObj(row, 'sortoper_price__c').attr('readonly', true);
+      } else if (meth == 'Price from Sales Order Line') {
+	      if ((this.getRowDecimal(row, 'sortoper_price__c') || 0) == 0) {
+	      	this.setRowValue(row, 'sortoper_price__c', to3DecimalPlaces(solineLaborPrice()));
+	      }
+	  }
+ }
+ sortopers.onGridLoad=function() {
+     var self=this;
+     self.getRows().each(function(){
+       var row=jQuery(this);
+       self.setStaticData(row);
+     });
+ }
+ sortopers.resetRow = function(row) { 
+ 	  sortopersHandler.prototype.resetRow.call(this, row);
+ 	  var self=this;
+ 	  var maxOper = -1;
+      self.getRows().each(function(){
+      	var r=jQuery(this);
+      	var v = parseLocaleFloat(self.getRowValue(r, 'sortoper_oper__c')) || 0;
+      	if (maxOper < v)
+      	{
+      		maxOper = v;
+      	}
+      });
+      if (!this.currentLargestSortoper) {
+        this.currentLargestSortoper = execQuery('select sortoper_oper__c from sortoper__c where sortoper_soline__c='+quote(solineId)+' order by sortoper_oper__c desc limit 1');
+      }
+      if (this.currentLargestSortoper.length > 0) {
+	      var currentLargestSortoperOper = parseFloat(this.currentLargestSortoper[0].sortoper_oper__c);
+	      if (currentLargestSortoperOper > maxOper) {
+	      	maxOper = currentLargestSortoperOper;
+	      }
+	  }
+	  this.setRowValue(row, "sortoper_oper__c", maxOper + 1);
+	  var lineMarkup = parseLocaleFloat(jQuery("input[id$=soline_labmarkuppct__c]").val()) || 0.0;
+	  this.setRowValue(row, "sortoper_markuppct__c", lineMarkup);
+	  this.setStaticData(row);
+ }
+sortopers.entryChanged=function(row, rowNum, name, value) {
+   if (name=='sortoper_oper__c' || name=='sortoper_concurseqno__c' || name=='sortoper_price__c' || name=='sortoper_costbasis__c' || name=='sortoper_markuppct__c')
+   {
+   	if (value < 0)
+   	{
+   		showError('The value can\'t be less than zero');
+   		value = 0;
+   		this.setRowValue(row, name, value);
+   		this.getRowObj(row, name).focus();
+   	}
+   	if (name=='sortoper_markuppct__c') {
+	   	if (value > 999.99)
+	   	{
+	   		showError('The value can\'t be more than 999.99');
+	   		value = 0;
+	   		this.setRowValue(row, name, value);
+	   		this.getRowObj(row, name).focus();
+	   	}
+   	}
+   }
+   if (name=='sortoper_costbasis__c' || name=='sortoper_markuppct__c') {
+     this.setRowValue(row, name, (name=='sortoper_costbasis__c')?to6DecimalPlaces(parseLocaleFloat(value)):to2DecimalPlaces(parseLocaleFloat(value)));
+     var newPrice = getCostPlusMarkupPrice(parseLocaleFloat(this.getRowValue(row, 'sortoper_costbasis__c')), parseLocaleFloat(this.getRowValue(row, 'sortoper_markuppct__c')));
+     this.setRowValue(row, 'sortoper_price__c', to3DecimalPlaces(newPrice));
+   }
+   if (name == 'sortoper_runlabgrd__c' || name == 'sortoper_runhr__c') {
+     var newPriceCost = this.getPriceCost(row);
+     if (newPriceCost.price != null) {
+       this.setRowValue(row, 'sortoper_price__c', to3DecimalPlaces(newPriceCost.price));
+     }
+     if (newPriceCost.cost != null) {
+       this.setRowValue(row, 'sortoper_costbasis__c', to6DecimalPlaces(newPriceCost.cost));
+     }
+   }
+   this.setStaticData(row); 
+  }
+  
+sortopers.getPriceCost = function(row) {
+  var pm = { price: null, cost: null };
+  if (this.getRowState(row) == 'ADDED' || (this.getRowValue(row, 'sortoper_price__c') || 0) == 0) {
+    // Only override if the prce isn't currently set
+    var runlabgrd = this.getRowValue(row, 'sortoper_runlabgrd__c');
+    if (runlabgrd != null) {
+	    var meth = priceMethLab();
+	    if (meth == 'Price from Employee Grade') {
+          var runhrs = this.getRowDecimal(row, 'sortoper_runhr__c') || 0.0;
+	      if (runhrs > 0) {
+	        pm.price = rtlabgrds.valueById(runlabgrd, "price");
+	      }
+	    } else if (meth == 'Cost plus Markup Pct.') {
+	      pm.cost = rtlabgrds.valueById(runlabgrd, "hrrate") || 0.0;
+	      pm.price = getCostPlusMarkupPrice(pm.cost, this.getRowDecimal(row, 'sortoper_markuppct__c')||0.0);
+	    }
+    }
+  }
+  return pm;
+}
+}
+</script>
+					</apex:tab>
+
+<apex:tab id="tab_solinesers" name="tab_solinesers" label="{!$Label.rstk__pagetab_salesordercomponents_orderlineserials}" style="{!IF(soLineSerVisible,'','display:none;')}">
+	    	<apex:outputPanel layout="block" style="width:100%;text-align:right;" rendered="{!OR(soLineSerEditable, isEdit)}">
+	            	<apex:outputText style="font-weight:bold;" value="{!$Label.rstk__labelserialsallocated}: "/>
+	            	<span id='sersAllocated'/>
+	    	</apex:outputPanel>
+			<!-- Select from Inventory has been removed (for now at least) - Uncomment this block if it's to be re-added
+			  <apex:pageBlockSection showHeader="false" collapsible="false" columns="1">
+				<apex:outputPanel rendered="{!AND(soLineSerEditable, OR(isEdit,editTab=='solinesers'))}">
+					<span id="inventoryPopup" style="display:none;">
+						<input type="button" class="btn" value="Add Selected" onclick="addSelectedInventory(); return false;"/>
+						<input type="button" class="btn" value="Cancel" onclick="cancelSelectedInventory(); return false;"/>
+						<table id="inventoryTable" class="list">
+						<thead class="rich-table-thead">
+						  <th class="headerRow"><a href="#" onclick="invSelectDeselectAll(); return false;">Sel</a></th>
+						  <th class="headerRow">{!f_iclocitem.iclocitem_locsec__c.label}</th>
+						  <th class="headerRow">{!f_iclocitem.iclocitem_proj__c.label}</th>
+						  <th class="headerRow">{!f_iclocitem.iclocitem_locid__c.label}</th>
+						  <th class="headerRow">{!f_iclocitem.iclocitem_locnum__c.label}</th>
+						  <th class="headerRow">{!f_icitemsrl.icitemsrl_lotno__c.label}</th>
+						  <th class="headerRow">{!f_icitemlot.icitemlot_expiredate__c.label}</th>
+						</thead>
+						<tbody Id='inventoryBody' style="background-color:#FFFFCC;">
+						</tbody>
+						</table>
+						<input type="button" class="btn" value="Add Selected" onclick="addSelectedInventory(); return false;"/>
+						<input type="button" class="btn" value="Cancel" onclick="cancelSelectedInventory(); return false;"/>
+					</span>
+<script>
+  function displayInventory() {
+  	var numLines = solinesers.getSelectableRows().length;
+    if (numLines >= solinesers.maxSerials) {
+	  alert("{!$Label.NoMoreSrlDetailsCanBeAdded_OLQtyIs}", solinesers.maxSerials);
+      return;
+    }
+    var tbody=jQuery("#inventoryBody");
+    tbody.find('tr').remove();
+    var itms = solinesers.getUnconsumedIcLocItems();
+    var rows = [];
+    for (var i=0;i<itms.length;i++) {
+      var itm = itms[i];
+      var itmsrl = getIcItemSrlBySerial(itm.serialNum);
+      var itmloc = getIcItemLotByLotNo(itmsrl.lotNo);
+      var expDate = (itmloc != null)?itmloc.expireDate:null;
+	  rows.push(rowData(itm.serialNum, itm.projName, itm.locIdName, itm.locNum, itmsrl.lotNo, expDate, itm.ID));
+    }
+    
+    rows.sort(sortRows);
+    for (var i=0;i<rows.length;i++) {
+      addRow(rows[i]);
+    }
+    showInventory();
+  }
+  
+  function invSelectDeselectAll() {
+    var tbody=jQuery("#inventoryBody");
+  	var anySelected = tbody.find("input[name='selected']:checked").length > 0;
+  	tbody.find("input[name='selected']").each(function() {
+   	   this.checked = !anySelected;
+  	});
+  }
+
+  var selectedRows;
+  function addSelectedInventory() {
+    var tbody=jQuery("#inventoryBody");
+  	selectedRows = tbody.find("input[name='selected']:checked").closest('tr');
+  	if (selectedRows.length == 0) {
+  	   cancelSelectedInventory();
+  	   return;
+  	}
+  	
+  	var numLines = solinesers.getSelectableRows().length;
+    if (numLines + selectedRows.length > solinesers.maxSerials) {
+		alert("{!$Label.NumOfSrlDetailsExeedsOLQty_ExcessDisregarded}");
+	  	selectedRows.splice(solinesers.maxSerials - numLines);
+	}
+  	
+  	solinesers.addRows(selectedRows.length, populateInventoryRows)
+  }
+  
+  function populateInventoryRows() {
+  	if (selectedRows != null) {
+	  	var rowsToPopulate = solinesers.getSelectableRows();
+	  	var i = selectedRows.length - 1;
+	  	for (var sr=rowsToPopulate.length-1;sr>=0; sr--) {
+	  	  if (i >= 0) {
+	  	    var iclocitemId = jQuery(selectedRows[i]).find('span[name=iclocitemId]').text();
+	  	    var srow = solinesers.getRow(sr);
+	  	    solinesers.setRowValue(srow, 'solineser_iclocitem__c', iclocitemId);
+	  	    solinesers.setStaticData(srow);
+	  	    i--;
+	  	  }
+	  	}
+	  	solinesers.updateIcLocItemSelects();
+  	}
+    hideInventory();
+  } 
+  
+  function cancelSelectedInventory() {
+    hideInventory();
+  }
+
+  function showInventory() {
+    jQuery("[id$=solinesersgrid]").hide();
+    jQuery("#inventoryPopup").show();
+    jQuery("#selectFromInvButton").hide();
+  }
+
+  function hideInventory() {
+    jQuery("#inventoryPopup").hide();
+    jQuery("[id$=solinesersgrid]").show();
+    jQuery("#selectFromInvButton").show();
+  }
+
+  function addCheckboxCell(row, cellName) {
+  	var c = row.insertCell(-1);
+  	c.innerHTML ='<input type="checkbox" name="'+cellName+'"/>';
+  }
+
+  function addTextCell(row, cellName, value, ishidden) {
+  	var c = row.insertCell(-1);
+  	if (ishidden) {
+  	  c.style.display='none';
+  	}
+  	c.innerHTML='<span name="'+cellName+'">';
+  	jQuery(c).find('span').text(value);
+  }
+  
+  function nullIfBlank(v) {
+    if (v == null || v == '') {
+      return null;
+    }
+    return v;
+  }
+
+  function blankIfNull(v) {
+    if (v == null) {
+      return '';
+    }
+    return v;
+  }
+    
+  function sortRows(r1,r2) {
+  	if (r1.lotExpireDate != null) {
+  	  if (r2.lotExpireDate == null) {
+  	    return -1;
+  	  }
+   	  if (r1.lotExpireDate.getTime() != r2.lotExpireDate.getTime()) {
+  	    return (r1.lotExpireDate.getTime() < r2.lotExpireDate.getTime())?-1:1;
+  	  }
+  	} else {
+  	  if (r1.lotExpireDate != null) {
+  	    return 1;
+  	  }
+  	}
+  	if (r1.proj != r2.proj) {
+  	  return (blankIfNull(r1.proj) < blankIfNull(r2.proj))?-1:1;
+  	}
+  	if (r1.locNum != r2.locNum) {
+  	  return (blankIfNull(r1.locNum) < blankIfNull(r2.locNum))?-1:1;
+  	}
+  	if (r1.srl != r2.srl) {
+  		return (r1.srl < r2.srl)?-1:1;
+  	}
+
+  	if (r1.iclocitemId != r2.iclocitemId) {
+		return (r1.iclocitemId < r2.iclocitemId)?-1:1;
+	}
+	return 0;
+  }
+
+  function rowData(srl, proj, locId, locNum, lotNo, lotExpireDate, iclocitemId) {
+  	return {
+  		srl: srl,
+  		proj : proj, 
+  		locId : locId,
+  		locNum : locNum, 
+  		lotNo : lotNo,
+  		lotExpireDate : nullIfBlank(lotExpireDate), 
+  		iclocitemId :iclocitemId
+  	};
+  }
+  
+
+  function addRow(rowData) {
+    var t = document.getElementById('inventoryBody');
+    var r = t.insertRow(-1);
+    addCheckboxCell(r, 'selected');
+    addTextCell(r, 'serialNum', rowData.srl);
+    addTextCell(r, 'projName', rowData.proj);
+    addTextCell(r, 'locId', rowData.locId);
+    addTextCell(r, 'locNum', rowData.locNum);
+    addTextCell(r, 'lotNo', rowData.lotNo);
+    addTextCell(r, 'lotExpireDate', (rowData.lotExpireDate!=null)?formatDate(rowData.lotExpireDate):'');
+    addTextCell(r, 'iclocitemId', rowData.iclocitemId, true);
+  }
+</script>
+	  
+	<input type="button" id="selectFromInvButton" class="btn" value="Select from Inventory" onclick="displayInventory(); return false;"/>  
+	</apex:outputPanel>-->
+		<table width="100%">
+		  <tr width="100%"><td width="100%">
+			<c:EditableGrid confirmSave="true"  sortcolums="light" rendered="{!AND(soLineSerEditable, OR(isEdit,editTab=='solinesers'))}" id="solinesersgrid" width="1150" jsController="solinesers" data="{!soLineSers}" 
+			editable="{!soLineSerEditable}" disableUndoDelete="true" ispopup="false"/>
+			<c:BasicGrid rendered="{!AND(!soLineSerEditable, OR(isEdit,editTab=='solinesers'))}" id="solinesersgridro" gData="{!soLineSersReadOnly}" jsController="solinesersro"/>
+			<apex:commandButton onclick="return editTab('solinesers');" value="{!$Label.rstk__pagebtn_edit}" rendered="{!AND(!isEdit,editTab!='solinesers')}"/>
+		  </td></tr>
+		  <tr width="100%"><td width="100%" id='solinesers_relatedlisttarget'></td></tr>
+		</table>
+ <script>
+  if (typeof(solinesers) != "undefined") {
+	  solinesers.maxSerials = {!maxSerials};
+	  solinesers.setStaticData=function(row) {
+	 }
+	 
+	 
+	 solinesers.onGridLoad=function() {
+	     this.rowsUpdated();
+	  }
+	 
+	  solinesers.vetoAddRow = function() {
+	  	var numLines = this.getSelectableRows().length;
+	  	if (numLines >= this.maxSerials) {
+		  alert("{!$Label.NumOfSrlDetailsExeedsOLQtyOf}", this.maxSerials);
+	  	  return true;
+	  	}
+	  	return false;
+	  }
+	
+	  solinesers.validate= function() {
+	    var self = this;
+	    this.getSelectableRows().each(function() {
+	      var row = jQuery(this);
+	      if (self.getRowValue(row, 'solineser_srlno__c') == '') {
+	        self.deleteRow(row);
+	      }
+	    });
+	    
+	  	var numLines = this.getSelectableRows().length;
+	  	
+	  	if (numLines > this.maxSerials) {
+		  alert("{!$Label.NumOfSrlDetailsExeedsOLQtyOf}", this.maxSerials);
+	  	  return false;
+	  	}
+	  	return true;
+	  }
+	  
+	  solinesers.rowsUpdated = function() {
+	     var self=this;
+	     self.getRows().each(function(){
+	       	var row=jQuery(this);
+	       	self.setStaticData(row);
+	     });
+	  	var numLines = this.isEditable()?(this.getSelectableRows().length):(this.getRows().length);
+	  	var numSelectedText = jQuery("#sersAllocated");
+	    numSelectedText.text(numLines+' / '+this.maxSerials);
+	    var fontColor = 'green';
+	    if (numLines > this.maxSerials) {
+	    	fontColor = 'red';
+	    } else if (numLines == this.maxSerials) {
+	    	fontColor = 'black';
+	    }
+	    numSelectedText.css('color', fontColor);
+	  }
+	 
+	 solinesers.resetRow = function(row) { 
+	  	  solinesersHandler.prototype.resetRow.call(this, row);
+	 	  this.setStaticData(row);
+	 }
+	 
+	solinesers.entryChanged=function(row, rowNum, name, value) {
+	}
+}
+
+</script>
+	 		<!--   /apex:pageBlockSection> Also for the display inventory -->
+
+</apex:tab>
+
+<apex:tab id="tab_solinelots" name="tab_solinelots" label="{!$Label.rstk__pagetab_salesordercomponents_orderlinelots}" style="{!IF(soLineLotVisible,'','display:none;')}">
+		<table width="100%">
+		  <tr width="100%"><td width="100%">
+			<c:PageableGrid confirmSave="true" pageSize="20" sortcolums="light" rendered="{!AND(soLineLotEditable, OR(isEdit,editTab=='solinelots'))}" id="solinelotsgrid" width="1150" jsController="solinelots" data="{!solinelots}" 
+			editable="{!soLineLotEditable}" disableUndoDelete="true" ispopup="false"/>
+			<c:PageableGrid confirmSave="true" pageSize="20" sortcolums="light" editable="false" rendered="{!AND(!soLineLotEditable, OR(isEdit,editTab=='solinelots'))}" id="solinelotsgridro" data="{!soLineLotsReadOnly}" jsController="solinelotsro"/>
+			<apex:commandButton onclick="return editTab('solinelots');" value="{!$Label.rstk__pagebtn_edit}" rendered="{!AND(!isEdit,editTab!='solinelots')}"/>
+		  </td></tr>
+		  <tr width="100%"><td width="100%" id='solinelots_relatedlisttarget'></td></tr>
+		</table>
+ <script>
+  if (typeof(solinelots) != "undefined") {
+	  solinelots.setStaticData=function(row) {
+	      var lotNo = this.getRowValue(row, 'solineser_lotno__c');
+	      
+	      if (lotNo !=null && lotNo != '') {
+      		var itmloc = getIcItemLotByLotNo(lotNo);
+		    var expDate = (itmloc != null)?itmloc.expireDate:null;
+		    var desc = (itmloc != null)?itmloc.description:null;
+		    var ref = (itmloc != null)?itmloc.ref:null;
+		    if (expDate != null && expDate != '') {
+	    		expDate = formatDate(expDate);
+	  		} 
+	      	this.setRowValue(row, 'expire__g', expDate);
+	      	this.setRowValue(row, 'desc__g', desc);
+	      	this.setRowValue(row, 'lotref__g', ref);
+	      } else {
+	      	this.setRowValue(row, 'expire__g', '');
+	      	this.setRowValue(row, 'desc__g', '');
+	      	this.setRowValue(row, 'lotref__g', '');
+	      }
+	 }
+	 
+	 solinelots.onGridLoad=function() {
+	     this.rowsUpdated();
+	  }
+	
+	  solinelots.validate= function() {
+	    var self = this;
+	    
+	  	return true;
+	  }
+	  
+	  solinelots.rowsUpdated = function() {
+	     var self=this;
+	     self.getRows().each(function(){
+	       	var row=jQuery(this);
+			setSelectList(self, row, 'solineser_iclocitem__g', [], null, true);
+	       	self.setStaticData(row);
+	     });
+	  }
+	 
+	 solinelots.resetRow = function(row) { 
+	  	  solinelotsHandler.prototype.resetRow.call(this, row);
+	 	  this.setStaticData(row);
+	 }
+	 
+	solinelots.entryChanged=function(row, rowNum, name, value) {
+		if (name == 'solineser_lotno__c') {
+	 	  this.setStaticData(row);
+		}
+	  }
+}
+
+if (typeof(solinelotsro) != "undefined") {
+  addAfterEvent(function() {
+    for (var i=0;i<solinelotsro.numRows;i++) {
+      var lotNo = solinelotsro.getRowValue(i, 'solineser_lotno__c');
+      var itmloc = getIcItemLotByLotNo(lotNo);
+	  var expDate = (itmloc != null)?itmloc.expireDate:null;
+	  var desc = (itmloc != null)?itmloc.description:null;
+	  var ref = (itmloc != null)?itmloc.ref:null;
+	  if (expDate != null && expDate != '') {
+	    expDate = formatDate(expDate);
+	  } 
+	  solinelotsro.setRowValue(i, 'expire__g', expDate);
+	  solinelotsro.setRowValue(i, 'desc__g', desc);
+	  solinelotsro.setRowValue(i, 'lotref__g', ref);
+    }
+  });
+}
+
+</script>
+</apex:tab>
+
+
+					<apex:tab id="tab_soLineDistGrid" name="tab_soLineDistGrid" label="{!$Label.rstk__pagetab_salesordercomponents_salesorderlineaccountdistribution}">
+					  <c:BasicGrid gData="{!soLineDistGrid}"/>
+					</apex:tab>
+				</apex:tabPanel>	
+	 		</apex:pageBlockSection>
+			
+		</apex:pageBlock>
+
+			<c:Popup popupId="errorPopup" title="{!$Label.rstk__pagepopup_salesordercomponents_error}">
+		  	  <textarea id="errorText" style="width:95%;font-weight:bold;" rows="8" readonly="readonly">X</textarea>
+			</c:Popup>
+			
+			<c:Popup popupId="warningPopup" title="{!$Label.rstk__pagepopup_salesordercomponents_warning}">
+		  	  <textarea id="warningText" style="width:95%;font-weight:bold;" rows="8" readonly="readonly">X</textarea>
+			</c:Popup>
+			
+			<c:Popup popupId="selectService" title="{!$Label.rstk__pagepopup_selectservice}" onOk="_closeDialog(); doSetService();" onCancel="_closeDialog(); doResetService();">
+		  	  <select size="1" id="selectedService" style="width:400px;"/>
+			</c:Popup>
+			
+			<script>
+			  function showError(errorMessage)
+			  {
+			    alert(errorMessage);
+				//jQuery("#errorText").val(errorMessage);
+				//_showDialog("errorPopup");
+			  }
+			  function showWarning(warningMessage)
+			  {
+				alert("{!$Label.Warning}", warningMessage);
+				//jQuery("#errorText").val(warningMessage);
+				//_showDialog("warningPopup");
+			  }
+			  
+			</script>
+		
+		    <div id="soservaudGrid" style="display:none">
+                <h2>{!$Label.SalesOrderComponent_Service_Usage_Details}</h2>
+		    	<table cellspacing="0" cellpadding="0" margin="0" width="100%" height="100%">
+					<tr><td><iframe id="soservaudGridFrame" src="" width="100%" height="300px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe></td></tr>
+					<tr><td><input onclick="unblockUI(); return false;" type="button" class="btn" value="Close"/></td></tr>
+				</table>
+			</div>
+		
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+			<c:Popup popupId="notesAttach" title="{!$Label.rstk__pagepopup_salesordercomponents_notesandattachments}" cancelCaption="Close">
+			    <iframe id="NotesAndAttachments" height="520px" width="100%" frameborder="0" src="about:blank"></iframe>
+			</c:Popup> 	
+		</apex:form>
+
+<apex:outputPanel style="display:none;">
+    <apex:relatedList id="soordmdsrelatedlist" list="soorddmds__r" subject="{!o.id}" rendered="{!!isEdit}" pageSize="200"/>
+    <apex:relatedList id="solinenicsrelatedlist" list="solinenics__r" subject="{!o.id}" rendered="{!!isEdit}" pageSize="200"/>
+    <apex:relatedList id="soconfigsrelatedlist" list="soconfigs__r" subject="{!o.id}" rendered="{!!isEdit}" pageSize="200"/>
+    <apex:relatedList id="sortopersrelatedlist" list="sortopers__r" subject="{!o.id}" rendered="{!!isEdit}" pageSize="200"/>
+    <apex:relatedList id="solinesersrelatedlist" list="solinesers__r" subject="{!o.id}" rendered="{!!isEdit}" pageSize="200"/>
+    <apex:relatedList id="solinelotsrelatedlist" list="solinesers__r" subject="{!o.id}" rendered="{!!isEdit}" pageSize="200"/>
+</apex:outputPanel>
+    <c:footerInclude cntr="{!controller}" />
+	
+</apex:page>

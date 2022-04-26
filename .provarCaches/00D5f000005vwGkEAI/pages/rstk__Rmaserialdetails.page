@@ -1,0 +1,376 @@
+<apex:page id="pg" standardController="rstk__sorma__c" extensions="rstk.ControllerExtnRmaserialdetails,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sorma__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sorma__c.fields}" />
+    <apex:variable var="f_header" value="{!$ObjectType.rstk__customext__c.fields}" />
+    <apex:variable var="f_sormadmd" value="{!$ObjectType.rstk__sormadmd__c.fields}" />
+    <apex:variable var="f_soshipdmd" value="{!$ObjectType.rstk__soshipdmd__c.fields}" />
+    <apex:variable var="f_sormaser" value="{!$ObjectType.rstk__sormaser__c.fields}" />
+    <apex:variable var="f_sowarr" value="{!$ObjectType.rstk__sowarr__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!pageTitle}" customInclude="{!$Resource.rstk__rmaserialdetails}" enableAutocomplete="true"/>
+	<apex:outputLink value="{!URLFOR($Action.rstk__sorma__c.View, o.id)}">&nbsp;«&nbsp;Back To RMA Detail</apex:outputlink>
+    <apex:form id="fm">
+    	<apex:actionFunction name="deleteSormasers" action="{!deleteSormasers}" oncomplete="afterDeleteSormasers();" rerender="pageMessages, op_hidden, op_rmaserialdetails"/>
+    	<apex:actionFunction name="authorizeSerials" action="{!authorizeSerials}" oncomplete="afterAuthorizeSerials();" rerender="pageMessages, op_hidden, op_pb"/>
+    	<apex:actionFunction name="displaySerialDetails" action="{!displaySerialDetails}" oncomplete="unblockUI();" rerender="pageMessages, op_hidden, op_pb"/>
+    	<apex:actionFunction name="specifyAuthorizedSerials" action="{!specifyAuthorizedSerials}" oncomplete="unblockUI();" rerender="pageMessages, op_hidden, op_pb"/>
+    	<apex:actionFunction name="specifyCoveredSerials" action="{!specifyCoveredSerials}" oncomplete="unblockUI();" rerender="pageMessages, op_hidden, op_pb"/>
+    	<apex:actionFunction name="deleteComponents" action="{!deleteComponents}" oncomplete="afterDeleteComponents();" rerender="pageMessages, op_hidden, op_kitcompdetails" rendered="{!displaykitcomponents}"/>
+    	<apex:actionFunction name="saveComponentDetails" action="{!saveComponentDetails}" oncomplete="afterSaveComponentDetails();" rerender="pageMessages, op_hidden, op_kitcompdetails, op_generickitcompdetails" rendered="{!displaykitcomponents}">
+    		<apex:param name="saveandreturn" assignTo="{!saveandreturn}" value="" />
+    	</apex:actionFunction>
+		
+    	<apex:outputPanel id="op_hidden">
+    		<input type="hidden" id="sormaid" value="{!id}"/>
+    		<input type="hidden" id="validationError" value="{!validationError}"/>
+    		<apex:inputField value="{!o.rstk__sorma_usegenerickit__c}" rendered="false"/>
+    	</apex:outputPanel>
+    	
+    	<apex:pageBlock id="op_pb" mode="detail">
+    		<script>
+    			var rows;
+    			var displaysormasers = false;
+    			var displaysoshipsrls = false;
+    			var displaysrlentry = false;
+    			var displaykitcomponents = false;
+    			var specifycoveredserials = false;
+    		</script>
+    		
+    		<apex:outputPanel id="op_kitcompdetails">
+				<apex:pageBlock rendered="{!displaykitcomponents && !o.rstk__sorma_usegenerickit__c}">
+					<script>
+		    			rows = {};
+		    			displaykitcomponents = true;
+		    		</script>
+		        	<apex:outputPanel >
+		        		<apex:inputHidden value="{!o.rstk__sorma_released__c}" rendered="false"/>
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_deleteselectedcomponents}" onclick="doDeleteComponents();" rendered="{!!o.rstk__sorma_released__c}"/>
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_savechanges}" onclick="doSaveComponentDetails(true, true);" rendered="{!!o.rstk__sorma_released__c}"/>
+		        		&nbsp;&nbsp;<apex:commandButton value="{!$Label.rstk__pagebtn_rmaserialdetails_cancel}" action="{!tormaDetail}" immediate="true"/>
+		        	</apex:outputPanel>
+		        	<br/>
+					<apex:pageBlockTable value="{!kitcompdetails}" var="d" columnsWidth="50px,100px,75px,75px,400px">
+						<apex:column headerValue="{!$Label.rstk__selected}" style="vertical-align:top;">
+			        		<apex:inputCheckbox id="selected" value="{!d.selected}" rendered="{!!o.rstk__sorma_released__c}"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_compitem__c}"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_qtyper__c.label}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_qtyper__c}" rendered="{!o.rstk__sorma_released__c}"/>
+			        		<apex:inputField id="qtyper" value="{!d.sormadmd.rstk__sormadmd_qtyper__c}" rendered="{!!o.rstk__sorma_released__c}"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_qtyauth__c.label}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_qtyauth__c}"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_lotno__c.label}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_lotno__c}" rendered="{!o.rstk__sorma_released__c}"/>
+			        		<apex:inputField id="lotno" value="{!d.sormadmd.rstk__sormadmd_lotno__c}" rendered="{!(!o.rstk__sorma_released__c && d.islot)}"/>
+			        		<script>
+			        			rows["{!d.sormadmd.id}"] = {
+			        				selectedfld: document.getElementById("{!$Component.selected}"),
+			        				qtyperfld: document.getElementById("{!$Component.qtyper}"),
+			        				origqtyper: {!d.sormadmd.rstk__sormadmd_qtyper__c},
+			        				lotnofld: document.getElementById("{!$Component.lotno}")
+			        			};
+			        		</script>
+			        	</apex:column>
+			        </apex:pageBlockTable>
+				</apex:pageBlock>
+			</apex:outputPanel>
+    		
+    		<apex:outputPanel id="op_generickitcompdetails">
+				<apex:pageBlock rendered="{!displaykitcomponents && o.rstk__sorma_usegenerickit__c}">
+					<script>
+		    			rows = {};
+		    			displaykitcomponents = true;
+		    		</script>
+		        	<apex:outputPanel >
+		        		<apex:inputHidden value="{!o.rstk__sorma_released__c}" rendered="false"/>
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_save}" onclick="doSaveComponentDetails(false, false);" rendered="{!!o.rstk__sorma_released__c}"/>
+		        		&nbsp;&nbsp;<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_saveandreturn}" onclick="doSaveComponentDetails(false, true);" rendered="{!!o.rstk__sorma_released__c}"/>
+		        		&nbsp;&nbsp;<apex:commandButton value="{!$Label.rstk__pagebtn_rmaserialdetails_cancel}" action="{!tormaDetail}" immediate="true"/>
+		        	</apex:outputPanel>
+		        	<br/>
+					<apex:pageBlockTable value="{!generickitcompdetails}" var="d" columnsWidth="100px,150px,450px">
+			        	<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_compitem__c}" rendered="{!o.rstk__sorma_released__c}"/>
+			        		<apex:outputPanel rendered="{!!o.rstk__sorma_released__c}">
+			        			<input type="text" name="compicitem{!d.rowid}__c_autocomplete" id="compicitem{!d.rowid}__c_autocomplete" class="ac_input" value="{!d.compname}" style="width:350px;"/>
+	       						<apex:inputText id="compicitem__c" value="{!d.sormadmd.rstk__sormadmd_compitem__c}" onchange="compicitemChanged('{!d.rowid}')" style="display:none"/>
+	       						<script>setupAutocompleteField("compicitem{!d.rowid}__c_autocomplete", document.getElementById("{!$Component.compicitem__c}"), {query:"select id, name from icitem__c where icitem_div__c = '{!o.rstk__sorma_invdiv__c}'", queryParms:[], codeColumn:"id", descColumn:"name"});</script>
+       						</apex:outputPanel>
+			        	</apex:column>
+			        	<apex:column headerValue="{!$Label.rstk__quantityserialsauthorized}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_qtyauth__c}" rendered="{!o.rstk__sorma_released__c && !d.issrl}"/>
+			        		<apex:inputField id="sormadmd_qtyauth__c" value="{!d.sormadmd.rstk__sormadmd_qtyauth__c}" rendered="{!!o.rstk__sorma_released__c}" style="display:{!IF((d.sormadmd.rstk__sormadmd_compitem__c == null || d.issrl),'none','inline')};"/>
+			        		<apex:inputTextarea id="compserials" value="{!d.compserials}" cols="50" rows="5" style="display:{!IF((d.sormadmd.rstk__sormadmd_compitem__c == null || !d.issrl),'none','inline')};"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_lotno__c.label}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_lotno__c}" rendered="{!o.rstk__sorma_released__c}"/>
+			        		<apex:inputField id="sormadmd_lotno__c" value="{!d.sormadmd.rstk__sormadmd_lotno__c}" rendered="{!!o.rstk__sorma_released__c}" style="display:{!IF((d.sormadmd.rstk__sormadmd_compitem__c == null || !d.islot),'none','inline')};"/>
+			        		<script>
+			        			document.getElementById("{!$Component.compserials}").disabled = {!o.rstk__sorma_released__c};
+			        			rows["{!d.rowid}"] = {
+			        				compicitemfld: document.getElementById("{!$Component.compicitem__c}"),
+			        				qtyauthfld: document.getElementById("{!$Component.sormadmd_qtyauth__c}"),
+			        				compserialsfld: document.getElementById("{!$Component.compserials}"),
+			        				lotnofld: document.getElementById("{!$Component.sormadmd_lotno__c}")
+			        			};
+			        		</script>
+			        	</apex:column>
+			        </apex:pageBlockTable>
+				</apex:pageBlock>
+			</apex:outputPanel>
+    		
+    		<apex:outputPanel id="op_rmaserialdetails">
+				<apex:pageBlock rendered="{!displaysormasers}">
+					<script>
+		    			rows = {};
+		    			displaysormasers = {!displaysormasers};
+		    			displaysoshipsrls = {!displaysoshipsrls};
+		    			displaysrlentry = {!displaysrlentry};
+		    		</script>
+		        	<apex:outputPanel >
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_deleteselectedserials}" onclick="doDeleteSerials()" rendered="true"/>
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_specifyauthorizedserialnumbers}" onclick="specifyAuthorizedSerials();blockUI();" rendered="true"/>
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_specifycoveredserialnumbers}" onclick="specifyCoveredSerials();blockUI();" rendered="{!allowspecifycoveredserials}"/>
+		        		&nbsp;&nbsp;<apex:commandButton value="{!$Label.rstk__pagebtn_rmaserialdetails_cancel}" action="{!tormaDetail}" immediate="true"/>
+		        	</apex:outputPanel>
+		        	<br/>
+		        	<apex:repeat value="{!rmaserialcomps}" var="d">
+	        			<apex:pageBlockSection showHeader="false" columns="2">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="white-space:nowrap;"/>
+								<apex:outputField value="{!d.sormadmd.rstk__sormadmd_compitem__c}"/>
+							</apex:pageBlockSectionItem>
+							
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__qtytoauthorize}" style="white-space:nowrap;"/>
+								<apex:outputText value="{!d.qty}"/>
+							</apex:pageBlockSectionItem>
+							
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__qtyauthorized}" style="white-space:nowrap;"/>
+								<apex:outputText value="{!d.qtyselected}"/>
+							</apex:pageBlockSectionItem>
+							
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__qtyremaining}" style="white-space:nowrap;"/>
+								<apex:outputText value="{!d.qtyremaining}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+						
+						<apex:pageBlockTable value="{!d.rmaserials}" var="l" columnsWidth="50px,100px,100px,100px,100px,100px,100px">
+							<apex:column headerValue="{!$Label.rstk__selected}" style="vertical-align:top;">
+				        		<apex:inputCheckbox id="selected" value="{!l.selected}" rendered="{!l.allowdelete}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sormaser.rstk__sormaser_srlno__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sormaser.rstk__sormaser_srlno__c}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sormaser.rstk__sormaser_authorized__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sormaser.rstk__sormaser_authorized__c}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sormaser.rstk__sormaser_received__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sormaser.rstk__sormaser_received__c}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sormaser.rstk__sormaser_inspect__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sormaser.rstk__sormaser_inspect__c}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sormaser.rstk__sormaser_scrapped__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sormaser.rstk__sormaser_scrapped__c}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sormaser.rstk__sormaser_shipped__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sormaser.rstk__sormaser_shipped__c}"/>
+				        		<script>
+				        			rows["{!l.sormaser.id}"] = {
+				        				selectedfld: document.getElementById("{!$Component.selected}")
+				        			};
+				        		</script>
+				        	</apex:column>
+				        </apex:pageBlockTable>
+					</apex:repeat>
+				</apex:pageBlock>
+			</apex:outputPanel>
+			
+			<apex:outputPanel id="op_rmashipsrls">
+				<apex:pageBlock rendered="{!displaysoshipsrls}">
+					<script>
+		    			rows = {};
+		    			displaysormasers = {!displaysormasers};
+		    			displaysoshipsrls = {!displaysoshipsrls};
+		    			displaysrlentry = {!displaysrlentry};
+		    		</script>
+					<apex:outputPanel >
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_authorizeselectedserials}" onclick="doAuthorizeSelected()" rendered="true"/>
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_specifycoveredserialnumbers}" onclick="specifyCoveredSerials();blockUI();" rendered="{!allowspecifycoveredserials}"/>
+		        		&nbsp;&nbsp;<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_cancel}" onclick="displaySerialDetails();blockUI();" rendered="true"/>
+		        	</apex:outputPanel>
+		        	
+		        	<apex:pageBlockTable value="{!rmashipcomps}" var="d" columnsWidth="50px,150px,75px,75px,75px,250px,250px">
+		        		<apex:column headerValue="{!$Label.rstk__selected}" style="vertical-align:top;">
+			        		<apex:inputCheckbox id="selected" value="{!d.selected}" rendered="{!!d.noshipsrlsfound && !d.allserialsselected}"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_compitem__c}"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!$Label.rstk__qtytoauthorize}" value="{!d.qty}" style="vertical-align:top;"/>
+			        	<apex:column headerValue="{!$Label.rstk__qtyauthorized}" value="{!d.qtyselected}" style="vertical-align:top;"/>
+			        	<apex:column headerValue="{!$Label.rstk__qtyremaining}" value="{!d.qtyremaining}" style="vertical-align:top;"/>
+			        	<apex:column headerValue="{!$Label.rstk__serialnumbers1}" style="vertical-align:top;">
+			        		<apex:selectList id="compsrls" value="{!d.selectedSrls}" multiselect="true" size="5" style="width:240px;" rendered="{!!d.noshipsrlsfound && !d.allserialsselected}">
+		                    	<apex:selectOptions value="{!d.availableSrls}"/>
+		                    </apex:selectList>
+		                    <apex:outputText value="{!$Label.rstk__labelforserializeddetailsfromsalesordshipment}" rendered="{!d.noshipsrlsfound}"/>
+		                    <apex:outputText value="{!$Label.rstk__labelforauthorizednumberofserials}" rendered="{!d.allserialsselected}"/>
+		                    <script>
+			        			rows["{!d.sormadmd.id}"] = {
+			        				selectedfld: document.getElementById("{!$Component.selected}"),
+			        				compsrlsfld: document.getElementById("{!$Component.compsrls}"),
+			        				qtyremaining: {!d.qtyremaining},
+			        				compname: "{!SUBSTITUTE(d.sormadmd.sormadmd_compitem__r.name, '"', '')}"
+			        			};
+			        		</script>
+			        	</apex:column>
+			        	<apex:column headerValue="{!$Label.rstk__excludedserials_alreadyreceivedorinprocess}" style="vertical-align:top;">
+			        		<apex:selectList multiselect="true" size="5" style="width:240px;" rendered="{!d.unavailableSrlsFound}" disabled="true">
+		                    	<apex:selectOptions value="{!d.unavailableSrls}"/>
+		                    </apex:selectList>
+			        	</apex:column>
+			        </apex:pageBlockTable>
+				</apex:pageBlock>
+			</apex:outputPanel>
+			
+			<apex:outputPanel id="op_rmasrlentry">
+				<apex:pageBlock rendered="{!displaysrlentry}">
+					<script>
+		    			rows = {};
+		    			displaysormasers = {!displaysormasers};
+		    			displaysoshipsrls = {!displaysoshipsrls};
+		    			displaysrlentry = {!displaysrlentry};
+		    		</script>
+					<apex:outputPanel >
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_authorizeselectedserials}" onclick="doAuthorizeSelected()" rendered="true"/>
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_specifycoveredserialnumbers}" onclick="specifyCoveredSerials();blockUI();" rendered="{!allowspecifycoveredserials}"/>
+		        		&nbsp;&nbsp;<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_cancel}" onclick="displaySerialDetails();blockUI();" rendered="true"/>
+		        	</apex:outputPanel>
+		        	
+		        	<apex:pageBlockTable value="{!rmaserialentrys}" var="d" columnsWidth="50px,150px,75px,75px,75px,250px">
+		        		<apex:column headerValue="{!$Label.rstk__selected}" style="vertical-align:top;">
+			        		<apex:inputCheckbox id="selected" value="{!d.selected}" rendered="{!!d.allserialsselected}"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="vertical-align:top;">
+			        		<apex:outputField value="{!d.sormadmd.rstk__sormadmd_compitem__c}"/>
+			        	</apex:column>
+			        	<apex:column headerValue="{!$Label.rstk__qtytoauthorize}" value="{!d.qty}" style="vertical-align:top;"/>
+			        	<apex:column headerValue="{!$Label.rstk__qtyauthorized}" value="{!d.qtyselected}" style="vertical-align:top;"/>
+			        	<apex:column headerValue="{!$Label.rstk__qtyremaining}" value="{!d.qtyremaining}" style="vertical-align:top;"/>
+			        	<apex:column headerValue="{!$Label.rstk__serialnumbers1}" style="vertical-align:top;">
+			        		<apex:inputTextarea id="compsrls" value="{!d.srls}" cols="50" rows="6" rendered="{!!d.allserialsselected}"/>
+			        		<apex:outputText value="{!$Label.rstk__labelforauthorizednumberofserials}" rendered="{!d.allserialsselected}"/>
+			        		<script>
+			        			rows["{!d.sormadmd.id}"] = {
+			        				selectedfld: document.getElementById("{!$Component.selected}"),
+			        				compsrlsfld: document.getElementById("{!$Component.compsrls}"),
+			        				qtyremaining: {!d.qtyremaining},
+			        				compname: "{!SUBSTITUTE(d.sormadmd.sormadmd_compitem__r.name, '"', '')}"
+			        			};
+			        		</script>
+			        	</apex:column>
+		        	</apex:pageBlockTable>
+				</apex:pageBlock>
+			</apex:outputPanel>
+			
+			<apex:outputPanel id="op_sowarrsrls">
+				<apex:pageBlock rendered="{!specifycoveredserials}">
+					<script>
+		    			rows = {};
+		    			displaysormasers = {!displaysormasers};
+		    			displaysoshipsrls = {!displaysoshipsrls};
+		    			displaysrlentry = {!displaysrlentry};
+		    			specifycoveredserials = {!specifycoveredserials};
+		    		</script>
+		        	<apex:outputPanel >
+		        		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_authorizeselectedcoveredserials}" onclick="doAuthorizeSelected()" rendered="true"/>
+		        		&nbsp;&nbsp;<c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaserialdetails_cancel}" onclick="displaySerialDetails();blockUI();" rendered="true"/>
+		        		<apex:outputPanel >
+		        			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<apex:outputLabel value="{!$Label.rstk__rmaserialdetails_serialnumbercontains}"/>
+		        			&nbsp;<apex:inputText id="serialCriteria" value="{!searchSerialNumber}"/>
+		        			&nbsp;<c:nosubmitbutton label="{!$Label.rstk__labelsearch}" onclick="if (checkSerialCriteria(document.getElementById('{!$Component.serialCriteria}'))) {specifyCoveredSerials();blockUI();}" style="width:75px;" rendered="true"/>
+		        		</apex:outputPanel>
+		        	</apex:outputPanel>
+		        	<br/>
+		        	<apex:repeat value="{!rmaserialcomps}" var="d">
+	        			<apex:pageBlockSection showHeader="false" columns="2">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="white-space:nowrap;"/>
+								<apex:outputField value="{!d.sormadmd.rstk__sormadmd_compitem__c}"/>
+							</apex:pageBlockSectionItem>
+							
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__qtytoauthorize}" style="white-space:nowrap;"/>
+								<apex:outputText value="{!d.qty}"/>
+							</apex:pageBlockSectionItem>
+							
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__qtyauthorized}" style="white-space:nowrap;"/>
+								<apex:outputText value="{!d.qtyselected}"/>
+							</apex:pageBlockSectionItem>
+							
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__qtyremaining}" style="white-space:nowrap;"/>
+								<apex:outputPanel >
+									<apex:outputText value="{!d.qtyremaining}"/>
+									<script>
+										var comps = [];
+										rows["{!d.sormadmd.id}"] = {
+											compname: "{!SUBSTITUTE(d.sormadmd.sormadmd_compitem__r.name, '"', '')}",
+											qtyremaining: {!d.qtyremaining},
+											comps: comps
+										};
+									</script>
+								</apex:outputPanel>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+						
+						<apex:pageBlockTable value="{!d.sowarrsrls}" var="l" columnsWidth="50px,150px,75px,75px,75px">
+			        		<apex:column headerValue="{!$Label.rstk__selected}" style="vertical-align:top;">
+				        		<apex:inputCheckbox id="selected" value="{!l.selected}" rendered="{!l.allowselect}" onclick="sowarrSelected(this, {!l.warrantyExpirationWarning})"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sowarr.rstk__sowarr_srlno__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sowarr.rstk__sowarr_srlno__c}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sowarr.rstk__sowarr_origdatesold__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sowarr.rstk__sowarr_origdatesold__c}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sowarr.rstk__sowarr_warrexpdate__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sowarr.rstk__sowarr_warrexpdate__c}"/>
+				        	</apex:column>
+				        	<apex:column headerValue="{!f_sowarr.rstk__sowarr_asset__c.label}" style="vertical-align:top;">
+				        		<apex:outputField value="{!l.sowarr.rstk__sowarr_asset__c}"/>
+				        		<script>
+				        			comps.push({
+				        				selectedfld: document.getElementById("{!$Component.selected}")
+				        			});
+				        		</script>
+				        	</apex:column>
+			        	</apex:pageBlockTable>
+					</apex:repeat>
+				</apex:pageBlock>
+			</apex:outputPanel>
+    	</apex:pageBlock>
+    </apex:form>
+	
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+		var LABEL_AtleastOneSrlNumMustBeSelForComponent = "{!$Label.AtleastOneSrlNumMustBeSelForComponent}";
+		var LABEL_CantSelectMoreThan_SrlsForComponent = "{!$Label.CantSelectMoreThan_SrlsForComponent}";
+		var LABEL_AtleastOneSrlNumMustBeEnteredForComponent = "{!$Label.AtleastOneSrlNumMustBeEnteredForComponent}";
+		var LABEL_CantEnterMoreThan_SrlsForComponent = "{!$Label.CantEnterMoreThan_SrlsForComponent}";
+		var LABEL_EnterAtLeast3AndAtMost20Characters = "{!$Label.EnterAtLeast3AndAtMost20Characters}";
+		var LABEL_SelectAtLeastOneSerialToDelete = "{!$Label.SelectAtLeastOneSerialToDelete}";
+		var LABEL_SelectAtLeast1ComponentToDelete = "{!$Label.SelectAtLeast1ComponentToDelete}";
+		var LABEL_WarrantyHasExpiredForTheSerialNumber = "{!$Label.WarrantyHasExpiredForTheSerialNumber}";
+	</script>
+</apex:page>

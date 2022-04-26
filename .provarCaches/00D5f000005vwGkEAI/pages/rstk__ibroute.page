@@ -1,0 +1,118 @@
+<apex:page id="pg" standardController="rstk__ibroute__c" extensions="rstk.ControllerExtnIbroute,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__ibroute__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__ibroute__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_ibroute}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableCancel="true" disableSave="true"/>
+                <apex:commandButton onclick="saveSteps();return false;" value="{!$Label.rstk__pagebtn_save}" style="width:50px" rendered="{!!isView}"/>
+                <apex:commandButton onclick="doView();return false;" value="{!$Label.rstk__pagebtn_poroute_cancel}" immediate="true" style="width:50px" rendered="{!isEdit}"/>
+                <apex:commandButton onclick="doCancel();return false;" value="{!$Label.rstk__pagebtn_poroute_cancel}" rendered="{!isNew}" immediate="true" style="width:50px"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+            
+            <c:division id="ibroute_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1" > 
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ibroute_routeid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ibroute_routeid__c.label}"/>
+                    <c:inputField id="ibroute_routeid__c" required="true" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ibroute_routetype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ibroute_routetype__c.label}"/>
+                    <c:selectList id="ibroute_routetype__c" required="true" cntr="{!controller}" options="{!ibrtetypes}" tabIndex="4"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ibroute_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ibroute_desc__c.label}"/>
+                    <c:inputText id="ibroute_desc__c" required="false" cntr="{!controller}" maxlength="50" width="350px" tabIndex="6"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:tabPanel switchType="client" selectedTab="tab_Ibroutesteps" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_poroute_steps}" name="tab_Ibroutesteps" id="tab_Ibroutesteps">
+                    <apex:pageBlock id="pb" mode="detail">
+                        <apex:outputPanel >
+                            <c:EditableGrid width="1150" jsController="ibroutesteps" data="{!ibroutestepGrid}" editable="{!isEdit}" ispopup="false" disableSave="true"/>
+                    
+<script>
+    ibroutesteps.onGridLoad = function(row) {
+        ibroutesteps.getSelectableRows().each(function (index, el) {
+            var row = jQuery(this);
+            var recId = ibroutesteps.getRowValue(row, 'Id');
+            if (!isEmpty(recId)) {
+                ibroutesteps.getRowObj(row, 'ibroutestep_stepid__c').attr('disabled', true);
+            }
+        });
+    }
+    
+    ibroutesteps.onSaved = function(row) {
+        if (!doPageSave()) {
+            unblockUI();
+        }
+    }
+    
+    ibroutesteps.onSaveFailed = function(row) {
+        //alert('usePageMessages '+ibroutesteps.usePageMessages());
+        unblockUI();
+        
+    }
+        
+    ibroutesteps.resetRow = function(row) {
+        self=this;
+        ibroutestepsHandler.prototype.resetRow.call(self, row);
+        var maxSeq = -1;
+        self.getRows().each(function(){
+            var r=jQuery(this);
+            var v = parseLocaleFloat(self.getRowValue(r, 'ibroutestep_seq__c')) || 0;
+            if (maxSeq < v) {
+                maxSeq = v;
+            }
+        });
+        this.setRowValue(row, "ibroutestep_seq__c", maxSeq + 1);
+    }
+    
+    function saveSteps() {
+        if (ibroutesteps.validate()) {
+            saveAutoCompletes(ibroutesteps, ibroutesteps.autoFields);
+            blockUI();
+            ibroutesteps_save();
+        }
+    }   
+
+</script>                   </apex:outputPanel>
+                        </apex:pageBlock>
+                    </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>    
+                <apex:tab label="{!$Label.rstk__pagetab_poroute_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

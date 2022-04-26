@@ -1,0 +1,84 @@
+<apex:page id="pg" standardController="rstk__poline__c" extensions="rstk.ControllerExtnApprovedMfr" 
+	action="{!doBeforePageLoad}" sideBar="false" showHeader="false">
+	<apex:variable var="o" value="{!rstk__poline__c}" />
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__po_line_approved_manufacturer_gr}" enableQuickMenu="false" showHeader="false"/>
+ 	<apex:includeScript value="{!$Resource.rstk__sublist}"/>
+  	<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    
+    <apex:form id="fm">
+        <apex:pageBlock id="pb" mode="detail">
+			<c:EditableGrid width="950" jsController="polinemfrs" data="{!approvedMfrGrid}" editable="{!allowmfrovr}" ispopup="false"/>
+<script>
+	polinemfrs.onGridLoad = function() {
+		self=this;
+		var rows = self.getRows();
+		//RSTK-7135
+		var recs = execQuery("select Id, polinemfr_mfritemno__c, polinemfr_mfrname__c, polinemfr_mfritemid__c, polinemfr_mfritemdesc__c ,polinemfr_peitemmfr__r.peitemmfr_mfrname__c, polinemfr_peitemmfr__r.peitemmfr_mfritemno__c, polinemfr_peitemmfr__r.peitemmfr_mfritemdesc__c from polinemfr__c WHERE polinemfr_poline__c = '{!o.Id}'", true);
+		//
+		if (!isEmpty(recs) && recs.length > 0) {
+			var polinemfrMap = {};
+			for (var i=0;i<recs.length;i++) {
+				polinemfrMap[recs[i].Id] = recs[i];
+			}
+
+			var values;
+			if (!{!allowmfrovr}) {
+				values = execQuery("select Id, povendmfr_mfrname__c, povendmfr_mfrname__r.peitemmfr_mfrname__c from povendmfr__c where povendmfr_vendno__c = '{!vendorId}' and povendmfr_item__r.poitem_item__r.icitem_item__c = '{!peitemId}' and povendmfr_mfrname__c NOT IN (select polinemfr_peitemmfr__c from polinemfr__c where polinemfr_poline__c = '{!o.Id}') order by povendmfr_mfrname__c", true);
+			} else {
+				values = execQuery("select Id, peitemmfr_mfrname__c from peitemmfr__c where peitemmfr_item__c = '{!peitemId}' and Id NOT IN (select polinemfr_peitemmfr__c from polinemfr__c where polinemfr_poline__c = '{!o.Id}') order by peitemmfr_mfrname__c", true);
+			}
+			
+			for (var i=0;i<rows.length;i++) {
+				var row = jQuery(rows[i]);
+				var polinemfrId = polinemfrs.getRowValue(row, 'Id');
+				if (!isEmpty(polinemfrId)) {
+					polinemfrs.getRowObj(row, 'polinemfr_peitemmfr__c').attr('disabled', true);
+					//RSTK-7135
+					//Modified by Lokesh
+					polinemfrs.setRowValue(row, 'mfritem__g', polinemfrMap[polinemfrId].polinemfr_mfritemno__c);
+					polinemfrs.setRowValue(row, 'mfrdesc__g', polinemfrMap[polinemfrId].polinemfr_mfritemdesc__c);
+					//
+				} else {
+					var fld = polinemfrs.getRowObj(row, 'polinemfr_peitemmfr__c')[0];
+					//RSTK-7135
+					//Added by Lokesh
+					var peitemMfrId = polinemfrs.getRowObj(row, 'polinemfr_peitemmfr__c').val();
+					var peitemMfrRec = execQuery("select id, peitemmfr_mfritemno__c, peitemmfr_mfrname__c, peitemmfr_mfritemdesc__c, peitemmfr_mfritemid__c from peitemmfr__c where  id = '"+peitemMfrId+"'");
+					polinemfrs.setRowValue(row, 'mfritem__g', peitemMfrRec[0].peitemmfr_mfritemno__c);
+					polinemfrs.setRowValue(row, 'mfrdesc__g', peitemMfrRec[0].peitemmfr_mfritemdesc__c);
+					if({!allowmfrovr}) {
+					//
+						while (fld.length > 0) {
+							fld.remove(0);
+						}
+						fld.add(new Option("--None--", "", false, false));
+						var len = values.length;
+						if(len > 0) {
+							for(j = 0; j < len; j++) {
+								if (!{!allowmfrovr}) {
+									fld.add(new Option(values[j].povendmfr_mfrname__r.peitemmfr_mfrname__c, values[j].povendmfr_mfrname__c, false, false));
+								} else {
+									fld.add(new Option(values[j].peitemmfr_mfrname__c, values[j].Id, false, false));
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+</script>
+
+        </apex:pageBlock>
+		     <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>   
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

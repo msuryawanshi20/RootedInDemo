@@ -1,0 +1,186 @@
+<apex:page standardController="rstk__poagp__c" extensions="rstk.ControllerExtnPoagpqGrid" action="{!doBeforePageLoad}" sideBar="false" showHeader="false">
+	
+	<c:standardHeader cntr="{!controller}" showHeader="false" enableQuickMenu="false"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <script>
+		var productType = '{!poagpqType}';
+	</script>
+	
+	<apex:form id="fm">
+	<apex:pageBlock id="pb" mode="detail">
+	
+ 		<c:EditableGrid jsController="prcDisDet" data="{!ItemPricingDiscountDetails}" editable="true" ispopup="false" disableSave="false" opOrder="DUA"/>
+   		<script>
+   		
+   			prcDisDet.onGridLoad = function() {
+           		self = this;
+           		this.getVisibleRows().each(function (index, el) {
+	                var row = jQuery(this);
+	                var rowId = self.getRowValue(row, 'Id');
+	                if (isEmpty(rowId)){
+	                	rowId = prcDisDet.rowIds[index];
+	                }
+                	var typeValue = prcDisDet.getRowValue(row, 'poagpq_typex__c');
+                	if(typeValue == 'Price'){
+                		self.getRowObj(row, 'poagpq_discpct__c').attr('disabled', true); 
+                	}
+                	if(typeValue == 'Discount'){
+                		self.getRowObj(row, 'poagpq_price__c').attr('disabled', true); 
+                	}
+                	if (!isEmpty(rowId)) {
+                		self.getRowObj(row, 'poagpq_typex__c').attr('disabled', true);                 	
+                	}
+                });
+           	}
+           	
+           	prcDisDet.addRow = function(rowCallback) {
+	       		self = this;
+	        	prcDisDetHandler.prototype.addRow.call(self, rowCallback);
+	  			this.getVisibleRows().each(function (index, el) {
+	                var row = jQuery(this);
+	            	var rowId = self.getRowValue(row, 'Id');
+	           		if(rowId =='' && prcDisDet.getRowObj(row, 'poagpq_typex__c')[0].value == ''  ){
+	             		prcDisDet.setRowValue(row, 'poagpq_typex__c', 'Price');
+	             		prcDisDet.getRowObj(row, 'poagpq_discpct__c').attr('disabled', true);
+	           		}
+	           	});
+            }
+    
+	    	prcDisDet.onSaved = function() {
+			    unblockUI();
+	        }
+	    
+		    prcDisDet.onSaveFailed = function() {
+	            unblockUI();
+	        }
+	              
+			prcDisDet.validate = function() {
+	           	self = this;
+	           	var isvalid = true;
+	          	var warnZeroPricing = false;
+	           	this.getVisibleRows().each(function (index, el) {
+	                var row = jQuery(this);
+	                var fromQnty = prcDisDet.getRowValue(row, 'poagpq_frqty__c');
+	                var toQnty = prcDisDet.getRowValue(row, 'poagpq_toqty__c');
+	                var typeValue = prcDisDet.getRowValue(row, 'poagpq_typex__c');
+	               
+	                if(!fromQnty || parseFloat(fromQnty) <= 0) {
+						alert("{!$Label.FrmQntyisRqrandshdbeGrtthn0}"); 
+	    				prcDisDet.getRowObj(row, 'poagpq_frqty__c').focus();
+	    				isvalid = false;
+	                 	return false;
+	               	}
+	                
+	                if(!toQnty || parseFloat(toQnty) <= 0) {
+						alert("{!$Label.ToQntyisRqrandshdbeGrtthn0}"); 
+	    				prcDisDet.getRowObj(row, 'poagpq_toqty__c').focus();
+	    				isvalid = false;
+	                 	return false;
+	       			}
+	       			
+	       			if (!typeValue) {
+	       				alert("{!$Label.PriceDiscountFieldisReq}"); 
+	       				prcDisDet.getRowObj(row, 'poagpq_typex__c').focus();
+	    				isvalid = false;
+	                 	return false;
+	       			}
+	       			
+	       			if(typeValue == 'Price'){
+	       				var price = prcDisDet.getRowValue(row, 'poagpq_price__c');
+		                 if(!price || parseLocaleFloat(price) < 0) {
+							alert("{!$Label.PriceMustGrtrEqual0}"); 
+		                  	prcDisDet.getRowObj(row, 'poagpq_price__c').focus();
+		                  	isvalid = false;
+		                  	return false;
+		               } else if (price == 0) {
+		                 warnZeroPricing = true;
+		               }
+	       			}
+	       			
+	       			if(typeValue == 'Discount'){
+						var discount = prcDisDet.getRowValue(row, 'poagpq_discpct__c');				
+		                if(!discount || parseFloat(discount) <= 0 || parseFloat(discount) > 100) {
+							alert("{!$Label.DiscountMustBetween0And100}"); 
+		                	prcDisDet.getRowObj(row, 'poagpq_discpct__c').focus();
+		               }
+					}
+	       		 });
+	               
+	       		 if (isvalid && warnZeroPricing) {
+	       		   return confirm("{!$Label.ConfirmZeroPriceCorrect}");
+	       		 }
+	
+	             return isvalid;
+	         } 
+           
+	         prcDisDet.entryChanged = function(row, rowNum, name, value) {
+			 	if (name == 'poagpq_frqty__c') {
+					var fromQnty = prcDisDet.getRowValue(row, 'poagpq_frqty__c');
+	     			if(!fromQnty || parseFloat(fromQnty) <= 0) {
+						alert("{!$Label.FrmQntyisRqrandshdbeGrtthn0}"); 
+	      				prcDisDet.getRowObj(row, 'poagpq_frqty__c').focus();
+	      			}
+				}
+				
+				if (name == 'poagpq_toqty__c') {
+					var toQnty = prcDisDet.getRowValue(row, 'poagpq_toqty__c');
+	     			if(!toQnty || parseFloat(toQnty) <= 0) {
+						alert("{!$Label.ToQntyisRqrandshdbeGrtthn0}"); 
+	      				prcDisDet.getRowObj(row, 'poagpq_toqty__c').focus();
+	      			}
+				}
+				
+				if(name == 'poagpq_typex__c' ){
+					if(!value){
+						prcDisDet.getRowObj(row, 'poagpq_price__c').attr('disabled', false);
+						prcDisDet.getRowObj(row, 'poagpq_discpct__c').attr('disabled', false);
+					}
+					if(value == 'Price'){
+						prcDisDet.getRowObj(row, 'poagpq_price__c').attr('disabled', false);
+						prcDisDet.setRowValue(row, "poagpq_discpct__c", 0);
+						prcDisDet.getRowObj(row, 'poagpq_discpct__c').attr('disabled', true);
+					}
+					if(value == 'Discount'){
+						prcDisDet.getRowObj(row, 'poagpq_discpct__c').attr('disabled', false);
+						prcDisDet.setRowValue(row, "poagpq_price__c", 0);
+						prcDisDet.getRowObj(row, 'poagpq_price__c').attr('disabled', true);
+					}
+				}
+				
+				if(productType == 'OP' || productType == 'VP' ){
+					if (name == 'poagpq_price__c') {
+						var price = prcDisDet.getRowValue(row, 'poagpq_price__c');				
+		                if(!price || parseFloat(price) <= 0) {
+							alert("{!$Label.PriceCantBeLT0}"); 
+		                	prcDisDet.getRowObj(row, 'poagpq_price__c').focus();
+		               }
+					}
+				}
+				
+				if(productType == 'OD' || productType == 'VD' ){
+					if (name == 'poagpq_discpct__c') {
+						var discount = prcDisDet.getRowValue(row, 'poagpq_discpct__c');				
+		                if(!discount || parseFloat(discount) <= 0 || parseFloat(discount) > 100) {
+							alert("{!$Label.DiscountMustBetween0And100}"); 
+		                	prcDisDet.getRowObj(row, 'poagpq_discpct__c').focus();
+		               }
+					}
+				}
+				
+			 }
+          
+	    </script> 
+	   
+	</apex:pageBlock>
+	
+    <div id="pleaseWaitPopup" style="display:none">
+        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+        <apex:outputPanel styleClass="topPopup">
+            <apex:image url="{!$Resource.rstk__busy}"/>
+        </apex:outputPanel>
+    </div>
+	</apex:form>
+
+   <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+</apex:page>

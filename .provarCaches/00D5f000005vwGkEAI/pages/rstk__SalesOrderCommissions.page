@@ -1,0 +1,133 @@
+<apex:page id="pg" standardController="rstk__sohdr__c" extensions="rstk.ControllerExtnSalesOrderCommissions" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sohdr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sohdr__c.fields}"/> 
+    <apex:variable var="f_socsales" value="{!$ObjectType.rstk__socsales__c.fields}"/>
+    
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_salesordercommissions}" displayListLink="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:includeScript value="{!$Resource.rstk__SalesOrderCommissions_cli}"/>
+
+    <script>
+		function jqueryOnReady() {
+			jQuery('tr [class*="dataRow"]').each(function(index, node) {		
+				if (jQuery(node).find('[name*="displayind__c"]')[0].value == 'false' || jQuery(node).find('[name*="removeind__c"]')[0].value == 'true') {
+					node.style.display = "none";
+				}
+			});
+		}
+	</script>
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="loadAdditionalLines" action="{!loadAdditionalLines}" 
+        	oncomplete="unblockUI();initLines();" rerender="soc_pageMessages, pbt_commitems" immediate="false" />
+		<apex:actionFunction name="ovrcommChanged" action="{!doOvrCommChanged}" 
+			oncomplete="unblockUI();initLines();" rerender="soc_pageMessages, pbs_commitems, ovrcomm__c" immediate="false"/>
+      	<apex:actionFunction name="docommSave" action="{!docommSave}" 
+			oncomplete="unblockUI();initLines();" rerender="soc_pageMessages, pbs_commitems" immediate="false"/>
+		<apex:actionFunction name="docommCancel" action="{!docommCancel}" 
+			oncomplete="unblockUI();initLines();" rerender="soc_pageMessages, pbs_commitems" immediate="false"/>
+			
+        <input name="isSubmit" type="hidden"/>
+ 
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"  disableSave="true" disableCancel="true"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__division1}"/>
+                    <apex:inputText id="div__c" required="false" value="{!soc_div}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__ordernumber}"/>
+                    <apex:inputText id="ordno__c" required="false" value="{!soc_ordno}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__linenumber}"/>
+                    <apex:inputText id="lineno__c" required="false" value="{!soc_lineno}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__overridecommissionschedule}"/>
+                    <apex:inputCheckbox id="ovrcomm__c" required="false" value="{!soc_ovrcomm}" onclick="blockUI(); ovrcommChanged(); return false;"/>
+                </apex:pageBlockSectionItem>   
+            </apex:pageBlockSection>
+            <br /> 
+            <!--  
+            <apex:commandButton value="{!$Label.pagebtn_salesordercommissions_ReloadOverrideCommissionSchedule}" onclick="ovrcommChanged(); return false;"/>
+            <br />
+            <br />
+            -->
+            <apex:pageBlockSection id="pbs_commitems" showHeader="false" columns="1" title="{!$Label.rstk__salespersoncommissiondetail}" collapsible="false">
+            	<apex:pageMessages id="soc_pageMessages"/>
+		        <apex:outputPanel rendered="{!isDisplay}">
+			        <apex:commandButton value="{!$Label.rstk__pagebtn_salesordercommissions_add}" onclick="return insertLine(false);" style="width:75px;" immediate="true"/>
+					<apex:commandButton value="{!$Label.rstk__pagebtn_salesordercommissions_remove}" onclick="return getSublist('commitems').deleteLine();" style="width:75px;" immediate="true"/>
+				</apex:outputPanel>
+				
+				<apex:pageBlockTable id="pbt_commitems" onclick="rowclicked()" value="{!commitems}" var="c">
+					<apex:column headerValue="{!$Label.rstk__selected}" style="width:25px;">
+		    			<apex:inputCheckbox id="selectind__c" value="{!c.selectind}" style="width:35px" disabled="{!!isDisplay}"/>
+		    			<apex:inputHidden id="displayind__c" value="{!c.displayind}"/>
+		    			<apex:inputHidden id="removeind__c" value="{!c.removeind}"/>
+       				</apex:column>
+       				<apex:column headerValue="{!$Label.rstk__line}" style="width:25x;">
+						<span id="line__c">{!Round(c.linenum, 0)}</span> 
+					</apex:column>
+       				<apex:column headerValue="{!$Label.rstk__salesperson}" >
+       					<apex:outputPanel rendered="{!c.id == null || isDisplay}">
+       						<apex:selectlist size="1" id="salesid__c" value="{!c.salesid}" style="width:200px;" disabled="{!!isDisplay && c.id != null}">
+								<apex:selectOptions value="{!Sosales}"/>
+							</apex:selectlist>
+       					</apex:outputPanel>
+						<apex:outputPanel rendered="{!c.Id != null && !isDisplay}">
+							<apex:outputLabel id="salesname__c" value="{!c.salesname}" />
+						</apex:outputPanel>
+					</apex:column>
+					<apex:column headerValue="{!f_socsales.rstk__socsales_compct__c.label}" style="width:100px;text-align:right;">
+						<apex:outputPanel rendered="{!c.id == null || isDisplay}">
+							<apex:inputText id="commpct__c" value="{!c.commpct}" maxlength="6" style="width:80px" styleClass="rl-rightalign" />
+						</apex:outputPanel>
+						<apex:outputPanel rendered="{!c.id != null && !isDisplay}">
+							<apex:outputText value="{0,number,##0.00}"><apex:param value="{!c.commpct}" /></apex:outputText>
+							<!-- apex:outputLabel value="{!c.commpct}" styleClass="rl-rightalign" /-->
+						</apex:outputPanel>
+					</apex:column>
+					<apex:column headerValue="{!f_socsales.rstk__socsales_split__c.label}" style="width:100px;text-align:right;">
+						<apex:outputPanel rendered="{!c.id == null || isDisplay}">
+							<apex:inputText id="splitpct__c" value="{!c.splitpct}" maxlength="6" style="width:80px" styleClass="rl-rightalign" />
+						</apex:outputPanel>
+						<apex:outputPanel rendered="{!c.id != null && !isDisplay}">
+							<apex:outputText value="{0,number,##0.00}"><apex:param value="{!c.splitpct}" /></apex:outputText>
+							<!-- apex:outputLabel value="{!c.splitpct}" styleClass="rl-rightalign" /-->
+						</apex:outputPanel>
+					</apex:column>
+				</apex:pageBlockTable>
+				<apex:outputPanel rendered="{!isDisplay}">
+					<apex:commandButton value="{!$Label.rstk__pagebtn_save}" id="soc_save" onclick="commSave(); return false;" disabled="{!!isDisplay}" style="width:75px;" />
+					<apex:commandButton value="{!$Label.rstk__pagebtn_salesordercommissions_cancel}" id="soc_cancel" onclick="commCancel(); return false;" disabled="{!!isDisplay}" style="width:75px;" />
+				</apex:outputPanel>
+			</apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    	var LABEL_InvalidValueAtLine = "{!$Label.InvalidValueAtLine}";
+		var LABEL_InvalidValAtLine_SelectionMustBeMade = "{!$Label.InvalidValAtLine_SelectionMustBeMade}";
+	</script>
+</apex:page>

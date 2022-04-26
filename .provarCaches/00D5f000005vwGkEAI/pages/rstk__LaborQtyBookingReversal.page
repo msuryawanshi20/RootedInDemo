@@ -1,0 +1,131 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_laborqtybookingreversal}" standardController="rstk__icclocktxn__c" extensions="rstk.ControllerExtnLaborqtybookingreversal,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icclocktxn__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icclocktxn__c.fields}" />
+    <apex:variable var="f_txndtl" value="{!$ObjectType.rstk__icclockdtl__c.fields}" />
+    <apex:variable var="f_woordop" value="{!$ObjectType.rstk__woordop__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_laborqtybookingreversal}" customInclude="{!$Resource.rstk__laborqtybookingreversal}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}" />
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="searchBookings" action="{!searchBookings}" oncomplete="searchBookingsCompleted()" rerender="pageMessages,op_components" immediate="false"/>
+        <apex:actionFunction name="performBookingReversal" action="{!performBookingReversal}" oncomplete="performBookingReversalCompleted()" rerender="pageMessages,op_hidden" immediate="false"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:nosubmitbutton label="{!$Label.rstk__pagebtn_laborqtybookingreversal_searchbookings}" onclick="wocstChanged();" style="width:150px;"/>
+            <c:standardButtons cntr="{!controller}" disableSave="true"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel id="op_hidden" style="display:none">
+            <input type="text" id="validationError" value="{!errorFound}"/>
+        </apex:outputPanel>
+        
+        <c:division id="icclocktxn_div__c" cntr="{!controller}"/>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icclocktxn_syusr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icclocktxn_syusr__c.label}"/>
+                <c:selectList id="icclocktxn_syusr__c" required="true" cntr="{!controller}" options="{!employees}" tabIndex="2" onchange="employeeChanged(this)"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icclocktxn_clockno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icclocktxn_clockno__c.label}"/>
+                <c:inputText id="icclocktxn_clockno__c" cntr="{!controller}" required="true" disabled="true"/>
+            </apex:pageBlockSectionItem>
+            
+            <!-- <apex:pageBlockSectionItem helpText="{!f_txndtl.rstk__icclockdtl_wocst__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_txndtl.rstk__icclockdtl_wocst__c.label}"/>
+                <apex:selectList id="icclockdtl_wocst__c" value="{!detail.icclockdtl_wocst__c}" size="1" style="width:400px;" onchange="wocstChanged(this)">
+                    <apex:selectOptions value="{!workorders}"/>
+                </apex:selectList>
+            </apex:pageBlockSectionItem> -->
+            
+            <apex:pageBlockSectionItem helpText="{!f_txndtl.rstk__icclockdtl_wocst__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_txndtl.rstk__icclockdtl_wocst__c.label}"/>
+                <c:autocomplete id="icclockdtl_wocst__c" 
+                    width="600px"
+                    cntr="{!controller}" 
+                    objKey="icclockdtl__c"
+                    ref="icclockdtl_wocst__c"
+                    slDesc="" 
+                    query="" 
+                    queryParms="[]"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageblocksectionitem />
+            
+            <apex:pageblocksectionitem helpText="{!$Label.rstk__fromthrudatehelptext}"> 
+                <apex:outputLabel value="{!$Label.rstk__fromdatelabqtybookrev}" for="fromcreateddate"/>
+                <apex:outputPanel >
+                    <apex:inputField id="fromcreateddate" value="{!fromThruDateFld.rstk__Date__c}"/>
+                    &nbsp;&nbsp;Thru&nbsp;&nbsp;
+                    <apex:inputField id="thrucreateddate" value="{!fromThruDateFld.rstk__custom_date__c}"/>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+        </apex:pageBlockSection>
+        
+        <script>var rows = {};</script>
+        <apex:outputPanel id="op_components">
+            <apex:pageBlock mode="detail" rendered="{!displayComponents}">
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_laborqtybookingreversal_reverseselectedentries}" onclick="if(doValidate()){doSetFFCompanyAndProcess(doPerformBookingReversal);}" style="width:225px;"/>
+                <apex:pageBlockTable value="{!txndtls}" var="l">
+                    <apex:column headerValue="{!$Label.rstk__selected}" style="vertical-align:top;">
+                        <apex:inputCheckbox id="selected" value="{!l.selected}" onclick="selectRow('{!l.clockdtl.id}');" style="display:{!IF(l.allowSelection,'inline','none')};"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__icclocktxn_txndate__c.label}" value="{!l.clockdtl.icclockdtl_icclocktxn__r.rstk__icclocktxn_txndate__c}" style="vertical-align:top;"/>
+                    <apex:column headerValue="{!f.rstk__icclocktxn_date__c.label}" value="{!l.clockdtl.icclockdtl_icclocktxn__r.rstk__icclocktxn_date__c}" style="vertical-align:top;"/>
+                    <apex:column headerValue="{!$Label.rstk__reverselabormachinebooking}" style="vertical-align:top;">
+                        <apex:inputCheckbox id="reverselaborbooking" value="{!l.reverselaborbooking}" onclick="selectLaborBooking('{!l.clockdtl.id}');" rendered="{!l.allowlaborreverse}"/>
+                        &nbsp;&nbsp;<apex:outputText value="{!l.clockdtl.icclockdtl_icclocktxn__r.rstk__icclocktxn_booktype__c}" rendered="{!l.allowlaborreverse}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__reverse_qty_ship}" style="vertical-align:top;" rendered="{!hasSubcontract}">
+                        <apex:inputCheckbox id="reverseqtyship" value="{!l.reverseqtyship}" onclick="selectQtyShip('{!l.clockdtl.id}');" rendered="{!l.allowqtyshipreverse}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__reverseqtybooking}" style="vertical-align:top;">
+                        <apex:inputCheckbox id="reverseqtybooking" value="{!l.reverseqtybooking}" onclick="selectQtyBooking('{!l.clockdtl.id}');" rendered="{!l.allowqtyreverse}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__reverseqtymove}" style="vertical-align:top;">
+                        <apex:inputCheckbox id="reverseqtymove" value="{!l.reverseqtymove}" onclick="selectQtyMove('{!l.clockdtl.id}');" rendered="{!l.allowqtymovereverse}"/>
+                        <script>
+                            rows["{!l.clockdtl.id}"] = {
+                                selectedfld: document.getElementById("{!$Component.selected}"),
+                                reverseqtyshipfld: document.getElementById("{!$Component.reverseqtyship}"),
+                                reverseqtybookingfld: document.getElementById("{!$Component.reverseqtybooking}"),
+                                reverseqtymovefld: document.getElementById("{!$Component.reverseqtymove}"),
+                                reverselaborbookingfld: document.getElementById("{!$Component.reverselaborbooking}")
+                            };
+                        </script>
+                    </apex:column>
+                    <apex:column headerValue="{!f_txndtl.rstk__icclockdtl_woordop__c.label}" value="{!l.clockdtl.icclockdtl_woordop__r.rstk__woordop_oper__c}" style="vertical-align:top;"/>
+                    <apex:column headerValue="{!f.rstk__icclocktxn_timein__c.label}" value="{!l.clockdtl.icclockdtl_icclocktxn__r.rstk__icclocktxn_timein__c}" style="vertical-align:top;"/>
+                    <apex:column headerValue="{!f.rstk__icclocktxn_timeout__c.label}" value="{!l.clockdtl.icclockdtl_icclocktxn__r.rstk__icclocktxn_timeout__c}" style="vertical-align:top;"/>
+                    <apex:column headerValue="{!f_txndtl.rstk__icclockdtl_hours__c.label}" value="{!l.clockdtl.rstk__icclockdtl_hours__c}" style="vertical-align:top;"/>
+                    <apex:column headerValue="{!$Label.rstk__quantityshipped}" value="{!l.qtyship}" style="vertical-align:top;" rendered="{!hasSubcontract}"/>
+                    <apex:column headerValue="{!$Label.rstk__qty_complete}" style="vertical-align:top;">
+                        <apex:outputText html-decimals="6" value="{!l.qtycomplete}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__qty_moved}" value="{!l.qtymove}" style="vertical-align:top;" />
+                    <apex:column headerValue="{!f_txndtl.rstk__formula_qtyrevs__c.label}" style="vertical-align:top;">
+                        <apex:outputText html-decimals="6" value="{!l.qtyrevs}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__icclocktxn_tapaytype__c.label}" value="{!l.clockdtl.icclockdtl_icclocktxn__r.rstk__icclocktxn_tapaytype__c}" style="vertical-align:top;"/>
+                    <apex:column headerValue="{!f_woordop.rstk__woordop_movcompind_pl__c.label}" value="{!l.clockdtl.icclockdtl_woordop__r.rstk__woordop_movcompind_pl__c}" style="vertical-align:top;"/>
+                </apex:pageBlockTable>
+            </apex:pageBlock>
+        </apex:outputPanel>
+     </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    
+    <script>
+        var LABEL_ErrorWhileProcessingTask = "{!$Label.rstk__errorwhileprocessingtask}";
+        var LABEL_SelectAtleastOneEntryForReversal = "{!$Label.rstk__selectatleastoneentryforreversal}";
+        var LABEL_SelUserDoesntHaveLaborGradeSet_SelectAnotherUser = "{!$Label.rstk__seluserdoesnthavelaborgradeset_selectanotheruser}";
+        var LABEL_Taskcompletedsuccessfully = "{!$Label.rstk__taskcompletedsuccessfully}";
+        var LABEL_SelectWorkOrder = "{!$Label.rstk__selectworkorder}";
+    </script>
+</apex:page>

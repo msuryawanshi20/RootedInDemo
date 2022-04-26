@@ -1,0 +1,142 @@
+<apex:page id="pg" standardController="rstk__icdreq__c" extensions="rstk.ControllerExtnIcdreq,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icdreq__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icdreq__c.fields}" />
+    <apex:variable var="f_wocst" value="{!$ObjectType.rstk__wocst__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icdreq}" customInclude="{!$Resource.rstk__icdreq_cli}" enableAutocomplete="true"/>
+    <script>var customer = '{!customer}';</script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    	<apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+    	<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    	<apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+<!-- RCB: RSTK-2756 -->
+            <apex:inputHidden id="externalid__c" value="{!o.rstk__externalid__c}"/>
+<!-- RCB: RSTK-2738 -->
+            <apex:inputHidden id="expdatereqdfrm__c" value="{!expdatereqdfrm}"/>
+        	<apex:inputHidden id="icdreq_yldfctr__c" value="{!o.rstk__icdreq_yldfctr__c}"/>
+        	<apex:inputHidden id="icdreq_wocst__c" value="{!o.rstk__icdreq_wocst__c}"/>
+        	<apex:inputHidden id="icdreq_enginvumcf__c" value="{!o.rstk__icdreq_enginvumcf__c}"/>
+        	<apex:inputHidden id="default_lotno__c" value="{!defaultLotNo}"/>
+        	<apex:inputHidden id="icdreq_calccostpct__c" value="{!o.rstk__icdreq_calccostpct__c}"/>
+        	<apex:inputHidden id="icdreq_disgoodlocnum__c" value="{!o.rstk__icdreq_disgoodlocnum__c}" rendered="{!locNumReq}"/>
+        </apex:outputPanel>
+        <c:division id="icdreq_div__c" cntr="{!controller}" />
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+           	<apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_wocst__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_wocst__c.label}"/>
+              	<apex:outputField value="{!o.rstk__icdreq_wocst__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_item__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_item__c.label}"/>
+                <c:autocomplete id="icdreq_item__c" cntr="{!controller}" required="true" slDesc="{!compItemName}" query="select id, name from icitem__c where icitem_item__r.peitem_inactivests__c != 'I' and icitem_div__c = 'prm'" queryParms="[['icdreq_div__c','Division']]"  tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_disgoodlocid__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_disgoodlocid__c.label}"/>
+                <c:selectList id="icdreq_disgoodlocid__c" cntr="{!controller}" options="{!DisassmSylocids}" tabIndex="902" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_expqty__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_expqty__c.label}"/>
+                <c:inputText id="icdreq_expqty__c" required="true" cntr="{!controller}" tabIndex="12"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_disgoodlocnum__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_disgoodlocnum__c.label}" />
+                <apex:outputPanel >
+                	<c:inputField id="icdreq_disgoodlocnum__c" cntr="{!controller}" tabIndex="903" rendered="{!!locNumReq || isView}"/>
+                	<c:largeSelectList id="icdreq_disgoodlocnum_sel__c" cntr="{!controller}" useValue="true" options="{!Sylocnums}" rendered="{!!isView}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_actqty__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_actqty__c.label}"/>
+                <c:inputText id="icdreq_actqty__c" required="true" cntr="{!controller}" tabIndex="13"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_invuom__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icdreq_invuom__c.label}"/>
+                <c:selectList id="icdreq_invuom__c" cntr="{!controller}" disabled="true" options="{!syuoms}" tabIndex="901" />
+            </apex:pageBlockSectionItem>
+                        
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_rejqty__c.inlineHelpText}" >
+				<apex:outputLabel value="{!f.rstk__icdreq_rejqty__c.label}"/>
+				<apex:outputPanel >
+					<c:inputField id="icdreq_rejqty__c" disabled="true" cntr="{!controller}" tabIndex="7"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_resp2__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_resp2__c.label}"/>
+                <c:selectList id="icdreq_resp2__c" cntr="{!controller}" options="{!employees}" tabIndex="902" />
+            </apex:pageBlockSectionItem>
+            
+           	<apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_qtydisgood__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_qtydisgood__c.label}"/>
+              	<apex:outputField value="{!o.rstk__icdreq_qtydisgood__c}"/>
+            </apex:pageBlockSectionItem>
+            
+			<apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_lotno__c.inlineHelpText}" >
+			    <apex:outputLabel value="{!f.rstk__icdreq_lotno__c.label}"/>
+			    <c:inputField id="icdreq_lotno__c" cntr="{!controller}" tabIndex="905"/>
+			</apex:pageBlockSectionItem>
+			
+           	<apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_qtyoutstdg__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__icdreq_qtyoutstdg__c.label}"/>
+              	<apex:outputField value="{!o.rstk__icdreq_qtyoutstdg__c}"/>
+            </apex:pageBlockSectionItem>
+<!-- RCB: RSTK-2738 -->
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_lotexpdate__c.inlineHelpText}" >
+			    <apex:outputLabel value="{!f.rstk__icdreq_lotexpdate__c.label}"/>
+			    <c:inputField id="icdreq_lotexpdate__c" cntr="{!controller}" tabIndex="907"/>
+			</apex:pageBlockSectionItem>
+			
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_calccostpct__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icdreq_calccostpct__c.label}"/>
+                <c:inputField id="icdreq_calccostpct__c" cntr="{!controller}" tabIndex="7"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icdreq_serial__c.inlineHelpText}" >
+			    <apex:outputLabel value="{!f.rstk__icdreq_serial__c.label}"/>
+			    <c:inputField id="icdreq_serial__c" cntr="{!controller}" tabIndex="909"/>
+			</apex:pageBlockSectionItem>
+
+        </apex:pageBlockSection>
+        <br/>
+        <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+        	<apex:tab label="{!$Label.rstk__pagetab_icdreq_info}" name="tab_Info" id="tab_Info">
+        		<c:infoSection cntr="{!controller}" showHeader="false"/>
+        	</apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    	var LABEL_QtyMustBeQholeNum = "{!$Label.QtyMustBeQholeNum}";
+		var LABEL_QtyCantExceedDecimals = "{!$Label.QtyCantExceedDecimals}";
+		var LABEL_ActualQtyCanyExceed1 = "{!$Label.ActualQtyCanyExceed1}";
+// RCB: RSTK-2756		
+		var LABEL_Duplicate_Derived_Component_Items_not_allowed = "{!$Label.Duplicate_Derived_Component_Items_not_allowed}";
+//RCB: RSTK-2738
+        var LABEL_Lot_Expiration_Date_must_be_greater_than_today_s_date = "{!$Label.Lot_Expiration_Date_must_be_greater_than_today_s_date}";
+        var Disassembly = "{!JSENCODE($Label.DisassemblyGoodLocationNoIsRequired)}";
+	</script>
+</apex:page>

@@ -1,0 +1,241 @@
+<apex:page id="pg" standardController="rstk__soconpbill__c" extensions="rstk.ControllerContractPeriodicBillingReview,rstk.ControllerJobStatus"  action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__soconpbill__c}" /> 
+    <apex:variable var="f" value="{!$ObjectType.rstk__soconpbill__c.fields}" /> 
+    <apex:variable var="R_soconpbrc" value="{!$ObjectType.rstk__soconpbrc__c.fields}" />
+    <apex:variable var="R_soconpbaud" value="{!$ObjectType.rstk__soconpbaud__c.fields}" />
+    <apex:variable var="R_soconpbdtl" value="{!$ObjectType.rstk__soconpbdtl__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" enableAutocomplete="true" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <style>
+    
+    .modal {
+        background-color: #fff;
+        display: none;
+        width: 480px;
+        padding: 15px;
+        text-align: left;
+        font-size: 1em;
+        border: 2px solid #333;
+        opacity: 1.0;
+        -moz-border-radius: 6px;
+        -webkit-border-radius: 6px;
+        -moz-box-shadow: 0 0 50px #ccc;
+        -webkit-box-shadow: 0 0 50x #ccc;
+        }
+        
+        .ac_results {
+            z-index: 9999;
+            background-color: #eee;
+        }
+        
+        #datePicker {
+            z-index: 9999;
+        }  
+        
+    </style>
+    
+    <script>
+        var oldBillStatus = '{!o.rstk__soconpbill_status__c}';
+    </script>
+    
+    <c:Popup popupId="soconpbdtlPopup" title="{!$Label.rstk__contract_periodic_billing_detail}" onCancel="window.location.reload();" cancelCaption="{!$Label.rstk__close}" buttonsOnTop="false">
+        <c:FrameGrid height="400px" preLoad="false" jsController="pbdtl" page="/apex/soconpbdtlGrid" rootId="{!rstk__soconpbill__c.Id}"/>
+    </c:Popup>  
+    <script>
+            pbdtl_isloading = false;
+            function reloadPage() {
+                window.location.replace(window.location);
+            }
+            function openFramePopup1() {
+                if (!_isDialogOpen()) {
+                    _showDialog('soconpbdtlPopup',1275);
+                }
+                if (pbdtl != null) {
+                    pbdtl.onSaved = function() {
+                        showTopDialog('pleaseWaitPopup');
+                        reloadPage();
+                    }
+                    closeTopDialog();
+                 } else {
+                     // Wait until the page is loaded
+                    if (!pbdtl_isloading) {
+                        pbdtl_load();
+                        pbdtl_isloading = true;
+                        showTopDialog('pleaseWaitPopup');
+                    }
+                    setTimeout(openFramePopup1, 200);
+                }
+            }
+    </script>   
+    <script>
+        function DeleteConfirmation()
+        {
+            var isConfirmed = confirm('{!$Label.rstk__plzconfirmyouwishtodeletebilldetails}');
+            if(isConfirmed) {
+                blockUI();
+                cascadeDelete();
+            }
+        }
+        
+        function callSave()
+        {
+            blockUI();
+            
+            var newBillStatus = sfffGetFieldValue('SOCONPBILL_STATUS__c');
+            if(newBillStatus == 'Rejected' && oldBillStatus != 'Rejected') {
+                saveBill();
+            }
+            else {
+                dosave();
+            }
+            
+        }
+        
+        function doAfterJobComplete(pl) {
+            if(pl.iserror__c) {
+                unblockUI();     
+                location.reload();           
+            }
+            else if(pl.output__c == 'Rejected') {
+                view();
+            }
+            else {
+                doListview();
+            }
+        }
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="cascadeDelete" action="{!cascadeDelete}" oncomplete="checkJobStatus();" reRender="op_JobStatus,pageMessages,details" immediate="false" />
+        <apex:actionFunction name="saveBill" action="{!saveBill}" oncomplete="checkJobStatus();" reRender="op_JobStatus,pageMessages,details" immediate="false" />
+        <apex:actionFunction name="dosave" action="{!save}" immediate="false" />
+         <apex:actionFunction name="doListview" action="{!doListview}" immediate="false" />
+         <apex:actionFunction name="view" action="{!view}" immediate="false" />
+        <apex:pageBlock id="pb" mode="{!IF(isEdit, 'edit', 'view')}" title="{!$ObjectType.rstk__soconpbill__c.label} Detail">
+            <apex:outputPanel id="op_JobStatus">
+                <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            </apex:outputPanel>
+            <apex:pageBlockButtons id="cmdBtns">
+                <apex:outputPanel id="pnl_EditBtns" rendered="{!isEdit}">
+                    <apex:commandbutton value="{!$Label.rstk__soconpbill_pagebtn_save}" onclick="callSave(); return false;"/>
+                    <apex:commandbutton value="{!$Label.rstk__soconpbill_pagebtn_cancel}" action="{!editCancelAction}"/>
+                </apex:outputPanel>
+                <apex:outputPanel id="pnl_Btns" rendered="{!isEdit == false}">
+                    <apex:commandbutton value="{!$Label.rstk__soconpbill_pagebtn_edit}" action="{!editCancelAction}"/>
+                    <apex:commandbutton value="{!$Label.rstk__soconpbill_pagebtn_exportbillingdetailstocsv}" onclick="callExport();"/>
+                     <input type="button" class="btn" value="{!$Label.soconpbill_pagebtn_BillingDetailsGridMaintenance}" onclick="openFramePopup1();"/> 
+                    <apex:commandbutton value="{!$Label.rstk__soconpbill_pagebtn_deleteundocontractperiodicbilling}" rendered="{!IF(OR(o.rstk__soconpbill_status__c == 'New',o.rstk__soconpbill_status__c == 'Rejected',o.rstk__soconpbill_status__c == 'Cancelled' ), true, false)}" onclick="DeleteConfirmation(); return false;"/>
+                </apex:outputPanel>
+                
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection id="pbsDetails">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_socontract__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_socontract__c.label}"/>
+                    <c:inputField id="soconpbill_socontract__c" editable="false" required="false" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_servicecust__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_servicecust__c.label}"/>
+                    <apex:outputField value="{!o.soconpbill_socontract__r.rstk__socontract_servicecust__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_rcbfreq__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_rcbfreq__c.label}"/>
+                    <c:inputField id="soconpbill_rcbfreq__c" editable="false" required="false" cntr="{!controller}" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_fromdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_fromdate__c.label}"/>
+                    <c:inputField id="SOCONPBILL_FROMDATE__c" editable="false" required="false" cntr="{!controller}" tabIndex="4"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_thrudate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_thrudate__c.label}"/>
+                    <c:inputField id="SOCONPBILL_THRUDATE__c" editable="false" required="false" cntr="{!controller}" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_totalamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_totalamt__c.label}"/>
+                    <c:inputField id="soconpbill_totalamt__c" editable="false" required="false" cntr="{!controller}" tabIndex="6"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_rundate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_rundate__c.label}"/>
+                    <c:inputField id="SOCONPBILL_RUNDATE__c" editable="false" required="false" cntr="{!controller}" tabIndex="7"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_status__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_status__c.label}"/>
+                    <c:inputField id="SOCONPBILL_STATUS__c" required="false" cntr="{!controller}" tabIndex="8"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_soinv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_soinv__c.label}"/>
+                    <c:inputField id="SOCONPBILL_SOINV__c" required="false" cntr="{!controller}" editable="false" tabIndex="9"/>
+                </apex:pageBlockSectionItem>
+                <apex:outputField value="{!o.SOCONPBILL_SOCONTRACT__R.rstk__socontract_taxloc__c}"/>
+                
+                <apex:pageBlockSectionItem rendered="{!isView}"/>
+                <apex:outputField value="{!o.rstk__soconpbill_soconpbbatch__c}" rendered="{!isView}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_intcomment__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_intcomment__c.label}"/>
+                    <c:inputField id="SOCONPBILL_INTCOMMENT__c" required="false" cntr="{!controller}" tabIndex="10"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soconpbill_extcomment__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soconpbill_extcomment__c.label}"/>
+                    <c:inputField id="SOCONPBILL_EXTCOMMENT__c" required="false" cntr="{!controller}" tabIndex="10"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection columns="1" rendered="{!OR(isEdit,isView)}">     
+                <apex:tabPanel switchType="client" selectedTab="tab_Info" id="theTabPanel">
+                    <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                        <c:customFields cntr="{!controller}" cols="2"/>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__info}" name="tab_Info" id="tab_Info">
+                        <c:infoSection cntr="{!controller}" showHeader="false"/>
+                    </apex:tab>
+                </apex:tabPanel>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <apex:pageBlock rendered="{!isView}">
+        <apex:relatedList pageSize="999"  list="soconpbrcs__r" />
+        <apex:relatedList pageSize="999"  list="soconpbauds__r" />
+        <apex:relatedList pageSize="999"  list="soconpbdtls__r" />
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        function callExport() {
+            blockUI();
+            verifyExportCount();
+            window.open('/apex/SOCONPBDTLExporttoCSV?id={!o.ID}');
+            unblockUI();
+            return false;
+        }
+        
+        function verifyExportCount() {
+            try {
+                Visualforce.remoting.Manager.invokeAction(
+                    '{!$RemoteAction.ControllerContractPeriodicBillingReview.getCountForExport}',
+                    '{!o.Id}',
+                    function(retValue, event) {
+                        if(event.status) {
+                            if(retValue) {
+                                var isLimitCrossed = retValue['isLimitCrossed'];
+                                if(isLimitCrossed) {
+                                    console.log('retValue: ' + retValue); 
+                                    var exportLimit = retValue['exportLimit'];
+                                    alert("{!$Label.rstk__numofrowsexportlimitreached}", exportLimit);
+                                    return false;
+                                }
+                                
+                            }
+                        }
+                    }, {escape:false}
+                );
+            } catch(e) {
+                unblockUI();
+            }
+        }
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

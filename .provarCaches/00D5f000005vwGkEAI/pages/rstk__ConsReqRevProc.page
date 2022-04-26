@@ -1,0 +1,276 @@
+<apex:page id="pg" standardController="rstk__supreq__c" extensions="rstk.ControllerExtnConsReqRevProc,rstk.RemoteQueryController,rstk.ControllerJobStatus" sidebar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__supreq__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__supreq__c.fields}" />
+    <apex:variable var="f_pocontainer" value="{!$ObjectType.rstk__pocontainer__c.fields}" />
+    
+     <apex:variable var="f_supreq" value="{!$ObjectType.rstk__supreq__c.fields}" />
+    <apex:variable var="f_supitem" value="{!$ObjectType.rstk__supitem__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_consreqrevproc}" />
+	<apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+	<apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+	<apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    <script>
+    	var rows = {}; var selectcbxs = [];
+
+		function doSearch() {
+			blockUI();
+			getDetails();
+		}
+		
+		function doAfterJobComplete(processlog) {
+			getDetails();
+		}
+				
+		function selectall(el) {
+			for(rowid in rows) {
+				var row = rows[rowid];
+				row.selected.checked = el.checked;
+			}
+		}
+    	
+		function processRequisitions(){
+			var containerid = sfffGetFieldValue('containerid__c');
+			var poconttype = sfffGetFieldValue('poconttype__c');
+			var divInfo = sfffGetFieldValue('divId');
+			if(isEmpty(containerid)){
+				alert("{!$Label.ContainerIdReqd2}");
+				return false;
+			} else {
+				if(containerid.trim().length > 30){
+					alert("{!$Label.ContainerIdShouldLimitTo30Chars}");
+					return false;
+				} else {
+					var records = execQuery("select id from pocontainer__c where pocontainer_containerid__c = '" + containerid + "' and pocontainer_div__c = '" + divInfo + "'", true);
+					if (records.length > 0) {
+						alert("{!$Label.ContainerIdExists}");
+						return false;
+					}
+				}
+			}
+			if(isEmpty(poconttype)){
+				alert("{!$Label.ContainerTypeReqd2}");
+				return false;
+			}
+
+			blockUI();
+			doprocessRequisitions();
+
+			return true;
+		}
+    	
+		function isRecSelected(){
+			var isChecked = false;
+			for(rowid in rows) {
+				var row = rows[rowid];
+				if(row.selected.checked){
+					isChecked = true ;
+					break ;
+				}
+			}
+			if(!isChecked){
+				alert("{!$Label.SelectAtLeastOneRecForFurtherProcessing}");
+			}
+			return isChecked;	
+		}
+		
+		function showProcessReqs() {
+			var tempCheck = false;
+			var minTemp = -9999;
+			var maxTemp = 9999;
+			var popWidth = 550;
+			var popHeight = 300;
+			var top = ((jQuery(window).height() - popHeight) / 2);
+			var width = jQuery(window).width();
+			var left = (width - popWidth) / 2;
+			if (popWidth > width) {
+				left = 0;
+			} else {
+				width = popWidth;
+			}
+			
+			jQuery.blockUI({
+				message: jQuery('#procReqs'),
+				css: {
+					backgroundColor:'#fff',
+					left: (left + 'px'),
+					top: (top + 'px'),
+					width:(width + 'px'),
+					height:(popHeight + 'px'),
+					padding:'15px',
+					textAlign:'left',
+					fontSize:'1em',
+					border:'2px solid #333',
+					
+					opacity:'1.0',
+					'-moz-border-radius':'6px',
+					'-webkit-border-radius':'6px',
+					'-moz-box-shadow': '0 0 50px #ccc',
+					'-webkit-box-shadow': '0 0 50x #ccc'
+				}
+			});
+			
+			var istempChkReq = false;
+			for(rowid in rows) {
+				var row = rows[rowid];
+				if(row.selected.checked ){
+					if(!istempChkReq && row.tempchkReq =='Yes' ){
+						istempChkReq = true ;
+					}
+					if(row.mintempvalue > minTemp){
+						minTemp = row.mintempvalue;
+					} 
+					if(row.maxtempvalue < maxTemp ){
+					    maxTemp = row.maxtempvalue;
+					}
+				}
+			}
+			
+			var sugTemp = (maxTemp + minTemp )/2 ;
+			if(minTemp != -9999)
+				sfffSetFieldValue('minTemp__c', minTemp);
+			if(maxTemp != 9999)
+				sfffSetFieldValue('maxTemp__c', maxTemp);
+			
+			if(istempChkReq){
+				sfffSetFieldValue('tempCont__c', true);
+				sfffSetFieldValue('sugTemp__c', sugTemp);
+			}else{
+				sfffSetFieldValue('sugTemp__c', '');
+			}
+			
+			sfffDisableField('tempCont__c', true);
+			sfffDisableField('minTemp__c', true);
+			sfffDisableField('maxTemp__c', true);
+			sfffDisableField('sugTemp__c', true);
+			
+		}
+    	
+		function enableFixedHeaderSort(tableId) {
+			var tbl = jQuery("table[id$=" + tableId + "]");
+			var sortOptions = { 
+					0: { sorter: false },
+		            1: { sorter: false },
+		            2: { sorter: false },
+		            3: { sorter: false },
+		            4: { sorter: false },
+		            5: { sorter: false },
+		            6: { sorter: false },
+		            7: { sorter: false },
+		            8: { sorter: false }
+		        };
+		
+			if (tbl) {
+				tbl.vfFloatingHeaders();
+				tbl.tablesorter({
+					headers: sortOptions
+				});
+			}
+		}
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="getDetails" action="{!getDetails}" oncomplete="unblockUI()" reRender="pageMessages,reqsList" />
+        <apex:actionFunction name="doprocessRequisitions" action="{!processSelectedReqs}" immediate="false" oncomplete="unblockUI();getDetails();" rerender="op_hidden,pageMessages,reqsList"  />
+		<apex:actionFunction name="setPoconctrId" action="{!setPoconctrId}" immediate="false" oncomplete="unblockUI();" rerender="op_hidden,pageMessages,reqsList">
+			<apex:param name="poconctrId" assignTo="{!poconctrId}" value="" />
+		</apex:actionFunction>
+
+        <apex:pageblock id="pb" mode="detail">
+         
+	        <apex:outputPanel id="op_hidden" style="display:none">
+	           <input type="hidden" id="divId" value="{!o.supreq_div__c}" />
+		    </apex:outputPanel>	
+
+	       	<c:division id="supreq_div__c" cntr="{!controller}" /> 
+	        <apex:pageBlockSection id="pbs_main" showHeader="false" title="" columns="1" >
+				<apex:pageBlockSectionItem helptext="{!f.rstk__supreq_pocontctr__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__supreq_pocontctr__c.label}" />
+	                <apex:outputPanel >
+	                    <apex:selectList id="poconctr__c" value="{!poconctrId}" onchange="blockUI();setPoconctrId(this.value);" size="1" style="width:250px;" tabIndex="300" >
+	                        <apex:selectOptions value="{!poconctrs}" />
+	                    </apex:selectList>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            
+				<apex:pageBlockSectionItem >
+	                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_consreqrevproc_refreshdisplay}" onclick="doSearch()" style="width:130px;" />
+	                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_consreqrevproc_processselectedreqs}" onclick="if(isRecSelected()){showProcessReqs();}" style="width:200px;" />
+	            </apex:pageBlockSectionItem>
+	       </apex:pageBlockSection>
+           
+       </apex:pageblock>
+       <apex:outputPanel id="reqsList">
+       <script>rows = {}; selectcbxs = []; enableFixedHeaderSort('pg:fm:details:pb_table2');</script>
+           <apex:pageBlock title="{!$Label.rstk__pagetab_consreqrevproc_details}" id="details" mode="detail" rendered="{!displayDetails}">
+                <input type="checkbox" onclick="selectall(this)" />
+                <apex:outputLabel value="{!$Label.rstk__selectall}" />
+
+                <apex:pageBlockTable value="{!SupreqRowList}" var="i" id="pb_table2">
+                    <apex:column headerValue="{!$Label.rstk__select}">
+                        <apex:inputCheckbox id="selected" value="{!i.selected}" />
+                        <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__req}" value="{!i.supreqobj.rstk__supreq_ordno__c}" /> 
+                    <apex:column headerValue="{!$Label.rstk__duedate1}" value="{!i.supreqobj.rstk__supreq_currwmsdate__c}" />
+                    <apex:column headerValue="{!f_supreq.rstk__supreq_povend__c.label}" value="{!i.supreqobj.rstk__supreq_povend__c}" />
+                    <apex:column headerValue="{!f_supitem.rstk__supitem_item__c.label}" value="{!i.supreqobj.supreq_supitem__r.rstk__supitem_item__c}" />
+                    <apex:column headerValue="{!$Label.rstk__uom}" value="{!i.supreqobj.supreq_icreq__r.rstk__icreq_invuom__c}" /> 
+                    <apex:column headerValue="{!$Label.rstk__partdescription}" value="{!i.supreqobj.supreq_supitem__r.rstk__supitem_desc__c}" />
+                    <apex:column headerValue="{!$Label.rstk__quantity}" value="{!i.supreqobj.rstk__supreq_qtyreq__c}" />
+                    <apex:column headerValue="{!f_supitem.rstk__supitem_unno__c.label}" value="{!i.supreqobj.supreq_supitem__r.rstk__supitem_unno__c}" />
+                    <apex:column headerValue="{!$Label.rstk__class}" value="{!i.supreqobj.supreq_supitem__r.rstk__supitem_hazclass__c}" />
+                    <apex:column headerValue="{!$Label.rstk__tempctrlreqd}" >
+                    <apex:outputField value="{!i.supreqobj.supreq_supitem__r.rstk__supitem_tempcheck__c}"/>
+                    	<script>
+							rows["{!i.key}"] = {
+								selected: document.getElementById("{!$Component.selected}"),
+								tempchkReq : "{!JSENCODE(i.supreqobj.supreq_supitem__r.supitem_tempcheck__c)}",
+								mintempvalue : {!IF(ISNULL(i.supreqobj.supreq_supitem__r.supitem_shipmintempf__c), 0, i.supreqobj.supreq_supitem__r.supitem_shipmintempf__c)},
+								maxtempvalue : {!IF(ISNULL(i.supreqobj.supreq_supitem__r.supitem_shipmaxtempf__c), 0, i.supreqobj.supreq_supitem__r.supitem_shipmaxtempf__c)}
+							};   
+						</script>
+                    </apex:column>
+                </apex:pageBlockTable>
+           </apex:pageBlock>
+           
+			<div id="procReqs" style="display:none">
+				<h2>{!$Label.rstk__process_selected_reqs}</h2>
+				<apex:pageBlock id="pb_procselreqs" mode="detail">
+					<apex:pageBlockSection id="pbs_procselreqs" showHeader="false" title="" columns="1" >
+						<apex:pageBlockSectionItem id="pbsi_containerid">
+			                <apex:outputLabel value="{!f_pocontainer.rstk__pocontainer_containerid__c.label}" />
+			                <apex:inputText id="containerid__c" value="{!containerId}" />
+			            </apex:pageBlockSectionItem>
+						<apex:pageBlockSectionItem id="pbsi_poconttype">
+			                <apex:outputLabel value="{!f_pocontainer.rstk__pocontainer_poconttype__c.label}" />
+			                <apex:outputPanel >
+			                    <apex:selectList id="poconttype__c" value="{!poconttypeId}" size="1" style="width:250px;">
+			                        <apex:selectOptions value="{!poconttypes}" />
+			                    </apex:selectList>
+			                </apex:outputPanel>
+			            </apex:pageBlockSectionItem>
+			            
+			            <apex:pageBlockSectionItem id="tempCont">
+			                <apex:outputLabel value="{!$Label.rstk__temperaturecontrolledmaterials}" />
+			                <apex:inputCheckbox id="tempCont__c" value="{!tempCheckValue}" />
+			            </apex:pageBlockSectionItem>
+			            <apex:pageBlockSectionItem id="minTempSec">
+			                <apex:outputLabel value="{!$Label.rstk__minimumtemperaturevalue}" />
+			                <apex:inputText id="minTemp__c" value="{!minTemp}" />
+			            </apex:pageBlockSectionItem>
+			            <apex:pageBlockSectionItem id="maxTempSec">
+			                <apex:outputLabel value="{!$Label.rstk__maximumtemperaturevalue}" />
+			                <apex:inputText id="maxTemp__c" value="{!maxTemp}" />
+			            </apex:pageBlockSectionItem>
+			            <apex:pageBlockSectionItem id="sugTempSec">
+			                <apex:outputLabel value="{!$Label.rstk__suggestedcontainertemperature}" />
+			                <apex:inputText id="sugTemp__c" value="{!sugContTemp}" />
+			            </apex:pageBlockSectionItem>
+			       </apex:pageBlockSection>
+					<p><input id="setbutton" type="button" value="{!$Label.Save}" onclick="processRequisitions();"/><input type="button" value="Cancel" onclick="unblockUI();"/></p>
+			</apex:pageBlock>
+			</div>
+       </apex:outputPanel>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

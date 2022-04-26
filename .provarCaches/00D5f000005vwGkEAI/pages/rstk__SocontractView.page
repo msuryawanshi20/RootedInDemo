@@ -1,0 +1,183 @@
+<apex:page standardController="rstk__socontract__c" extensions="rstk.ControllExtnSocontractView" sideBar="false" action="{!doRedirectToView}">
+<!-- Adding status to the top, there may be a problem with the standard controller adding the field to it's soql line. -->
+<apex:outputText value="{!rstk__socontract__c.rstk__socontract_constatus__c}" rendered="false"/>
+<apex:outputPanel rendered="{!enhancedStandardSFLayout}">
+	<script type="text/javascript">var __sfdcSessionId = '{!GETSESSIONID()}';</script>
+	<script type="text/javascript">var __siteUrlPrefix = '{!$Site.Prefix}';</script>
+	<script type="text/javascript">var __busySpinner = "{!$Resource.rstk__busy}";</script>
+	<script type="text/javascript">var __iconpath = "{!URLFOR($Resource.rstk__treeIcons)}";</script>
+	<apex:includeScript value="{!$Resource.rstk__jquery144min}"/>
+	<!-- uncomment as needed<apex:includeScript value="{!$Resource.connection}" /> -->
+	<!-- uncomment as needed<apex:includeScript value="{!$Resource.sfff}" /> -->
+	<!-- uncomment as needed<apex:includeScript value="{!$Resource.common_client_lib}" /> -->
+    <!-- uncomment as needed<apex:includeScript value="{!$Resource.common_client_lib2}" /> -->
+	<apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+	<apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+	<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+	<apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+	<apex:includeScript value="{!$Resource.rstk__DevContextMenu}"/>
+	<chatter:feedWithFollowers entityId="{!rstk__socontract__c.id}"/>
+	
+	<apex:outputLink value="{!URLFOR('/'+$ObjectType['socontract__c'].keyPrefix)}" >&nbsp;&lt;&lt;&nbsp;Back to List: Contract Masters </apex:outputlink>
+	
+	 <br></br>
+	 <br></br>
+    <apex:detail relatedList="false"/>
+	
+	<apex:pageBlock >
+    	<apex:relatedList pageSize="10"  list="soconpps__r" />
+    	<apex:relatedList pageSize="10"  list="soconrcs__r" rendered="{!ConfigRec.rstk__syconfig_recurrsvc__c}"  />
+    	<apex:relatedList pageSize="10"  list="socondevs__r" rendered="{!ConfigRec.rstk__syconfig_recurrsvc__c}" />
+    	<apex:relatedList pageSize="10"  list="soconttcs__r" />
+    	<apex:relatedList pageSize="10"  list="soconrevs__r" rendered="{!ConfigRec.rstk__syconfig_recurrsvc__c}" />
+    	<apex:relatedList pageSize="10"  list="soconpbills__r" rendered="{!ConfigRec.rstk__syconfig_recurrsvc__c}" />
+    	<apex:relatedList pageSize="10"  list="solines__r" />
+    	<apex:relatedList pageSize="10"  list="bsocontractsowarrhists__r" />
+    	<apex:relatedList pageSize="10"  list="asocontractsowarrhists__r" />
+    	<apex:relatedList pageSize="10"  list="soamorts__r" />
+    	<apex:relatedList pageSize="10"  list="socontents__r" rendered="{!ConfigRec.rstk__syconfig_entitlements__c}" />
+    	<apex:relatedList list="ProcessSteps" rendered="{!EnabledForApproval}" />
+    </apex:pageBlock>
+	
+	<c:Popup popupId="coveredSrlzdDevicesPopup" title="{!$Label.rstk__coveredserializeddevicesquickentry}" onCancel="reloadPage();" cancelCaption="{!$Label.rstk__pagebtn_sopc_close}" >
+	    <c:FrameGrid height="425px" preLoad="false" jsController="coveredSrlzdDevices" page="/apex/CoveredSerializedDevicesQuickEntry" rootId="{!rstk__socontract__c.Id}"/>
+	</c:Popup>
+	
+	<c:Popup popupId="gridPopup" title="{!$Label.rstk__serializeddevices}" onCancel="reloadPage();" cancelCaption="{!$Label.rstk__pagebtn_sopc_close}">
+	    <c:FrameGrid height="425px" preLoad="false" jsController="seDevices" page="/apex/seDevicesGrid" rootId="{!rstk__socontract__c.Id}"/>
+	</c:Popup>
+	
+	<c:Popup popupId="createContractSOPopup" title="{!$Label.rstk__createcontractso}" onCancel="reloadPage();" cancelCaption="{!$Label.rstk__pagebtn_sopc_close}">
+	    <c:FrameGrid height="425px" preLoad="false" jsController="createContractSO" page="/apex/CreateContractSO" rootId="{!rstk__socontract__c.Id}"/>
+	</c:Popup>
+	
+	<c:Popup popupId="createMiscChrgForAllDevPopup" title="{!$Label.rstk__createmiscchrgforalldev}" onCancel="reloadPage();" cancelCaption="{!$Label.rstk__pagebtn_sopc_close}">
+	    <c:FrameGrid height="425px" preLoad="false" jsController="createMiscChrgForAllDev" page="/apex/createMiscChrgForAllDev" addnlParms="contractId={!rstk__socontract__c.id}"/>
+	</c:Popup>
+	
+	<c:Popup popupId="socontentsGridPopup" title="{!$Label.rstk__pagetab_socontract_entitlements}" onCancel="reloadPage();" cancelCaption="{!$Label.rstk__pagebtn_sopc_close}">
+	    <c:FrameGrid height="425px" preLoad="false" jsController="socontents" page="/apex/socontentsGrid" rootId="{!rstk__socontract__c.Id}"/>
+	</c:Popup>
+	
+	<!-- Hide buttons based on SYCONFIG settings -->
+	<script>
+		var reccServActive = '{!ConfigRec.rstk__syconfig_recurrsvc__c}';
+		var entitlementsActive = '{!ConfigRec.rstk__syconfig_entitlements__c}';  
+		var contractStatus = '{!JSENCODE(socontract__c.socontract_constatus__c)}';
+
+		function deactivateElements(name, doHide) {
+			var elements = document.getElementsByName(name);
+			for (var i=0;i<elements.length;i++) {
+			  var element = elements[i];
+			  if (doHide) {
+			    element.style.display = 'none';
+			  } else {
+			    element.disabled = true;
+			    element.style.color='Grey';
+			  }
+			}
+		}
+		
+		function deactivateElementsByName(baseName, doHide) {
+		  var packageName = 'rstk__'+baseName;
+		  deactivateElements(baseName, doHide);
+		  deactivateElements(packageName, doHide);
+		}
+		
+		jQuery(window).bind("load", function() {
+			if(reccServActive == 'false') {
+				deactivateElementsByName('edit_covered_serialized_devices', true);
+				deactivateElementsByName('covered_serialized_devices_quickentry', true);
+				deactivateElementsByName('create_misc_charge_for_all_active_devices', true);
+			}
+			
+			if(entitlementsActive == 'false') {
+				deactivateElementsByName('entitlements', true);
+			}
+			
+			if(contractStatus != 'Active' && contractStatus != 'Customer Accepted') {
+				deactivateElementsByName('create_sales_order', false);
+			}
+			
+			<!-- Context Menu -->
+			initDevContextMenu({!contextMenu});
+		});
+	</script>
+	
+	<script>	
+		seDevices_isloading = false;
+		coveredSrlzdDevices_isloading = false;
+		createContractSO_isloading = false;
+		createMiscChrgForAllDev_isloading = false;
+		socontents_isloading = false;
+		
+		function reloadPage() {
+			window.location.replace(window.location);
+		}
+		
+		function openFramePopup() {
+			if (!_isDialogOpen()) {
+				_showDialog('gridPopup',1400);
+			}
+			if (seDevices != null) {
+				seDevices.onSaved = function() {
+					showTopDialog('pleaseWaitPopup');
+					reloadPage();
+				}
+				closeTopDialog();
+			 } else {
+			     // Wait until the page is loaded
+				if (!seDevices_isloading) {
+					seDevices_load();
+					seDevices_isloading = true;
+					showTopDialog('pleaseWaitPopup');
+				}
+				setTimeout(openFramePopup, 200);
+			}
+		}
+		
+		function openCSDPopup() {
+			if (!_isDialogOpen()) {
+				_showDialog('coveredSrlzdDevicesPopup',1300);
+				coveredSrlzdDevices_load();
+			} 
+		}
+		
+		function openCCSOPopup() {
+			if (!_isDialogOpen()) {
+				_showDialog('createContractSOPopup',1300);
+				createContractSO_load();
+			}
+		}
+		
+		function openMiscChargePopup() {
+			if (!_isDialogOpen()) {
+				_showDialog('createMiscChrgForAllDevPopup',1300);
+				createMiscChrgForAllDev_load();
+			}
+		}
+		
+		function openSocontentsPopup() {
+			if (!_isDialogOpen()) {
+				_showDialog('socontentsGridPopup',1400);
+			}
+			if (socontents!= null) {
+				socontents.onSaved = function() {
+					showTopDialog('pleaseWaitPopup');
+					reloadPage();
+				}
+				closeTopDialog();
+			 } else {
+			     // Wait until the page is loaded
+				if (!socontents_isloading) {
+					socontents_load();
+					socontents_isloading = true;
+					showTopDialog('pleaseWaitPopup');
+				}
+				setTimeout(openSocontentsPopup, 200);
+			}
+		}
+	</script>
+	
+</apex:outputPanel>
+</apex:page>

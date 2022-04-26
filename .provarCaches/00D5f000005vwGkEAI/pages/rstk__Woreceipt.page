@@ -1,0 +1,297 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_woreceipt}" standardController="rstk__worcpt__c" extensions="rstk.ControllerExtnWoreceipt,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__worcpt__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__worcpt__c.fields}" />
+    <apex:variable var="fd" value="{!$ObjectType.rstk__sydiv__c.fields}" /> 
+    <apex:variable var="ReceiptTemplate" value="{!getWOReceiptTemplateName}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_woreceipt}" customInclude="{!$Resource.rstk__worcpt_sl_cli}" enableAutocomplete="true"/>
+ 
+    <apex:form id="fm">
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" immediate="true"/>
+        <apex:actionFunction name="refreshPageMessage" action="{!refreshPageMessage}" oncomplete="populateGrid();" rerender="errorMessage, infoMessage"/>
+        <apex:actionFunction name="populateGrid" action="{!populateGrid}" oncomplete="formatLocaleOutputFields();unblockUI();" rerender="pageMessages, op_griditems, op_performreceipt, op_wolist,openModal"/>
+        <apex:actionFunction name="processSelected" action="{!processSelected}" oncomplete="checkJobStatus();" rerender="pageMessages, op_JobStatus, op_griditems"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        <apex:actionFunction name="reOrderWOList" action="{!reOrderWOList}" oncomplete="unblockUI();" rerender="pageMessages, pb_search"/>
+        <apex:actionFunction name="overrideTemplate" action="{!overrideTemplate}" oncomplete="unblockUI();" rerender="pageMessages, pb_search"/>
+        <apex:actionFunction name="overrideTemplateName" action="{!overrideTemplateName}" oncomplete="unblockUI();" rerender="pageMessages, pb_search"/>
+
+        <apex:pageBlock id="pb_search" mode="detail">
+            <apex:outputPanel id="op_JobStatus">
+                <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            </apex:outputPanel>
+             
+            <apex:pageBlockSection showHeader="false" columns="1">
+                <apex:pageBlockSectionItem >
+                    <apex:outputPanel >
+                        <c:division id="worcpt_div__c" cntr="{!controller}" disabled="false"/>
+                        <apex:pageBlockSection showHeader="false" columns="1">
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.rstk__sortbyitemnumber}" />
+                                <apex:inputCheckbox value="{!sortByItemNumber}" onclick="blockUI(); reOrderWOList();" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_hdrordno__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_hdrordno__c.label}"/>
+                                <apex:outputPanel id="op_wolist">
+                                    <c:selectList id="worcpt_hdrordno__c" cntr="{!controller}" options="{!divworkOrders}" tabIndex="2"/>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!$Label.rstk__woreceipt_templatename}"  rendered="{!!overrideReceiptTemplate}" >
+                                 <apex:outputLabel value="{!fd.rstk__sydiv_printrcpttemplate__c.label}"/>
+                                 <apex:outputText value="{!receiptTemplateName}"/>
+                            </apex:pageBlockSectionItem>
+
+                            <apex:pageBlockSectionItem helpText="{!$Label.rstk__woreceipt_templatename}" rendered="{!overrideReceiptTemplate}" >
+                                 <apex:outputLabel value="{!fd.rstk__sydiv_printrcpttemplate__c.label}"/>
+                                 <apex:outputPanel >
+                                 <apex:inputHidden value="{!overrideReceiptTemplateName}" id="changedName" />
+                                 <apex:selectList value="{!overrideReceiptTemplateName}" multiselect="false" size="1" tabIndex="6">
+                                        <apex:selectOptions value="{!EmailTemplates}"/>
+                                 </apex:selectList>
+                                 <apex:commandButton onclick="blockUI();overrideTemplateName();return false;" value="save"/>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+
+                            <apex:pageBlockSectionItem helpText="{!$Label.rstk__woreceipt_overridereceipttemplate}" >         
+                                <apex:outputLabel value="{!$Label.rstk__override_receipt_template}"/>
+                                <apex:inputCheckbox value="{!overrideReceiptTemplate}" onclick="blockUI(); overrideTemplate();" />
+                            </apex:pageBlockSectionItem>
+                            
+                            
+                            <apex:inputField id="worcpt_txndate__c" value="{!o.rstk__worcpt_txndate__c}" rendered="{!displayTxnDate}"/>
+                        </apex:pageBlockSection>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:commandButton value="{!$Label.rstk__pagebtn_woreceipt_reloadworkorders}" onclick="blockUI(); populateGrid(); return false;" style="width:150px;"/>&nbsp;
+            <apex:outputPanel id="op_performreceipt">
+                 <c:nosubmitbutton label="{!$Label.rstk__pagebtn_woreceipt_performworkorderreceipt}" onclick="receiptTemplate = '{!receiptTemplateName}';receiptTemplateId = '{!receiptTemplateId}';if(doValidate()){doSetFFCompanyAndProcess(doProcessSelected);}" rendered="{!(displayGrid && allowReceipt)}" style="width:200px;"/>
+            </apex:outputPanel> 
+        </apex:pageBlock>
+
+    <apex:outputPanel id="op_griditems">
+    <script>var stocklocid; var stocklocnum;</script>
+    <apex:pageBlock id="pb_griditems" mode="detail" rendered="{!displayGrid}">
+        <apex:pageBlockSection id="pbs_griditems" showHeader="false" columns="1" collapsible="false">
+            <apex:outputPanel rendered="false">
+                &nbsp;<apex:inputCheckbox id="selectAll" onclick="markAll(this.checked)"/>&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}"/>&nbsp;&nbsp;
+                <script>var allGridItems = [];document.getElementById("{!$Component.selectAll}").checked = false;</script>
+            </apex:outputPanel>
+            <apex:repeat value="{!gridItems}" var="d">
+  
+            <apex:outputPanel >
+                <apex:outputPanel rendered="{!d.allowSelect}" style="display:none">
+                    <apex:inputCheckbox id="selected" value="{!d.worcpt.rstk__worcpt_selected__c}"/>
+                    <script>allGridItems.push(document.getElementById("{!$Component.selected}"));</script>
+                </apex:outputPanel>
+                <apex:outputPanel id="errorMessage"><c:errorimage rendered="{!d.worcpt.rstk__worcpt_errormessage__c != null}" title="{!d.worcpt.rstk__worcpt_errormessage__c}"/></apex:outputPanel>
+                <apex:outputPanel id="infoMessage"><c:infoimage rendered="{!d.worcpt.rstk__worcpt_infomessage__c != null}" title="{!d.worcpt.rstk__worcpt_infomessage__c}"/></apex:outputPanel>
+            </apex:outputPanel>
+            
+            <script>
+                var rcptflds = {};
+                var qtydecimal = {!IF(ISNULL(d.wocst.wocst_item__r.rstk__formula_qtydecimal__c), 6, d.wocst.wocst_item__r.rstk__formula_qtydecimal__c)};
+                var workOrderId ;
+                var receiptTemplate;
+                var receiptTemplateId;
+                //Added by: Parthiban C
+                //RSTK-3276 - Setting autoprint option default value as 'NO;
+                var autoPrintOption = 'No';
+                var workOrderStatus;
+            </script>
+            <apex:pageBlock >
+                <apex:pageBlockSection showHeader="false" columns="3">
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection showHeader="false" columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_ordno__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_ordno__c.label}" />
+                                <apex:outputPanel >
+                                    <apex:outputField id="orderRcpt" value="{!d.worcpt.rstk__worcpt_wocst__c}"/>
+                                    <script >
+                                    workOrderId = '{!d.wocst.id}';
+                                    receiptTemplate = '{!receiptTemplateName}';
+                                    receiptTemplateId = '{!receiptTemplateId}'
+                                    autoPrintOption ='{!d.wocst.wocst_div__r.sydiv_autoprintrcpt__c}';
+                                    console.log('executed');
+                                    </script>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_itemno__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_itemno__c.label}" />
+                                <apex:outputField value="{!d.wocst.rstk__wocst_item__c}"/>
+                            </apex:pageBlockSectionItem>
+
+                            <apex:outputField value="{!d.wocst.wocst_item__r.rstk__icitem_descr__c}" />
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_proj_display__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_proj_display__c.label}" />
+                                <apex:outputField value="{!d.wocst.rstk__wocst_proj__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_order_qty__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_order_qty__c.label}" />
+                                <apex:outputText value="{!d.qtyreq}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_due_date__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_due_date__c.label}" />
+                                <apex:outputField value="{!d.wocst.rstk__wocst_duedte__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_status__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_status__c.label}" />
+                                <apex:outputField value="{!d.wocst.rstk__wocst_ordsts_pl__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection showHeader="false" columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_woordop__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_woordop__c.label}" />
+                                <apex:selectList value="{!d.worcpt.rstk__worcpt_woordop__c}" size="1" style="width:125px;">
+                                    <apex:selectOptions value="{!d.operations}"/>
+                                </apex:selectList>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_sylocid__c.inlineHelpText}" rendered="{!!d.isLaborOnly}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_sylocid__c.label}" style="white-space:nowrap;"/>
+                                <apex:outputPanel >
+                                    <c:largeSelectList id="worcpt_sylocid__c" value="{!d.worcpt.rstk__worcpt_sylocid__c}" useValue="true" cntr="{!controller}" width="200px" options="{!d.locations}" rendered="{!!d.disablelocid}"/>
+                                    <apex:outputField value="{!d.worcpt.rstk__worcpt_sylocid__c}" rendered="{!d.disablelocid}"/>
+                                    <script>stocklocid = document.getElementById("{!$Component.worcpt_sylocid__c}");</script>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_locnum__c.inlineHelpText}" rendered="{!!d.isLaborOnly}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_locnum__c.label}" style="white-space:nowrap;"/>
+                                <apex:outputPanel >
+                                    <apex:inputText id="worcpt_locnum__c" value="{!d.worcpt.rstk__worcpt_locnum__c}" size="10" maxlength="10" rendered="{!!d.disablelocnum}"/>
+                                    <script>stocklocnum = document.getElementById("{!$Component.worcpt_locnum__c}");</script>
+                                    <apex:outputField value="{!d.worcpt.rstk__worcpt_locnum__c}" rendered="{!d.disablelocnum}"/>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_qty_remaining__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_qty_remaining__c.label}" style="white-space:nowrap;" />
+                                <apex:outputText id="worcpt_qty_remaining__c" html-decimals="6" value="{!d.qtyinwip}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_qty_accept__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_qty_accept__c.label}" />
+                                <apex:outputPanel >
+                                    <apex:inputField id="qtyaccept" value="{!d.worcpt.rstk__worcpt_qty_accept__c}" rendered="{!!d.isLaborOnly}" onchange="qtyAcceptedChanged();"/>
+                                    <apex:outputText value="{!d.worcpt.rstk__worcpt_qty_accept__c}" rendered="{!d.isLaborOnly}"/>
+                                    <script>
+                                        _removeTrailingZeros(document.getElementById("{!$Component.qtyaccept}"));
+                                        rcptflds['qtyaccept'] = document.getElementById("{!$Component.qtyaccept}");
+                                        qtyAcceptedChanged();
+                                    </script>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_ovrwostays7__c.inlineHelpText}" rendered="{!showovrwostays7 && !d.isLaborOnly}">
+		                        <apex:outputLabel value="{!f.rstk__worcpt_ovrwostays7__c.label}"/>
+		                        <apex:inputCheckbox id="local_ovrwostays7" value="{!d.worcpt.rstk__worcpt_ovrwostays7__c}" />
+		                    </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                      
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection showHeader="false" columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_lotno__c.inlineHelpText}" rendered="{!d.isLot}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_lotno__c.label}" style="white-space:nowrap;" />
+                                <apex:outputPanel >
+                                    <apex:outputField value="{!d.worcpt.rstk__worcpt_lotno__c}" rendered="{!AND(d.hasLotSerialComponents, !d.wocst.wocst_item__r.rstk__icitem_worcptlotfrm__c)}"/>
+                                    
+                                    <apex:inputField id="lotno_input" value="{!d.worcpt.rstk__worcpt_lotno__c}" rendered="{!AND(d.hasLotSerialComponents, d.wocst.wocst_item__r.rstk__icitem_worcptlotfrm__c, !d.wocst.wocst_item__r.rstk__icitem_validatelotfrm__c)}"/>
+                                    
+                                    <apex:selectList id="lotno_select" value="{!d.worcpt.rstk__worcpt_lotno__c}" size="1" rendered="{!AND(d.hasLotSerialComponents, d.wocst.wocst_item__r.rstk__icitem_worcptlotfrm__c, d.wocst.wocst_item__r.rstk__icitem_validatelotfrm__c)}"> 
+                                        <apex:selectOptions value="{!d.lotnos}"/> 
+                                    </apex:selectList>
+                                    <script>
+                                        rcptflds['issrl'] = {!d.isSerial};
+                                        rcptflds['islot'] = {!d.isLot};
+<!-- RCB: RSTK-2738 -->                                        
+                                        rcptflds['islotexp'] = {!d.isLotExp};
+                                        if ({!AND(d.wocst.wocst_item__r.icitem_worcptlotfrm__c, !d.wocst.wocst_item__r.icitem_validatelotfrm__c)}) {
+                                            rcptflds['lotnofld'] = document.getElementById("{!$Component.lotno_input}");
+                                        } else if ({!AND(d.wocst.wocst_item__r.icitem_worcptlotfrm__c, d.wocst.wocst_item__r.icitem_validatelotfrm__c)}) {
+                                            rcptflds['lotnofld'] = document.getElementById("{!$Component.lotno_select}");
+                                        }
+                                    </script>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+<!-- RCB: RSTK-2738 -->
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_lotexpiredate__c.inlineHelpText}" rendered="{!d.isLot}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_lotexpiredate__c.label}"/>
+                                <apex:outputPanel >
+                                <apex:inputField id="worcpt_lotexpiredate__c" value="{!d.worcpt.rstk__worcpt_lotexpiredate__c}" />
+                                 <script>
+                                        rcptflds['issrl'] = {!d.isSerial};
+                                        rcptflds['islot'] = {!d.isLot};
+                                        rcptflds['islotexp'] = {!d.isLotExp};                                        
+                                        rcptflds['lotnoexpfld'] = document.getElementById("{!$Component.worcpt_lotexpiredate__c}");
+                                    </script>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_selectedserials__c.inlineHelpText}" rendered="{!d.isSerial}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_selectedserials__c.label}" style="white-space:nowrap;" />
+                                <apex:outputPanel >
+                                    <apex:inputHidden id="selectedserialsstring__c" value="{!d.selectedserialsstring}"/>
+                                    <select id="serials" multiple="multiple" size="5" style="width:240px;" hiddenfieldid="{!$Component.selectedserialsstring__c}" onchange="setMultiselectValueToHiddenField(this);selectSerials(this);"/>
+                                    <script>
+                                        var srlelem = document.getElementById('serials');
+                                        var availsrls = {!d.AvailableSerialsString};
+                                        var selecsrls = {!d.SelectedSerialsMapString};
+                                        for(var i = 0; i < availsrls.length; i++) {
+                                            srlelem.options[srlelem.length] = new Option(availsrls[i], availsrls[i], false, (typeof selecsrls[availsrls[i]] != 'undefined'));
+                                        }
+                                    </script>
+                                    <script>
+                                        rcptflds['issrl'] = {!d.isSerial};
+                                        rcptflds['islot'] = {!d.isLot};
+<!-- RCB: RSTK-2738 -->                                        
+                                        rcptflds['islotexp'] = {!d.isLotExp};                                        
+                                        rcptflds['serials'] = document.getElementById("serials");
+                                    </script>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_txn_comments__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_txn_comments__c.label}" style="white-space:nowrap;"/>
+                                <apex:inputTextArea value="{!d.worcpt.rstk__worcpt_txn_comments__c}" cols="20" rows="1"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__worcpt_loc_comments__c.inlineHelpText}" rendered="{!!d.isLaborOnly}">
+                                <apex:outputLabel value="{!f.rstk__worcpt_loc_comments__c.label}" style="white-space:nowrap;" />
+                                <apex:inputTextArea value="{!d.worcpt.rstk__worcpt_loc_comments__c}" cols="20" rows="1"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+            </apex:repeat>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:outputPanel>
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}"/>
+    
+    <script>
+        var LABEL_EnterValueForFields = "{!$Label.rstk__entervalueforfields}";
+        var LABEL_QtyMustGrtrThan0 = "{!$Label.rstk__qtymustgrtrthan0}";
+        var LABEL_NumOfSrlsSelectedExceedsAllowedMaxOf1000SrlsThatCanBeRecievedAtTime = "{!$Label.rstk__numofsrlsselectedexceedsallowedmaxof1000srlsthatcanberecievedattime}";
+        var LABEL_QtyDoesntMatchNumOfSrlsSelected = "{!$Label.rstk__qtydoesntmatchnumofsrlsselected}";
+        var LABEL_WO_receipt_success_but_SO_issue_failed = "{!$Label.rstk__wo_receipt_success_but_so_issue_failed}";
+//RCB: RSTK-2738
+        var LABEL_Lot_Expiration_Date_must_be_greater_than_today_s_date = "{!$Label.rstk__lot_expiration_date_must_be_greater_than_today_s_date}";
+        //Added by: Parthiban C
+        //RSTK-3276
+        var LABEL_Please_Set_Value_for_woreceipt = "{!$Label.rstk__worecipt_please_set_value_for_woreceipt}"
+    </script>
+</apex:page>

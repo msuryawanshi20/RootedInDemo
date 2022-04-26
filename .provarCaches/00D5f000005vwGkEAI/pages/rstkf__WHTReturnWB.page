@@ -1,0 +1,132 @@
+<apex:page id="pg" title="{!$Label.rstkf__pgtitle_whtreturnworkbench}" standardController="rstkf__apwhtreturn__c" extensions="rstkf.ControllerExtnWHTReturnWB,rstkf.ControllerJobStatus,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!customextf}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <c:standardHeader cntr="{!controller}" displayListLink="false" enableAutocomplete="true" title="{!$Label.rstkf__pgtitle_whtreturnworkbench}"/>
+    
+    <script>
+        var isRootDoxWHTR = {!isRootDoxWHTR};
+    </script>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="generateReturn" action="{!generateReturn}" onComplete="checkJobStatus();" rerender="op_JobStatus"  immediate="false"/>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+            <script>
+                var generatedReturnNumberId = '{!customextf.rstkf__whtretwb_returnnumber__c}';
+            </script>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_vars">
+            <apex:inputHidden id="glcmp__c" value="{!customextf.rstkf__custom_glcmp__c}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockSection id="pbs" columns="2" collapsible="false">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__whtcertwb_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtcertwb_glcmp__c.label}" />
+                    <apex:outputField value="{!customextf.rstkf__custom_glcmp__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__whtcertwb_thrufiscalperiod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtcertwb_thrufiscalperiod__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="whtcertwb_thrufiscalperiod__c" value="{!customextf.rstkf__whtcertwb_thrufiscalperiod__c}" size="1" style="width:250px;" tabindex="15"> 
+                            <apex:selectOptions value="{!Glperiods}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__whtretwb_returnnumber__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtretwb_returnnumber__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="whtretwb_returnnumber__c" 
+                                value="{!customextf.rstkf__whtretwb_returnnumber__c}"
+                                onchange="returnnumberChanged();" 
+                                size="1" style="width:250px;" tabindex="15"> 
+                            <apex:selectOptions value="{!Apwhtreturns}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__whtretwb_returndate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtretwb_returndate__c.label}" />
+                    <apex:inputField Id="whtretwb_returndate__c" value="{!customextf.rstkf__whtretwb_returndate__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="" />
+                    <apex:commandButton value="{!$Label.rstkf__btn_printreturn}" onclick="printReturn();return false;"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="" />
+                    <apex:commandButton value="{!$Label.rstkf__btn_generatereturn}" onclick="blockUI(); generateReturn();return false;"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="" />
+                    <apex:commandButton value="{!$Label.rstkf__btn_returnvendordetail}" onclick="blockUI(); returnVendorDetail();return false;"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <apex:outputpanel id="op_apwhtretvendlist">
+        <apex:relatedList list="apwhtretvends__r" id="apwhtretvendLists" />
+    </apex:outputpanel>
+    
+    <script>
+        var displayRetvendList = '{!displayRetvendList}';
+        function doAfterJobComplete(pl) {
+            window.open('/apex/WHTReturnWB?id=' + generatedReturnNumberId,'_self');
+        }
+        
+        function returnnumberChanged() {
+            if(displayRetvendList == 'true') {
+                returnVendorDetail();
+            }
+        }
+        
+        function returnVendorDetail() {
+            var returnnumber = sfffGetFieldValue('whtretwb_returnnumber__c');
+            if(returnnumber.length > 0) {
+                window.open('/apex/WHTReturnWB?id=' + returnnumber,'_self');
+            }
+            else {
+                window.open('/apex/WHTReturnWB','_self');
+            }
+            
+        }
+        
+        function printReturn() {
+            var glcmpId = '{!customextf.rstkf__custom_glcmp__c}';
+            var returnnumberId = sfffGetFieldValue('whtretwb_returnnumber__c');
+            if(returnnumberId == null || returnnumberId.length == 0) {
+                alert("{!$Label.PlzSelectWHTRetNumToPrint}");
+                return false;
+            }
+            
+            var apcntls = execQuery("select apcntl_whtreturntemplate__c from apcntl__c where apcntl_glcmp__c = '" + glcmpId + "'");
+            if(apcntls && apcntls.length > 0) {
+                if(apcntls[0].apcntl_whtreturntemplate__c == null || apcntls[0].apcntl_whtreturntemplate__c.length == 0) {
+                    alert("{!$Label.PlzConfigureWHTReturnTemplateOnAPCNTL}");
+                    return false;
+                }
+            }
+            else {
+                alert("{!$Label.apcntlRecNotFound}");
+                return false;
+            }
+            
+            var whtreturntemplateId = apcntls[0].apcntl_whtreturntemplate__c;
+            if (isRootDoxWHTR){
+                window.open('/apex/printDoxFin?oid='+returnnumberId+'&t='+whtreturntemplateId);
+            }else{
+                var url = '/apex/WHTReturnEmailTemplatePrint?id=' + returnnumberId+'&emailtemplateid='+whtreturntemplateId;
+                window.open(url, '', 'toolbar=0,resizeable=0');
+            }
+        }
+    </script>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+</apex:page>

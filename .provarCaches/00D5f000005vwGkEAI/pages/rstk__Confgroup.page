@@ -1,0 +1,367 @@
+<apex:page id="pg" standardController="rstk__confgroup__c" extensions="rstk.ControllerExtnConfgroup,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__confgroup__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__confgroup__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_confgroup}" enableAutocomplete="true" customInclude="{!$Resource.rstk__confgroup_cli}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <script>
+    var confgroup;
+    var isNew = {!isNew};
+    var isEdit = {!isEdit};
+    var isView = {!isView};
+    var isBaseline = {!o.rstk__confgroup_baseline__c};
+    function getMaxsels() {
+        if(isView) {
+            return {!o.rstk__confgroup_maxsel__c};
+        } else {
+            var v = parseLocaleInt(sfffGetFieldValue('confgroup_maxsel__c'));
+            if(isNaN(v) || v <= 0) {
+                return 0;
+            } else {
+                return v;
+            }
+        }
+    }
+    function validateGrids() {
+        if(isNew) {
+            return true;
+        } else {
+            if(!confsels.isDirty()) {
+                return true;
+            } else {
+                var crfm = confirm("{!$Label.rstk__unsavedchangesingrpselectiontab_savechangesbeforesavingheader_ignorechanges}");
+                if(crfm) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }
+    }
+    
+    function saveGrids() {
+        if(hasErrors()) {
+            alert("{!$Label.rstk__erroroccuredsavingconfiggrp}");
+            unblockUI();
+        } else if(isNew) {
+            doView();
+        } else {
+            saveConfsels();
+        }
+    }
+    
+    function saveConfsels() {
+        if(confsels.isDirty() && confsels.validate()) {
+            confsels_save();
+        } else if(isEdit) {
+            doView();
+        } else {
+            unblockUI();
+        }
+    }
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doClone" action="{!doClone}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableClone="false"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel id="op_saveStatus">
+                <apex:inputHidden id="saveError" value="{!saveError}"/>
+                <script>
+                    function hasErrors() {
+                        return (document.getElementById("{!$Component.saveError}").value == 'true');
+                    }
+                </script>
+            </apex:outputPanel>
+            <apex:pageBlockSection showHeader="false" columns="2" rendered="{!OR(isNew, isEdit)}">
+                <apex:outputField value="{!o.rstk__confgroup_div__c}"/>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confgroup_title__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confgroup_title__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="confgroup_title__c" value="{!o.rstk__confgroup_title__c}" required="true" rendered="{!isNew}" taborderhint="11"/>
+                        <apex:outputField value="{!o.rstk__confgroup_title__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputCheckbox id="confgroup_baseline__c" value="{!o.rstk__confgroup_baseline__c}" tabIndex="21"/>
+                
+                <apex:inputField id="confgroup_desc__c" value="{!o.rstk__confgroup_desc__c}" taborderhint="12"/>
+                
+                <apex:inputCheckbox id="confgroup_allowinv__c" value="{!o.rstk__confgroup_allowinv__c}" tabIndex="21"/>
+                
+                <apex:inputField id="confgroup_image__c" value="{!o.rstk__confgroup_image__c}" taborderhint="13"/>
+                
+                <apex:inputCheckbox id="confgroup_allowlab__c" value="{!o.rstk__confgroup_allowlab__c}" tabIndex="220"/>
+                
+                <apex:inputField id="confgroup_minsel__c" value="{!o.rstk__confgroup_minsel__c}" required="true" taborderhint="14"/>
+                
+                <apex:inputCheckbox id="confgroup_allowmisc__c" value="{!o.rstk__confgroup_allowmisc__c}" tabIndex="23"/>
+                
+                <apex:inputField id="confgroup_maxsel__c" value="{!o.rstk__confgroup_maxsel__c}" required="true" taborderhint="15"/>
+                
+                <apex:inputCheckbox id="confgroup_allowsvc__c" value="{!o.rstk__confgroup_allowsvc__c}" tabIndex="24"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confgroup_invdiv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confgroup_invdiv__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="confgroup_invdiv__c" value="{!o.rstk__confgroup_invdiv__c}" required="true" size="1" style="width:250px;" rendered="{!isNew}" tabIndex="160">
+                            <apex:selectOptions value="{!invdivs}"/>
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__confgroup_invdiv__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputCheckbox id="confgroup_allowent__c" value="{!o.rstk__confgroup_allowent__c}" tabIndex="25" rendered="{!custSettings.IsEntitlementsEnabled}"/>
+
+                <apex:inputCheckbox id="confgroup_dfltfromprev__c" value="{!o.rstk__confgroup_dfltfromprev__c}" tabIndex="27"/>
+
+            </apex:pageBlockSection>
+            <apex:pageBlockSection showHeader="false" columns="2" rendered="{!isView}">
+                <apex:outputField value="{!o.rstk__confgroup_div__c}"/>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputField value="{!o.rstk__confgroup_title__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_baseline__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_desc__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_allowinv__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_image__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_allowlab__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_minsel__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_allowmisc__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_maxsel__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_allowsvc__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_invdiv__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confgroup_allowent__c}" rendered="{!custSettings.IsEntitlementsEnabled}"/>
+
+                <apex:outputField value="{!o.rstk__confgroup_dfltfromprev__c}"/>
+            </apex:pageBlockSection>
+            <script>
+                confgroup = {
+                    id: "{!IF(ISNULL(o.id),'',o.id)}"
+                };
+            </script>
+            <br />
+            <apex:tabPanel switchType="client" selectedTab="tab_Confsels" id="theTabPanel" rendered="{!!isNew}">
+                <apex:tab label="{!$Label.rstk__pagetab_confgroup_groupselections}" name="tab_Confsels">
+                    <c:PageableGrid pageSize="10" width="1150" jsController="confsels" data="{!confselGrid}" editable="{!OR(isEdit, isView)}" ispopup="false" disableSave="false"/>
+                    <script>
+                        confsels.onGridLoad = function() {
+                            self = this;
+                            if (confsels.rowIds.length )
+                            this.getRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                                if (isEmpty(rowId)) rowId = confsels.rowIds[index];
+                                if (!isEmpty(rowId)) {
+                                    self.getRowObj(row, 'confsel__g').html('<button type="button" class="btn" onclick="showConfselDetails(\'' + rowId + '\');">{!$Label.rstk__btn_configurationselection}</button>');
+                                    self.getRowObj(row, 'confsel_image__g').html('<button type="button" class="btn" onclick="viewImage(\'' + rowId + '\');">{!$Label.rstk__btn_view}</button>');
+                                }
+                                if(confsels.getRowValue(row, 'confsel_subsel__c') == false) {
+                                    confsels.getRowObj(row, 'confsel_subselgroup__c').closest('td').find('.ac_input').attr('disabled', true);
+                                }
+                                if (isBaseline) {
+                                    confsels.setRowValue(row, 'confsel_subsel__c', false);
+                                    confsels.getRowObj(row, 'confsel_subsel__c').attr('disabled', true);
+                                    confsels.getRowObj(row, 'confsel_subselgroup__c').closest('td').find('.ac_input').attr('disabled', true);
+                                }
+                            });
+                            updateAddBtn();
+                        }
+                        
+                        confsels.resetRow = function(row) {
+                            self = this;
+                            confselsHandler.prototype.resetRow.call(self, row);
+                            var maxSeq = -1;
+                            confsels.getRows().each(function(){
+                                var r = jQuery(this);
+                                var v = confsels.getRowInt(r, 'confsel_seq__c') || 0;
+                                if (maxSeq < v) {
+                                    maxSeq = v;
+                                }
+                            });
+                            confselInfo = execQuery("select confsel_seq__c from confsel__c where confsel_confgroup__c = '" + confgroup.id + "' order by confsel_seq__c desc limit 1");
+                            if (confselInfo.length > 0) {
+                                var seq = parseInt(confselInfo[0].confsel_seq__c);
+                                if (seq > maxSeq) {
+                                    maxSeq = seq;
+                                }
+                            }
+                            confsels.setRowValue(row, "confsel_seq__c", formatLocaleFloat(maxSeq + 1, 0));
+                            updateAddBtn();
+                        }
+                        
+                        confsels.addRow = function(rowCallback) {
+                            self = this;
+                            confselsHandler.prototype.addRow.call(self, rowCallback);
+                            updateAddBtn();
+                        }
+                        
+                        confsels.entryChanged = function(row, rowNum, name, value) {
+                            if (name == 'confsel_subsel__c') {
+                                if(value == true) {
+                                    if(confsels.getRowValue(row, 'confsel_showcomps__c') == true) {
+                                        alert("{!$Label.rstk__subselectioncantbechkdwhenshowcomponentchkd}");
+                                        confsels.setRowValue(row, "confsel_subsel__c", false);
+                                    } else {
+                                        confsels.getRowObj(row, 'confsel_subselgroup__c').closest('td').find('.ac_input').attr('disabled', false);
+                                    }
+                                } else if(value == false) {
+                                    confsels.setRowValue(row, "confsel_subselgroup__c", '');
+                                    confsels.getRowObj(row, 'confsel_subselgroup__c').closest('td').find('.ac_input').attr('disabled', true);
+                                }
+                            } else if(name == 'confsel_showcomps__c') {
+                                if(value == true) {
+                                    if(confsels.getRowValue(row, 'confsel_subsel__c') == true) {
+                                        alert("{!$Label.rstk__showcomponentscantbecheckedwhensubselectionischecked}");
+                                        confsels.setRowValue(row, "confsel_showcomps__c", false);
+                                    }
+                                }
+                            } else if(name == 'confsel_subselgroup__c') {
+                                if(value) {
+                                    if(value == confgroup.id) {
+                                        alert("{!$Label.rstk__subselectiongrpcantsameasconfiggrp}");
+                                        confsels.setRowValue(row, "confsel_subselgroup__c", '');
+                                    }
+                                }
+                            }
+                        }
+                        
+                        function showConfselDetails(confselId) {
+                            window.location.replace("../" + confselId + "?{!JSENCODE(ReturnUrlParms)}");
+                            return false;
+                        }
+                        
+                        function viewImage(confselId) {
+                            confsels.getRows().each(function(){
+                                var row = jQuery(this);
+                                var rowId = confsels.getRowValue(row, 'Id');
+                                if(rowId == confselId) {
+                                    var url = confsels.getRowValue(row, 'confsel_image__c');
+                                    if(url) {
+                                        window.open(url);
+                                        return false;
+                                    }
+                                }
+                            });
+                        }
+                        
+                        confsels.validate = function() {
+                            self = this;
+
+                            var isvalid = true;
+                            var seqs = {};
+                            var seqCount = 0;
+                            var rowCount = 0;
+                            var dupSeqFld;
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var seq = confsels.getRowInt(row, 'confsel_seq__c');
+                                if(isNaN(seq) || seq <= 0) {
+                                    alert("{!$Label.rstk__grpselectionseqcantbeblank_mustbegt0}");
+                                    confsels.getRowObj(row, 'confsel_seq__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                rowCount++;
+                                if(!seqs[seq]) {
+                                    seqs[seq] = ' ';
+                                    seqCount++;
+                                } else {
+                                    if(!dupSeqFld)
+                                        dupSeqFld = confsels.getRowObj(row, 'confsel_seq__c');
+                                }
+                                
+                                var title = confsels.getRowValue(row, 'confsel_title__c')
+                                if(!title) {
+                                    alert("{!$Label.rstk__titlecantbeblank}");
+                                    confsels.getRowObj(row, 'confsel_title__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if(confsels.getRowValue(row, 'confsel_subsel__c') == true && !confsels.getRowValue(row, 'confsel_subselgroup__c')) {
+                                    alert("{!$Label.rstk__subselgrpmustselectedwhensubselchkd}");
+                                    confsels.getRowObj(row, 'confsel_subselgroup__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                            });
+                            if(!isvalid)return false;
+                            if(rowCount != seqCount) {
+                                alert("{!$Label.rstk__grpselectionseqmustbeunique}");
+                                if(dupSeqFld)dupSeqFld.focus();
+                                isvalid = false;
+                            }
+                            return isvalid;
+                        }
+                        
+                        confsels.onSaveFailed = function() {
+                            unblockUI();
+                        }
+                        
+                        confsels.onSaved = function() {
+                            unblockUI();
+                        }
+                    </script>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+        
+        <script>
+            setSelectListRequired("confgroup_invdiv__c");
+        </script>
+    </apex:form>
+    
+    <apex:outputPanel id="op_RelatedLists" rendered="{!isView}">
+        <apex:relatedList list="confgroupps__r"/>
+    </apex:outputPanel>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_MinSelMustGrtrEqual0 = "{!$Label.rstk__minselmustgrtrequal0}";
+        var LABEL_MinSelCantBeGrtrThanMaxSel = "{!$Label.rstk__minselcantbegrtrthanmaxsel}";
+        var LABEL_MaxSelCantBeLessThanMinSel = "{!$Label.rstk__maxselcantbelessthanminsel}";
+        var LABEL_BaselineGrpsMayHaveOnlyOneSel = "{!$Label.rstk__baselinegrpsmayhaveonlyonesel}";
+        var LABEL_MaxSelMustBeGrtrThanEqual0 = "{!$Label.rstk__maxselmustbegrtrthanequal0}";
+        var LABEL_MaxSekCantBeGrtrThan1ForBaselineGrps = "{!$Label.rstk__maxsekcantbegrtrthan1forbaselinegrps}";
+    </script>
+    
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

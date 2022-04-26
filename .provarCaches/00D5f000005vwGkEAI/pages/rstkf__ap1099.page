@@ -1,0 +1,209 @@
+<apex:page id="pg" title="Accounts Payable 1099" standardController="rstkf__ap1099__c" extensions="rstkf.ControllerExtnAp1099,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__ap1099__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__ap1099__c.fields}" />
+    <apex:sectionHeader title="Accounts Payable 1099" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" enableAutoComplete="true" showHeader="false"/>
+    <style>
+        input[type=checkbox][disabled]{
+          opacity: 0.4;
+        }
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+
+        <apex:actionFunction name="fiscalYearChanged" action="{!fiscalYearChanged}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages,op_hdrbtns,op_1099s,pbs_main,op_procvars">
+            <apex:param name="fiscalYear" assignTo="{!o.rstkf__ap1099_year__c}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="compThreasholdChanged" action="{!compThreasholdChanged}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages,op_hdrbtns,pbs_main">
+            <apex:param value="" name="compThreasholdUI" assignTo="{!compThreasholdUI}"/>
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="doList1099s" action="{!doList1099s}" immediate="false" oncomplete="unblockUI();" rerender="pageMessages,op_hdrbtns,op_1099s"/>
+        <apex:actionFunction name="doPrint1099sUsingSDocs" action="{!doPrint1099s}" immediate="false" oncomplete="checkPrintPdfJobStatus();" rerender="pageMessages,op_hdrbtns,op_1099s,op_procvars"/>
+        <apex:actionFunction name="processNextAp1099s" action="{!processNextAp1099s}" immediate="false" oncomplete="checkPrintPdfJobStatus();" rerender="pageMessages,op_hdrbtns,op_1099s,op_procvars"/>
+        <apex:actionFunction name="doPrint1099sUsingConga" action="{!doPrint1099s}" immediate="false" oncomplete="openCongaUrl();unblockUI();" rerender="pageMessages,op_hdrbtns,op_1099s,op_procvars"/>
+        
+        <apex:actionFunction name="doGenerate" action="{!doGenerate}" immediate="false" oncomplete="unblockUI();" rerender="pageMessages,pbs_main,op_hdrbtns,op_1099s"/>
+        
+        <apex:outputpanel id="op_procvars">
+            <script>
+                 var sdocJobIds = '{!sdocJobIds}';
+                 var hasMore1099s = '{!hasMore1099s}';
+                 var printpkg1099 = '{!printpkg1099}';
+                 var printtempl = '{!printtempl}';
+                 var printnectempl = '{!printnectempl}';
+                 var congaBtnUrl = '{!congaBtnUrl}';
+                 var companyId = '{!CompanyId}';
+				 var year = '{!o.rstkf__ap1099_year__c}';
+			 </script>
+        </apex:outputpanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons location="top">
+                <apex:outputPanel id="op_hdrbtns">
+                    <apex:commandButton onclick="if ({!totalSize} > 0 && !confirm('{!$Label.rstkf__x1099salreadyexistforthisyear}')) {return false} else {blockUI();doGenerate();return false;}" disabled="{!o.rstkf__ap1099_year__c = 0}" value="{!$Label.rstkf__pgbtn_generate1099s}" style="width:100px"/>
+                    <apex:commandButton onclick="blockUI();doList1099s();return false;" disabled="{!o.rstkf__ap1099_year__c = 0}" value="{!$Label.rstkf__pgbtn_1099list}" style="width:80px"/>
+                    <apex:commandButton onclick="blockUI();doPrint1099sUsingPkg();return false;" disabled="{!o.rstkf__ap1099_year__c = 0}" value="{!$Label.rstkf__pgbtn_print1099susing} ({!jobTemplName})" rendered="{!jobTemplName != null}"/>
+                    <apex:commandButton onclick="blockUI();doPrint1099NecsUsingPkg();return false;" disabled="{!o.rstkf__ap1099_year__c = 0}" value="{!$Label.rstkf__pgbtn_print1099susing} ({!necJobTemplName})" rendered="{!necJobTemplName != null}"/>
+                </apex:outputPanel>
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection id="pbs_main" columns="2">
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__ap1099_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__ap1099_glcmp__c.label}"/>
+                    <apex:outputField value="{!o.rstkf__ap1099_glcmp__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__ap1099_year__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstkf__ap1099_year__c.label}"/>
+                    <apex:selectList id="ap1099_year__c" value="{!o.rstkf__ap1099_year__c}" size="1" onchange="blockUI();fiscalYearChanged(this.value);">
+                        <apex:selectOptions value="{!FiscalYears}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstkf__compensationthreshold}"/>
+                    <apex:outputPanel >
+                        <apex:inputText value="{!compThreasholdUI}" onchange="blockUI();compThreasholdChanged(this.value)"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <apex:outputPanel id="op_1099s">
+            <apex:outputPanel rendered="{!display1099s}">
+                <apex:pageBlock id="pb_1099s" mode="detail">
+                    <apex:pageBlockButtons location="top" >
+                    <apex:outputPanel id="paginationButtons" rendered="{!totalSize > listSize}">
+                        <apex:commandButton action="{!Beginning}" title="Beginning" value="<<" disabled="{!disablePrevious}" rerender="op_1099s"/>
+                        <apex:commandButton action="{!Previous}" title="Previous" value="<" disabled="{!disablePrevious}" rerender="op_1099s"/>       
+                        <apex:commandButton action="{!Next}" title="Next" value=">" disabled="{!disableNext}" rerender="op_1099s"/>
+                        <apex:commandButton action="{!End}" title="End" value=">>" disabled="{!disableNext}" rerender="op_1099s"/>       
+                    </apex:outputPanel>
+                    </apex:pageBlockButtons>
+                    <apex:pageBlockSection id="pbs_1099s" showHeader="false" columns="1" >
+                        <apex:outputPanel style="height:400px;overflow:auto;display:block">
+                            <apex:pageBlockTable id="pbt_1099s" value="{!ap1099s}" var="a">
+                                <apex:column headerValue="Name">
+                                    <apex:outputLink value="{!URLFOR($Action.rstkf__ap1099__c.View, a.Id)}" target="_blank">{!a.Name}</apex:outputLink>
+                                </apex:column>
+                                <apex:column headerValue="{!f.rstkf__ap1099_povend__c.label}" value="{!a.rstkf__ap1099_povend__c}"/>
+                                <apex:column headerValue="{!f.rstkf__ap1099_account_number__c.label}" value="{!a.rstkf__ap1099_account_number__c}"/>
+                                <apex:column headerValue="{!f.rstkf__ap1099_vendor_tax_id__c.label}" value="{!a.rstkf__ap1099_vendor_tax_id__c}"/>
+                                <apex:column headerValue="{!f.rstkf__ap1099_vendor_street__c.label}" value="{!a.rstkf__ap1099_vendor_street__c}"/>
+                                <apex:column headerValue="{!f.rstkf__ap1099_vendor_city__c.label}" value="{!a.rstkf__ap1099_vendor_city__c}"/>
+                                <apex:column headerValue="{!f.rstkf__ap1099_vendor_stateprov__c.label}" value="{!a.rstkf__ap1099_vendor_stateprov__c}"/>
+                                <apex:column headerValue="{!f.rstkf__ap1099_vendor_zippostal__c.label}" value="{!a.rstkf__ap1099_vendor_zippostal__c}"/>
+                                <apex:column headerValue="{!f.rstkf__ap1099_box7__c.label}" value="{!a.rstkf__ap1099_box7__c}"/>
+                                <apex:column headerValue="{!f.rstkf__ap1099_1099formtype__c.label}" value="{!a.rstkf__ap1099_1099formtype__c}"/>
+                                
+                            </apex:pageBlockTable>
+                        </apex:outputPanel>
+                    </apex:pageBlockSection>
+                </apex:pageBlock>
+            </apex:outputPanel>
+        </apex:outputPanel>
+        
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+    	var checkprintpkg_RootDocs = 'RootForms';
+        function doPrint1099sUsingPkg() {
+            if(printpkg1099 == 'S-Docs') {
+                doPrint1099sUsingSDocs();
+            }
+            else if(printpkg1099 == 'Conga') {
+                doPrint1099sUsingConga();
+            }
+            else if(printpkg1099 == checkprintpkg_RootDocs) {
+            	window.open('/apex/proxyMultiDoxPrintFin?batchid='+companyId+'&objectType=ap1099&templateId1='+printtempl+'&v1='+year);
+				unblockUI();
+			}
+        }
+        
+         function doPrint1099NecsUsingPkg() {
+            if(printpkg1099 == 'S-Docs') {
+                doPrint1099sUsingSDocs();
+            }
+            else if(printpkg1099 == 'Conga') {
+                doPrint1099sUsingConga();
+            }
+            else if(printpkg1099 == checkprintpkg_RootDocs) {
+            	window.open('/apex/proxyMultiDoxPrintFin?batchid='+companyId+'&objectType=ap1099&templateId1='+printnectempl+'&v1='+year);
+				unblockUI();
+			}
+        }
+    
+        function checkPrintPdfJobStatus() {
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnAp1099.checkPrintPdfJobStatus}', //NameSpace
+                sdocJobIds,
+                function(result, event){
+                    if (event.status) {
+                        var response = JSON.parse(result);
+                        if(response.status == 'IN-PROGRESS') {
+                            setTimeout(function() {checkPrintPdfJobStatus();}, 1000);
+                        }
+                        else if(response.status == 'ERROR') {
+                            alert("{!$Label.ErrorOccured}");
+                            unblockUI();
+                            return false;
+                        }
+                        else if(response.status == 'COMPLETE') {
+                            if(hasMore1099s == 'true') {
+                                processNextAp1099s();
+                            }
+                            else {
+                                unblockUI();
+                                var nsp = pageParms.namespaceprefix;
+                                if(nsp.length > 0) {
+                                    nsp = nsp + '__';
+                                }
+                                window.open("/apex/SDOC__SDJobPDF?ObjectName=" + nsp + "AP1099__c");
+                            }
+                        }
+                        else {
+                            console.log('Invalid status...');
+                        }
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.ErrorOccured}");
+                        unblockUI();
+                        return false;
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function openCongaUrl() {
+            window.open(congaBtnUrl);
+        }
+    </script>
+</apex:page>

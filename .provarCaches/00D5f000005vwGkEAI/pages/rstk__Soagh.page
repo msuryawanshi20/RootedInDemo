@@ -1,0 +1,609 @@
+<!--
+    Customer Agreements - SOAGH page.
+    Customer Agreements are used to give specific customers a price break or discount.  
+    The agreements are generally for a limited amount of time and can be based on order 
+    quantities (units ordered on a given order line) or on volume (units ordered for the life of the agreement).
+-->
+<apex:page id="pg" standardController="rstk__soagh__c" extensions="rstk.ControllerExtnSoagh,rstk.RemoteQueryController" 
+           sideBar="false" action="{!doBeforePageLoad}"> 
+    
+    <apex:variable var="o" value="{!rstk__soagh__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soagh__c.fields}" />
+    <apex:variable var="f_socust" value="{!$ObjectType.rstk__socust__c.fields}" />
+    <apex:variable var="f_soaghvd" value="{!$ObjectType.rstk__soaghvd__c.fields}" />
+    <apex:variable var="f_soagp" value="{!$ObjectType.rstk__soagp__c.fields}" />
+    
+    <!-- Header title -->
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_soagh}" enableAutocomplete="true" displayListLink="true"/>
+    
+    <!-- Includes -->
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:includeScript value="{!$Resource.rstk__soagh_cli}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+     <!-- Style -->
+    <style>
+        .hidden{visibility:hidden;}
+        .rcptinput{
+            width:60px;
+            text-align:right; 
+        }
+        .sort {display:inline}
+        .numSort {display:inline}
+
+            .modal {
+                background-color:#fff;
+                display:none;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+            .modal h2 {
+                margin:0px;
+                padding:10px 0 10px 45px;
+                font-size:16px;
+            }
+            
+            .modalComponents {
+                color:#efefef;
+                height:450px;
+                z-index:100;
+            }
+        
+    </style>
+    
+     <!-- Script -->
+    <script>
+        var isNew = {!isNew};
+        var isView = {!isView};
+        var isEdit = {!isEdit};
+        var soagpId ='';
+        function jqueryOnReady() {
+            jQuery('tr [class*="dataRow"]').each(function(index, node) { 
+                if (jQuery(node).find('[name*="displayind__c"]')[0] != null) {
+                    if (jQuery(node).find('[name*="displayind__c"]')[0].value == 'false') {
+                        node.style.display = "none";
+                    }
+                }
+                if (jQuery(node).find('[name*="removeind__c"]')[0] != null) {
+                    if (jQuery(node).find('[name*="removeind__c"]')[0].value == 'true') {
+                        node.style.display = "none";
+                    }
+                }
+            });
+            
+            jQuery('tr [class*="dataRow"]').each(function(index, node) { 
+                if (jQuery(node).find('[name*="displayindvd__c"]')[0] != null) {
+                    if (jQuery(node).find('[name*="displayindvd__c"]')[0].value == 'false') {
+                        node.style.display = "none";
+                    }
+                }
+                if (jQuery(node).find('[name*="removeindvd__c"]')[0] != null) {
+                    if (jQuery(node).find('[name*="removeindvd__c"]')[0].value == 'true') {
+                        node.style.display = "none";
+                    }
+                }
+            });
+            
+            initHoverPopups(jQuery("#bodyTable"), {manualClose:false, displayUp:true, onClose:{}});
+            
+            jQuery("button[rel*=popup]").overlay({
+            
+                top: "10%",
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                closeOnClick: false
+            }); 
+
+            jQuery("button[rel*=win]").overlay({
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                closeOnClick: false,
+                
+                onBeforeLoad: function(e) {
+                    jQuery('#winVFPage').block({
+                        message: '',
+                        centerX: true, 
+                        centerY: true,
+                        css: { 
+                            border: 'none', 
+                            padding: '15px', 
+                            cursor: 'wait',
+                            opacity: .5, 
+                            textAlign: 'center'
+                        }
+                    });
+                    
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    
+                    var content = jQuery("#"+winId+"Frame");
+                    if (content.length > 0) {
+                        if (winId == 'PriceDiscDetails') {
+                            content[0].src = "/apex/SoPriceDiscDetails?id="+productId +
+                                                                     "&saogpqType=" + saogpqType;                                        
+                                                                       
+                        }
+                        if (winId == 'PriceDetailbyDates') {
+                            content[0].src = "/apex/pricebyDatesDetails?id="+soagpId; 
+                        } 
+                        
+                        if (winId == 'PriceDiscClsDetails') {
+                            content[0].src = "/apex/soagpcqGrid?id="+productClsDetailId; 
+                        }
+                    
+                        content.load(function() {
+                            jQuery('#winVFPage').unblock();
+                        });
+                    }
+                },
+                onClose: function(e){
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+"Frame");
+                    if (content.length > 0) { 
+                        content[0].src = 'about:blank'; 
+                    }
+                    window.location.replace(window.location);
+                }
+            });  
+            
+            jQuery('.chkb').bind('click', function(){
+                var ischecked = jQuery(this).attr('checked');
+                jQuery('.chkb:not(:disabled)').attr('checked',false);
+                jQuery(this).attr('checked', ischecked); 
+                priceDiscChkboxChanged();
+            });
+            /*
+            jQuery('.use-vol-dis').bind('click', function(){
+               useVolDiscChanged();
+            });
+            
+            jQuery('.add-more').bind('click', function(){
+                   jQuery('.use-vol-dis').removeAttr("checked");
+            });  
+            */          
+        }      
+    </script>
+    
+    <!-- Main container -->
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:actionFunction name="loadAdditionalVDLines" action="{!loadAdditionalVDLines}" 
+            oncomplete="unblockUI();jqueryOnReady();initLines('aghvd');" rerender="pageMessages, pbt_volDiscDetails" immediate="false" />  
+        
+        <input name="isSubmit" type="hidden"/>
+       
+        <apex:pageBlock id="main">
+            
+            <apex:outputPanel >
+                <button style="visibility:hidden" class="btnPriceDiscDetails" rel="#winPriceDiscDetails"></button>
+                <div class="modal" id="winPriceDiscDetails" style="width:850px">
+                    <h2>{!$Label.Agreement_Product_Price_and_Discount_Details}</h2>
+                    <iframe id="PriceDiscDetailsFrame" height="360px" width="100%" frameborder="0" src="about:blank">
+                    </iframe>
+                    <button type="button" class="close" onclick="component_close()"> {!$Label.pagebtn_soagh_Close} </button>
+                </div>
+                <button style="visibility:hidden" class="btnPriceDetailbyDates" rel="#winPriceDetailbyDates"></button>
+                <div class="modal" id="winPriceDetailbyDates" style="width:850px">
+                    <h2>{!$Label.Price_by_Date}</h2>
+                    <iframe id="PriceDetailbyDatesFrame" height="460px" width="100%" frameborder="0" src="about:blank">
+                    </iframe>
+                    <button type="button" class="close" onclick="component_close()"> {!$Label.pagebtn_soagh_Close} </button>
+                </div>
+                <button style="visibility:hidden" class="btnPriceDiscClsDetails" rel="#winPriceDiscClsDetails"></button>
+                <div class="modal" id="winPriceDiscClsDetails" style="width:850px">
+                    <h2>{!$Label.Sales_Agreement_Product_Group_Qty_Pricing}</h2>
+                    <iframe id="PriceDiscClsDetailsFrame" height="360px" width="100%" frameborder="0" src="about:blank">
+                    </iframe>
+                    <button type="button" class="close" onclick="component_close()"> {!$Label.pagebtn_soagh_Close} </button>
+                </div>
+            </apex:outputPanel>
+            
+            <!-- ******** Buttons: Save, delete, cancel ******* -->
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+                <apex:outputField id="soaghid__c" value="{!o.id}" style="display:none;"/>
+            </apex:outputPanel>
+    
+            <!-- ******** Basic info ******* -->
+            
+            <!-- Division -->
+            <c:division id="soagh_div__c" cntr="{!controller}"/>
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <!-- Agreement Number -->
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_agreement__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soagh_agreement__c.label}"/>
+                    <c:inputField id="soagh_agreement__c" required="true" width="150px" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <!-- Active -->
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_active__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soagh_active__c.label}" />
+                    <c:inputField id="soagh_active__c" cntr="{!controller}" tabIndex="25"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_usecclass__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soagh_usecclass__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__soagh_usecclass__c}" rendered="{!!isNew}"/>
+                        <apex:inputField id="soagh_usecclass__c" value="{!o.rstk__soagh_usecclass__c}" rendered="{!isNew}" taborderhint="2"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <!-- First Effective Date -->
+                <apex:pageBlockSectionItem id="pbiFed" helpText="{!f.rstk__soagh_firstdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soagh_firstdate__c.label}"/>
+                    <c:inputField id="soagh_firstdate__c" required="false" cntr="{!controller}" tabIndex="26"/>
+                </apex:pageBlockSectionItem>
+                
+                <!-- Customer -->
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_custno__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soagh_custno__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField id="custlink" value="{!o.rstk__soagh_custno__c}" rendered="{!!isNew}"/>
+                        <c:autocomplete id="soagh_custno__c" cntr="{!controller}" slDesc=""  
+                            query="select id, name from socust__c where socust_inactive__c = false" queryParms="[]"  rendered="{!isNew}" tabIndex="21"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <!-- Last Effective Date -->
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_lastdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soagh_lastdate__c.label}"/>
+                    <c:inputField id="soagh_lastdate__c" required="false" cntr="{!controller}" tabIndex="27"/>
+                </apex:pageBlockSectionItem> 
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_socclass__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soagh_socclass__c.label}" />
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__soagh_socclass__c}" rendered="{!!isNew}"/>
+                        <c:selectList id="soagh_socclass__c" cntr="{!controller}" options="{!custClass}"  rendered="{!isNew}" tabIndex="22"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>    
+                 
+                <!-- Total Amount Ordered -->
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_totamtordered__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soagh_totamtordered__c.label}" /> 
+                    <apex:outputPanel style="width:100px; text-align:right;" layout="block">
+                        <apex:outputfield value="{!o.rstk__soagh_totamtordered__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <!-- Description -->
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soagh_desc__c.label}"/>
+                    <c:inputField id="soagh_desc__c" required="false" cntr="{!controller}" width="400px" tabIndex="23"/>
+                </apex:pageBlockSectionItem>
+                
+                <!-- Use Volume Discount -->
+                <apex:pageBlockSectionItem id="Uvd" helpText="{!f.rstk__soagh_usevolumedisc__c .inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soagh_usevolumedisc__c.label}"/> 
+                    <c:inputField id="soagh_usevolumedisc__c" cntr="{!controller}" tabIndex="28" />
+                    <!--
+                    <apex:outputPanel >
+                        <apex:inputCheckbox id="DisCheckBox" value="{!o.soagh_usevolumedisc__c}" disabled="{!isView}" styleClass="use-vol-dis" rendered="{!actionType != 'view'}"/> 
+                        <apex:outputField value="{!o.soagh_usevolumedisc__c}" rendered="{!actionType == 'view'}"/>                    
+                    </apex:outputPanel>
+                    -->
+                </apex:pageBlockSectionItem>
+                
+                 <!-- Responsible User -->
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soagh_resp__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soagh_resp__c.label}" />
+                    <c:selectList id="soagh_resp__c" cntr="{!controller}" options="{!Users}" required="true" tabIndex="24"/>               
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                                
+                <apex:pageBlockSectionItem rendered="{!!currencyUtil.altCurrency}"/>
+                <apex:pageBlockSectionItem rendered="{!currencyUtil.altCurrency}">
+                   <apex:outputLabel value=""/> 
+                   <apex:outputPanel styleclass="standout">
+                    {!$Label.rstk__title_pricesincustomerscurrency}:<c:hoverDetail recId="{!currencyUtil.customerCurrencyId}" recName="{!currencyUtil.customerCurrencyName}"/>
+                   </apex:outputPanel>
+                 </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+             
+            <!-- ******** Additional ******* -->
+            <apex:pageBlockSection id="pbs_Additional" title="{!$Label.rstk__pagetab_soagh_additional}" showHeader="true" columns="1" collapsible="true">
+                <apex:tabPanel id="tabAdditional" switchType="client">
+                    <!-- Comments -->
+                    <apex:tab id="tab_Comments" name="tab_Comments" label="{!$Label.rstk__pagetab_soagh_comments}">
+                        <apex:outputPanel >
+                            <div style="width:900px;">
+                                <apex:inputTextarea id="soagh_comments__c" value="{!o.rstk__soagh_comments__c}" rows="6" richtext="true" disabled="{!actionType == 'view'}"/>
+                            </div>
+                        </apex:outputPanel>
+                    </apex:tab>
+                    
+                    <!-- Volume Discount Details -->
+                    <apex:tab id="tab_VolDiscDetails" name="tab_VolDiscDetails" label="{!$Label.rstk__pagetab_soagh_volumediscountdetails}">
+                        <apex:outputPanel rendered="{!!isView}">
+                            <apex:commandButton value="{!$Label.rstk__pagebtn_soagh_add}" onclick="return insertLineVB(false);" style="width:75px;" immediate="true" rerender="pbt_volDiscDetails"/>
+                        <apex:commandButton value="{!$Label.rstk__pagebtn_soagh_remove}" onclick="return getSublist('aghvd').deleteLine('', 'aghvd');" style="width:75px;" immediate="true"/>
+                        </apex:outputPanel>
+                        <apex:pageBlockTable id="pbt_volDiscDetails" value="{!aghVDItems}" var="d" style="width:100px;">
+                            <apex:column headerValue="{!$Label.rstk__selected}" style="width:25px;">
+                                <apex:inputCheckbox id="selectindvd__c" value="{!d.selectind}" style="width:35px"  disabled="{!isView}"/>
+                                <apex:inputHidden id="displayindvd__c" value="{!d.displayind}" />
+                                <apex:inputHidden id="removeindvd__c" value="{!d.removeind}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__line}" >
+                                <apex:outputText id="line__c" value="{!Round(d.linenum, 0)}" />
+                            </apex:column>
+                        <!-- Order Volume -->
+                            <apex:column headerValue="{!f_soaghvd.rstk__soaghvd_volume__c.label}">
+                                <apex:inputField id="ordervolume__c" value="{!d.soaghVD.rstk__soaghvd_volume__c}" rendered="{!!isView}"/>
+                                <apex:outputField value="{!d.soaghVD.rstk__soaghvd_volume__c}" rendered="{!isView}"/>                    
+                            </apex:column>
+                                           
+                            <!-- Discount Percentage -->
+                            <apex:column headerValue="{!$Label.rstk__discountpct}">
+                                <apex:inputField id="discountpct__c" value="{!d.soaghVD.rstk__soaghvd_discpct__c}"  rendered="{!!isView}"/>
+                                <apex:outputField value="{!d.soaghVD.rstk__soaghvd_discpct__c}" rendered="{!isView}"/>
+                            </apex:column>
+                        </apex:pageBlockTable>                                 
+                    </apex:tab>                    
+                </apex:tabPanel>
+            </apex:pageBlockSection>
+            
+            <!-- ******** Agreement Product Details ******* -->
+            <apex:outputPanel rendered="{!!isNew}">
+                <apex:pageBlockSection id="pbs_agreementProductDetailsGrid" title="{!$Label.rstk__pagetab_soagh_agreementproductdetails}" showHeader="true" columns="1"  collapsible="false">
+                    <c:PageableGrid pageSize="10" width="1000" jsController="prodItemDetails" data="{!agProditemsDetails}" editable="{!isView}" ispopup="false" />
+                </apex:pageBlockSection>
+                    <script>
+                        prodItemDetails.onGridLoad = function() {
+                           self = this;
+                           var agProdDetailIds ='';
+                           
+                           this.getVisibleRows().each(function (index, el) {
+                               var row = jQuery(this);
+                               var rowId = self.getRowValue(row, 'Id');
+                               if (isEmpty(rowId)) rowId = prodItemDetails.rowIds[index];
+                               if (!isEmpty(rowId)) {
+                                
+                                    if(isView){
+                                        agProdDetailIds += (agProdDetailIds ? "," : "") + "'" + rowId + "'";
+                                        var prType ='' ;
+                                        if(self.getRowValue(row, 'soagp_useordprices__c') == true){
+                                            prType = 'OP';
+                                        }else if(self.getRowValue(row, 'soagp_usevolprices__c') == true){
+                                            prType = 'VP';
+                                        }else if(self.getRowValue(row, 'soagp_useorddisc__c') == true){
+                                            prType = 'OD';
+                                        }else if(self.getRowValue(row, 'soagp_usevoldisc__c') == true){
+                                            prType = 'VD';
+                                        }
+                                        if(prType){
+                                            self.getRowObj(row, 'priceDiscdetails_g').html('<button type="button" class="btn" onclick="return editPriceDiscDetailsGrid(\'' + rowId + '\',\'' +prType+ '\');">{!$Label.btn_PriceDiscDetails}</button>');
+                                        }
+                                        self.getRowObj(row, 'pricebydate__g').html('<button type="button" class="btn" onclick="return editPricebyDatesDetails(\'' + rowId + '\');">{!$Label.btn_PriceByDate}</button>');
+                                        
+                                    }
+                               }
+                           });
+                           
+                           if(isView && agProdDetailIds.length > 0){
+                                var soagps = execQuery("select Id, (Select id, name from soagpqs__r limit 1) from soagp__c where id in (" + agProdDetailIds + ")");
+                                self = this;
+                                this.getVisibleRows().each(function (index, el) {
+                                   var row = jQuery(this);
+                                   var rowId = self.getRowValue(row, 'Id');
+                                   if (isEmpty(rowId)) rowId = prodItemDetails.rowIds[index];
+                                   if (!isEmpty(rowId)) {
+                                        for (i = 0; i < soagps.length; i++) {
+                                            if (rowId == soagps[i].Id) {
+                                                console.log(soagps[i].soagpqs__r);
+                                                if (soagps[i].soagpqs__r && soagps[i].soagpqs__r.size > 0) {
+                                                    self.getRowObj(row, 'soagp_useordprices__c').attr('disabled', true);
+                                                    self.getRowObj(row, 'soagp_usevolprices__c').attr('disabled', true);
+                                                    self.getRowObj(row, 'soagp_useorddisc__c').attr('disabled', true);
+                                                    self.getRowObj(row, 'soagp_usevoldisc__c').attr('disabled', true);
+                                                }
+                                                break;
+                                            }
+                                        }
+                                   }
+                               });
+                           }
+                           
+                        } 
+                    
+                        prodItemDetails.entryChanged = function(row, rowNum, name, value) {
+                            if (name == 'soagp_useordprices__c' || name == 'soagp_usevolprices__c' || name == 'soagp_useorddisc__c' || name == 'soagp_usevoldisc__c') {
+                                 if(value == true) {
+                                    prodItemDetails.setRowValue(row, "soagp_useordprices__c", false);
+                                    prodItemDetails.setRowValue(row, "soagp_usevolprices__c", false);
+                                    prodItemDetails.setRowValue(row, "soagp_useorddisc__c", false);
+                                    prodItemDetails.setRowValue(row, "soagp_usevoldisc__c", false);
+                                    prodItemDetails.setRowValue(row, name, true);
+                                 }
+                            }
+                            if(name == 'soagp_discpct__c'){
+                                if(!value || parseLocaleFloat(value) < 0 || parseLocaleFloat(value) > 100) {
+                                     alert('{!$Label.DiscPercMustBeBetween0To100}');    
+                                     prodItemDetails.getRowObj(row, 'soagp_discpct__c').focus();
+                                     prodItemDetails.setRowValue(row, 'soagp_discpct__c', 0); 
+                                }
+                            }
+                            if(name == 'soagp_price__c'){
+                                if(!value || parseLocaleFloat(value) < 0 ) {
+                                     alert('{!$Label.Unitpricecannotbelessthanzero}');    
+                                     prodItemDetails.getRowObj(row, 'soagp_price__c').focus();
+                                     prodItemDetails.setRowValue(row, 'soagp_price__c', 0); 
+                                }
+                            }
+                            
+                            if(name == 'soagp_maxorderqty__c'){
+                                var fVal = parseLocaleFloat(value);
+                                
+                                if(!value || fVal < 0 || getLocaleNumDecimals(fVal) > 0) {
+                                     alert('{!$Label.MaxOrderQtyShouldbeWithoutDecimal}');    
+                                     prodItemDetails.getRowObj(row, 'soagp_maxorderqty__c').focus();
+                                     prodItemDetails.setRowValue(row, 'soagp_maxorderqty__c', 0); 
+                                }
+                            }
+                        }
+                        
+                        prodItemDetails.validate = function() {
+                            var visibleRows = this.getVisibleRows();
+                            for(i = 0; i < visibleRows.length; i++) {
+                                var row = jQuery(visibleRows[i]);
+                                var id = prodItemDetails.getRowValue(row, 'Id');
+                                var prod = prodItemDetails.getRowValue(row, 'soagp_prod__c');
+                                if(!prod) {
+                                    alert("{!$Label.AgreementProductisrequired}");
+                                    prodItemDetails.getRowObj(row, 'soagp_prod__c').focus();
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }
+                        
+                   </script>
+             <br></br>
+             <apex:pageBlockSection id="pbs_agreementProductClassDetailsGrid" title="{!$Label.rstk__agreement_product_group_details}" showHeader="true" columns="1"  collapsible="false">
+                <c:PageableGrid pageSize="10" width="1000" jsController="prodClassDetails" data="{!agProdClass}" editable="{!isView}" ispopup="false" />
+             </apex:pageBlockSection>      
+                   <script>
+                   
+                         prodClassDetails.onGridLoad = function() {
+                           self = this;
+                          
+                           this.getVisibleRows().each(function (index, el) {
+                               var row = jQuery(this);
+                               var rowId = self.getRowValue(row, 'Id');
+                               if (isEmpty(rowId)) rowId = prodClassDetails.rowIds[index];
+                               if (!isEmpty(rowId)) {
+                                    self.getRowObj(row, 'priceDiscdetails_g').html('<button type="button" class="btn" onclick="return editPriceDiscClsDetailsGrid(\'' + rowId + '\');">{!$Label.btn_PriceDiscDetails}</button>');
+                                }
+                           });
+                        }   
+                   
+                          prodClassDetails.entryChanged = function(row, rowNum, name, value) {
+                            if(name == 'soagpc_discpct__c'){
+                                if(!value || parseFloat(value) < 0 || parseFloat(value) > 100) {
+                                     alert('{!$Label.DiscPercMustBeBetween0To100}');    
+                                     prodClassDetails.getRowObj(row, 'soagpc_discpct__c').focus();
+                                     prodClassDetails.setRowValue(row, 'soagpc_discpct__c', 0); 
+                                }
+                            }
+                            if(name == 'soagpc_price__c'){
+                                if(!value || parseFloat(value) < 0 ) {
+                                     alert('{!$Label.Unitpricecannotbelessthanzero}');    
+                                     prodClassDetails.getRowObj(row, 'soagpc_price__c').focus();
+                                     prodClassDetails.setRowValue(row, 'soagpc_price__c', 0); 
+                                }
+                            }
+                        }       
+                   
+                          prodClassDetails.validate = function() {
+                            var visibleRows = this.getVisibleRows();
+                            for(i = 0; i < visibleRows.length; i++) {
+                                var row = jQuery(visibleRows[i]);
+                                var id = prodClassDetails.getRowValue(row, 'Id');
+                                var prod = prodItemDetails.getRowValue(row, 'soagpc_socomm__c');
+                                if(!prod) {
+                                    alert("{!$Label.AgreeProductGroupIsRequired}");
+                                    prodClassDetails.getRowObj(row, 'soagpc_socomm__c').focus();
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }    
+                   
+                   </script>
+             </apex:outputPanel>
+             
+             <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+            </apex:tabPanel>
+             
+        </apex:pageBlock>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <!-- Footer include -->
+    <c:footerInclude cntr="{!controller}"/>
+    
+    <script>
+        var LABEL_EnterValForAgreementNum = "{!$Label.EnterValForAgreementNum}";
+        var LABEL_AgreementNumTooLong = "{!$Label.AgreementNumTooLong}";
+        var LABEL_AgreementProds_UnitPriceAtLineMustBeNumber = "{!$Label.AgreementProds_UnitPriceAtLineMustBeNumber}";
+        var LABEL_AgreementProds_UnitPriceAtLineMustBeGrtrThan0 = "{!$Label.AgreementProds_UnitPriceAtLineMustBeGrtrThan0}";
+        var LABEL_AgreementProds_UnitPriceAtLineIsTooLong = "{!$Label.AgreementProds_UnitPriceAtLineIsTooLong}";
+        var LABEL_AgreementProds_UnitPriceAtLineMusHave = "{!$Label.AgreementProds_UnitPriceAtLineMusHave}";
+        var LABEL_DiscountPercAtLineMustBeNum = "{!$Label.DiscountPercAtLineMustBeNum}";
+        var LABEL_AgreementProds_DiscountPercAtLineTooLong = "{!$Label.AgreementProds_DiscountPercAtLineTooLong}";
+        var LABEL_AgreementProds_DiscountPercAtLineMustHave = "{!$Label.AgreementProds_DiscountPercAtLineMustHave}";
+        var LABEL_DiscountPercAtLineMustBeBetween0And100 = "{!$Label.DiscountPercAtLineMustBeBetween0And100}";
+        var LABEL_MaxOrdQtyAtLineMustBeNum = "{!$Label.MaxOrdQtyAtLineMustBeNum}";
+        var LABEL_MaxOrdQtyAtLineMustBeGrtrThan0 = "{!$Label.MaxOrdQtyAtLineMustBeGrtrThan0}";
+        var LABEL_AgreementProds_MaxOrdQtyAtLineIsTooLong = "{!$Label.AgreementProds_MaxOrdQtyAtLineIsTooLong}";
+        var LABEL_AgreementProds_MaxQtyAtLineMustHave = "{!$Label.AgreementProds_MaxQtyAtLineMustHave}";
+        var LABEL_FleldCantBeBlank = "{!$Label.FleldCantBeBlank}";
+        var LABEL_LastEffectiveDateCantBeLessThanFirstEffectiveDate = "{!$Label.LastEffectiveDateCantBeLessThanFirstEffectiveDate}";
+        var LABEL_VolDiscounts_ChkThatNoOrdVolEmpty = "{!$Label.VolDiscounts_ChkThatNoOrdVolEmpty}";
+        var LABEL_VolDiscounts_VerifyEachOrdVolIsValidNum = "{!$Label.VolDiscounts_VerifyEachOrdVolIsValidNum}";
+        var LABEL_VolDiscounts_VerifyEachOrdVolGrtrThan0 = "{!$Label.VolDiscounts_VerifyEachOrdVolGrtrThan0}";
+        var LABEL_VolDiscounts_OrdVolTooLong = "{!$Label.VolDiscounts_OrdVolTooLong}";
+        var LABEL_VolDiscounts_OrdVolMustHave = "{!$Label.VolDiscounts_OrdVolMustHave}";
+        var LABEL_VolDiscounts_ChkNoDiscountPercEmpty = "{!$Label.VolDiscounts_ChkNoDiscountPercEmpty}";
+        var LABEL_VolDiscounts_VerifyEachDiscountPercIsValidNum = "{!$Label.VolDiscounts_VerifyEachDiscountPercIsValidNum}";
+        var LABEL_VolDiscounts_VerifyEachDiscountPercNotLessThanZero = "{!$Label.VolDiscounts_VerifyEachDiscountPercNotLessThanZero}";
+        var LABEL_VolDiscounts_DiscountPercTooLong = "{!$Label.VolDiscounts_DiscountPercTooLong}";
+        var LABEL_VolDiscounts_DiscountPercMustHave = "{!$Label.VolDiscounts_DiscountPercMustHave}";
+        var LABEL_VolDiscounts_VerifyDiscountPercBetween0And100 = "{!$Label.VolDiscounts_VerifyDiscountPercBetween0And100}";
+        var LABEL_SelectOnlyOnePriceType = "{!$Label.SelectOnlyOnePriceType}";
+        var LABEL_AgreementProds_ProdNumReqd = "{!$Label.AgreementProds_ProdNumReqd}";
+        var LABEL_InvalidValueForOrdVolAtLine = "{!$Label.InvalidValueForOrdVolAtLine}";
+        var LABEL_InvalidValueForSDiscountAtLine = "{!$Label.InvalidValueForSDiscountAtLine}";
+        var LABEL_Line_DiscountPercMustBetween0And100 = "{!$Label.Line_DiscountPercMustBetween0And100}";
+        var LABEL_AgreementProds_ProdNumReqdForRow = "{!$Label.AgreementProds_ProdNumReqdForRow}";
+        var LABEL_InvalidValForDiscountPercAtLine = "{!$Label.InvalidValForDiscountPercAtLine}";
+        var LABEL_InvalidValueforOrderVolumeatLine = "{!$Label.InvalidValueforOrderVolumeatLine}";
+        var LABEL_Line_DiscPercMustBeBetween0To100 = "{!$Label.Line_DiscPercMustBeBetween0To100}";
+        var LABEL_PriceTypeWillBeDel = "{!$Label.PriceTypeWillBeDel}";
+        var LABEL_SaveGridChanges = "{!$Label.SaveGridChanges}";
+		var LABEL_soagh_Error = "{!$Label.soagh_Error}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

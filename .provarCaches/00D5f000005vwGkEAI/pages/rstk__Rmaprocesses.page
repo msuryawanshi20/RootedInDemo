@@ -1,0 +1,450 @@
+<apex:page id="pg" standardController="rstk__sorma__c" extensions="rstk.ControllerExtnRmaprocesses,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sorma__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sorma__c.fields}" />
+    <apex:variable var="f_header" value="{!$ObjectType.rstk__customext__c.fields}" />
+    <apex:variable var="f_sormadmd" value="{!$ObjectType.rstk__sormadmd__c.fields}" />
+ 	
+ 	<style>
+        input:disabled {
+            background: #dddddd;
+        }     
+    </style>
+ 	
+    
+    <c:standardHeader cntr="{!controller}" title="{!pageTitle}" customInclude="{!$Resource.rstk__rmaprocesses}"/>
+    <script>
+    	var notnullsormadracct = {!o.sorma_dracct__c != null};
+    </script>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+   
+    <apex:outputLink value="{!URLFOR($Action.rstk__sorma__c.View, o.id)}">&nbsp;«&nbsp;{!$Label.Back_To_RMA_Detail}</apex:outputlink>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="refreshPageMessage" action="{!refreshPageMessage}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="qtyChanged" action="{!qtyChanged}" oncomplete="formatLocaleOutputFields();afterQtyChanged();" rerender="pageMessages, op_hidden, pb_rmarcptdetails" rendered="{!isReceipt}"/>
+        <apex:actionFunction name="processReceipt" action="{!processReceipt}" oncomplete="formatLocaleOutputFields();afterProcessReceipt();" rerender="pageMessages, op_hidden" rendered="{!isReceipt}"/>
+        <apex:actionFunction name="displayDispComponents" action="{!displayDispComponents}" oncomplete="formatLocaleOutputFields();afterDisplayDispComponents();" rerender="pageMessages, op_hidden, pb_rmarcptdispdetails" rendered="{!isDispositionandreversal}"/>
+        <apex:actionFunction name="transfer" action="{!transfer}" oncomplete="formatLocaleOutputFields();checkJobStatus();" rerender="pageMessages, op_hidden" rendered="{!isDispositionandreversal}"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany()" immediate="true"/>
+        
+        <apex:actionFunction name="populateSormasers" action="{!populateSormasers}" oncomplete="_showDialog('maintainSormasersPopup');return false;" rerender="op_maintainSormasers" immediate="false" rendered="{!isDispositionandreversal}">
+            <apex:param name="selectedSormadmdId" assignTo="{!selectedSormadmdId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="saveSormasers" action="{!saveSormasers}" oncomplete="doAfterSaveSormasers();" rerender="pageMessages, op_hidden" rendered="{!isDispositionandreversal}"/>
+        
+        <apex:outputPanel id="op_hidden">
+            <input type="hidden" id="sormaid" value="{!id}"/>
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            <input type="hidden" id="validationError" value="{!validationError}"/>
+            <!-- <input type="hidden" id="iclocitemDoesNotExist" value="{!iclocitemDoesNotExist}"/> -->
+        </apex:outputPanel>
+        
+        <apex:outputPanel style="display:none;">
+        	<script>
+        		var maxrcptqty__c = '{!header.rstk__rmarcpt_qty__c}';
+        	</script>
+            <!-- <apex:inputHidden id="maxrcptqty__c" value="{!header.rstk__rmarcpt_qty__c}"/> -->
+            <apex:inputHidden id="sorma_dracct__c" value="{!o.rstk__sorma_dracct__c}"/>
+        </apex:outputPanel>
+
+        <apex:pageBlock id="pb_rmareceipt" mode="detail" rendered="{!isReceipt}">
+            <script>var decprecision = {!decprecision};</script>
+            <apex:pageBlockSection id="pbs_rmareceipt" showHeader="false" columns="2" >
+                <apex:inputField id="rmarcpt_toinventory__c" value="{!header.rstk__rmarcpt_toinventory__c}"/>
+                
+                <apex:outputField value="{!o.rstk__sorma_project__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_toinspection__c.inlineHelpText}">
+                	<apex:outputLabel value="{!f_header.rstk__rmarcpt_toinspection__c.label}" />
+                	<apex:outputPanel >
+		                <apex:inputField id="rmarcpt_toinspection__c" value="{!header.rstk__rmarcpt_toinspection__c}"/>&nbsp;&nbsp;
+		                <apex:outputLabel value="{!insptemplName}" />
+		                <script>document.getElementById("{!$Component.rmarcpt_toinspection__c}").disabled = {!o.rstk__sorma_dracct__c != null};</script>
+	                </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_invlocid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__locationid}"/>
+                    <apex:inputText id="locid__c" size="30" disabled="true" value="{!rcptlocid}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="rmarcpt_qty__c" value="{!header.rstk__rmarcpt_qty__c}" onkeypress="return filterNonNumeric(event, this);"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_invlocnum__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__locationnumber}"/>
+                    <apex:inputText id="locnum__c" size="30" disabled="true" value="{!rcptlocnum}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__sorma_invdiv__c}"/>
+                
+                <apex:inputField id="rmarcpt_txncomments__c" value="{!header.rstk__rmarcpt_txncomments__c}"/>
+                
+                <apex:outputField value="{!o.rstk__sorma_site__c}"/>
+                
+                <apex:inputField id="rmarcpt_loccomments__c" value="{!header.rstk__rmarcpt_loccomments__c}"/>
+                <!-- <apex:inputField id="rmarcpt_allowinvloccreation__c" value="{!header.rmarcpt_allowinvloccreation__c}"/> -->
+            </apex:pageBlockSection>
+            
+            <apex:pageBlock id="pb_rmarcptdetails" mode="detail">
+                <apex:outputPanel id="op_rmarcptbtns">
+                    <c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmaprocesses_processreceipt}" onclick="if(doValidateReceipt()){doSetFFCompanyAndProcess(doProcessReceipt);}" rendered="true"/>
+                </apex:outputPanel>
+                
+                <apex:outputPanel id="op_rmarcptdetails">
+                <script>var rows = {};</script>
+                <apex:pageBlockTable value="{!rmarcptcomps}" var="d" columnsWidth="150px,250px,300px">
+                    <apex:column headerValue="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.sormadmd.rstk__sormadmd_compitem__c}" />
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__receiptqtyserialsnumbers}" style="vertical-align:top;">
+                        <apex:outputPanel rendered="{!!d.issrl && !d.issrlAtShipment}">
+                            <apex:inputField id="rcptqty" value="{!d.customvars.rstk__rmarcpt_transferqty__c}" onkeypress="return filterNonNumeric(event, this);"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.issrl || d.issrlAtShipment}">
+                            <input type="button" class="btn" onclick="manualSerialEntry(event);" value="{!$Label.rstk__pagetab_rmaprocesses_manualserialentry}" style="width:240px;"/><br/>
+                            <apex:selectList styleClass="serials" id="rcptsrls" value="{!d.selectedSrls}" multiselect="true" size="5" style="width:240px;">
+                                <apex:selectOptions value="{!d.availableSrls}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sormadmd.rstk__sormadmd_lotno__c.label}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.sormadmd.rstk__sormadmd_lotno__c}" rendered="{!(d.islot && d.lotnoexists)}"/>
+                        <apex:inputField id="lotno" value="{!d.sormadmd.rstk__sormadmd_lotno__c}" rendered="{!(d.islot && !d.lotnoexists)}"/>
+                        <script>
+                            rows["{!d.sormadmd.id}"] = {
+                                compid: "{!d.sormadmd.rstk__sormadmd_compitem__c}",
+                                componentName: "{!d.sormadmd.sormadmd_compitem__r.name}",
+                                rcptqtyfld: document.getElementById("{!$Component.rcptqty}"),
+                                rcptsrlsfld: document.getElementById("{!$Component.rcptsrls}"),
+                                lotnofld: document.getElementById("{!$Component.lotno}"),
+                                qtyper: {!d.qtyper}
+                            };
+                            if (rows["{!d.sormadmd.id}"].rcptqtyfld != null) {
+                                rows["{!d.sormadmd.id}"].rcptqtyfld.disabled = true;
+                            }
+                        </script>
+                    </apex:column>
+                </apex:pageBlockTable>
+                </apex:outputPanel>
+            </apex:pageBlock>
+        </apex:pageBlock>
+        
+        <script>var hdr = {};</script>
+        <apex:pageBlock id="pb_rmareceiptdispositionandreversal" mode="detail" rendered="{!isDispositionandreversal}">
+        	<script>var decprecision = {!decprecision};</script>
+            <apex:pageBlockSection id="pbs_rmareceiptdispositionandreversal" showHeader="false" columns="4" >
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transferqty__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_transferqty__c.label}" />
+            		<apex:inputField id="transferqty__c" value="{!header.rstk__rmarcpt_transferqty__c}" style="text-align:right;width:100px;" onkeypress="return filterNonNumeric(event, this);"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem >
+            		<apex:outputLabel value="{!$Label.rstk__transferfrom}" style="white-space: nowrap; font-weight: 900; text-decoration: underline;"/>
+            		<apex:outputText value=""/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem >
+            		<apex:outputLabel value="{!$Label.rstk__transferto}" style="white-space: nowrap; font-weight: 900; text-decoration: underline;"/>
+            		<apex:outputText value=""/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem />
+
+				<apex:pageBlockSectionItem helpText="{!f.rstk__sorma_qtyrec__c.inlineHelpText}">
+            		<apex:outputLabel value="{!$Label.rstk__qtyininventory}"/>
+            		<apex:inputField id="qtyrec__c" value="{!o.rstk__sorma_qtyrec__c}" style="text-align:right;width:100px;"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transferfrominv__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_transferfrominv__c.label}"/>
+            		<apex:inputField id="transferfrominv__c" value="{!header.rstk__rmarcpt_transferfrominv__c}"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transfertoinv__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_transfertoinv__c.label}"/>
+            		<apex:inputField id="transfertoinv__c" value="{!header.rstk__rmarcpt_transfertoinv__c}"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem />
+            	
+            	<apex:pageBlockSectionItem helpText="{!f.rstk__sorma_qtyinsp__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f.rstk__sorma_qtyinsp__c.label}"/>
+            		<apex:inputField id="qtyinsp__c" value="{!o.rstk__sorma_qtyinsp__c}" style="text-align:right;width:100px;"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transferfrominsp__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_transferfrominsp__c.label}"/>
+            		<apex:outputpanel >
+	            		<apex:inputField id="transferfrominsp__c" value="{!header.rstk__rmarcpt_transferfrominsp__c}"/>&nbsp;&nbsp;
+	            		<apex:outputLabel value="{!inspordName}" />
+            		</apex:outputpanel>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transfertoinsp__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_transfertoinsp__c.label}"/>
+            		<apex:outputpanel >
+            			<apex:inputField id="transfertoinsp__c" value="{!header.rstk__rmarcpt_transfertoinsp__c}"/>&nbsp;&nbsp;
+            			<apex:outputLabel value="{!insptemplName}" />
+            		</apex:outputpanel>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem />
+            	
+            	<apex:pageBlockSectionItem helpText="{!f.rstk__sorma_qtyscrap__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f.rstk__sorma_qtyscrap__c.label}"/>
+            		<apex:inputField id="qtyscrap__c" value="{!o.rstk__sorma_qtyscrap__c}" style="text-align:right;width:100px;"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transferfromscrap__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_transferfromscrap__c.label}"/>
+            		<apex:inputField id="transferfromscrap__c" value="{!header.rstk__rmarcpt_transferfromscrap__c}"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transfertoscrap__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_transfertoscrap__c.label}"/>
+            		<apex:inputField id="transfertoscrap__c" value="{!header.rstk__rmarcpt_transfertoscrap__c}"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem />
+            	
+            	<apex:pageBlockSectionItem />
+            	<apex:pageBlockSectionItem />
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_reverse__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_reverse__c.label}"/>
+            		<apex:inputField id="reverse__c" value="{!header.rstk__rmarcpt_reverse__c}"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem />
+            	
+            	<apex:pageBlockSectionItem />
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transferfromlocid__c.inlineHelpText}">
+            		<apex:outputLabel value="{!$Label.rstk__locationid}"/>
+            		<c:largeSelectList id="transferfromlocid__c" cntr="{!controller}"  value="{!header.rstk__rmarcpt_transferfromlocid__c}" options="{!sylocids}" useValue="true" />
+            		 <!-- <apex:selectList id="transferfromlocid__c" value="{!header.rstk__rmarcpt_transferfromlocid__c}" multiselect="false" size="1" style="width:175px;">
+                         <apex:selectOptions value="{!sylocids}"/>
+                     </apex:selectList> -->
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transfertolocid__c.inlineHelpText}">
+            		<apex:outputLabel value=""/>
+            		<c:largeSelectList id="transfertolocid__c" cntr="{!controller}"  value="{!header.rstk__rmarcpt_transfertolocid__c}" options="{!sylocids}" useValue="true"/>
+            		<!-- <apex:selectList id="transfertolocid__c" value="{!header.rstk__rmarcpt_transfertolocid__c}" multiselect="false" size="1" style="width:175px;">
+                        <apex:selectOptions value="{!sylocids}"/>
+                    </apex:selectList> -->
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem />
+            	
+            	<apex:pageBlockSectionItem />
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transferfromlocnum__c.inlineHelpText}">
+            		<apex:outputLabel value="{!$Label.rstk__locationnumber}"/>
+            		<apex:inputText id="transferfromlocnum__c" value="{!header.rstk__rmarcpt_transferfromlocnum__c}" size="10" maxlength="10"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_transfertolocnum__c.inlineHelpText}">
+            		<apex:outputLabel value=""/>
+            		<apex:inputText id="transfertolocnum__c" value="{!header.rstk__rmarcpt_transfertolocnum__c}" size="10" maxlength="10"/>
+            	</apex:pageBlockSectionItem>
+            	<apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            	
+            <apex:pageBlockSection showHeader="false" columns="1" >
+            	<apex:pageBlockSectionItem helpText="{!f_header.rstk__rmarcpt_txncomments__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f_header.rstk__rmarcpt_txncomments__c.label}"/>
+            		<apex:inputText value="{!header.rstk__rmarcpt_txncomments__c}" size="90" maxlength="100"/>
+            	</apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            	
+            
+            
+            <apex:pageBlock id="pb_rmarcptdispdetails" mode="detail">
+                <apex:outputPanel id="op_rmarcptdispbtns">
+                    <!-- <c:nosubmitbutton id="btn_transfer" label="{!$Label.pagebtn_rmaprocesses_Transfer}" onclick="if(doValidateTransfer()){doSetFFCompanyAndProcess(doTransfer);}" rendered="true"/> -->
+                	<input id="btn_transfer" type="button" value="{!$Label.pagebtn_rmaprocesses_Transfer}" class="btn" onclick="if(doValidateTransfer()){doSetFFCompanyAndProcess(doTransfer);}" rendered="true"/>
+                </apex:outputPanel>
+                
+                <apex:outputPanel id="op_rmarcptdispdetails">
+                <script>var rows = {};</script>
+                <apex:pageBlockTable value="{!rmarcptdispcomps}" var="d" columnsWidth="100px,100px,100px">
+                    <apex:column headerValue="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.sormadmd.rstk__sormadmd_compitem__c}" />
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__qtyavailable}" style="vertical-align:top;">
+                        <apex:outputText value="{!d.csttxnqty}" html-decimals="6"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__txnqtyserialnumbers}" style="vertical-align:top;">
+                        <apex:outputPanel rendered="{!!d.issrl && !d.issrlAtShipment}">
+                            <apex:inputField id="txnqty" value="{!d.customvars.rstk__rmarcpt_transferqty__c}" onkeypress="return filterNonNumeric(event, this);"/>
+                            <script>document.getElementById("{!$Component.txnqty}").disabled = true;</script>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.issrl}">
+                            <apex:selectList id="serialnos" value="{!d.selectedCsts}" multiselect="true" size="5" style="width:250px;" rendered="{!d.issrl}">
+                                <apex:selectOptions value="{!d.availableCsts}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.issrlAtShipment}">
+                            <input type="button" class="btn" onclick='populateSormasers("{!d.sormadmd.Id}");' value="Maintain Serials" style="width:240px;"/><br/>
+                            <apex:selectList id="serialnos2" value="{!d.selectedSrls}" multiselect="true" size="5" style="width:250px;">
+                                <apex:selectOptions value="{!d.availableSrls}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                        <script>
+                            rows["{!d.sormadmd.id}"] = {
+                                compid: "{!d.sormadmd.rstk__sormadmd_compitem__c}",
+                                componentName: "{!d.sormadmd.sormadmd_compitem__r.name}",
+                                issrl: {!d.issrl},
+                                issrlAtShipment: {!d.issrlAtShipment},
+                                qtyper: {!d.qtyper},
+                                csttxnqty: {!d.csttxnqty},
+                                maxqtyavailableforreversal: {!d.maxqtyavailableforreversal},
+                                txnqtyfld: document.getElementById("{!$Component.txnqty}"),
+                                serialnosfld: document.getElementById("{!$Component.serialnos}"),
+                                serialnosfld2: document.getElementById("{!$Component.serialnos2}")
+                            };
+                        </script>
+                    </apex:column>
+                </apex:pageBlockTable>
+                </apex:outputPanel>
+            </apex:pageBlock>
+        </apex:pageBlock>
+        <apex:pageBlock >
+            <div id="manualSerialEntryPopup" style="display:none" styleClass="pbBody">
+                 <apex:outputPanel styleClass="popupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="modalPopup">
+                   <apex:pageBlockSection showHeader="true" collapsible="false" title="{!$Label.rstk__pagetab_rmaprocesses_manualserialentry}" columns="1">
+                        <apex:pageBlockSectionItem >
+                          <c:HelpLabel helpText="Enter one or more serial Codes seperated by commas, spaces or new lines. The serial numbers will be matched against all locations available for the product."/>
+                          <TextArea id="manualSerialEntryTextArea" rows="12" cols="0" style="width:95%;" value="" tabindex="61"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection >
+                     <input type="button" class="btn" value="{!$Label.pagebtn_salesorder_Ok}" style="width:60px;" onclick="_closeDialog();issueManualSerials();" tabIndex="71"/>
+                     <input type="button" class="btn" value="{!$Label.so_pagebtn_Cancel}" style="width:60px;" onclick="_closeDialog();" tabIndex="72"/>
+                    </apex:pageBlockSection>
+                 </apex:outputPanel>
+             </div>
+                    
+                    
+             <div id="manualSerialResultsPopup" style="display:none" styleClass="pbBody">
+                 <apex:outputPanel styleClass="popupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="modalPopup">
+                   <apex:pageBlockSection showHeader="true" collapsible="false" title="{!$Label.rstk__pagetab_rmaprocesses_manualserialentryresults}" columns="1">
+                        <apex:pageBlockSectionItem >
+                          <table style="width:100%;border 2px solid"><tr>
+                            <td><span style="font-weight:bold;">{!$Label.Rmaprocesses_New_Serials_Assigned}:&nbsp;</span><span style="font-weight:bold;color:green;" id="serNumNew">0</span></td>
+                            <td><span style="font-weight:bold;">{!$Label.Rmaprocesses_Already_Assigned_Serials}:&nbsp;</span><span id="serNumExist">0</span></td>
+                            <td><span style="font-weight:bold;">{!$Label.Rmaprocesses_Serials_not_found}:&nbsp;</span><span style="font-weight:bold;color:red;" id="serNumFail">0</span></td>
+                          </tr></table>
+
+                          <table class="list" id="manualSerialResultsTable">
+                          <thead>
+                            <tr class="rowHeader">
+                              <th class="headerRow">{!$Label.Serial_br_Numbers}</th><th id="serStatus" class="headerRow">{!$Label.status}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                          </tbody>
+                          </table>
+                         </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection >
+                     <input type="button" class="btn" value="{!$Label.pagebtn_salesorder_Ok}" style="width:60px;" onclick="_closeDialog();" tabIndex="71"/>
+                    </apex:pageBlockSection>
+                 </apex:outputPanel>
+            </div>
+            
+            <div id="maintainSormasersPopup" style="display:none" styleClass="pbBody">
+                 <apex:outputPanel styleClass="popupBackground" layout="block"/>
+                 <apex:outputPanel id="op_maintainSormasers" styleClass="modalPopup">
+                 	<script>
+                 		var sormaserRows = {};
+                 		var receivedCountOrig = 0;
+                 		var inspectCountOrig = 0;
+                 		var scrappedCountOrig = 0;
+                 	</script>
+                   <apex:pageBlockSection showHeader="true" collapsible="false" title="Maintain Serials" columns="1">
+                        <apex:pageBlockTable value="{!sormasers}" var="rec" id="pbt_sormasers">
+                            <apex:column headerValue="{!$ObjectType.rstk__sormaser__c.fields.rstk__sormaser_srlno__c.label}" value="{!rec.rstk__sormaser_srlno__c}" />
+                            <apex:column headerValue="{!$ObjectType.rstk__sormaser__c.fields.rstk__sormaser_received__c.label}" >
+                            	<apex:inputField id="sormaser_received__c" value="{!rec.rstk__sormaser_received__c}" onchange="sormaserReceivedChanged('{!rec.Id}');"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$ObjectType.rstk__sormaser__c.fields.rstk__sormaser_inspect__c.label}" >
+                            	<apex:inputField id="sormaser_inspect__c" value="{!rec.rstk__sormaser_inspect__c}" onchange="sormaserInspectChanged('{!rec.Id}');"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$ObjectType.rstk__sormaser__c.fields.rstk__sormaser_scrapped__c.label}" >
+                            	<apex:inputField id="sormaser_scrapped__c" value="{!rec.rstk__sormaser_scrapped__c}" onchange="sormaserScrappedChanged('{!rec.Id}');"/>
+                            	<script>
+	                                sormaserRows["{!rec.Id}"] = {
+	                                    inspect: document.getElementById("{!$Component.sormaser_inspect__c}"),
+	                                    scrapped: document.getElementById("{!$Component.sormaser_scrapped__c}"),
+	                                    received: document.getElementById("{!$Component.sormaser_received__c}")
+	                                };
+	                                
+	                                if("{!rec.rstk__sormaser_received__c}" == "true") {
+	                                	console.log("{!rec.rstk__sormaser_received__c}");
+	                                	receivedCountOrig = receivedCountOrig + 1;
+	                                }
+	                                else if("{!rec.rstk__sormaser_inspect__c}" == "true") {
+	                                	console.log("{!rec.rstk__sormaser_inspect__c}");
+	                                	inspectCountOrig = inspectCountOrig + 1;
+	                                }
+	                                else if("{!rec.rstk__sormaser_scrapped__c}" == "true") {
+	                                	console.log("{!rec.rstk__sormaser_scrapped__c}");
+	                                	scrappedCountOrig = scrappedCountOrig + 1;
+	                                }
+	                            </script>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection >
+                     <input type="button" class="btn" value="Save" style="width:60px;" onclick="validateAndSaveSormasers();" tabIndex="71"/>
+                     <input type="button" class="btn" value="{!$Label.so_pagebtn_Cancel}" style="width:60px;" onclick="_closeDialog();" tabIndex="72"/>
+                    </apex:pageBlockSection>
+                 </apex:outputPanel>
+             </div>
+        </apex:pageBlock>
+    </apex:form>
+    <script>
+        var isReceipt = {!isReceipt};
+        var isDispositionandreversal = {!isDispositionandreversal};
+    </script>
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    	console.log('o' + "{!o}");
+        hdr = {
+            transferqtyfld: jQuery('input[id*=transferqty__c]')[0],
+            qtyrecfld: jQuery('input[id*=qtyrec__c]')[0],
+            qtyrec: {!o.rstk__sorma_qtyrec__c},
+            qtyinspfld: jQuery('input[id*=qtyinsp__c]')[0],
+            qtyinsp: {!o.rstk__sorma_qtyinsp__c},
+            qtyscrapfld: jQuery('input[id*=qtyscrap__c]')[0],
+            qtyscrap: {!o.rstk__sorma_qtyscrap__c},
+            transferfromlocidfld: jQuery('select[name*=transferfromlocid__c]')[0],
+            transferfromlocnumfld: jQuery('input[id*=transferfromlocnum__c]')[0],
+            transfertolocidfld: jQuery('select[name*=transfertolocid__c]')[0],
+            transfertolocnumfld: jQuery('input[id*=transfertolocnum__c]')[0],
+            invlocid: "{!IF(o.sorma_invlocid__c == null, '', o.sorma_invlocid__c)}",
+            invlocnum: "{!IF(o.sorma_invlocnum__c == null, '', o.sorma_invlocnum__c)}",
+            insplocid: "{!IF(o.sorma_invlocid__c == null, '', o.sorma_insplocid__c)}",
+            insplocnum: "{!IF(o.sorma_invlocnum__c == null, '', o.sorma_insplocnum__c)}",
+            scraplocid: "{!IF(o.sorma_invlocid__c == null, '', o.sorma_scraplocid__c)}",
+            scraplocnum: "{!IF(o.sorma_invlocnum__c == null, '', o.sorma_scraplocnum__c)}",
+            transferfrominvfld: jQuery('input[id*=transferfrominv__c]')[0],
+            transfertoinvfld: jQuery('input[id*=transfertoinv__c]')[0],
+            transferfrominspfld: jQuery('input[id*=transferfrominsp__c]')[0],
+            transfertoinspfld: jQuery('input[id*=transfertoinsp__c]')[0],
+            transferfromscrapfld: jQuery('input[id*=transferfromscrap__c]')[0],
+            transfertoscrapfld: jQuery('input[id*=transfertoscrap__c]')[0],
+            reversefld: jQuery('input[id*=reverse__c]')[0]
+        };
+    </script>
+    
+    <script>
+        var LABEL_TransferQtyCantBeGrtrThanQtyAvailable = "{!$Label.TransferQtyCantBeGrtrThanQtyAvailable}";
+        var LABEL_RMAReceiptDestinationIsRequired = "{!$Label.RMAReceiptDestinationIsRequired}";
+        var LABEL_RMAReceiptLocationIsRequired = "{!$Label.RMAReceiptLocationIsRequired}";
+        var LABEL_InventoryLocIdOrLocNoNotSpecifiedOnRMA = "{!$Label.InventoryLocIdOrLocNoNotSpecifiedOnRMA}";
+        var LABEL_InspectionLocIdOrLocNoNotSpecifiedOnRMA = "{!$Label.InspectionLocIdOrLocNoNotSpecifiedOnRMA}";
+        var LABEL_ScrapLocIdOrLocNumNotSpecifiedOnRMA = "{!$Label.ScrapLocIdOrLocNumNotSpecifiedOnRMA}";
+        var LABEL_TransferQtyMustBeGrtrThan0 = "{!$Label.TransferQtyMustBeGrtrThan0}";
+        var LABEL_SelectTransferFromOption = "{!$Label.SelectTransferFromOption}";
+        var LABEL_SelectTransferToOption = "{!$Label.SelectTransferToOption}";
+        var LABEL_SelectSrlsForComponent = "{!$Label.SelectSrlsForComponent}";
+        var LABEL_QtyCantExceedRemainingRecptQty = "{!$Label.QtyCantExceedRemainingRecptQty}";
+        var LABEL_ReceiptQtyMustBeGrtrThan0 = "{!$Label.ReceiptQtyMustBeGrtrThan0}";
+        var LABEL_SpecifyLotNoForLotItem = "{!$Label.SpecifyLotNoForLotItem}";
+        var LABEL_ErrorWhilePerfRMAReceipt = "{!$Label.ErrorWhilePerfRMAReceipt}";
+        var LABEL_SrlsSelected_SelSrlsForComponent = "{!$Label.SrlsSelected_SelSrlsForComponent}";
+		var LABEL_InventoryLocDoesntExistForOneOrMoreComponents_WishToCreateInventoryLocsForComps = "{!$Label.InventoryLocDoesntExistForOneOrMoreComponents_WishToCreateInventoryLocsForComps}";
+		var LABEL_Reversal_quantity_exceeds_maximum_qty_available_for_reversal = "{!$Label.Reversal_quantity_exceeds_maximum_qty_available_for_reversal}";
+		var LABEL_Lot_No_is_not_valid_for_the_item = "{!$Label.Lot_No_is_not_valid_for_the_item}";
+		var LABEL_ErrorOnSavingRecs = "{!$Label.ErrorOnSavingRecs}";
+		var LABEL_TotalNumOfEachTypeMustBe = "{!$Label.TotalNumOfEachTypeMustBe}";
+    </script>
+</apex:page>

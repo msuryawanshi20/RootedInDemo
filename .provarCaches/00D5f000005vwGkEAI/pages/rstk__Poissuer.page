@@ -1,0 +1,159 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_poissuer}" standardController="rstk__woiss__c" extensions="rstk.ControllerExtnPoissuer,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__woiss__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__woiss__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poissuer}" customInclude="{!$Resource.rstk__poissr_sl_cli}" enableAutocomplete="true"/>
+    <script>
+    var polineEl;
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" immediate="true"/>
+        <apex:actionFunction name="refreshPageMessage" action="{!refreshPageMessage}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="searchComponents" action="{!searchComponents}" oncomplete="unblockUI();" rerender="pageMessages, op_components"/>
+        <apex:actionFunction name="rissueSelectedComponents" action="{!rissueSelectedComponents}" oncomplete="checkJobStatus();" rerender="pageMessages, op_JobStatus"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        <apex:actionFunction name="hdrordnoChanged" action="{!hdrordnoChanged}" oncomplete="unblockUI();" rerender="pageMessages,op_issueselected,op_components"/>
+        <apex:actionFunction name="polineChanged" action="{!polineChanged}" oncomplete="unblockUI();" rerender="pageMessages,op_issueselected,op_components"/>
+        
+        <apex:pageBlock id="pb_search" mode="detail">
+        <apex:outputPanel style="display:none">
+        	<apex:inputHidden id="poissr_status__c" />
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_JobStatus">
+        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+		<apex:pageBlockSection showHeader="false" columns="1">
+			<apex:pageBlockSectionItem >
+				<apex:outputPanel >
+					<c:division id="poissr_div__c" cntr="{!controller}" disabled="false"/>
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem helpText="{!f.rstk__poissr_hdrordno__c.inlineHelpText}">
+			                <apex:outputLabel value="{!f.rstk__poissr_hdrordno__c.label}"/>
+			                <apex:outputPanel >
+			                <c:autocomplete id="poissr_hdrordno__c" cntr="{!controller}" slDesc="{!PohdrDesc}" 
+				                query="" 
+                                queryParms="[]"
+                                width="400px" 
+                                minChars="2" 
+                                useCustomAutocomplete="true" 
+                                autocompleteController="ControllerExtnPoissuer"
+                                autocompleteMethodParms="divId={!o.rstk__poissr_div__c}"
+				                tabIndex="2"/>
+				            </apex:outputPanel>
+			            </apex:pageBlockSectionItem>
+			            <apex:pageBlockSectionItem helpText="{!f.rstk__poiss_poline__c.inlineHelpText}">
+			            	<apex:outputLabel value="{!f.rstk__poiss_poline__c.label}"/>
+			            	<apex:outputPanel >
+			            	<apex:selectList id="poiss_poline__c" value="{!o.rstk__poiss_poline__c}" size="1" style="width:250px;" onchange="doPolineChanged();">
+			            		<apex:selectOptions value="{!polines}" />
+			            	</apex:selectList>
+			            	<script>
+			            		polineEl = document.getElementById("{!$Component.poiss_poline__c}");
+			            	</script>
+			            	</apex:outputPanel>
+			            </apex:pageBlockSectionItem>
+			            <apex:inputField id="poiss_txndate__c" value="{!o.rstk__poiss_txndate__c}" rendered="{!displayTxnDate}"/>
+					</apex:pageBlockSection>
+					
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+		</apex:pageBlockSection>
+		
+		<apex:commandButton value="{!$Label.rstk__pagebtn_poissruer_displaycomponents}" action="{!searchComponents}" onclick="return true; blockUI(); searchComponents(); return false;" style="width:150px;"/>&nbsp;
+		<apex:outputPanel id="op_issueselected">
+			<c:nosubmitbutton label="{!$Label.rstk__pagebtn_poissruer_reverseissueselectedcomponents}" onclick="doSetFFCompanyAndProcess(doRissue);" rendered="{!displayComponents}" style="width:225px;"/>
+		</apex:outputPanel>
+	</apex:pageBlock>
+	
+	<script>var compcsts = {};</script>
+	<apex:outputPanel id="op_components">
+	<apex:pageBlock id="pb_components" mode="detail" rendered="{!displayComponents}">
+        <apex:pageBlockSection id="pbs_Components" showHeader="false" title="{!$Label.rstk__components}" columns="1" collapsible="false">
+        	<apex:outputPanel >
+        		&nbsp;<apex:inputCheckbox id="selectAll" onclick="markAll(this.checked)"/>&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}"/>&nbsp;&nbsp;
+        		<script>var allComps = [];document.getElementById("{!$Component.selectAll}").checked = false;</script>
+        		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<apex:outputText value="{!$Label.rstk__poissr_displaying} {!componentCount} {!$Label.rstk__poissr_componentsfrom} [{!firstComponent}] {!$Label.rstk__poissr_thru} [{!lastComponent}]"/>
+        		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<apex:commandButton value="{!$Label.rstk__pagebtn_poissruer_displaynextset}" action="{!searchNextComponents}" style="width:150px;" rendered="{!showDisplayNext}"/>
+			</apex:outputPanel>
+			
+			<apex:repeat value="{!comps}" var="d">
+			<apex:pageBlock mode="edit">
+				<apex:pageBlockSection showHeader="false" columns="3">
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.name.label}" />
+								<apex:outputText value="{!d.compName}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.rstk__poissr_decqtyreq__c.label}" />
+								<apex:outputText html-decimals="{!d.quantityDecPlaces}" value="{!d.qtyreq}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.rstk__poissr_decqtyiss__c.label}" />
+								<apex:outputText html-decimals="{!d.quantityDecPlaces}" value="{!d.qtyiss}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+				</apex:pageBlockSection>
+				<apex:pageBlockTable value="{!d.compcsts}" var="l" columnsWidth="50px,100px,50px,200px,200px">
+					<apex:column headerValue="{!f.rstk__poissr_selected__c.label}" style="vertical-align:top;">
+						<script>var cstrow = {}; compcsts["{!l.index}"] = cstrow;</script>
+		        		<apex:inputCheckbox id="compSelected" value="{!l.selected}" onclick="selectRow('{!l.index}');"/>
+		        		<script>allComps.push(document.getElementById("{!$Component.compSelected}"));</script>
+		        		<script>cstrow["selected"] = document.getElementById("{!$Component.compSelected}");</script>
+		        	</apex:column>
+					<apex:column headerValue="{!f.rstk__poissr_iclocitemname__c.label}" value="{!l.locidlocnum}" style="vertical-align:top;"/>
+					<apex:column headerValue="{!f.rstk__poissr_issue_decqty__c.label}" style="vertical-align:top;">
+						<apex:outputText html-decimals="{!d.quantityDecPlaces}" value="{!l.qtyiss}" style="width:50px;"/>
+						<script>cstrow["qtyiss"] = {!l.qtyiss};</script>
+					</apex:column>
+					<apex:column headerValue="{!IF(d.isSrl, ('Reverse ' & f.rstk__poissr_selectedserials__c.label), f.rstk__poissr_rissue_qty__c.label)}" style="vertical-align:top;">
+						<apex:outputPanel rendered="{!d.isSrl}">
+							<!-- <apex:selectList id="reverseSrls" value="{!l.reverseSrlCsts}" multiselect="true" size="5" style="width:200px;" onchange="serialsChanged('{!l.index}');">
+		                    	<apex:selectOptions value="{!l.issuedSrlCsts}"/>
+		                    </apex:selectList><br/><apex:outputLabel value="{!$Label.rstk__selectedcount}"/>&nbsp;&nbsp; -->
+		                    
+		                    <apex:inputHidden id="selectedserialsstring__c" value="{!l.selectedserialsstring}"/>
+		                    <select id="{!l.index}" multiple="multiple" size="5" style="width:200px;" hiddenfieldid="{!$Component.selectedserialsstring__c}" onchange="setMultiselectValueToHiddenField(this);serialsChanged('{!l.index}');"/>
+		                    <br/><apex:outputLabel value="{!$Label.rstk__selectedcount}"/>&nbsp;&nbsp;
+	                    	<script>
+		                    	var srlelem = document.getElementById('{!l.index}');
+		                    	var availsrls = {!l.AvailableSerialsString};
+		                    	var selecsrls = {!l.SelectedSerialsMapString};
+		                    	for(var i = 0; i < availsrls.length; i++) {
+		                    		srlelem.options[srlelem.length] = new Option(availsrls[i][1], availsrls[i][0], false, (typeof selecsrls[availsrls[i][0]] != 'undefined'));
+		                    	}
+							</script>
+		                    
+		                    <script>cstrow["reverseSrls"] = document.getElementById("{!l.index}");</script>
+	                    </apex:outputPanel>
+	                    <apex:inputText id="qtyriss" value="{!l.qtyrissText}" style="width:50px;" onchange="qtyrissChanged('{!l.index}');"/>
+	                    <script>cstrow["qtyriss"] = document.getElementById("{!$Component.qtyriss}");if({!d.isSrl}){cstrow["qtyriss"].disabled = true;}</script>
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__poissr_txn_comments__c.label}" style="vertical-align:top;">
+						<apex:inputTextArea value="{!l.txncomment}" cols="20" rows="1" />
+					</apex:column>
+				</apex:pageBlockTable>
+			</apex:pageBlock>
+			</apex:repeat>
+		</apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:outputPanel>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+</apex:page>

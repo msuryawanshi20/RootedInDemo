@@ -1,0 +1,318 @@
+<apex:page id="pg" standardController="rstk__povclass__c" extensions="rstk.ControllerExtnPovclass" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__povclass__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__povclass__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__povclasspagetitle}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+
+    <style>
+        input[type=checkbox][disabled]{
+            opacity: 0.4;
+        }
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.rstk__busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="false"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="classChanged" action="{!classChanged}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages" status="statusProcessing">
+            <apex:param name="vendclass" assignTo="{!o.rstk__povclass_class__c}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="carrierChanged" action="{!carrierChanged}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages,op_shipviatype" status="statusProcessing">
+            <apex:param name="vendcarrier" assignTo="{!o.povclass_carrier__c}" value="" />
+        </apex:actionFunction>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_class__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_class__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__povclass_class__c}" rendered="{!!isNew}"/>
+                        <apex:inputField id="povclass_class__c" value="{!o.rstk__povclass_class__c}" onchange="this.value=this.value.toUpperCase();classChanged(this.value);" style="width:250px;" required="true" rendered="{!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageblockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_desc__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__povclass_desc__c}" rendered="{!isView}"/>
+                        <apex:inputField value="{!o.rstk__povclass_desc__c}" onchange="" style="width:250px;" rendered="{!!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageblockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_dimval__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__povclass_dimval__c.label}"/>
+                    <c:selectList id="povclass_dimval__c" cntr="{!controller}" options="{!Sydims}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_buyusrno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_buyusrno__c.label}"/>
+                    <c:selectList id="povclass_buyusrno__c" required="true" cntr="{!controller}" options="{!RespBuyers}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_maintcurrind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_maintcurrind__c.label}"/>
+                    <c:inputCheckbox id="povclass_maintcurrind__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_dirmtlind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_dirmtlind__c.label}"/>
+                    <c:inputCheckbox id="povclass_dirmtlind__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_vendcurr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_vendcurr__c.label}"/>
+                    <c:selectList id="povclass_vendcurr__c" required="true" cntr="{!controller}" options="{!Currencies}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_serviceind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_serviceind__c.label}"/>
+                    <c:inputCheckbox id="povclass_serviceind__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_terms__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_terms__c.label}"/>
+                    <c:selectList id="povclass_terms__c" required="true" cntr="{!controller}" options="{!Terms}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_indmtlind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_indmtlind__c.label}"/>
+                    <c:inputCheckbox id="povclass_indmtlind__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_frghtrm__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_frghtrm__c.label}"/>
+                    <c:selectList id="povclass_frghtrm__c" cntr="{!controller}" options="{!FreightTerms}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_ltvend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_ltvend__c.label}"/>
+                    <c:inputField id="povclass_ltvend__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_fob__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_fob__c.label}"/>
+                    <c:selectList id="povclass_fob__c" cntr="{!controller}" options="{!FOBs}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_ltvendovrind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_ltvendovrind__c.label}"/>
+                    <c:inputCheckbox id="povclass_ltvendovrind__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_carrier__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_carrier__c.label}"/>
+                    <c:selectList id="povclass_carrier__c" cntr="{!controller}" options="{!Carriers}" onchange="carrierChanged(this.value);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_ltvendship__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_ltvendship__c.label}"/>
+                    <c:inputField id="povclass_ltvendship__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_shipviatype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_shipviatype__c.label}"/>
+                    <apex:outputPanel id="op_shipviatype">
+                        <c:selectList id="povclass_shipviatype__c" cntr="{!controller}" options="{!ShipMethodTypes}" disabled="{!o.rstk__povclass_carrier__c==null}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_ltvendshipovrind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povclass_ltvendshipovrind__c.label}"/>
+                    <c:inputCheckbox id="povclass_ltvendshipovrind__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+<!--RCB: 22656 -->       
+                <apex:pageBlockSectionItem rendered="{!!payTypeWorkday}" />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_paytype__c.inlineHelpText}" rendered="{!payTypeWorkday}">
+                    <apex:outputLabel value="{!f.rstk__povclass_paytype__c.label}"/>
+                    <apex:outputPanel id="op_paytype">
+                        <apex:outputField value="{!o.rstk__povclass_paytype__c}" rendered="{!isView}"/>
+                        <apex:inputField id="povclass_paytype__c" value="{!o.rstk__povclass_paytype__c}" required="true" rendered="{!!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_poemailtmpl__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__povclass_poemailtmpl__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isView}">
+                        <apex:outputPanel id="poprintemailtmpl_select">
+                                <apex:selectList value="{!o.rstk__povclass_poemailtmpl__c}" multiselect="false" rendered="{!!isView}" size="1">
+                                    <apex:selectOptions value="{!POPrintEmailTemplates}"/>
+                                </apex:selectList>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                        <apex:outputText value="{!POPrintEmailTemplateName}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <br/>
+            <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel" rendered="true">
+                <apex:tab label="{!$Label.rstk__povclassapindicatorstablabel}" name="tab_apindicators" rendered="{!displayAPIndicatorsTab}">
+                    <apex:actionFunction name="mfgDfltCmpnoChanged" action="{!mfgDfltCmpnoChanged}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages,op_mfgapusrno,op_cctype,op_mfgglexpacct,op_mfgbankacct" status="statusProcessing">
+                        <apex:param name="mfgdfltcmpno" assignTo="{!o.povclass_mfgdfltcmpno__c}" value="" />
+                    </apex:actionFunction>
+                    <apex:actionFunction name="ccindChanged" action="{!ccindChanged}" immediate="true" oncomplete="unblockUI();setCCTypeRequired();" rerender="pageMessages,op_cctype" status="statusProcessing">
+                        <apex:param name="ccind" assignTo="{!o.rstk__povclass_ccind__c}" value=""/>
+                    </apex:actionFunction>
+                    
+                    <apex:pageBlockSection id="pbs_apindicators" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_mfgdfltcmpno__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_mfgdfltcmpno__c.label}"/>
+                            <apex:outputPanel id="op_mfgdfltcmpno">
+                                <apex:outputText value="{!GLCmp}" rendered="{!isView}"/>
+                                <c:selectList id="povclass_mfgdfltcmpno__c" required="true" cntr="{!controller}" options="{!GLCmps}" onchange="mfgDfltCmpnoChanged(this.value);" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_mfgapusrno__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_mfgapusrno__c.label}"/>
+                            <apex:outputPanel id="op_mfgapusrno">
+                                <apex:outputText value="{!GLUsr}" rendered="{!isView}"/>
+                                <c:selectList id="povclass_mfgapusrno__c" required="true" cntr="{!controller}" options="{!GLUsrs}" rendered="{!!isView}" disabled="{!o.rstk__povclass_mfgdfltcmpno__c==null || CONTAINS(o.rstk__povclass_mfgdfltcmpno__c,'None')}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_ccind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_ccind__c.label}"/>
+                            <apex:outputPanel id="op_ccind">
+                                <apex:outputField value="{!o.rstk__povclass_ccind__c}" rendered="{!isView}"/>
+                                <apex:inputField id="povclass_ccind__c" value="{!o.rstk__povclass_ccind__c}" rendered="{!!isView}" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_multicmpnoind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_multicmpnoind__c.label}"/>
+                            <c:inputCheckbox id="povclass_multicmpnoind__c" cntr="{!controller}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_cctype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_cctype__c.label}"/>
+                            <apex:outputPanel id="op_cctype">
+                                <apex:outputText value="{!CCType}" rendered="{!isView}"/>
+                                <!-- <c:selectList id="povclass_cctype__c" required="{!o.rstk__povclass_ccind__c}" cntr="{!controller}" options="{!CCTypes}" rendered="{!!isView}" disabled="{!disableCCType}"/> -->
+                                <apex:outputPanel styleClass="{!IF(o.rstk__povclass_ccind__c,'requiredInput','')}" layout="block" rendered="{!!isView}" >
+                                    <apex:outputPanel styleClass="requiredBlock" layout="block" rendered="{!o.rstk__povclass_ccind__c}"/>
+                                    <apex:selectList id="povclass_cctype__c" value="{!o.rstk__povclass_cctype__c}" size="1" style="width:250px;" required="{!o.rstk__povclass_ccind__c}" rendered="{!!isView}" disabled="{!disableCCType}">
+                                        <apex:selectOptions value="{!CCTypes}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_1099type__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_1099type__c.label}"/>
+                            <apex:outputPanel id="op_1099typ">
+                                <apex:outputField value="{!o.rstk__povclass_1099type__c}" rendered="{!isView}"/>
+                                <apex:inputField id="povclass_1099type__c" value="{!o.rstk__povclass_1099type__c}" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_1099ind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_1099ind__c.label}"/>
+                            <c:inputCheckbox id="povclass_1099ind__c" cntr="{!controller}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_mfgglexpenseacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_mfgglexpenseacct__c.label}"/>
+                            <apex:outputPanel id="op_mfgglexpacct">
+                                <apex:outputText value="{!GLExpAcct}" rendered="{!isView}"/>
+                                <c:selectList id="povclass_mfgglexpenseacct__c" required="true" cntr="{!controller}" options="{!GLExpAccts}" rendered="{!!isView}" disabled="{!o.rstk__povclass_mfgdfltcmpno__c==null || CONTAINS(o.rstk__povclass_mfgdfltcmpno__c,'None')}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_paytype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_paytype__c.label}"/>
+                            <apex:outputPanel id="op_paytype">
+                                <apex:outputField value="{!o.rstk__povclass_paytype__c}" rendered="{!isView}"/>
+                                <apex:inputField id="povclass_paytype__c" value="{!o.rstk__povclass_paytype__c}" required="true" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__povclass_mfgbankacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__povclass_mfgbankacct__c.label}"/>
+                            <apex:outputPanel id="op_mfgbankacct">
+                                <apex:outputText value="{!BankAcct}" rendered="{!isView}"/>
+                                <c:selectList id="povclass_mfgbankacct__c" required="true" cntr="{!controller}" options="{!BankAccts}" rendered="{!!isView}" disabled="{!o.rstk__povclass_mfgdfltcmpno__c==null || CONTAINS(o.rstk__povclass_mfgdfltcmpno__c,'None')}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_info}" name="tab_Info" id="tab_Info" rendered="{!isView}">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+     	var LABEL_X1099_Type_should_be_blank_When_1099_Vendor_Indicator_is_false = "{!$Label.X1099_Type_should_be_blank_When_1099_Vendor_Indicator_is_false}";
+        setInputFieldRequired("povclass_class__c");
+        var displayAPIndicatorsTab = "{!displayAPIndicatorsTab}";
+        var PAYTYPE_CC = "{!payTypeCreditCard}";
+        function pageInit(type) {
+            //console.log('pageInit() : displayAPIndicatorsTab = '+ displayAPIndicatorsTab);
+            try {
+                if(displayAPIndicatorsTab == 'true'){
+                    paytypeChanged();
+                    creditCardIndChanged();
+                }
+            } catch (e) {
+                throw e;
+            } finally {
+                //do nothing
+            }
+        }
+        
+        function createFieldChangeHandlers() {
+            fieldChangeHandlers = {
+                'povclass_paytype__c' : paytypeChanged,
+                'povclass_ccind__c' : creditCardIndChanged,
+                'povclass_1099type__c' : type1099Changed
+            };
+        }
+        
+        function paytypeChanged(){
+            var val = sfffGetFieldValue('povclass_paytype__c');
+            //console.log('paytypeChanged() : val = '+ val);
+            if(val != PAYTYPE_CC){
+                sfffSetFieldValue('povclass_ccind__c', false);
+            }else{
+                sfffSetFieldValue('povclass_ccind__c', true);
+            }
+            sfffDisableField('povclass_ccind__c', val != PAYTYPE_CC);
+        }
+        
+        function creditCardIndChanged(){
+            var val = sfffGetFieldValue('povclass_ccind__c');
+            var paytype = sfffGetFieldValue('povclass_paytype__c');
+            //console.log('creditCardIndChanged() : val = '+ (val == '1') + '\n paytype = '+ paytype);
+            if(val == '0' && paytype == PAYTYPE_CC){
+                alert(getMessage("{!$Label.creditcardIndmustbecheckedifpaytypeiscreditcard}", [getFieldLabel('povclass_ccind__c'), getFieldLabel('povclass_paytype__c'),PAYTYPE_CC]));
+                sfffSetFieldValue('povclass_ccind__c', true);
+            }
+            ccindChanged(sfffGetFieldValue('povclass_ccind__c') == '1');
+        }
+        
+        function type1099Changed(){
+        	var type1099 = sfffGetFieldValue('povclass_1099type__c');
+            var ind1099 = sfffGetFieldValue('povclass_1099ind__c');
+            if (type1099 != '' && ind1099 == 0){
+            	alert(LABEL_X1099_Type_should_be_blank_When_1099_Vendor_Indicator_is_false);
+            	sfffSetFieldValue('povclass_1099type__c', '');
+            }
+        }
+        
+        function setCCTypeRequired(){
+            var val = sfffGetFieldValue('povclass_ccind__c');
+            //console.log('setCCTypeRequired() : val = '+ (val == '1'));
+            setRequired('povclass_cctype__c', (val == '1'));
+        }
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

@@ -1,0 +1,145 @@
+<apex:page standardController="rstk__soagp__c" extensions="rstk.ControllerExtnSoagp" 
+	action="{!doBeforePageLoad}" sideBar="false" showHeader="false">
+	<apex:variable var="o" value="{!rstk__soagp__c}" />
+	
+	<c:standardHeader cntr="{!controller}" showHeader="false" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <script>
+		var productType = '{!saogpqType}';
+	</script>
+	<apex:form id="fm">
+	<apex:pageBlock id="pb" mode="detail">
+	
+ 	<c:EditableGrid jsController="qyantityCnt" data="{!productPricingDiscountDetails}" editable="true" ispopup="false" disableSave="false" opOrder="DUA"/>
+   <script>
+    
+    	qyantityCnt.onSaved = function() {
+		    unblockUI();
+        }
+	    
+	    qyantityCnt.onSaveFailed = function() {
+            unblockUI();
+        }
+	              
+		qyantityCnt.validate = function() {
+           	self = this;
+           	var isvalid = true;
+          	var warnZeroPricing = false;
+           	this.getVisibleRows().each(function (index, el) {
+                var row = jQuery(this);
+                var fromQnty = qyantityCnt.getRowDecimal(row, 'soagpq_frqty__c');
+                var toQnty = qyantityCnt.getRowDecimal(row, 'soagpq_toqty__c');
+               
+                if(!fromQnty || fromQnty <= 0) {
+					alert("{!$Label.FrmQntyisRqrandshdbeGrtthn0}"); 
+    				qyantityCnt.getRowObj(row, 'soagpq_frqty__c').focus();
+    				isvalid = false;
+                 	return false;
+               	}
+                
+                if(!toQnty || toQnty <= 0) {
+					alert("{!$Label.ToQntyisRqrandshdbeGrtthn0}"); 
+    				qyantityCnt.getRowObj(row, 'soagpq_toqty__c').focus();
+    				isvalid = false;
+                 	return false;
+       			}
+       			
+       			if(productType == 'OP' || productType == 'VP' ){
+       				var price = qyantityCnt.getRowDecimal(row, 'soagpq_price__c');
+	                 if(price == null || price < 0) {
+						alert("{!$Label.PriceMustGrtrEqual0}"); 
+	                  	qyantityCnt.getRowObj(row, 'soagpq_price__c').focus();
+	                  	isvalid = false;
+	                  	return false;
+	               } else if (price == 0) {
+	                 warnZeroPricing = true;
+	               }
+       			}
+       			
+       			if(productType == 'OD' || productType == 'VD' ){
+					var discount = qyantityCnt.getRowDecimal(row, 'soagpq_discpct__c');				
+	                if(!discount || discount <= 0 || discount > 100) {
+						alert("Discount cannot be less than 0 and greater than 100."); 
+	                	qyantityCnt.getRowObj(row, 'soagpq_discpct__c').focus();
+	               }
+				}
+       		 });
+               
+       		 if (isvalid && warnZeroPricing) {
+       		   return confirm("{!$Label.ConfirmZeroPriceCorrect}");
+       		 }
+
+             return isvalid;
+         } 
+           
+         qyantityCnt.entryChanged = function(row, rowNum, name, value) {
+		 	if (name == 'soagpq_frqty__c') {
+				var fromQnty = qyantityCnt.getRowDecimal(row, 'soagpq_frqty__c');
+     			if(!fromQnty || fromQnty <= 0) {
+					alert("{!$Label.FrmQntyisRqrandshdbeGrtthn0}"); 
+      				qyantityCnt.getRowObj(row, 'soagpq_frqty__c').focus();
+      			}
+			}
+			
+			if (name == 'soagpq_toqty__c') {
+				var toQnty = qyantityCnt.getRowDecimal(row, 'soagpq_toqty__c');
+     			if(!toQnty || toQnty <= 0) {
+					alert("{!$Label.ToQntyisRqrandshdbeGrtthn0}"); 
+      				qyantityCnt.getRowObj(row, 'soagpq_toqty__c').focus();
+      			}
+			}
+			
+			if(productType == 'OP' || productType == 'VP' ){
+				if (name == 'soagpq_price__c') {
+					var price = qyantityCnt.getRowDecimal(row, 'soagpq_price__c');				
+	                if(!price || price <= 0) {
+						alert("{!$Label.PriceCantBeLT0}"); 
+	                	qyantityCnt.getRowObj(row, 'soagpq_price__c').focus();
+	               }
+				}
+			}
+			
+			if(productType == 'OD' || productType == 'VD' ){
+				if (name == 'soagpq_discpct__c') {
+					var discount = qyantityCnt.getRowDecimal(row, 'soagpq_discpct__c');				
+	                if(!discount || discount <= 0 || discount > 100) {
+						alert("Discount cannot be less than 0 and greater than 100."); 
+	                	qyantityCnt.getRowObj(row, 'soagpq_discpct__c').focus();
+	               }
+				}
+			}
+			
+		 }
+          
+	</script> 
+	   
+	</apex:pageBlock>
+		     <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+	
+	</apex:form>
+
+   <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+	<script>
+		var LABEL_InvalidFromQtyValAtLine = "{!$Label.InvalidFromQtyValAtLine}";
+		var LABEL_InvalidToQtyValAtLine = "{!$Label.InvalidToQtyValAtLine}";
+		var LABEL_FromQtyCantGrtrThanToQtyAtLine = "{!$Label.FromQtyCantGrtrThanToQtyAtLine}";
+		var LABEL_InvalidPriceAtLine = "{!$Label.InvalidPriceAtLine}";
+		var LABEL_InvalidDiscountPercAtLine = "{!$Label.InvalidDiscountPercAtLine}";
+		var LABEL_EnterFromQtyValAtLine = "{!$Label.EnterFromQtyValAtLine}";
+		var LABEL_EnterToQtyValAtLine = "{!$Label.EnterToQtyValAtLine}";
+		var LABEL_EnterPriceOrDiscountPercAtLine = "{!$Label.EnterPriceOrDiscountPercAtLine}";
+		var LABEL_InvalidValForQtyAtLine = "{!$Label.InvalidValForQtyAtLine}";
+		var LABEL_InvalidValForToQtyAtLine = "{!$Label.InvalidValForToQtyAtLine}";
+		var LABEL_InvalidValForPriceAtLine = "{!$Label.InvalidValForPriceAtLine}";
+		var LABEL_QtyOverlapsWithExistingQtyEntry = "{!$Label.QtyOverlapsWithExistingQtyEntry}";
+		var LABEL_InvalidValForDiscountPercAtLine = "{!$Label.InvalidValForDiscountPercAtLine}";
+		var LABEL_Line_DiscPercMustBeBetween0To100 = "{!$Label.Line_DiscPercMustBeBetween0To100}";
+		var LABEL_FromQtyCantGTQtyAtLine = "{!$Label.FromQtyCantGTQtyAtLine}";
+	</script>
+</apex:page>

@@ -1,0 +1,421 @@
+<apex:page id="pg" standardController="rstk__syusr__c" extensions="rstk.ControllerExtnSyusr,rstk.RemoteQueryController,rstk.ControllerJobStatus" sideBar="true" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__syusr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__syusr__c.fields}" /> 
+    <apex:variable var="f_syusrdiv" value="{!$ObjectType.rstk__syusrdiv__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_syusr}" customInclude="{!$Resource.rstk__syusr_cli}" enableAutocomplete="true"/>   
+    <script>
+        var requireSalesDiv = {!requireSalesDiv};
+        var currSyusrId = "{!Id}";
+        var oldLimitedDiv = {!o.rstk__syusr_limiteddiv__c}; 
+        var isUserLicenseSalesforce = {!IsUserLicenseSalesforce};
+        var mobileTab = {!showMobileTab};
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doRefreshSyusrdivs" rerender="op_UserDivisions" oncomplete="unblockUI();" immediate="true"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany(); unblockUI();" immediate="true"/>
+        <apex:actionFunction name="authorizeMfgUser" action="{!authorizeUser}" rerender="pageMessages"/>
+        <input name="isSubmit" type="hidden"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <apex:commandButton value="{!$Label.rstk__pagebtn_save}" onclick="doSetFFCompanyAndProcess(doPageSave, null, sfffGetFieldValue('syusr_lastdiv__c'), {!OR(!isUserLicenseSalesforce, !IsUserHimself)}); return false;" style="width:50px;" rendered="{!!isView}"/>
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="{!replaceUserProcessInUse}"/>
+            <apex:commandbutton value="{!$Label.rstk__pagebtn_syusr_replaceuser}" onclick="return replaceUser();" rendered="{!actionType == 'view'}" disabled="{!replaceUserProcessInUse}" />
+            <apex:commandbutton value="{!$Label.rstk__syusr_heroku_authorization}" onclick="authorizeMfgUser(); return false;" rendered="{!isHerokuEnabled}" disabled="{!isUserAuthorized}" />
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputhidden id="currUser_id" value="{!o.id}" />
+        </apex:outputPanel>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_clockno__c.inlineHelpText}" rendered="{!!isView}">
+                <apex:outputLabel value="{!f.rstk__syusr_clockno__c.label}" />
+                <apex:inputText id="syusr_clockno__c" value="{!clocknumtext}" required="true" onkeypress="return allowOnlyNumbers(event);"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_clockno__c.inlineHelpText}" rendered="{!isView}">
+                <apex:outputLabel value="{!f.rstk__syusr_clockno__c.label}" />
+                <apex:outputText value="{0,number,############0}">
+                    <apex:param value="{!o.rstk__syusr_clockno__c}"/>
+                </apex:outputText>
+            </apex:pageBlockSectionItem>
+      
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_ohdlabind__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_ohdlabind__c.label}" />
+                <c:inputField id="syusr_ohdlabind__c" cntr="{!controller}" tabIndex="12" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_employee__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_employee__c.label}"/>
+                <c:autocomplete id="syusr_employee__c" cntr="{!controller}" required="true" slDesc="{!employeeDesc}" query="select id, name from User where IsActive = true" width="200px" tabIndex="2"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_ohdfrngind__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_ohdfrngind__c.label}" />
+                <c:inputField id="syusr_ohdfrngind__c" cntr="{!controller}" tabIndex="13" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_dfltcmpno__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_dfltcmpno__c.label}"/>
+                <c:selectList id="syusr_dfltcmpno__c" required="false" cntr="{!controller}" options="{!companies}" tabIndex="3" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_labgrd__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_labgrd__c.label}"/>
+                <c:selectList id="syusr_labgrd__c" cntr="{!controller}" options="{!mfglaborgrades}" tabIndex="18" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_dfltdiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_dfltdiv__c.label}"/>
+                <c:selectList id="syusr_dfltdiv__c" required="false" cntr="{!controller}" options="{!sl.sydivs}" tabIndex="4" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_hrrate__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_hrrate__c.label}" />
+                <c:inputField id="syusr_hrrate__c" cntr="{!controller}" tabIndex="19" removeTrailingZeros="true" rendered="{!viewLaborRates}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_salesdiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_salesdiv__c.label}"/>
+                <c:selectList id="syusr_salesdiv__c" required="false" cntr="{!controller}" options="{!salesdivs}" tabIndex="5" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_shift__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_shift__c.label}" />
+                <c:inputField id="syusr_shift__c" cntr="{!controller}" tabIndex="20" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_orgid__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_orgid__c.label}"/>
+                <c:selectList id="syusr_orgid__c" required="false" cntr="{!controller}" options="{!syorgs}" tabIndex="6" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_allowlaborbooking__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_allowlaborbooking__c.label}" />
+                <c:inputField id="syusr_allowlaborbooking__c" cntr="{!controller}" tabIndex="21" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_vendno__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_vendno__c.label}"/>
+                <c:largeSelectList id="syusr_vendno__c" required="false" cntr="{!controller}" options="{!vendors}" tabIndex="7" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_allowqtybooking__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_allowqtybooking__c.label}" />
+                <c:inputField id="syusr_allowqtybooking__c" cntr="{!controller}" tabIndex="22" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_multicompany__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_multicompany__c.label}" />
+                <c:inputField id="syusr_multicompany__c" cntr="{!controller}" tabIndex="8" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_laborsuper__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_laborsuper__c.label}" />
+                <c:inputField id="syusr_laborsuper__c" cntr="{!controller}" tabIndex="23" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_multidiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_multidiv__c.label}" />
+                <c:inputField id="syusr_multidiv__c" cntr="{!controller}" tabIndex="9" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_limiteddiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_limiteddiv__c.label}" />
+                <apex:outputPanel >
+                	<c:inputField id="syusr_limiteddiv__c" cntr="{!controller}" tabIndex="10" />
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_empl_email__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__syusr_empl_email__c.label}" />
+                <c:inputField id="syusr_empl_email__c" cntr="{!controller}" tabIndex="13" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_phone__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__syusr_phone__c.label}"/>
+                <c:inputField id="syusr_phone__c" required="false" cntr="{!controller}" tabIndex="14"/>
+            </apex:pageBlockSectionItem>            
+        </apex:pageBlockSection>        
+  
+        <br/>
+        <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_syusr_requisitionsubmissionindicators}" name="tab_ReqSubmission" id="tab_ReqSubmission">
+                <apex:pageBlockSection id="pbs_ReqSubmission" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_dirmtlreqind__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_dirmtlreqind__c.label}" />
+                        <c:inputField id="syusr_dirmtlreqind__c" cntr="{!controller}" tabIndex="41" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_syusr_mobile}" name="tab_Mobile" id="tab_Mobile" rendered="{!showMobileTab}">
+                <apex:pageBlockSection id="pbs_Mobile" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_stdrootscan__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_stdrootscan__c.label}" />
+                        <c:inputField id="syusr_stdrootscan__c" cntr="{!controller}" tabIndex="42" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_sfrootscan__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_sfrootscan__c.label}" />
+                        <c:inputField id="syusr_sfrootscan__c" cntr="{!controller}" tabIndex="43" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_usermobileprofile__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_usermobileprofile__c.label}" />
+                        <c:selectList id="syusr_usermobileprofile__c" required="false" cntr="{!controller}" options="{!UserMobileProfiles}" tabIndex="44" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_multisite__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_multisite__c.label}" />
+                        <c:inputField id="syusr_multisite__c" cntr="{!controller}" tabIndex="45" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_lastsite__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_lastsite__c.label}" />
+                        <c:selectList id="syusr_lastsite__c" required="false" cntr="{!controller}" options="{!Sites}" tabIndex="46" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_syprinter__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_syprinter__c.label}" />
+                        <c:selectList id="syusr_syprinter__c" required="false" cntr="{!controller}" options="{!Syprinters}" tabIndex="47" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_syusr_otherindicators}" name="tab_OtherIndicators" id="tab_OtherIndicators">
+                <apex:pageBlockSection id="pbs_OtherIndicators" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_respengind__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_respengind__c.label}" />
+                        <c:inputField id="syusr_respengind__c" cntr="{!controller}" tabIndex="51" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_itemdescok__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_itemdescok__c.label}" />
+                        <c:inputField id="syusr_itemdescok__c" cntr="{!controller}" tabIndex="56" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_respinvind__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_respinvind__c.label}" />
+                        <c:inputField id="syusr_respinvind__c" cntr="{!controller}" tabIndex="52" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_noconfigexport__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_noconfigexport__c.label}" />
+                        <c:inputField id="syusr_noconfigexport__c" cntr="{!controller}" tabIndex="57" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_respbuyerind__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_respbuyerind__c.label}" />
+                        <c:inputField id="syusr_respbuyerind__c" cntr="{!controller}" tabIndex="53" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_noconfigqtyoh__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_noconfigqtyoh__c.label}" />
+                        <c:inputField id="syusr_noconfigqtyoh__c" cntr="{!controller}" tabIndex="58" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_authid__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_authid__c.label}"/>
+                        <c:selectList id="syusr_authid__c" required="false" cntr="{!controller}" options="{!syauths}" tabIndex="54" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_useexportcust__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_useexportcust__c.label}" />
+                        <c:inputField id="syusr_useexportcust__c" cntr="{!controller}" tabIndex="59" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_superauth__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_superauth__c.label}"/>
+                        <c:inputField id="syusr_superauth__c" cntr="{!controller}" tabIndex="55" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_csvdelimiter__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_csvdelimiter__c.label}" />
+                        <c:selectList id="syusr_csvdelimiter__c" cntr="{!controller}" options="{!CSVDelimiterOptions}" tabIndex="60" />
+                    </apex:pageBlockSectionItem>
+                    
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_syusr_current}" name="tab_CurrentDivs" id="tab_CurrentDivs">
+                <apex:pageBlockSection id="pbs_CurrentDivs" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_lastcmpno__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_lastcmpno__c.label}"/>
+                        <c:selectList id="syusr_lastcmpno__c" required="false" cntr="{!controller}" options="{!companies}" tabIndex="1" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_lastdiv__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_lastdiv__c.label}" />
+                        <c:selectList id="syusr_lastdiv__c" required="false" cntr="{!controller}" options="{!salesdivs}" tabIndex="2" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_lastsalesdiv__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_lastsalesdiv__c.label}" />
+                        <c:selectList id="syusr_lastsalesdiv__c" required="false" cntr="{!controller}" options="{!salesdivs}" tabIndex="3" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_rstkdebug__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_rstkdebug__c.label}" />
+                        <c:inputField id="syusr_rstkdebug__c" cntr="{!controller}" tabIndex="4" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_customer__c.inlineHelpText}" rendered="{!CONTAINS(o.rstk__syusr_empl_email__c, 'rootstock')}">
+                        <apex:outputLabel value="{!f.rstk__syusr_customer__c.label}" />
+                        <c:inputField id="syusr_customer__c" cntr="{!controller}" tabIndex="5" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_pricelog__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_pricelog__c.label}" />
+                        <c:inputField id="syusr_pricelog__c" cntr="{!controller}" tabIndex="6" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection> 
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_orderpayments}" name="tab_OrderPayments" id="tab_OrderPayments">
+                <apex:pageBlockSection id="pbs_OrderPayments" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opaylimited__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opaylimited__c.label}" />
+						<c:inputField id="syusr_opaylimited__c" cntr="{!controller}" tabIndex="101" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opayaccess__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opayaccess__c.label}" />
+						<c:inputField id="syusr_opayaccess__c" cntr="{!controller}" tabIndex="102" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opayinvaccess__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opayinvaccess__c.label}" />
+						<c:inputField id="syusr_opayinvaccess__c" cntr="{!controller}" tabIndex="103" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opayovrgateway__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opayovrgateway__c.label}" />
+						<c:inputField id="syusr_opayovrgateway__c" cntr="{!controller}" tabIndex="104" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opaycancelauth__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opaycancelauth__c.label}" />
+						<c:inputField id="syusr_opaycancelauth__c" cntr="{!controller}" tabIndex="105" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opaycanauth__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opaycanauth__c.label}" />
+						<c:inputField id="syusr_opaycanauth__c" cntr="{!controller}" tabIndex="106" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opaycanpay__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opaycanpay__c.label}" />
+						<c:inputField id="syusr_opaycanpay__c" cntr="{!controller}" tabIndex="107" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opaycanrev__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opaycanrev__c.label}" />
+						<c:inputField id="syusr_opaycanrev__c" cntr="{!controller}" tabIndex="108" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opaycanrevshipped__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opaycanrevshipped__c.label}" />
+						<c:inputField id="syusr_opaycanrevshipped__c" cntr="{!controller}" tabIndex="109" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_opaycancredit__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__syusr_opaycancredit__c.label}" />
+						<c:inputField id="syusr_opaycancredit__c" cntr="{!controller}" tabIndex="110" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_userdivisions}" name="tab_UserDivisions" id="tab_UserDivisions" rendered="{!AND(isView,o.rstk__syusr_limiteddiv__c)}">
+            	<apex:outputPanel >
+                    <input id="btn_userdivmaint" onclick="showSyusrdivGrid(); return false;" type="button" class="btn" value="{!$Label.pagebtn_UserDivisionMaintenance}"/>&nbsp;
+                </apex:outputPanel>
+                <apex:outputPanel id="op_UserDivisions">
+                    <apex:pageBlockTable value="{!syusrdivs}" var="rec">
+                        <apex:column headerValue="{!f_syusrdiv.rstk__syusrdiv_sydiv__c.label}" value="{!rec.rstk__syusrdiv_sydiv__c}"/>
+                        <apex:column headerValue="{!f_syusrdiv.rstk__syusrdiv_active__c.label}" value="{!rec.rstk__syusrdiv_active__c}"/>
+                        <apex:column headerValue="{!f_syusrdiv.rstk__syusrdiv_useaslastdiv__c.label}" value="{!rec.rstk__syusrdiv_useaslastdiv__c}"/>
+                        <apex:column headerValue="{!f_syusrdiv.rstk__syusrdiv_useassalesdiv__c.label}" value="{!rec.rstk__syusrdiv_useassalesdiv__c}"/>
+                    </apex:pageBlockTable>
+                </apex:outputPanel>
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_syconfig_licensing}" name="licensing" id="licensing">
+                <apex:pageBlockSection id="pbs_licensing" showHeader="false" columns="2">
+	                <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_licreq__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_licreq__c.label}" />
+		                <c:inputField id="syusr_licreq__c" cntr="{!controller}" tabIndex="130" />
+		            </apex:pageBlockSectionItem>
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_autoprocessuser__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_autoprocessuser__c.label}" />
+		                <c:inputField id="syusr_autoprocessuser__c" cntr="{!controller}" tabIndex="180" />
+		            </apex:pageBlockSectionItem>
+		            
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_fsl__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_fsl__c.label}" />
+		                <c:inputField id="syusr_fsl__c" cntr="{!controller}" tabIndex="140" />
+		            </apex:pageBlockSectionItem>
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_mobile__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_mobile__c.label}" />
+		                <c:inputField id="syusr_mobile__c" cntr="{!controller}" tabIndex="190" />
+		            </apex:pageBlockSectionItem>
+		            
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_laboronly__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_laboronly__c.label}" />
+		                <c:inputField id="syusr_laboronly__c" cntr="{!controller}" tabIndex="150" />
+		            </apex:pageBlockSectionItem>
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_sfustartopt__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_sfustartopt__c.label}" />
+		                <c:inputField id="syusr_sfustartopt__c" cntr="{!controller}" tabIndex="200" />
+		            </apex:pageBlockSectionItem>
+		            
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_limited__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_limited__c.label}" />
+		                <c:inputField id="syusr_limited__c" cntr="{!controller}" tabIndex="160" />
+		            </apex:pageBlockSectionItem>
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_definelimited__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_definelimited__c.label}" />
+		                <c:inputField id="syusr_definelimited__c" cntr="{!controller}" tabIndex="210" />
+		            </apex:pageBlockSectionItem>
+		            
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__syusr_obsolete__c.inlineHelpText}" >
+		                <apex:outputLabel value="{!f.rstk__syusr_obsolete__c.label}" />
+		                <c:inputField id="syusr_obsolete__c" cntr="{!controller}" tabIndex="170" />
+		            </apex:pageBlockSectionItem>
+		       </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_syusr_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+        <div id="opGrid" style="display:none">
+            <table cellspacing="0" cellpadding="0" margin="0" width="100%" height="100%">
+                <tr><td><iframe id="opGridFrame" src="" width="100%" height="400px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe></td></tr>
+                <tr><td><input onclick="unblockUI(); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_Close}"/></td></tr>
+            </table>
+        </div>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+
+    <script>
+	   	if({!!isView}) {
+            setInputFieldRequired('syusr_clockno__c'); 
+            addRequiredFieldDecoration("input[id*=':syusr_clockno__c']");
+        }
+    </script>                   
+    <script>
+        var EmpPartnerAssign = "{!$Label.EmpPartnerAssigned}";
+        var ClockNoAssign = "{!$Label.ClockNoAssigned}";
+        var SelectEmpPartner = "{!$Label.SelectEmployeePartner}";   
+        var LABEL_EnterReqdFieldDefaultDiv = "{!$Label.EnterReqdFieldDefaultDiv}";
+        var LABEL_EnterReqdFieldDefaultSalesDiv = "{!$Label.EnterReqdFieldDefaultSalesDiv}";
+        var LABEL_SelectLaborGrade = "{!$Label.SelectLaborGrade}";
+        var LABEL_validrangeonNumericField = "{!$Label.validrangeonNumericField}";
+        var LABEL_LicReqCantbeSetforShopFloorOnlyUser = "{!$Label.LicReqCantbeSetforShopFloorOnlyUser}";
+        
+</script>
+</apex:page>

@@ -1,0 +1,483 @@
+<apex:page id="pg" standardController="rstk__poshipcont__c" extensions="rstk.ControllerExtnInboundContainers" sideBar="false" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__poshipcont__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__poshipcont__c.fields}" />
+    <apex:variable var="f_supreq" value="{!$ObjectType.rstk__supreq__c.fields}" />
+    <apex:variable var="f_poship" value="{!$ObjectType.rstk__poship__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_inboundcontainers}" /> 
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+     <style>
+		.modal {
+			background-color: #fff;
+			display: none;
+			width: 800px;
+			padding: 15px;
+			text-align: left;
+			font-size: 1em;
+			border: 2px solid #333;
+			opacity: 1.0;
+			-moz-border-radius: 6px;
+			-webkit-border-radius: 6px;
+			-moz-box-shadow: 0 0 50px #ccc;
+			-webkit-box-shadow: 0 0 50px #ccc;
+		}
+		
+		.modal h2 {
+			margin: 0px;
+			padding: 10px 0 10px 45px;
+			font-size: 16px;
+		}
+		
+		.modalComponents {
+			color: #efefef;
+			height: 400px;
+			width: 900px;
+			z-index: 100;
+		}
+		
+		/* container for external content. uses vertical scrollbar, if needed */
+		.contentWrap {
+			height: 441px;
+			overflow-y: auto;
+			z-index: 100;
+		}
+		
+		div.hideCurrDate span.dateInput span.dateFormat {
+			display: none;
+		}
+		
+		.issueComments {
+			width: 250px;
+			height: 60px;
+			border: 3px solid #cccccc;
+			padding: 5px;
+			font-family: Tahoma, sans-serif;
+		}
+		
+		#datePicker .datePicker {
+			z-index: 10012;
+		}
+		
+		input[readonly="readonly"] {
+			border: none;
+			background-color: transparent;
+			padding: 0px;
+			font-size: 100%;
+			margin: 0px;
+		}
+		
+		.helpText {
+			z-index: 11000;
+		}
+		
+		.topFrame {
+			z-index: 20100;
+		}
+		
+		.largerLabel td {
+			width: 50% !important;
+		}
+		
+		.modalPopup {
+			background-color: white;
+			border-style: solid;
+			border-width: 3px;
+			padding: 1px;
+			position: absolute;
+			z-index: 10011;
+			width: 650px;
+			top: 100px;
+			overflow: auto;
+		}
+		
+		.topPopup {
+			background-color: transparent;
+			border-style: none;
+			position: absolute;
+			z-index: 20001;
+			width: 50px;
+			top: 100px;
+		}
+		
+		.popupBackground {
+			background-color: black;
+			opacity: 0.20;
+			position: absolute;
+			width: 100%;
+			height: 75%;
+			top: 0;
+			left: 0;
+			z-index: 10010;
+		}
+		
+		.topPopupBackground {
+			background-color: green;
+			opacity: 0.10;
+			position: absolute;
+			width: 100%;
+			height: 75%;
+			top: 0;
+			left: 0;
+			z-index: 20000;
+		}
+		
+		input.elwarning {
+			
+		}
+		
+		span.spwarning {
+			color: #FF6347;
+			font-size: 90%;
+			padding-left: 6px;
+		}
+		
+		.ac_results {
+			z-index: 12000;
+			background-color: #eee;
+		}
+</style>
+    
+    
+    <script>
+     	var sydiv = '{!lastdivid}';
+     	var supitemStr = '{!JSENCODE(supitem)}';
+     	var carrierStr = '{!JSENCODE(carrier)}';
+     	
+     	var df = '{!sortDateFormat}' == 'dd/mm/yyyy' ? 'uk' : 'us';
+     	jQuery(document).ready(function() {
+   
+			enableFixedHeaderSort('pg:fm:pb:pbs_poshipcont:pbt_poshipcont');	
+			enableFixedHeaderSort(':pbt_poshipcontdtl');
+
+	    	initHoverPopups_InboundContainers(jQuery("table[id$=':pbt_poshipcont']"), {manualLoad:false, displayUp:false});
+
+	    });
+	    
+	    function jqueryOnReady() {
+             jQuery("button[rel*=popup]").overlay({
+            
+                top: "10%",
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                fixed:false,
+                
+                closeOnClick: false
+            });
+            
+            jQuery("button[rel*=win]").overlay({
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                fixed:false,
+                closeOnClick: false,
+                
+                onBeforeLoad: function(e) {
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+'Frame');
+                    var blockWin =content.closest('div');
+  
+                    var src = null;
+                   
+                    if (winId == 'PopupNotesAttachments')
+                    {
+                        var notesLine = sfffGetFieldValue('notes_lineid__c');
+                        src = "{!URLFOR($Page.NotesAndAttachments)}?objname=poshipcont__c&id=" + notesLine + "&nea=Y&nda=Y&nn=Y&na=Y";
+                    }
+                    if (winId == 'PopupPopshipContDtls')
+                    {
+                        var poshipcontId = sfffGetFieldValue('poshipcontId__c');
+                        src = "{!URLFOR($Page.poshipcontDtlGrid)}?id=" + poshipcontId;
+                    }
+			        if (src != null)
+                    {
+                        blockWin.block({
+                            message: '',
+                            centerX: true, 
+                            centerY: true,
+                            css: { 
+                                border: 'none', 
+                                padding: '15px', 
+                                cursor: 'wait',
+                                opacity: .5, 
+                                textAlign: 'center'
+                            }
+                        });
+                        content[0].src = src;
+                        
+                        content.load(function() { blockWin.unblock(); });
+                    }
+                }
+            });
+        }
+	    
+	    function showNotesAndAttachments(lineId) {
+			console.log('get notes for lineId: ' + lineId);
+			sfffSetFieldValue('notes_lineid__c', lineId);
+			jQuery(".btnPopupNotesAttachments").click();
+			return false;
+		}
+		
+		function showPoshipcontDtl(lineId) {
+			sfffSetFieldValue('poshipcontId__c', lineId);
+			jQuery(".btnPopupPopshipContDtls").click();
+			return false;
+		}
+		
+		function notes_close() {
+			updateNotesAttachText();
+		}
+	    
+     	
+     	function pageInit(type) 
+		{
+			jQuery('input[id$=supitem__c]').val(supitemStr);
+			var supitemSelect = jQuery('#supitem_sel');
+			populateHtmlSelectList(supitemSelect[0], "select Id, Name from supitem__c where supitem_div__c = '" + sydiv + "' Order by Name");	
+			jQuery('#supitem_sel').val(supitemStr);
+			
+			jQuery('input[id$=sycarrier__c]').val(carrierStr);
+			var carrierSelect = jQuery('#sycarrier_sel');
+			populateHtmlSelectList(carrierSelect[0], "select Id, Name from sycarrier__c Order by Name");	
+			jQuery('#sycarrier_sel').val(carrierStr);
+		}
+		
+		function updateSupitemSelect() {
+		  	var supitemObj = jQuery('input[id$=supitem__c]');
+			var supitemSelect = jQuery('#supitem_sel');
+			supitemObj.val(supitemSelect.val());
+		}
+		
+		function updateCarrierSelect() {
+		  	var carrierObj = jQuery('input[id$=sycarrier__c]');
+			var carrierSelect = jQuery('#sycarrier_sel');
+			carrierObj.val(carrierSelect.val());
+		}
+		
+		function doRefreshPoshipcont() {
+			blockUI();
+			updateSupitemSelect();
+			updateCarrierSelect();
+			refreshPoshipconts();
+			return false;
+		}
+		
+		
+		function enableFixedHeaderSort(tableId) {
+			var tbl = jQuery("table[id$=" + tableId + "]");
+			if (tableId == 'pg:fm:pb:pbs_poshipcont:pbt_poshipcont') {
+				sortOptions = {
+					0: { sorter: false },
+					1: { sorter: "fancyNumber" },
+					2: { sorter: "fancyNumber" },
+					3: { sorter: "text" },
+					4: { sorter: "fancyNumber" },
+		            5: { sorter: "text" },
+					6: { sorter: "fancyNumber" },
+					7: { sorter: "fancyNumber" },
+					8: { sorter: "shortDate" },
+					9: { sorter: "fancyNumber" },
+					10: { sorter: "TS_img" },
+					11: { sorter: "Number" },
+					12: { sorter: false },
+					13: { sorter: false } 
+		        };
+		    } else {
+		    	sortOptions = {
+		    		0: { sorter: false },
+					1: { sorter: false }
+				};
+		    }
+
+			if (tbl) {
+				tbl.vfFloatingHeaders();
+				tbl.tablesorter({
+					dateFormat : df,
+					headers: sortOptions
+				});
+			}
+		}
+		
+		function showContDtl(cid)
+		{
+			console.log('showContDtl: ' + cid);
+			var tbl = document.getElementById(cid);
+	    	tbl.display = '';
+	    	tbl.style.position = 'absolute';
+	    	tbl.style.top = '600px';
+	    	tbl.style.left = '600px';
+		}
+
+		function saveRecord() {
+			return false;
+		}
+	 </script>
+
+	<apex:form id="fm" rendered="{!displayPageContent}">
+		<apex:actionFunction name="refreshPoshipconts" action="{!refreshPoshipconts}" 
+			oncomplete="unblockUI();" rerender="pageMessages, pbs_poshipcont" immediate="false" />
+		 
+		<button style="visibility:hidden" class="btnPopupNotesAttachments" rel="#winNotesAttachments"></button>
+        <div class="modal" id="winNotesAttachments" style="height:360px;width:900px" >
+            <apex:inputHidden id="notes_lineid__c" />
+            <h2>{!$Label.Inbound_Containers_Notes_and_Attachments}</h2>
+            <iframe id="PopupNotesAttachmentsFrame" height="320px" width="100%" frameborder="0" src="about:blank"></iframe>
+            <button id="btnPopupNotesAttachmentsClose" type="button" class="close" onclick="notes_close()"> {!$Label.pagebtn_soagh_Close} </button>
+        </div>   
+		<button style="visibility:hidden" class="btnPopupPopshipContDtls" rel="#winPopshipContDtls"></button>
+        <div class="modal" id="winPopshipContDtls" style="height:450px;width:1000px" >
+            <apex:inputHidden id="poshipcontId__c" />
+            <h2>{!$Label.Inbound_Shipment_Container_Contents}</h2>
+            <iframe id="PopupPopshipContDtlsFrame" height="420px" width="100%" frameborder="0" src="about:blank"></iframe>
+            <button id="btnPopupPopshipContDtlsClose" type="button" class="close" onclick="notes_close()"> {!$Label.pagebtn_soagh_Close} </button>
+        </div>
+		
+        <apex:pageBlock id="pb" mode="detail">
+        
+	        <apex:outputPanel style="display:none">
+	        </apex:outputPanel>
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            	<apex:pageBlockSectionItem helpText="{!$Label.rstk__division}">
+            		<apex:outputLabel value="{!$Label.rstk__division1}" />
+            		<c:hoverDetail recId="{!lastdivid}" recName="{!lastdiv}" />
+            	</apex:pageBlockSectionItem>
+            	
+            	<apex:pageBlockSectionItem />
+            	
+				<apex:pageBlockSectionItem helpText="{!$Label.rstk__horizondate}">
+					<apex:outputLabel value="{!$Label.rstk__horizondateexcludecontainersdueafterthisdate}"/>
+					<apex:outputPanel >
+						<c:inputDateNoLink >
+	                    	<apex:inputField id="pckdt__c" value="{!o.rstk__poshipcont_bookreqstdate__c}" html-disablemanualentry="{!AND(true, IsDisableManualDateEntry)}"/>
+	                    </c:inputDateNoLink>
+					</apex:outputPanel>
+       			</apex:pageBlockSectionItem>
+       			 
+       			<apex:pageBlockSectionItem helpText="{!$Label.rstk__hotshipmentsonly}">
+					<apex:outputLabel value="{!$Label.rstk__hotshipmentsonly1}"/>
+					<apex:inputCheckbox id="hotcheck__c" value="{!hotcheck}" /> 
+       			</apex:pageBlockSectionItem>
+       			
+       			<apex:pageBlockSectionItem helpText="{!$Label.rstk__partnumber}">
+					<apex:outputLabel value="{!$Label.rstk__partnumberonlyshowcontainerscarryingthispart}"/>
+					<apex:outputPanel >
+						<apex:inputHidden id="supitem__c" value="{!supitem}" />
+						<select id="supitem_sel" style="width:200px;" >
+		                	<option> </option>
+		                </select>
+	                </apex:outputPanel>
+       			</apex:pageBlockSectionItem>
+       			 
+       			<apex:pageBlockSectionItem helpText="{!$Label.rstk__reeferlooponly}">
+					<apex:outputLabel value="{!f.rstk__poshipcont_reeferloop__c.label}"/>
+					<apex:inputCheckbox id="reefer__c" value="{!reefer}" /> 
+       			</apex:pageBlockSectionItem>
+       			
+       			<apex:pageBlockSectionItem helpText="{!$Label.rstk__carrier}">
+					<apex:outputLabel value="{!$Label.rstk__carrier12}"/>
+					<apex:outputPanel >
+						<apex:inputHidden id="sycarrier__c" value="{!carrier}" />
+						<select id="sycarrier_sel" style="width:200px;" >
+		                	<option> </option>
+		                </select>
+	                </apex:outputPanel>
+       			</apex:pageBlockSectionItem>
+       			 
+       			<apex:pageBlockSectionItem >
+	                <apex:outputLabel value="{!$Label.rstk__shipmentdestination}"/>
+	                    <apex:selectList id="local_dest__c" value="{!destType}" size="1" >
+	                    <apex:selectOptions value="{!destinationType}"/>
+	                </apex:selectList>
+	            </apex:pageBlockSectionItem>
+       			
+       			<apex:pageBlockSectionItem >
+       				<apex:outputLabel value="" />
+					<button id="RefreshPoshipcontBtn" type="button" onclick="return doRefreshPoshipcont();" class="btn" style="width: 160px;">Activate</button>
+	     		</apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+			
+			<apex:pageBlockSection id="pbs_poshipcont" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+				<apex:outputPanel id="pbo_poshipcont" style="height:420px;overflow:auto;display:block">
+					<apex:pageBlockTable id="pbt_poshipcont" value="{!PoshipcontWrapper}" var="c"> 
+						<apex:column headerValue="{!$Label.rstk__contents}" style="width:40px;">
+		         			<a id="lnk{!c.poOb.id}" rel="#shipment{!c.poOb.id}" href="javascript:{}" >
+		         				<apex:outputText value="{!$Label.rstk__contents}" />
+		         			</a>
+		         			<div class="overlayStyle" id="shipment{!c.poOb.id}" style="padding-top:7px;z-index:99999;">
+		         				<apex:outputPanel id="pbo_poshipcontdtl" style="height:150px;overflow:auto;display:block">
+		         				<apex:pageBlockTable id="pbt_poshipcontdtl" value="{!c.poOb.poshipcontdtls__r}" var="p" >
+		         					<apex:column headerValue="{!$Label.rstk__partitem}" value="{!p.poshipcontdtl_supreq__r.supreq_supitem__r.rstk__supitem_item__c}" style="width:120px;"/>
+		         					<apex:column headerValue="{!f_supreq.rstk__supreq_qtyreq__c.label}" style="width:130px;text-align:right;">
+				            			<c:outputFormattedNumber value="{!p.poshipcontdtl_supreq__r.rstk__supreq_qtyreq__c}" decimals="0"/>
+				            		</apex:column>
+		         				</apex:pageBlockTable>
+		         				</apex:outputPanel>
+		         			</div>
+		         		</apex:column>
+		         		<apex:column value="{!c.poOb.poshipcont_poship__r.rstk__poship_shipmentid__c}" style="width:90px;">
+		         			<apex:facet name="header">{!$Label.rstk__tmm} <br/>{!$Label.rstk__reference}</apex:facet>
+		         		</apex:column>
+		         		<apex:column value="{!c.poOb.poshipcont_poship__r.rstk__poship_destination__c}" style="width:90px;">
+		         			<apex:facet name="header">{!$Label.rstk__inbound} <br/>{!$Label.rstk__shipmentdestination}</apex:facet>
+		         		</apex:column>
+		         		<apex:column headerValue="{!f.rstk__poshipcont_containerid__c.label}" style="width:90px;">
+		                    <apex:outputLink value="{!URLFOR($Action.rstk__poshipcont__c.View, c.poOb.id)}{!ReturnUrlParms}">{!c.poOb.rstk__poshipcont_containerid__c}</apex:outputLink>
+		                </apex:column>
+		                <apex:column value="{!c.poOb.poshipcont_poship__r.rstk__poship_bookingno__c}" style="width:90px;">
+		                	<apex:facet name="header">{!$Label.rstk__booking} <br/>{!$Label.rstk__number}</apex:facet>
+		                </apex:column>
+		                <apex:column value="{!c.poOb.poshipcont_poship__r.rstk__poship_comments2__c}" style="width:90px;">
+		                	<!-- <apex:facet name="header">{!$Label.Shipment} <br/>{!$Label.pagetab_socontainer_Comments} </apex:facet> -->
+		                	<apex:facet name="header">{!$Label.rstk__poshipstepgrid_loading_site} </apex:facet>
+		                </apex:column>
+		                 <apex:column value="{!c.poOb.rstk__poshipcont_poconttype__c}" style="width:90px;">
+		                	<apex:facet name="header">{!$Label.rstk__container_type}</apex:facet>
+		                </apex:column>
+		                <apex:column value="{!c.poOb.rstk__poshipcont_serialno__c}" style="width:90px;">
+		                	<apex:facet name="header">{!$Label.rstk__pagetitle_socontainer}  <br/>{!$Label.rstk__number}</apex:facet>
+		                </apex:column>
+		                <apex:column value="{!c.poOb.poshipcont_poship__r.rstk__poship_currduedate__c}" style="width:90px;">
+		         			<apex:facet name="header">{!$Label.rstk__current} <br/> {!$Label.rstk__due_date}</apex:facet>
+		         		</apex:column>
+		         		<apex:column headerValue="{!$Label.rstk__carrierid}" value="{!c.poOb.poshipcont_poship__r.poship_carrier__r.rstk__sycarrier_id__c}" style="width:90px;"/>
+		         		<apex:column value="{!c.poOb.rstk__poshipcont_reeferloop__c}" style="width:50px;">
+		         			<apex:facet name="header">{!$Label.rstk__container_release} <br/> {!$Label.rstk__paperwork_attached}</apex:facet>
+		         		</apex:column>
+		         		<apex:column headerValue="{!f.rstk__poshipcont_comment__c.label}" value="{!c.poOb.rstk__poshipcont_comment__c}" style="width:90px;"/>
+		         		<apex:column headerValue="{!$Label.rstk__inboundcontainers_requisitions}" style="width:40px;">
+		         			<c:nosubmitbutton label="{!$Label.rstk__inboundcontainers_requisitions}" onclick="return showPoshipcontDtl('{!c.poOb.id}');" />
+		         		</apex:column>
+		         		<apex:column style="width:90px" headerValue="{!$Label.rstk__pagetab_pjwkb_notesandattachments}" >
+							<apex:outputPanel rendered="{!AND(c.poOb.id != null,OR(c.numofNotes > 0,c.numofAttachment > 0 ))}">
+									<a id="notesBtn{!c.poOb.id}" href="#" onclick="return showNotesAndAttachments('{!c.poOb.id}');"
+	                             style="font-weight:bold;word-wrap:break-word;">{!$Label.InboundContainers_Notes}({!c.numofNotes}) &amp; {!$Label.Attachments}({!c.numofAttachment})</a>
+							</apex:outputPanel>
+							<apex:outputPanel rendered="{!AND(c.poOb.id != null, c.numofNotes == 0,c.numofAttachment == 0 )}">
+								{!$Label.InboundContainers_Notes}({!c.numofNotes}) &amp; {!$Label.Attachments}({!c.numofAttachment})
+							</apex:outputPanel>
+						</apex:column>
+		         	</apex:pageBlockTable>
+	         	</apex:outputPanel>
+			</apex:pageBlockSection>
+        </apex:pageBlock>
+	</apex:form>
+	
+	<c:footerInclude cntr="{!controller}" />
+</apex:page>

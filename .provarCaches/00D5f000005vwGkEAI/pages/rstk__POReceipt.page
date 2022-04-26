@@ -1,0 +1,445 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_poreceipt}" standardController="rstk__porcpt_ui__c" extensions="rstk.ControllerExtnPOReceipt,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__porcpt_ui__c}" />
+    <apex:variable var="shipto" value="{!pohdraddr}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__porcpt_ui__c.fields}" />
+    <apex:variable var="plf" value="{!$ObjectType.rstk__poline__c.fields}" />
+    <apex:variable var="af" value="{!$ObjectType.rstk__pohdraddr__c.fields}" />
+    <apex:variable var="lif" value="{!$ObjectType.rstk__iclocitem__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poreceipt}" customInclude="{!$Resource.rstk__porcpt_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+
+    <style>
+        .rcptinput{
+            width:60px;
+            text-align:right; 
+        }
+        .dateFormat{
+           display:none;
+        }
+    </style>    
+    <script>
+    	var ispartialbackflushEl;
+    	var performpartialbackflushEl;
+    	var requestPohdrId = "{!requestPohdrId}";
+        var isUseAutoRcptNo = {!IsUseAutoRcptNo};
+        jQuery(document).ready(function() {
+            jQuery(".wrappingHeader").parent().parent().css('background-size','2px 120px');
+        });
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="onOrdnoChange" action="{!onOrdnoChange}" immediate="true" 
+            oncomplete="onRetrievePO(); unblockUI()"   
+            rerender="pohdr_vendno__c, shipToInfo, pbt_porcvlines, porcv_rcptno__c, submit, pageMessages">
+            <apex:param name="initLotNoFromRcptno" assignTo="{!initLotNoFromRcptno}" value="" />
+            <apex:param name="initCommentsFromRcptno" assignTo="{!initCommentsFromRcptno}" value="" />
+            <apex:param name="pohdrId" assignTo="{!pohdrId}" value="" />
+            <apex:param name="isreload" assignTo="{!isreload}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="getRcptno" action="{!getRcptno}" immediate="true" 
+            oncomplete="setLotnoAndComment();unblockUI();"   
+            rerender="porcv_rcptno__c, pageMessages">
+        </apex:actionFunction>
+        <apex:actionFunction name="clearReceiptNumber" action="{!clearReceiptNumber}" immediate="true" 
+            oncomplete="unblockUI();"   
+            rerender="porcv_rcptno__c, pageMessages">
+        </apex:actionFunction>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" />
+        <apex:actionFunction name="processSelected" action="{!processSelected}" oncomplete="receiptComplete();" rerender="pageMessages, op_JobStatus"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            <input type="hidden" id="receiptSuccess" value="{!receiptSuccess}"/>
+            <apex:inputCheckbox id="ispartialbackflush" value="{!o.rstk__dtl_ispartialbackflush__c}" style="display:none;"/>
+            <apex:inputCheckbox id="performpartialbackflush" value="{!o.rstk__dtl_performpartialbackflush__c}" style="display:none;"/>
+            <script>
+                ispartialbackflushEl = document.getElementById("{!$Component.ispartialbackflush}");
+                performpartialbackflushEl = document.getElementById("{!$Component.performpartialbackflush}");
+            </script>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <apex:commandButton id="refresh" onclick="window.location.replace(window.location); return false;" value="{!$Label.rstk__pagebtn_poreceipt_refreshpage}" style="width:125px"/>
+                <apex:commandButton id="submit" onclick="if(doValidate()){doSetFFCompanyAndProcess(performReceipt);} return false;" value="{!$Label.rstk__pagebtn_poreceipt_performreceipt}" style="width:125px" disabled="{!porcvlines.size=0}"/>
+            </apex:pageBlockButtons>
+        
+        <c:division id="porcv_div__c" cntr="{!controller}" disabled="true"/>
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_pohdr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__porcv_pohdr__c.label}"/>
+                <c:selectList id="porcv_pohdr__c" required="true" cntr="{!controller}" options="{!pohdrs}" tabIndex="2"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_rcptno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__porcv_rcptno__c.label}"/>
+                <apex:inputText id="porcv_rcptno__c" value="{!o.rstk__porcv_rcptno__c}" disabled="true"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_packslipno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__porcv_packslipno__c.label}"/>
+                <apex:inputField id="porcv_packslipno__c" value="{!o.rstk__porcv_packslipno__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_lotno_chkboxind__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__porcv_lotno_chkboxind__c.label}"/>
+                <apex:inputField id="porcv_lotno_chkboxind__c" value="{!o.rstk__porcv_lotno_chkboxind__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_vendname__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__porcv_vendname__c.label}"/>
+                <apex:outputField id="pohdr_vendno__c" value="{!pohdr.rstk__pohdr_vendno__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_loccomments_chkboxind__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__porcv_loccomments_chkboxind__c.label}"/>
+                <apex:inputCheckbox id="porcv_loccomments_chkboxind__c" value="{!o.rstk__porcv_loccomments_chkboxind__c}" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_shiptoaddr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__porcv_shiptoaddr__c.label}"/>
+                <apex:outputPanel id="shipToInfo">
+                    <apex:outputPanel rendered="{!showAddr}">
+                        <c:outputAddress object="{!shipto}" prefix="pohdraddr" />
+                    </apex:outputPanel> 
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:inputField id="porcv_txndate__c" value="{!o.rstk__porcv_txndate__c}" rendered="{!displayTxnDate}"/>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_rcvall__c.inlineHelpText}" rendered="{!!isNoDefaultSel}">
+                <apex:outputPanel style="width:150px;" layout="block">
+                    <apex:inputField id="porcv_rcvall__c" value="{!o.rstk__porcv_rcvall__c}"/>
+                    <apex:outputLabel value="{!f.rstk__porcv_rcvall__c.label}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+
+        </apex:pageBlockSection>
+        
+                <apex:pageBlockSection id="pbs_porcvlines" showHeader="false" title="{!$Label.rstk__poreceiptlines}" columns="1" collapsible="false">
+                    <apex:pageBlockTable id="pbt_porcvlines" value="{!porcvlines}" var="d">
+                        <apex:column width="10px">
+                            <apex:facet name="header"><div class="wrappingHeader"><br/>{!$Label.rstk__receive}</div></apex:facet>
+                            <apex:inputCheckbox id="rcvln_selectline__c" value="{!d.selectLine}" />
+                            <apex:outputPanel id="errorMessage"><c:errorimage rendered="{!d.errorMessage != null}" title="{!d.errorMessage}"/></apex:outputPanel>
+                        </apex:column>
+                        <apex:column width="10px">
+                            <apex:facet name="header"><div class="wrappingHeader"><br/>{!$Label.rstk__poreceipt_line}</div></apex:facet>
+                            <a href="/{!d.poline.Id}"
+                              id="{!d.poline.Id}"
+                              onblur="LookupHoverDetail.getHover('{!d.poline.Id}').hide();"
+                              onfocus="LookupHoverDetail.getHover('{!d.poline.Id}', '/{!d.poline.Id}/m?retURL=%2F{!d.poline.Id}&isAjaxRequest=1').show();"
+                              onmouseout="LookupHoverDetail.getHover('{!d.poline.Id}').hide();"
+                              onmouseover="LookupHoverDetail.getHover('{!d.poline.Id}', '/{!d.poline.Id}/m?retURL=%2F{!d.poline.Id}&isAjaxRequest=1').show();">
+                            {!d.line}
+                            </a>
+                            <apex:inputHidden id="icitemid__c" value="{!d.poline.poline_item__r.rstk__poitem_item__c}"/>
+                            <apex:inputHidden id="rcvln_dbid__c" value="{!d.poline.id}"/>
+                            <apex:inputHidden id="rcvln_potype__c" value="{!d.poline.rstk__poline_potype__c}"/>
+                            <apex:inputHidden id="rcvln_qtyoutstdg__c" value="{!d.poline.rstk__poline_qtyoutstdg__c}"/>
+                            <apex:inputHidden id="rcvln_rcptlocid_ui__c" value="{!d.slink.rstk__sylocid__c}"/>
+                            <apex:inputHidden id="rcvln_qtydecimal__c" value="{!d.poline.poline_item__r.rstk__formula_qtydecimal__c}"/>
+                            <apex:inputHidden id="rcvln_overrcptind__c" value="{!d.poline.rstk__poline_overrcptind__c}"/>
+                            <apex:inputHidden id="rcvln_tracksrl__c" value="{!d.peitemTracksrl}"/>
+                            <!--<apex:inputHidden id="rcvln_locid__c" value="{!d.locId}" rendered="{!!d.isLocEnabled}"/>
+                            <apex:inputHidden id="rcvln_locnum__c" value="{!d.locNum}" rendered="{!!d.isLocEnabled}"/>-->
+                        </apex:column>
+                        <apex:column value="{!d.poline.rstk__poline_item__c}">
+                            <apex:facet name="header"><div class="wrappingHeader"><br/>{!plf.rstk__poline_item__c.label}</div></apex:facet>
+                        </apex:column>
+                        <apex:column value="{!d.poline.rstk__poline_proj__c}">
+                            <apex:facet name="header"><div class="wrappingHeader"><br/>{!plf.rstk__poline_proj__c.label}</div></apex:facet>
+                        </apex:column>
+                        <!-- apex:column headerValue="{!plf.poline_longdescr__c.label}" value="{!d.poline.poline_longdescr__c}" width="200px"/ -->
+                        <apex:column style="text-align:right;">
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__qty_remaining_br_po_line}<br/>{!$Label.rstk__po_line}</div></apex:facet>
+                            <c:outputFormattedNumber decimals="{!d.poline.poline_item__r.rstk__formula_qtydecimal__c}"
+                                value="{!d.poline.rstk__poline_qtyoutstdg__c}" />
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__receipt_br_qty}<br/>{!$Label.rstk__poreceipt_qty}</div></apex:facet>
+                            <apex:inputText id="rcvln_qtyrcvd__c" value="{!d.qtyRcvdText}" onkeypress="return filterNonNumeric(event, this)" styleClass="rcptinput"/>
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__location_br_id}<br/>{!$Label.rstk__poreceipt_id}</div></apex:facet>
+                            <apex:outputPanel rendered="{!d.isLocEnabled}">
+                                <c:largeSelectList id="rcvln_locid__c" value="{!d.locId}" useValue="true" cntr="{!controller}" width="150px" options="{!d.sylocids}"/>
+                            </apex:outputPanel>
+                            <apex:outputField value="{!d.slink.rstk__sylocid__c}" rendered="{!!d.isLocEnabled}" />
+                        </apex:column>
+                        <apex:column >
+                        	<apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__location_br_number}<br/>{!$Label.rstk__number}</div></apex:facet>
+                            <apex:inputText id="rcvln_locnum__c" value="{!d.locNum}" rendered="{!d.isLocEnabled}" size="16" maxlength="20"/>
+                            <apex:outputText value="{!d.locNum}" rendered="{!!d.isLocEnabled}"/>
+                        </apex:column>
+                        <apex:column value="{!d.poline.rstk__poline_schedrcptdte__c}">
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__expected_br_rec_date}<br/>{!$Label.rstk__rec_date}</div></apex:facet>
+                        </apex:column>
+                        <apex:column value="{!d.poline.rstk__poline_puruom__c}">
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__purch_br_uom}<br/>{!$Label.rstk__poreceipt_uom}</div></apex:facet>
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__lot_br_numbers}<br/>{!$Label.rstk__poreceipt_lot_br_numbers}</div></apex:facet>
+                            <apex:inputText id="rcvln_lotno__c" value="{!d.lotNo}" size="15" maxLength="30" rendered="{!!d.isIndirectMtl && d.isLot}"/>
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__multiple_br_lots}<br/>{!$Label.rstk__poreceipt_multiple_br_lots}</div></apex:facet>
+                            <apex:outputPanel id="multiplelotpanel" rendered="{!!d.isIndirectMtl && d.isLot && !d.isSrl}">
+                                <a id="multiplelota{!d.line}" onclick="setFrameSrc('{!d.line}','{!d.poline.id}','{!batchnumber}','{!$Component.rcvln_qtyrcvd__c}','{!$Component.rcvln_lotno__c}','{!$Component.lot_expirationdate__c}','{!$Component.rcvln_lotref__c}','{!d.poline.poline_item__r.rstk__formula_qtydecimal__c}','{!d.poline.poline_item__r.rstk__poitem_item__c}','{!d.expdatereqdfrm}');_showDialog('multiplelotpopup{!d.line}',838);return false;" href="javascript:{}">{!$Label.edit_Lot_Nos}</a>
+                                <c:Popup popupId="multiplelotpopup{!d.line}" title="{!$Label.rstk__multiple_lots}" cancelCaption="Close" onCancel="blockUI();reRenderLotFields('{!d.line}','{!d.poline.id}','{!batchnumber}','{!$Component.rcvln_lotno__c}','{!$Component.lot_expirationdate__c}','{!$Component.rcvln_lotref__c}');">
+                                    <iframe id="multiplelotpopupframe{!d.line}" height="280px" width="800px" frameborder="0"></iframe>
+                                </c:Popup>
+                            </apex:outputPanel>
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__lot_expiration_br_date}<br/>{!$Label.rstk__poreceipt_date}</div></apex:facet>
+                            <apex:inputField id="lot_expirationdate__c" value="{!d.zzsobj.rstk__zzsobj_date__c}" rendered="{!!d.isIndirectMtl && d.isLot}"/>
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader">{!f.rstk__dtl_lotref__c.label}</div></apex:facet>
+                            <apex:inputText id="rcvln_lotref__c" value="{!d.lotRef}" size="10" maxLength="50" rendered="{!!d.isIndirectMtl && d.isLot}"/>
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__serial_br_numbers}<br/>{!$Label.rstk__poreceipt_lot_br_numbers}</div></apex:facet>
+                            <apex:outputPanel rendered="{!!d.isIndirectMtl && d.isSrl}">
+                                <a rel="#srlnums{!d.line}" href="javascript:{}">{!$Label.edit_Serial_Nos}</a> 
+                                <div class="overlayStyle" id="srlnums{!d.line}" style="text-align:center;">
+                                    <table class="list">
+                                        <tr class="headerRow"><th>{!$Label.Serial_Numbers}</th></tr>
+                                        <tr>
+                                            <td>
+                                                <table style="font-size:8pt;">
+                                                <tr><td align="right" style="font-weight:bold;">{!$Label.POReceipt_Start}</td><td><apex:inputText id="start_srlno__c"  size="31" maxlength="30" style="font-size:8pt;"/></td><td></td></tr>
+                                                <tr><td align="right" style="font-weight:bold;">{!$Label.POReceipt_End}</td><td><apex:inputText id="end_srlno__c"  size="31" maxlength="30" style="font-size:8pt;"/></td><td><input type="button" value="{!$Label.Generate}" onclick="createSrlNoRange('{!$Component.start_srlno__c}', '{!$Component.end_srlno__c}', '{!$Component.rcvln_srlnums__c}', '{!$Component.rcvln_qtyrcvd__c}', {!(d.line+1)});"/></td></tr>
+                                                <tr><td align="right" style="font-weight:bold;"></td><td><apex:inputTextarea id="rcvln_srlnums__c" value="{!d.srlNos}" rows="10" cols="50" onfocus="createSrlNoRange('{!$Component.start_srlno__c}', '{!$Component.end_srlno__c}', '{!$Component.rcvln_srlnums__c}', '{!$Component.rcvln_qtyrcvd__c}', {!(d.line+1)});"/></td><td></td></tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <a class='close' href='javascript:{setSrlNumLinks()}'>{!$Label.pagebtn_wocst_Close}</a>
+                                </div>
+                            </apex:outputPanel>
+                        </apex:column>
+                        <apex:column rendered="false">
+                            <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__address_br_override}<br/>{!$Label.rstk__override}</div></apex:facet>
+                          <apex:outputPanel rendered="{!!ISNULL(d.shipToAddr)}">
+                          <a rel="#addrOverride{!d.line}" href="javascript:{}">{!LEFT(d.shipToAddr.polineaddr_street__c,15)} ...</a> 
+                          <div class="overlayStyle" id="addrOverride{!d.line}" style="text-align:center; max-width=600px">
+                            <table class="list">
+                                <tr class="headerRow"><th>{!$Label.Ship_To_Address_Override}</th></tr>
+                                <tr><td>
+                                    <c:outputAddress object="{!d.shipToAddr}" prefix="polineaddr"/>
+                                </td></tr> 
+                            </table>
+                            <a class='close' href='javascript:{}'>{!$Label.pagebtn_wocst_Close}</a>
+                          </div>
+                          </apex:outputPanel>
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader"><br/>{!$Label.rstk__poreceipt_comments}</div></apex:facet>
+                            <apex:outputPanel rendered="{!!d.isIndirectMtl}">
+                                <a rel="#loccomments{!d.line}" href="javascript:{}">{!$Label.edit_comments}</a> 
+                                <div class="overlayStyle" id="loccomments{!d.line}" style="text-align:center;">
+                                    <table class="list">
+                                        <tr class="headerRow"><th>{!$Label.Location_Comments}</th></tr>
+                                        <tr><td>
+                                            <apex:inputTextarea id="rcvln_loccomments__c" value="{!d.loccomments}" rows="4" cols="26"/>
+                                            <script>document.getElementById("{!$Component.rcvln_loccomments__c}").maxLength = 100;</script>
+                                        </td></tr> 
+                                    </table>
+                                    <a class='close' href='javascript:{setLocCommentsLinks()}'>{!$Label.pagebtn_wocst_Close}</a>
+                                </div>
+                            </apex:outputPanel>
+                        </apex:column>
+                        <apex:column >
+                            <apex:facet name="header"><div class="wrappingHeader"/></apex:facet>
+                                <input rel="#details{!d.line}" type="button" class="btn" value="{!$Label.POReceipt_Details}"/> 
+                            <div class="overlayStyle" id="details{!d.line}" style="text-align:center;width:600px;">
+                            <apex:pageBlock >
+                                <apex:pageBlockSection >
+                                    <input type="Button" class="btn" value="{!$Label.Approved_Manufacturers}" onclick="return openApprvMfrs('{!d.poline.Id}');" />
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_schedrcptdte__c.inlineHelpText}">                                                                                                                 
+                                        <apex:outputLabel value="{!plf.rstk__poline_schedrcptdte__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_schedrcptdte__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_duedte__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_duedte__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_duedte__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_effrev__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_effrev__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_effrev__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_vendshipdte__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_vendshipdte__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_vendshipdte__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_respinv__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_respinv__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_respinv__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_potype__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_potype__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_potype__c}" />   
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_poumcf__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_poumcf__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_poumcf__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_receiptsite__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_receiptsite__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_receiptsite__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_rcptlocnum__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_rcptlocnum__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_rcptlocnum__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_rcptlocid__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_rcptlocid__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_rcptlocid__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_soorddmd__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_soorddmd__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_soorddmd__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_overrcptind__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_overrcptind__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_overrcptind__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_intersystem__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_intersystem__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_intersystem__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_intracompany__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_intracompany__c.label}"/>
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_intracompany__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_printnotes__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_printnotes__c.label}" />
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder3">&nbsp;</td><td class="noborder4">
+                                            <apex:outputField value="{!d.poline.rstk__poline_printnotes__c}" />
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>                
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_unitprice__c.inlineHelpText}" rendered="{!showPOPrice}">
+                                        <apex:outputLabel value="{!plf.rstk__poline_unitprice__c.label}" />
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder1">&nbsp;</td><td class="noborder2">
+                                            <apex:outputField value="{!d.poline.rstk__poline_unitprice__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>                
+                                    <apex:pageBlockSectionItem rendered="{!!showPOPrice}"><apex:outputText value=""/></apex:pageBlockSectionItem>                   
+                                </apex:pageBlockSection>                        
+                                <apex:pageBlockSection id="pbs_Notes" showHeader="false" columns="1">
+                                    <apex:pageBlockSectionItem helpText="{!plf.rstk__poline_notes__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!plf.rstk__poline_notes__c.label}" />
+                                        <apex:outputPanel ><table width="100%"><tr><td class="noborder3">&nbsp;</td><td class="noborder4">
+                                            <apex:outputField value="{!d.poline.rstk__poline_notes__c}"/>
+                                        </td></tr></table></apex:outputPanel>
+                                    </apex:pageBlockSectionItem>                
+                                </apex:pageBlockSection>
+                            </apex:pageBlock>
+                            <a class='close' href='#'>{!$Label.pagebtn_wocst_Close}</a>
+                            </div>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                    <script> sublistEl = "{!$Component.pbt_porcvlines}";</script>
+             </apex:pageBlockSection>
+     </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+     <script>
+        var Quantity = "{!$Label.PleaseEnterQuantityGraeterThanZero}";     
+        var WholeNumber = "{!$Label.QuantityMustBeWholeNumber}"; 
+        var Decimal = "{!$Label.QuantityCannotExceedDecimal}";           
+        var QuantityPO = "{!$Label.PleaseEnterQuantityPOQuantityOutstanding}";     
+        var MfgItems = "{!$Label.CanOnlySetDisplayNameForMfgItems}"; 
+        var Fields = "{!$Label.CannotChangeTheValueOfAnyFields}";        
+        var Receipt = "{!$Label.CannotReverseItemReceipt}";     
+        var AnyField = "{!$Label.CannotChangeTheValueOfAnyField}";        
+        var DirectItem = "{!$Label.LocationCannotBeChangedForDirectItem}";     
+        var LocID = "{!$Label.CannotSetLocIDForThisItem}"; 
+        var Locations = "{!$Label.DisItemsMayOnlyBeReceivedIntoNonNettableLocations}";           
+        var HandLocation = "{!$Label.ItemMayOnlyBeReceivedIntoAnOnHandLocation}";     
+        var LocNum = "{!$Label.CannotSetLocNumForThisItem}"; 
+        var Backflush = "{!$Label.CannotReceiveNonBackflushItemIntoBackflushLocation}";        
+        var POCharges = "{!$Label.POChargesAreNotAllowedForThisProj}";     
+        var Core = "{!$Label.CannotReceiveCoreForDisassembly}"; 
+        var LocationIdAndNumber = "{!$Label.CannotRecCoreForDisLocationIdAndNumber}";           
+        var Rec = "{!$Label.CanIncQuantityForAnOrderThatHasAlreadyRec}";     
+        var ReduceQuantity = "{!$Label.CanntReduceQuantityToZero}"; 
+        var Exceeed = "{!$Label.QuantityCannotExceeedForSerializedItem}";        
+        var Operation = "{!$Label.OverReceiptNotAllowedForOutsideOperation}";     
+        //FIXME"[Label.FollowingSerialNumExceedMaximumLength]"; This gives a syntax error
+        var NumExceed = "The following serial numbers exceed the maximum length of # MAX# characters: #tooLong#";        
+        var SingleLot = "{!$Label.CanOnlyRecieveIntoSingleLot}";     
+        var FutureDate = "{!$Label.AFutureDateIsNotAllowed}"; 
+        var Comments = "{!$Label.CanOnlySetLocationCommentsForMfgItems}";           
+        var Provided = "{!$Label.LocIDMustBeProvidedForAllMfgItems}";     
+        var LocNo = "{!$Label.LocNoMustBeProvidedForAllMfgItems}"; 
+        var Pending = "{!$Label.AnotherRecAgainstPOIsCurrentlyPending}";        
+        var Reverse = "{!$Label.CannotReverseAllLinesIndividually}";     
+        var Received = "{!$Label.TheFollowingLinesCannotBeReceived}"; 
+        var AllowAccept = "{!$Label.POReceiptOperationIsNotSetToAllowAccept}";           
+        var Routing = "{!$Label.TheyHaveNoPOReceiptRouting}";     
+        var AcceptOnly = "{!$Label.POReceiptRoutingIsNotSetToAcceptOnly}"; 
+        var ABackflush = "{!$Label.ABackflushLocationAlreadyExistsForItem}";        
+        var DivAndItem = "{!$Label.VendorBackflushLocationForThisDivAndItem}";     
+        var LabelQuantity = "{!$Label.LabelQuantityBustBeNumberOfSerialItems}";        
+        var Subcontract = "{!$Label.APOSubcontractDemandThatIsToBBackflushed}";     
+        var POSubcontract = "{!$Label.APOSubcontractDemandThatIsBeBackflushed}"; 
+        var Insufficient = "{!$Label.CannotBackflushIssuePODemandAsInsufficientQuantity}"; 
+        var LabelLayout = "{!$Label.PleaseSelectALabelLayout}";   
+        var Print = "{!$Label.NothinSelectedToPrint}";        
+                                                                              
+        var LABEL_EnterValueForPackingSlipNumber = "{!$Label.EnterValueForPackingSlipNumber}";
+        var LABEL_ForSerialItem_Only400ItemsCanBeReceivedAtATime = "{!$Label.ForSerialItem_Only400ItemsCanBeReceivedAtATime}";
+        var LABEL_ReceiptQty_NserialsEntered_Enter_MoreSrlNums = "{!$Label.ReceiptQty_NserialsEntered_Enter_MoreSrlNums}";
+        var LABEL_ReceiptQty_serialsEntered_Delete_SrlNums = "{!$Label.ReceiptQty_serialsEntered_Delete_SrlNums}";
+        var LABEL_ReceiptQtyWillBeSetToNumberOfSerialsEntered = "{!$Label.ReceiptQtyWillBeSetToNumberOfSerialsEntered}";
+        var LABEL_InvalidPONumber = "{!$Label.InvalidPONumber}";
+        var LABEL_POReceiptCompletedSuccessfully = "{!$Label.POReceiptCompletedSuccessfully}";
+        var LABEL_ReceiptNumber = "{!$Label.ReceiptNumber}";
+        var LABEL_Refreshing_page = "{!$Label.Refreshing_page}";
+        var LABEL_POReceipt_Line = "{!$Label.POReceipt_Line}";
+        var LABEL_There_isn_t_sufficient_quantity_to_backflush_one_or_more_components = "{!$Label.There_isn_t_sufficient_quantity_to_backflush_one_or_more_components}";
+    </script>
+</apex:page>

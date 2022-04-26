@@ -1,0 +1,554 @@
+<apex:page id="pg" standardController="rstk__sycmp__c" extensions="rstk.ControllerExtnSycmp" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sycmp__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sycmp__c.fields}" /> 
+    
+    <!-- FOR LIGHTNING - DON'T USE html xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <apex:stylesheet value="{!URLFOR($Resource.SLDS0101, 'assets/styles/salesforce-lightning-design-system-vf.css')}" />
+<div class="slds"-->    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sycmp}" customInclude="{!$Resource.rstk__sycmp_cli}"/>
+    
+    <script>
+    	var isFFA = {!isFFA};
+    	var isRSF = {!isRSF};
+   	</script>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doDeleteDimval" action="{!doDeleteDimval}" oncomplete="unblockUI();window.location.reload();" rerender="pageMessages, theTabPanel"/>
+        <apex:actionFunction name="updateARBalance" action="{!doUpdateARBalance}" 
+            oncomplete="unblockUI(); return false;" rerender="op_updateARBalance, pageMessages" immediate="false" />
+        <!--added on 09-June-2015 by Saasfocus-->
+        <apex:actionFunction name="updateIntacctARBalance" action="{!doUpdateIntacctARBalance}" 
+            oncomplete="unblockUI(); return false;" rerender="op_updateARBalance, pageMessages" immediate="false" />
+        <apex:actionFunction name="ImportIntacctGLAccounts" action="{!doImportIntacctGLAccounts}" immediate="true"/>   
+        <apex:actionFunction name="SyncVendorswithIntacct" action="{!doSyncVendorswithIntacct}" immediate="true"/>
+        <apex:actionFunction name="doMfgacctdivchanged" action="{!doMfgacctdivchanged}" oncomplete="unblockUI();" immediate="false" rerender="op_sycmp_apclracct"/>   
+        <!--/added on 09-June-2015 by Saasfocus-->
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+            <!--added on 09-June-2015 by Saasfocus-->
+            <apex:commandButton id="btn_ImportIntacctGLAccounts" value="{!$Label.rstk__pagebtn_sycmp_importintacctglaccounts}" onclick="ImportIntacctGLAccounts(); return false;" rendered="{!actionType == 'view' && isIntacct}" />
+            <apex:commandButton id="btn_SyncVendorswithIntacct" value="{!$Label.rstk__pagebtn_sycmp_syncvendorswithintacct}" onclick="SyncVendorswithIntacct(); return false;" rendered="{!actionType == 'view' && isIntacct}" />
+            <!--/added on 09-June-2015 by Saasfocus-->
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <input type="hidden" id="deleteDimvalId__c" name="deleteDimvalId__c" />
+        </apex:outputPanel>
+
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_cmpno__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_cmpno__c.label}" />
+                <c:inputText id="sycmp_cmpno__c" cntr="{!controller}" required="true" maxlength="5" tabIndex="1"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_descr__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_descr__c.label}" />
+                <c:inputText id="sycmp_descr__c" cntr="{!controller}" required="true" tabIndex="2"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_engdivind__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_engdivind__c.label}" />
+                <c:inputCheckbox id="sycmp_engdivind__c" cntr="{!controller}" tabIndex="3" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_currmethod__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_currmethod__c.label}"/>
+                <c:inputField id="sycmp_currmethod__c" cntr="{!controller}" tabIndex="21" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_engdiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_engdiv__c.label}"/>
+                <c:selectList id="sycmp_engdiv__c" cntr="{!controller}" options="{!sydivsForCompany}"  tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            <!-- 
+            <apex:pageBlockSectionItem helpText="{!f.sycmp_currautoupdate__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.sycmp_currautoupdate__c.label}"/>
+                <c:inputCheckbox id="sycmp_currautoupdate__c" cntr="{!controller}" disabled="true" tabIndex="22"/>
+            </apex:pageBlockSectionItem>  -->
+            
+            <!-- RSTK-3578 - Made homecurrency as a required field -->
+            <!-- Modified by: Parthiban C -->
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_homecurr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sycmp_homecurr__c.label}"/>
+                <c:selectList id="sycmp_homecurr__c" cntr="{!controller}" required="true" options="{!Currencies}" tabIndex="23"/>
+            </apex:pageBlockSectionItem>
+            <!--  -->
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_mfgacctdiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_mfgacctdiv__c.label}"/>
+                <c:selectList id="sycmp_mfgacctdiv__c" cntr="{!controller}" required="false" options="{!sydivsForCompany}" tabIndex="5" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_ff_company__c.inlineHelpText}" rendered="{!isAccsysExists}">
+                <apex:outputLabel value="{!f.rstk__sycmp_ff_company__c.label}"/>
+                <c:selectList id="sycmp_ff_company__c" cntr="{!controller}" options="{!AccountingCompanies}" slDesc="{!AccountingCompanyDesc}" slLink="{!AccountingCompanyLink}" tabIndex="24"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!!isAccsysExists}" />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_buydiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_buydiv__c.label}"/>
+                <c:selectList id="sycmp_buydiv__c" cntr="{!controller}" options="{!sydivsForCompany}"  tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_logscaleopt__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sycmp_logscaleopt__c.label}"/>
+                <c:inputField id="sycmp_logscaleopt__c" cntr="{!controller}" tabIndex="9" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_salesdiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_salesdiv__c.label}"/>
+                <c:selectList id="sycmp_salesdiv__c" cntr="{!controller}" options="{!sydivsForCompany}"  tabIndex="11"/>
+            </apex:pageBlockSectionItem>          
+			
+			<apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_logourl__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sycmp_logourl__c.label}"/>
+                <apex:outputPanel >
+                    <apex:inputText value="{!o.rstk__sycmp_logourl__c}" rendered="{!!isView}" tabIndex="7"/>
+                    <apex:image value="{!o.rstk__sycmp_logourl__c}" rendered="{!isView}" style="max-height:40px;max-height:40px;"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_utcoffset__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_utcoffset__c.label}" />
+                <c:inputField id="sycmp_utcoffset__c" cntr="{!controller}" tabIndex="8"/>
+            </apex:pageBlockSectionItem>
+
+			<apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_intlogourl__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sycmp_intlogourl__c.label}"/>
+                <apex:outputPanel >
+                    <apex:inputText value="{!o.rstk__sycmp_intlogourl__c}" rendered="{!!isView}" tabIndex="7"/>
+                    <apex:image value="{!o.rstk__sycmp_intlogourl__c}" rendered="{!isView}" style="max-height:40px;max-height:40px;"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            	
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_revinv__c.inlineHelpText}" rendered="{!isRevControlledInventoryActive}">
+                <apex:outputLabel value="{!f.rstk__sycmp_revinv__c.label}"/>
+                <c:inputCheckbox id="sycmp_revinv__c" cntr="{!controller}" tabIndex="22"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!!isRevControlledInventoryActive}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_customfieldtabname__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sycmp_customfieldtabname__c.label}" />
+                <c:inputField id="sycmp_customfieldtabname__c" cntr="{!controller}" tabIndex="10" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputPanel id="op_updateARBalance">
+                    <apex:commandButton id="btn_updateARBalance" value="{!$Label.rstk__pagebtn_sycmp_updatearbalance}" onclick="blockUI();updateARBalance(); return false;" rendered="{!actionType == 'edit' && isAccsysExists}" /> &nbsp;
+                    <!--added on 09-June-2015 by Saasfocus-->
+                    <apex:commandButton id="btn_updateIntacctARBalance" value="{!$Label.rstk__pagebtn_sycmp_updateintacctarbalance}" onclick="blockUI();updateIntacctARBalance(); return false;" rendered="{!actionType == 'edit' && isIntacct}" /> &nbsp;
+                    <apex:outputLabel value="{!updARBalanceStatus}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        
+        <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_accounting}" name="tab_Accounting" id="tab_Accounting">
+                <apex:pageBlockSection id="pbs_Accounts" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_fifoact__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_fifoact__c.label}"/>
+                        <c:inputCheckbox id="sycmp_fifoact__c" cntr="{!controller}" tabIndex="21"/>
+                    </apex:pageBlockSectionItem>
+ 
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_divdivclracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_divdivclracct__c.label}"/>
+                        <c:largeSelectList id="sycmp_divdivclracct__c" cntr="{!controller}" options="{!GlAccounts}" tabIndex="22" />
+                    </apex:pageBlockSectionItem>
+                                        
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_apclracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_apclracct__c.label}"/>
+                        <apex:outputpanel id="op_sycmp_apclracct">
+                        	<c:largeSelectList id="sycmp_apclracct__c" cntr="{!controller}" options="{!syaccsAP}" tabIndex="23" />
+                       	</apex:outputpanel>
+                    </apex:pageBlockSectionItem>
+                   
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_poinvpricevaracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_poinvpricevaracct__c.label}"/>
+                        <c:largeSelectList id="sycmp_poinvpricevaracct__c" cntr="{!controller}" options="{!syaccsVar}" tabIndex="24" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_invrcptqtyvaracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_invrcptqtyvaracct__c.label}"/>
+                        <c:largeSelectList id="sycmp_invrcptqtyvaracct__c" cntr="{!controller}" options="{!syaccsVar}" tabIndex="25" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_rcptexchratevaracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_rcptexchratevaracct__c.label}"/>
+                        <c:largeSelectList id="sycmp_rcptexchratevaracct__c" cntr="{!controller}" options="{!syaccsVar}" tabIndex="26" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_arapbypass__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_arapbypass__c.label}"/>
+                        <c:inputCheckbox id="sycmp_arapbypass__c" cntr="{!controller}" tabIndex="27"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_arbypass_cogs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_arbypass_cogs__c.label}" />
+                        <c:inputCheckbox id="sycmp_arbypass_cogs__c" cntr="{!controller}" tabIndex="28" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_financialinterface}" name="tab_FinancialInterface" id="tab_FinancialInterface" rendered="{!isQBOMulticompanyActive}">
+                <apex:pageBlockSection id="pbs_FinancialInterface" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_qbprimecmp__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_qbprimecmp__c.label}"/>
+                        <c:inputCheckbox id="sycmp_qbprimecmp__c" cntr="{!controller}" tabIndex="28"/>
+                    </apex:pageBlockSectionItem>
+ 
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_qbcompany__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_qbcompany__c.label}" />
+                        <c:inputField id="sycmp_qbcompany__c" cntr="{!controller}" tabIndex="29"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_qbnamedcredential__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_qbnamedcredential__c.label}" />
+                        <c:inputField id="sycmp_qbnamedcredential__c" cntr="{!controller}" tabIndex="30"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_qbconsumerkey__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_qbconsumerkey__c.label}" />
+                        <c:inputField id="sycmp_qbconsumerkey__c" cntr="{!controller}" tabIndex="31"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_qbconsumerkeysecret__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_qbconsumerkeysecret__c.label}" />
+                        <c:inputField id="sycmp_qbconsumerkeysecret__c" cntr="{!controller}" tabIndex="32"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_qbtoken__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_qbtoken__c.label}" />
+                        <c:inputField id="sycmp_qbtoken__c" cntr="{!controller}" tabIndex="33"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_qbtokensecret__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_qbtokensecret__c.label}" />
+                        <c:inputField id="sycmp_qbtokensecret__c" cntr="{!controller}" tabIndex="34"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+<!--RCB: 21127-->
+            <apex:tab label="{!$Label.rstk__sycmp_workday_config}" name="workday_config" id="workday_config" rendered="{!isWorkdayFinancials}" >
+                <apex:pageBlockSection id="pbs_workday_config" showHeader="false" columns="1" >
+<!--RCB: 22080-->
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_qbcompany__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_qbcompany__c.label}" />
+                        <c:inputField id="sycmp_qbcompany__c" cntr="{!controller}" tabIndex="29"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_wdcostcenterdim__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_wdcostcenterdim__c.label}" />
+                        <c:selectList id="sycmp_wdcostcenterdim__c" cntr="{!controller}" required="false" options="{!Dimensions}" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_wdrevcatdim__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_wdrevcatdim__c.label}" />
+                        <c:selectList id="sycmp_wdrevcatdim__c" cntr="{!controller}" required="false" options="{!Dimensions}" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_wdspendcatdim__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_wdspendcatdim__c.label}" />
+                        <c:selectList id="sycmp_wdspendcatdim__c" cntr="{!controller}" required="false" options="{!Dimensions}" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_wdworktagdim__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_wdworktagdim__c.label}" />
+                        <c:selectList id="sycmp_wdworktagdim__c" cntr="{!controller}" required="false" options="{!Dimensions}" />
+                    </apex:pageBlockSectionItem>
+<!--RCB: 22778-->                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__SYCMP_WDINVUSER__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__SYCMP_WDINVUSER__c.label}" />
+                        <c:inputField id="sycmp_wdinvuser__c" cntr="{!controller}" tabIndex="29"/>
+                    </apex:pageBlockSectionItem>
+                    
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dimensions}" name="tab_Dimensions" id="tab_Dimensions">
+                <apex:pageBlockSection id="pbs_Dimensions" showHeader="false" columns="2">
+                	<apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_nodims__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sycmp_nodims__c.label}" />
+                        <c:inputField id="sycmp_nodims__c" cntr="{!controller}" tabIndex="30"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                	
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_numdims__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_numdims__c.label}" />
+                        <c:inputField id="sycmp_numdims__c" cntr="{!controller}" tabIndex="31"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_numdims__c}" rendered="{!AND(isView,!o.rstk__sycmp_nodims__c)}"/>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_dim1source__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_dim1source__c.label}" />
+                        <c:inputField id="sycmp_dim1source__c" cntr="{!controller}" tabIndex="32"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_dim1source__c}" rendered="{!AND(isView, 1 <= numdims)}"/>
+                    <apex:pageBlockSectionItem rendered="{!AND(isView, 1 > numdims)}" />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_dim5source__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_dim5source__c.label}" />
+                        <c:inputField id="sycmp_dim5source__c" cntr="{!controller}" tabIndex="36"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_dim5source__c}" rendered="{!AND(isView, 5 <= numdims)}"/>
+                    <apex:pageBlockSectionItem rendered="{!AND(isView, 5 > numdims)}" />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_dim2source__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_dim2source__c.label}" />
+                        <c:inputField id="sycmp_dim2source__c" cntr="{!controller}" tabIndex="33"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_dim2source__c}" rendered="{!AND(isView, 2 <= numdims)}"/>
+                    <apex:pageBlockSectionItem rendered="{!AND(isView, 2 > numdims)}" />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_dim6source__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_dim6source__c.label}" />
+                        <c:inputField id="sycmp_dim6source__c" cntr="{!controller}" tabIndex="37"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_dim6source__c}" rendered="{!AND(isView, 6 <= numdims)}"/>
+                    <apex:pageBlockSectionItem rendered="{!AND(isView, 6 > numdims)}" />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_dim3source__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_dim3source__c.label}" />
+                        <c:inputField id="sycmp_dim3source__c" cntr="{!controller}" tabIndex="34"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_dim3source__c}" rendered="{!AND(isView, 3 <= numdims)}"/>
+                    <apex:pageBlockSectionItem rendered="{!AND(isView, 3 > numdims)}" />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_dim7source__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_dim7source__c.label}" />
+                        <c:inputField id="sycmp_dim7source__c" cntr="{!controller}" tabIndex="38"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_dim7source__c}" rendered="{!AND(isView, 7 <= numdims)}"/>
+                    <apex:pageBlockSectionItem rendered="{!AND(isView, 7 > numdims)}" />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_dim4source__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_dim4source__c.label}" />
+                        <c:inputField id="sycmp_dim4source__c" cntr="{!controller}" tabIndex="35"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_dim4source__c}" rendered="{!AND(isView, 4 <= numdims)}"/>
+                    <apex:pageBlockSectionItem rendered="{!AND(isView, 4 > numdims)}" />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sycmp_dim8source__c.inlineHelpText}" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value="{!f.rstk__sycmp_dim8source__c.label}" />
+                        <c:inputField id="sycmp_dim8source__c" cntr="{!controller}" tabIndex="39"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:outputField value="{!o.rstk__sycmp_dim8source__c}" rendered="{!AND(isView, 8 <= numdims)}"/>
+                    <apex:pageBlockSectionItem rendered="{!AND(isView, 8 > numdims)}" />
+                    
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dim1values}" name="tab_Dim1Values" id="tab_Dim1Values" rendered="{!displayDim1vals}">
+                <apex:pageBlockSection id="pbs_Dim1Values" showHeader="false" columns="1">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sydim__c.New)}{!ReturnUrlParms}&dimnum=1">{!$Label.rstk__new_dimension1_value}</apex:outputLink>
+                    <apex:outputPanel id="op_Dim1Values">
+                        <apex:pageBlockTable value="{!sydim1s}" var="rec">
+                            <apex:column headerValue="{!$Label.rstk__delete}"><apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>
+                    		<!-- <apex:column headerValue="{!$Label.editanddelete}"><apex:outputLink value="{!URLFOR($Action.sydim__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.pagelink_Edit}</apex:outputLink>&nbsp;|&nbsp;<apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column> -->
+                            <apex:column headerValue="{!$ObjectType.rstk__sydim__c.fields.rstk__sydim_dimval__c.label}" value="{!rec.rstk__sydim_dimval__c}"/>
+                        </apex:pageBlockTable>
+                        <apex:panelGrid columns="6">
+                            <apex:commandLink status="fetchStatus1" reRender="op_Dim1Values" action="{!first1}">{!$Label.rstk__pglink_first}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus1" reRender="op_Dim1Values" action="{!previous1}" rendered="{!hasPrevious1}">{!$Label.rstk__pgllink_previous}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus1" reRender="op_Dim1Values" action="{!next1}" rendered="{!hasNext1}">{!$Label.rstk__pglink_next}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus1" reRender="op_Dim1Values" action="{!last1}">{!$Label.rstk__pagelink_peitem_last}</apex:commandlink>
+                            <apex:outputText >{!(pageNumber1 * size)+1-size}-{!IF((pageNumber1 * size)>noOfRecords1, noOfRecords1,(pageNumber1 * size))} of {!noOfRecords1}</apex:outputText>
+                            <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                <apex:actionStatus id="fetchStatus1" startText="Fetching..." stopText=""/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dim2values}" name="tab_Dim2Values" id="tab_Dim2Values" rendered="{!displayDim2vals}">
+                <apex:pageBlockSection id="pbs_Dim2Values" showHeader="false" columns="1">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sydim__c.New)}{!ReturnUrlParms}&dimnum=2">{!$Label.rstk__new_dimension2_value}</apex:outputLink>
+                    <apex:outputPanel id="op_Dim2Values">
+                        <apex:pageBlockTable value="{!sydim2s}" var="rec">
+                            <apex:column headerValue="{!$Label.rstk__delete}"><apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>
+                            <!-- <apex:column headerValue="{!$Label.editanddelete}"><apex:outputLink value="{!URLFOR($Action.sydim__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.pagelink_Edit}</apex:outputLink>&nbsp;|&nbsp;<apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column> -->
+                            <apex:column headerValue="{!$ObjectType.rstk__sydim__c.fields.rstk__sydim_dimval__c.label}" value="{!rec.rstk__sydim_dimval__c}"/>
+                        </apex:pageBlockTable>
+                        <apex:panelGrid columns="6">
+                            <apex:commandLink status="fetchStatus2" reRender="op_Dim2Values" action="{!first2}">{!$Label.rstk__pglink_first}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus2" reRender="op_Dim2Values" action="{!previous2}" rendered="{!hasPrevious2}">{!$Label.rstk__pgllink_previous}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus2" reRender="op_Dim2Values" action="{!next2}" rendered="{!hasNext2}">{!$Label.rstk__pglink_next}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus2" reRender="op_Dim2Values" action="{!last2}">{!$Label.rstk__pagelink_peitem_last}</apex:commandlink>
+                            <apex:outputText >{!(pageNumber2 * size)+1-size}-{!IF((pageNumber2 * size)>noOfRecords2, noOfRecords2,(pageNumber2 * size))} of {!noOfRecords2}</apex:outputText>
+                            <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                <apex:actionStatus id="fetchStatus2" startText="Fetching..." stopText=""/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dim3values}" name="tab_Dim3Values" id="tab_Dim3Values" rendered="{!displayDim3vals}">
+                <apex:pageBlockSection id="pbs_Dim3Values" showHeader="false" columns="1">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sydim__c.New)}{!ReturnUrlParms}&dimnum=3">{!$Label.rstk__new_dimension3_value}</apex:outputLink>
+                    <apex:outputPanel id="op_Dim3Values">
+                        <apex:pageBlockTable value="{!sydim3s}" var="rec">
+                            <apex:column headerValue="{!$Label.rstk__delete}"><apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>
+                            <!-- <apex:column headerValue="{!$Label.editanddelete}"><apex:outputLink value="{!URLFOR($Action.sydim__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.pagelink_Edit}</apex:outputLink>&nbsp;|&nbsp;<apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column> -->
+                            <apex:column headerValue="{!$ObjectType.rstk__sydim__c.fields.rstk__sydim_dimval__c.label}" value="{!rec.rstk__sydim_dimval__c}"/>
+                        </apex:pageBlockTable>
+                        <apex:panelGrid columns="6">
+                            <apex:commandLink status="fetchStatus3" reRender="op_Dim3Values" action="{!first3}">{!$Label.rstk__pglink_first}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus3" reRender="op_Dim3Values" action="{!previous3}" rendered="{!hasPrevious3}">{!$Label.rstk__pgllink_previous}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus3" reRender="op_Dim3Values" action="{!next3}" rendered="{!hasNext3}">{!$Label.rstk__pglink_next}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus3" reRender="op_Dim3Values" action="{!last3}">{!$Label.rstk__pagelink_peitem_last}</apex:commandlink>
+                            <apex:outputText >{!(pageNumber3 * size)+1-size}-{!IF((pageNumber3 * size)>noOfRecords3, noOfRecords3,(pageNumber3 * size))} of {!noOfRecords3}</apex:outputText>
+                            <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                <apex:actionStatus id="fetchStatus3" startText="Fetching..." stopText=""/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dim4values}" name="tab_Dim4Values" id="tab_Dim4Values" rendered="{!displayDim4vals}">
+                <apex:pageBlockSection id="pbs_Dim4Values" showHeader="false" columns="1">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sydim__c.New)}{!ReturnUrlParms}&dimnum=4">{!$Label.rstk__new_dimension4_value}</apex:outputLink>
+                    <apex:outputPanel id="op_Dim4Values">
+                        <apex:pageBlockTable value="{!sydim4s}" var="rec">
+                            <apex:column headerValue="{!$Label.rstk__delete}"><apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>
+                            <!-- <apex:column headerValue="{!$Label.editanddelete}"><apex:outputLink value="{!URLFOR($Action.sydim__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.pagelink_Edit}</apex:outputLink>&nbsp;|&nbsp;<apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column> -->
+                            <apex:column headerValue="{!$ObjectType.rstk__sydim__c.fields.rstk__sydim_dimval__c.label}" value="{!rec.rstk__sydim_dimval__c}"/>
+                        </apex:pageBlockTable>
+                        <apex:panelGrid columns="6">
+                            <apex:commandLink status="fetchStatus4" reRender="op_Dim4Values" action="{!first4}">{!$Label.rstk__pglink_first}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus4" reRender="op_Dim4Values" action="{!previous4}" rendered="{!hasPrevious4}">{!$Label.rstk__pgllink_previous}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus4" reRender="op_Dim4Values" action="{!next4}" rendered="{!hasNext4}">{!$Label.rstk__pglink_next}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus4" reRender="op_Dim4Values" action="{!last4}">{!$Label.rstk__pagelink_peitem_last}</apex:commandlink>
+                            <apex:outputText >{!(pageNumber4 * size)+1-size}-{!IF((pageNumber4 * size)>noOfRecords4, noOfRecords4,(pageNumber4 * size))} of {!noOfRecords4}</apex:outputText>
+                            <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                <apex:actionStatus id="fetchStatus4" startText="Fetching..." stopText=""/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dim5values}" name="tab_Dim5Values" id="tab_Dim5Values" rendered="{!displayDim5vals}">
+                <apex:pageBlockSection id="pbs_Dim5Values" showHeader="false" columns="1">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sydim__c.New)}{!ReturnUrlParms}&dimnum=5">{!$Label.rstk__new_dimension5_value}</apex:outputLink>
+                    <apex:outputPanel id="op_Dim5Values">
+                        <apex:pageBlockTable value="{!sydim5s}" var="rec">
+                            <apex:column headerValue="{!$Label.rstk__delete}"><apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>
+                            <!-- <apex:column headerValue="{!$Label.editanddelete}"><apex:outputLink value="{!URLFOR($Action.sydim__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.pagelink_Edit}</apex:outputLink>&nbsp;|&nbsp;<apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column> -->
+                            <apex:column headerValue="{!$ObjectType.rstk__sydim__c.fields.rstk__sydim_dimval__c.label}" value="{!rec.rstk__sydim_dimval__c}"/>
+                        </apex:pageBlockTable>
+                        <apex:panelGrid columns="6">
+                            <apex:commandLink status="fetchStatus5" reRender="op_Dim5Values" action="{!first5}">{!$Label.rstk__pglink_first}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus5" reRender="op_Dim5Values" action="{!previous5}" rendered="{!hasPrevious5}">{!$Label.rstk__pgllink_previous}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus5" reRender="op_Dim5Values" action="{!next5}" rendered="{!hasNext5}">{!$Label.rstk__pglink_next}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus5" reRender="op_Dim5Values" action="{!last5}">{!$Label.rstk__pagelink_peitem_last}</apex:commandlink>
+                            <apex:outputText >{!(pageNumber5 * size)+1-size}-{!IF((pageNumber5 * size)>noOfRecords5, noOfRecords5,(pageNumber5 * size))} of {!noOfRecords5}</apex:outputText>
+                            <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                <apex:actionStatus id="fetchStatus5" startText="Fetching..." stopText=""/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dim6values}" name="tab_Dim6Values" id="tab_Dim6Values" rendered="{!displayDim6vals}">
+                <apex:pageBlockSection id="pbs_Dim6Values" showHeader="false" columns="1">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sydim__c.New)}{!ReturnUrlParms}&dimnum=6">{!$Label.rstk__new_dimension6_value}</apex:outputLink>
+                    <apex:outputPanel id="op_Dim6Values">
+                        <apex:pageBlockTable value="{!sydim6s}" var="rec">
+                            <apex:column headerValue="{!$Label.rstk__delete}"><apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>
+                            <!-- <apex:column headerValue="{!$Label.editanddelete}"><apex:outputLink value="{!URLFOR($Action.sydim__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.pagelink_Edit}</apex:outputLink>&nbsp;|&nbsp;<apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column> -->
+                            <apex:column headerValue="{!$ObjectType.rstk__sydim__c.fields.rstk__sydim_dimval__c.label}" value="{!rec.rstk__sydim_dimval__c}"/>
+                        </apex:pageBlockTable>
+                        <apex:panelGrid columns="6">
+                            <apex:commandLink status="fetchStatus6" reRender="op_Dim6Values" action="{!first6}">{!$Label.rstk__pglink_first}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus6" reRender="op_Dim6Values" action="{!previous6}" rendered="{!hasPrevious6}">{!$Label.rstk__pgllink_previous}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus6" reRender="op_Dim6Values" action="{!next6}" rendered="{!hasNext6}">{!$Label.rstk__pglink_next}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus6" reRender="op_Dim6Values" action="{!last6}">{!$Label.rstk__pagelink_peitem_last}</apex:commandlink>
+                            <apex:outputText >{!(pageNumber6 * size)+1-size}-{!IF((pageNumber6 * size)>noOfRecords6, noOfRecords6,(pageNumber6 * size))} of {!noOfRecords6}</apex:outputText>
+                            <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                <apex:actionStatus id="fetchStatus6" startText="Fetching..." stopText=""/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dim7values}" name="tab_Dim7Values" id="tab_Dim7Values" rendered="{!displayDim7vals}">
+                <apex:pageBlockSection id="pbs_Dim7Values" showHeader="false" columns="1">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sydim__c.New)}{!ReturnUrlParms}&dimnum=7">{!$Label.rstk__new_dimension7_value}</apex:outputLink>
+                    <apex:outputPanel id="op_Dim7Values">
+                        <apex:pageBlockTable value="{!sydim7s}" var="rec">
+                            <apex:column headerValue="{!$Label.rstk__delete}"><apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>
+                            <!-- <apex:column headerValue="{!$Label.editanddelete}"><apex:outputLink value="{!URLFOR($Action.sydim__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.pagelink_Edit}</apex:outputLink>&nbsp;|&nbsp;<apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column> -->
+                            <apex:column headerValue="{!$ObjectType.rstk__sydim__c.fields.rstk__sydim_dimval__c.label}" value="{!rec.rstk__sydim_dimval__c}"/>
+                        </apex:pageBlockTable>
+                        <apex:panelGrid columns="6">
+                            <apex:commandLink status="fetchStatus7" reRender="op_Dim7Values" action="{!first7}">{!$Label.rstk__pglink_first}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus7" reRender="op_Dim7Values" action="{!previous7}" rendered="{!hasPrevious7}">{!$Label.rstk__pgllink_previous}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus7" reRender="op_Dim7Values" action="{!next7}" rendered="{!hasNext7}">{!$Label.rstk__pglink_next}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus7" reRender="op_Dim7Values" action="{!last7}">{!$Label.rstk__pagelink_peitem_last}</apex:commandlink>
+                            <apex:outputText >{!(pageNumber7 * size)+1-size}-{!IF((pageNumber7 * size)>noOfRecords7, noOfRecords7,(pageNumber7 * size))} of {!noOfRecords7}</apex:outputText>
+                            <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                <apex:actionStatus id="fetchStatus7" startText="Fetching..." stopText=""/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_dim8values}" name="tab_Dim8Values" id="tab_Dim8Values" rendered="{!displayDim8vals}">
+                <apex:pageBlockSection id="pbs_Dim8Values" showHeader="false" columns="1">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sydim__c.New)}{!ReturnUrlParms}&dimnum=8">{!$Label.rstk__new_dimension8_value}</apex:outputLink>
+                    <apex:outputPanel id="op_Dim8Values">
+                        <apex:pageBlockTable value="{!sydim8s}" var="rec">
+                            <apex:column headerValue="{!$Label.rstk__delete}"><apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>
+                            <!--<apex:column headerValue="{!$Label.editanddelete}"><apex:outputLink value="{!URLFOR($Action.sydim__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.pagelink_Edit}</apex:outputLink>&nbsp;|&nbsp;<apex:commandLink onclick="return deleteDimval('{!rec.id}');">{!$Label.rstk__pagelink_notesandattachments_del}</apex:commandLink></apex:column>  -->
+                            <apex:column headerValue="{!$ObjectType.rstk__sydim__c.fields.rstk__sydim_dimval__c.label}" value="{!rec.rstk__sydim_dimval__c}"/>
+                        </apex:pageBlockTable>
+                        <apex:panelGrid columns="6">
+                            <apex:commandLink status="fetchStatus8" reRender="op_Dim8Values" action="{!first8}">{!$Label.rstk__pglink_first}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus8" reRender="op_Dim8Values" action="{!previous8}" rendered="{!hasPrevious8}">{!$Label.rstk__pgllink_previous}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus8" reRender="op_Dim8Values" action="{!next8}" rendered="{!hasNext8}">{!$Label.rstk__pglink_next}</apex:commandlink>
+                            <apex:commandLink status="fetchStatus8" reRender="op_Dim8Values" action="{!last8}">{!$Label.rstk__pagelink_peitem_last}</apex:commandlink>
+                            <apex:outputText >{!(pageNumber8 * size)+1-size}-{!IF((pageNumber8 * size)>noOfRecords8, noOfRecords8,(pageNumber8 * size))} of {!noOfRecords8}</apex:outputText>
+                            <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                <apex:actionStatus id="fetchStatus8" startText="Fetching..." stopText=""/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="1"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sycmp_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+<!-- FOR LIGHTNING - DON'T USE /div-->    
+    <script>
+        var CompNoMustAlphanumeric = "{!$Label.rstk__compnomustbealphanumeric}";
+        var DivNotEstablish = "{!$Label.rstk__divnotestablished}";
+        var EngItemsFoundMultipleDiv = "{!$Label.rstk__engitemsfoundonmultiplediv}";
+        var DivEngItemRecords = "{!$Label.rstk__divhasengitemrecords}";
+        var InvItemsFoundMultipleDiv = "{!$Label.rstk__invitemsfoundonmultiplediv}"; 
+        var EngDivRequired = "{!$Label.rstk__engdivisionrequired}";
+        var LABEL_SinceAccPkgInUseIsFinForce_CurrExchangeRateSrcOptionMustBe = "{!$Label.rstk__sinceaccpkginuseisfinforce_currexchangeratesrcoptionmustbe}";
+        var LABEL_SinceAccPkgNotFinForce_CurrExchRateSrcOptCantBeUsed = "{!$Label.rstk__sinceaccpkgnotfinforce_currexchratesrcoptcantbeused}";
+        var LABEL_SocntlRecordExistsForDiv = "{!$Label.rstk__socntlrecordexistsfordiv}";
+        var LABEL_MultipleSocntlRecordExistsForDivInThisCompany = "{!$Label.rstk__multiplesocntlrecordexistsfordivinthiscompany}";
+    </script>
+    <!-- FOR LIGHTNING - DON'T USE html -->
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+    <!-- 
+    JIRAS: RSTK-4484
+    -->
+</apex:page>

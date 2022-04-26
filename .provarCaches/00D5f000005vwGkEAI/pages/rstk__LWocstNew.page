@@ -1,0 +1,131 @@
+<apex:page id="pg" standardController="rstk__lwocst__c" extensions="rstk.ControllerExtnLWocst,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__lwocst__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__wocst__c.fields}" />
+    <apex:variable var="f1" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <apex:variable var="f2" value="{!$ObjectType.rstk__lwocst__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_lwocstnew}" customInclude="{!$Resource.rstk__lwocst_cli}" customInclude2="{!$Resource.rstk__wocst_lib}" enableAutocomplete="true"/>
+
+    <apex:outputPanel id="op_PageContent">
+    <apex:form id="fm">
+    	<apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+    	<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    	<apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons id="pbb">
+        	<apex:outputPanel id="op_PageButtons">
+            	<c:standardButtons cntr="{!controller}"/>
+            </apex:outputPanel>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+        	<input type="hidden" id="sydiv_projact__c" value="{!IF(currDivision.sydiv_projact__c,'1','0')}"/>
+        	<input type="hidden" id="sydiv_itemprojacctsrcind_pl__c" value="{!currDivision.sydiv_itemprojacctsrcind_pl__c}"/>
+        	<apex:inputHidden id="lwocst_ordsts__c" value="{!o.rstk__lwocst_ordsts__c}"/>
+        	<c:inputField id="lwocst_reldte__c" cntr="{!controller}"/>
+        	<c:inputField id="lwocst_schedfirmdte__c" cntr="{!controller}"/>
+        	<c:inputField id="lwocst_schedpickdte__c" cntr="{!controller}"/>
+        	<apex:inputHidden id="lwocst_wipacct__c" value="{!o.rstk__lwocst_wipacct__c}"/>
+        	<apex:inputHidden id="lwocst_wovaracct__c" value="{!o.rstk__lwocst_wovaracct__c}"/>
+        </apex:outputPanel>
+        
+		<c:division id="lwocst_div__c" cntr="{!controller}"/>
+        <apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+<!-- RCB: RSTK-1787 -->
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_ordno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_ordno__c.label}"/>
+                <c:inputText id="lwocst_ordno__c" required="{!!autoOrderNumber}" cntr="{!controller}" tabIndex="{!IF(autoOrderNumber, '4', '3')}" disabled="{!autoOrderNumber}"/>
+            </apex:pageBlockSectionItem>
+
+			<apex:pageBlockSectionItem helpText="{!f2.rstk__lwocst_targetsite__c.inlineHelpText}">
+                <apex:outputLabel value="{!f2.rstk__lwocst_targetsite__c.label}"/>
+                <c:selectList id="lwocst_targetsite__c" required="true" value="{!currDivision.rstk__sydiv_mainsite__c}" cntr="{!controller}" options="{!sysites}" tabIndex="2"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_item__c.label}"/>
+                <c:autocomplete id="lwocst_item__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}" query="select id, name from icitem__c where icitem_item__r.peitem_itemtype__c = 'Labor Only' and icitem_div__c = 'prm'" queryParms="[['lwocst_div__c','Division']]" tabIndex="{!IF(autoOrderNumber, '3', '4')}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_proj__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_proj__c.label}"/>
+                <c:autocomplete id="lwocst_proj__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_completed__c = false and pjproj_div__c = 'prm'" queryParms="[['lwocst_div__c','Division']]" slDesc="{!projectDesc}" tabIndex="8"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_pjprojwbs__c.inlineHelpText}" rendered="{!currDivision.rstk__sydiv_wbsact__c || currDivision.rstk__sydiv_jobcodeact__c}">
+                <apex:outputLabel value="{!f.rstk__wocst_pjprojwbs__c.label}"/>
+                <c:selectList id="lwocst_pjprojwbs__c" cntr="{!controller}" options="{!pjprojwbss}" tabIndex="9"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!!(currDivision.rstk__sydiv_wbsact__c || currDivision.rstk__sydiv_jobcodeact__c)}"/>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_qtyreq__c.inlineHelpText}">
+                <apex:outputLabel value="{!f2.rstk__lwocst_qtyreq__c.label}"/>
+                <c:inputField id="lwocst_qtyreq__c" required="true" cntr="{!controller}" tabIndex="5"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_duedte__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_duedte__c.label}"/>
+                <c:inputField id="lwocst_duedte__c" cntr="{!controller}" required="true" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f2.rstk__lwocst_extract_routing__c.inlineHelpText}">
+                <apex:outputLabel value="{!f2.rstk__lwocst_extract_routing__c.label}"/>
+                <apex:inputField id="lwocst_extract_routing__c" value="{!o.rstk__lwocst_extract_routing__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem />
+        </apex:pageBlockSection>
+
+    </apex:pageBlock>    
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+
+    </apex:outputPanel>
+    
+    <script>
+    	var CannotChangeDueDate = "{!$Label.CannotChangeDueDateAndQty}";
+    	var DueDateNotEarlier = "{!$Label.DueDateCannotEarlier}";
+    	var MustUseAlphabetical = "{!$Label.MustUseAlphabeticalCharacter}";
+    	var QtyRequiredWholeNum = "{!$Label.QtyRequiredWholeNumber}";
+    	var QuantityWholeNum = "{!$Label.QuantityWholeNumber}";
+    	var QtyCannotExceedDecimals = "{!$Label.QuantityCannotExceedDecimals}";
+    	var CantChangeDueDate = "{!$Label.CannotChangeDueDate}";    	
+    	var QtyReqCannotBeLess = "{!$Label.QuantityRequiredCannotBeLess}";
+    	var QtyReqCannotLess = "{!$Label.QtyRequiredCannotBeLess}";
+    	var NewWorkOrderQty = "{!$Label.NewWorkOrderQuantity}";
+    	var WorkOrderQty = "{!$Label.WorkOrderQuantity}";
+    	var QtyMustZero = "{!$Label.QtyMustBeZero}";
+    	var QtyMustAtLeast = "{!$Label.QtyMustBeAtLeast}";
+    	var QtyCannotExceeed = "{!$Label.QtyCannotExceeed}";
+    	var EnteredInvalidChar = "{!$Label.LotNumberEnteredInvalidCharacters}";
+    	
+    	var LABEL_RoutingExtracted = "{!$Label.RoutingExtracted}";
+		var LABEL_RoutingDeleted = "{!$Label.RoutingDeleted}";
+		var LABEL_Orderreleased = "{!$Label.Orderreleased}";
+		var LABEL_ErrorWhileReleasingOrd = "{!$Label.ErrorWhileReleasingOrd}";
+		var LABEL_OrdRecalled = "{!$Label.OrdRecalled}";
+		var LABEL_ErrorWhileRecallingOrd = "{!$Label.ErrorWhileRecallingOrd}";
+		var LABEL_Ordercompleted = "{!$Label.Ordercompleted}";
+		var LABEL_ErrorWhilwCompletingOrd = "{!$Label.ErrorWhilwCompletingOrd}";
+		var LABEL_OrdCompletedSuccessfully = "{!$Label.OrdCompletedSuccessfully}";
+		var LABEL_OrdCompletionReversed = "{!$Label.OrdCompletionReversed}";
+		var LABEL_ErrorWhileReversingCompletionOfOrd = "{!$Label.ErrorWhileReversingCompletionOfOrd}";
+		var LABEL_ErrorWhilePerfWOCloseReversal = "{!$Label.ErrorWhilePerfWOCloseReversal}";
+		
+		var LABEL_ErrorClosingWO = "{!$Label.ErrorClosingWO}";
+		var LABEL_ProcessLogEntryFound = "{!$Label.ProcessLogEntryFound}";
+		var LABEL_Taskcompletedsuccessfully = "{!$Label.Taskcompletedsuccessfully}";
+		var LABEL_WOCloseReversed = "{!$Label.WOCloseReversed}";
+		var LABEL_WOClosed = "{!$Label.WOClosed}";
+		var LABEL_Warning_WOSchedReleaseDateWillBePriorToToday_WantToCont = "{!$Label.Warning_WOSchedReleaseDateWillBePriorToToday_WantToCont}";
+		var LABEL_PerformWorkOrderCloseReversal = "{!$Label.PerformWorkOrderCloseReversal}"; 	
+        var LABEL_PjprojwbsIsReqdAsProjHasProjectChargeCodeActiveFieldChecked = "{!$Label.PjprojwbsIsReqdAsProjHasProjectChargeCodeActiveFieldChecked}";
+    </script>
+    
+</apex:page>

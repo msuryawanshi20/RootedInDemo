@@ -1,0 +1,549 @@
+<apex:page id="pg" standardController="rstkf__arreportparam__c" extensions="rstkf.ControllerExtnARAgingReport,rstkf.RemoteQueryController,rstkf.ControllerJobStatus" title="{!$Label.rstkf__aragedtrialbalance}" sideBar="false" showHeader="true" action="{!doBeforePageLoad}"> 
+    <apex:variable var="f" value="{!$ObjectType.rstkf__arreportparam__c.fields}" />
+    <apex:variable var="o" value="{!arreportparam}" />  
+    <apex:sectionHeader title="{!$Label.rstkf__aragedtrialbalance}" help="{!helpUrl}"/>
+    <c:standardHeader title="{!$Label.rstkf__aragedtrialbalance}" enableAutoComplete="true" enableQuickMenu="true" customInclude="{!$Resource.rstkf__aragingreport_cli}" cntr="{!controller}" showHeader="false" />    
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    
+    <style>
+        .popupscroll{
+         position: absolute!important;
+         overflow:auto!important;
+        }
+        
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <script>
+        // initialize common variables
+        var row;
+        var startIndx;
+        var endIndx;
+        var currentCol;
+        var isARAgingHerokuEnabled = "{!isARAgingHerokuEnabled}";
+        var onlyDrilldownAndNoPDF = "{!onlyDrilldownAndNoPDF}";        
+        var company = "{!o.rstkf__arreportparam_cmpno__c}";
+        var gluserId = "{!gluserId}";
+        var gluserlastcompany = "{!gluserlastcompany}";
+        var fromleft = "{!$Label.TrialBal_FromLeft}";
+        var fromright = "{!$Label.TrialBal_fromright}";
+        var fieldisrequired = "{!$Label.FieldIsRequired}";
+        var enterofdaysincolumn = "{!$Label.TrialBal_Enterofdaysincolumn}";
+        var please_resolve_the_following_validation_errors = "{!$Label.Please_resolve_the_following_validation_errors}";
+        var doyoureallywanttodelete = "{!$Label.doyoureallywanttodelete}";
+        var reportisalreadyexistsDoyouwanttooverridereportparameters = "{!$Label.reportisalreadyexistsDoyouwanttooverridereportparameters}";
+        var systemDateValue = "{!systemDateValue}";
+        var taskCompletedSuccessfully = "{!$Label.Taskcompletedsuccessfully}";
+        var norecordsfoundforreportgeneration = "{!$Label.No_records_found_for_report_generation}";
+        var label_field1mustbelessthanfield2 = "{!$Label.field1mustbelessthanfield2}";
+        var warn_splitpdfreportintomultiplefiles = "{!$Label.the_report_is_too_large_to_print_in_a_single_file_hence_split_into_multiple_file}";
+        var warn_splitcsvreportintomultiplefiles = "{!$Label.The_report_is_too_large_to_export_in_a_single_CSV_hence_split_into_multiple_file}";
+    	var purging_of_Old_data_completed_Please_click_Ok_to_Continue = "{!$Label.Purging_of_Old_data_completed_Please_click_Ok_to_Continue}";   
+    	var preparing_Report = "{!$Label.Preparing_Report}";   
+		var verifying_Drilldown_Object_to_Populate = "{!$Label.Verifying_Drilldown_Object_to_Populate}";       
+    
+    
+        function verifyAgingDate(agingDateValue, agingDateFldId, cutoffDateFldId, agingDateFldLabel){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnARAgingReport.verifyAgingDate}',  
+                agingDateValue,
+                function(result, event){
+                    if (event.status) {
+                        if(result){
+                            jQuery('input[id*=arreportparam_cutoffdate__c]')[0].disabled = false;
+                        }else{
+                            jQuery('input[id*=arreportparam_cutoffdate__c]')[0].disabled = true;
+                            jQuery('input[id*=arreportparam_cutoffdate__c]')[0].value = systemDateValue;
+                        }
+                    } else if (event.type === 'exception') {
+                        alert(event.message + ' for '+ agingDateFldLabel);
+                        jQuery('input[id*=arreportparam_agingdate__c]')[0].value = '';
+                        jQuery('input[id*=arreportparam_agingdate__c]')[0].focus();
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function verifyCutOffDate(cutoffDateValue, cutoffDateFldId, cutoffDateFldLabel){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnARAgingReport.verifyCutOffDate}',  
+                cutoffDateValue,
+                function(result, event){
+                    if (event.status) {
+                        /*
+                        if(result){
+                            alert(getMessage("{!$Label.this_date_must_not_be_greater_than_system_date}",[cutoffDateFldLabel]));
+                            jQuery('input[id*=arreportparam_cutoffdate__c]')[0].value = '';
+                            jQuery('input[id*=arreportparam_cutoffdate__c]')[0].focus();
+                        }
+                        */
+                        if(!result){
+                            jQuery('input[id*=arreportparam_cutoffdate__c]')[0].value = '';
+                            jQuery('input[id*=arreportparam_cutoffdate__c]')[0].focus();
+                        }
+                    } else if (event.type === 'exception') {
+                        alert(event.message + ' for '+ cutoffDateFldLabel);
+                        jQuery('input[id*=arreportparam_cutoffdate__c]')[0].value = '';
+                        jQuery('input[id*=arreportparam_cutoffdate__c]')[0].focus();
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function getDaysInColumns(){
+        
+            startIndx = 0;
+            endIndx = 0;
+            currentCol = 0;
+        
+            var fwdorbackAging = getValue('arreportparam_fwdorbackaging__c');
+            var extendedReportFormat = getValue('arreportparam_extendedformat__c');
+            var pastduecol = getValue('arreportparam_noofpastduecol__c');
+            var numOfAgingColumns = getValue('arreportparam_noofagingcol__c');
+            //console.log('getDaysInColumns() : Forward_or_Backward = '+ fwdorbackAging + ' and Extended_Export_Report = '+ extendedReportFormat + ' and Past_Due_Column = '+ pastduecol + ' and Aging Columns = '+ numOfAgingColumns);
+            
+            if(extendedReportFormat){
+                //currentCol = pastduecol;
+                currentCol = toNumber(pastduecol);
+                for(var i = 0 ; i < numOfAgingColumns ; i++){
+                    if(i == 0 || i == (numOfAgingColumns - 1))continue;
+                    if(startIndx == 0) startIndx = i;
+                    endIndx = i;
+                }
+            }else{
+                if(fwdorbackAging == 'Forward'){
+                    currentCol = 1;
+                    for(var i = 0 ; i < numOfAgingColumns ; i++){
+                        if(i == 0 || i == (numOfAgingColumns - 1))continue;
+                        if(startIndx == 0) startIndx = i;
+                        endIndx = i;
+                    }
+                }else{
+                    currentCol = (numOfAgingColumns - 2);
+                    for(var i = numOfAgingColumns-1 ; i >= 0 ; i--){
+                        if(i == (numOfAgingColumns - 1) || i == 0)continue;
+                        if(endIndx == 0) endIndx = i;
+                        startIndx = i;
+                    }
+                }
+            }
+            //console.log('getDaysInColumns() : Start Index = '+ startIndx + ' and End Index = '+ endIndx + ' and Current_Column = '+ currentCol);
+            
+            var row = "";
+            var container = jQuery("#container");
+            container.empty();
+            var daysInCol = '';
+            var existingReport = getValue('arreportparam_useexistingreport__c');
+            if(existingReport != ''){
+                daysInCol = getValue('arreportparam_daysincol__c');
+            }
+            
+            if(extendedReportFormat){
+                if( daysInCol != ''){
+                    var daysInColArr = daysInCol.split(',');
+                    var savedDaysIndx = 0;
+                    for (var indx = 0; indx <= endIndx ; indx++) {
+                        if( indx < startIndx ) continue;
+                        if(typeof daysInColArr[savedDaysIndx] != 'undefined' && daysInColArr[savedDaysIndx] != ''){
+                            row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                            row = row + (indx+1) + " " + fromleft + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                            row = row + "id='r" + indx + "' value='" +daysInColArr[savedDaysIndx]+ "'></div></div>";                    
+                        }else{
+                            row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                            row = row + (indx+1) + " " + fromleft + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                            row = row + "id='r" + indx + "' value='30'></div></div>";
+                        }
+                        container.append(jQuery(row));
+                        savedDaysIndx++;
+                    }
+                }else{
+                    for (var indx = 0; indx <= endIndx ; indx++) {
+                        if( indx < startIndx ) continue;
+                        row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                        row = row + (indx+1) + " " + fromleft + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                        row = row + "id='r" + indx + "' value='30'></div></div>";
+                        container.append(jQuery(row));
+                    }
+                }
+            }else{
+                if(fwdorbackAging == 'Forward'){
+                    if( daysInCol != ''){
+                        var savedDaysIndx = 0;
+                        var daysInColArr = daysInCol.split(',');
+                        for (var indx = 0; indx <= endIndx ; indx++) {
+                            if( indx < startIndx ) continue;
+                            if(typeof daysInColArr[savedDaysIndx] != 'undefined' && daysInColArr[savedDaysIndx] != ''){
+                                row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                                row = row + (indx+1) + " " + fromleft + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                                row = row + "id='r" + indx + "' value='" +daysInColArr[savedDaysIndx]+"'></div></div>";
+                            }else{
+                                row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                                row = row + (indx+1) + " " + fromleft + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                                row = row + "id='r" + indx + "' value='30'></div></div>";
+                            }
+                            container.append(jQuery(row));
+                            savedDaysIndx++;
+                        }
+                    }else{
+                        for (var indx = 0; indx <= endIndx ; indx++) {
+                            if( indx < startIndx ) continue;
+                            row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                            row = row + (indx+1) + " " + fromleft + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                            row = row + "id='r" + indx + "' value='30'></div></div>";
+                            container.append(jQuery(row));
+                        }
+                    }
+                }else{
+                    if( daysInCol != ''){
+                        var savedDaysIndx = 0;
+                        var daysInColArr = daysInCol.split(',');
+                        for (var indx = 0; indx <= endIndx ; indx++) {
+                            if( indx < startIndx ) continue;
+                            if(typeof daysInColArr[savedDaysIndx] != 'undefined' && daysInColArr[savedDaysIndx] != ''){
+                                row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                                row = row + (indx+1) + " " + fromright + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                                row = row + "id='r" + indx + "' value='" + daysInColArr[savedDaysIndx] + "'></div></div>";
+                            }else{
+                                row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                                row = row + (indx+1) + " " + fromright + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                                row = row + "id='r" + indx + "' value='30'></div></div>";
+                            }
+                            container.append(jQuery(row));
+                            savedDaysIndx++;
+                        }
+                    }else{
+                        for (var indx = 0; indx <= endIndx ; indx++) {
+                            if( indx < startIndx ) continue;
+                            row = "<div style='table-row;padding-top:10px'><div style='display: table-cell'><span>" + enterofdaysincolumn;
+                            row = row + (indx+1) + " " + fromright + "</span></div><div style='display: table-cell; padding-left: 20px;'><input type='text' ";
+                            row = row + "id='r" + indx + "' value='30'></div></div>";
+                            container.append(jQuery(row));
+                        }
+                    }
+                }
+            }
+                
+            jQuery.blockUI({
+                message: jQuery('#assignColumnValue'),
+                blockMsgClass: 'popupscroll',
+                css: {
+                    backgroundColor:'#fff',
+                    top: '5%',
+                    left: '30%',
+                    width: '40%',
+                    height:'35%',
+                    padding:'15px',
+                    textAlign:'left',
+                    fontSize:'1em',
+                    border:'2px solid #333',
+                    
+                    opacity:'1.0',
+                    '-moz-border-radius':'6px',
+                    '-webkit-border-radius':'6px',
+                    '-moz-box-shadow': '0 0 50px #ccc',
+                    '-webkit-box-shadow': '0 0 50x #ccc'
+                }
+            });
+        }
+        
+        function validateDaysInColValues(){
+            //console.log('validateDaysInColValues() : Start Index = '+ startIndx + ' and End Index = '+ endIndx + ' and Current_Column = '+ currentCol);
+            var daysInColValues = '';
+            var messages = [];
+            
+            for (var indx = 0; indx <= endIndx; indx++) {
+                if( indx < startIndx ) continue;
+                var currColObj = document.getElementById('r' + indx);
+                if(currColObj){
+                    var currColValue = toNumber(currColObj.value, -1);
+                    //console.log('validateDaysInColValues() : DaysInColumn value for column #'+ (indx+1) + ' = '+ currColValue);
+                    if(isNumeric(currColObj.value) && currColValue > 0 && currColValue < 999){
+                        daysInColValues = daysInColValues.concat(currColValue + ',');                           
+                    }else{
+                        messages.push(getMessage("{!$Label.numberofdaysincolumnmustbegreaterorequalsto1}",[indx+1]));
+                    }
+                }
+            }
+            //console.log('validateDaysInColValues() : Days In Column Values = '+ daysInColValues);
+            
+            if (messages.length > 0) {
+                alert(please_resolve_the_following_validation_errors + "\n" + arrayToString(messages));
+                return false;
+            }
+            setValue('arreportparam_daysincol__c',daysInColValues);
+            processARReport();
+        }
+        
+        // function to get message
+        function getMessage(msg, parms) {
+            if (typeof parms == 'undefined' || parms == null) {
+                return msg;
+            } else {
+                var type = typeof parms;
+                if (type == 'string' || type == 'number' || type == 'boolean') {
+                    msg = msg.replace("{0}", ''+parms);
+                    return msg;
+                } else {
+                    if (parms.length && parms.length > 0) {
+                        for (var z = 0; z < parms.length; z++) {
+                            msg = msg.replace("{"+z+"}", ''+parms[z]);
+                        }
+                    }
+                    return msg;
+                }
+            }
+        }
+        
+        function apagingReportGenerationStatus(){
+            unblockUI();
+            if(acknowledgeMsg != ''){
+                alert(acknowledgeMsg);
+            }else{
+                redirectToPrintorExportPage();
+            }
+        }
+    </script>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doBeforePurgeReportData" action="{!doBeforePurgeReportData}" immediate="false" reRender="pageMessages,op_JobStatus,op_acknowledgeMsg" oncomplete="checkRunbynaotherUser();"/>
+        <apex:actionFunction name="initHerokuProcessing" action="{!initHerokuProcessing}" immediate="false" reRender="pageMessages,op_JobStatus" oncomplete="processARAgingReport();"/>
+        <apex:actionFunction name="processARAgingReport" action="{!processARAgingReport}" immediate="false" reRender="pageMessages,op_JobStatus" oncomplete="checkJobStatus();"/>
+        <apex:actionFunction name="upsertReport" action="{!upsertReport}" immediate="false" reRender="pageMessages,op_acknowledgeMsg" oncomplete="populateReportSelectList(); return false;"/>
+        <apex:actionFunction name="deleteReport" action="{!deleteReport}" immediate="false" reRender="pageMessages,op_acknowledgeMsg" oncomplete="unblockUI(); populateReportSelectList(); return false;"/>
+        <apex:actionFunction name="printorExportReport" action="{!printorExportReport}" immediate="false" reRender="pageMessages,op_acknowledgeMsg" oncomplete="splitAgingReportNew(); return false;" status="statusProcessing">
+            <apex:param name="reportAction" assignTo="{!reportAction}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="purgeReportDataInBatch" action="{!purgeReportDataInBatch}" immediate="false" reRender="pageMessages,op_JobStatus" oncomplete="checkJobStatus();"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons id="pageBlockButtonSection">
+                <c:nosubmitbutton label="{!$Label.rstkf__generate}" onclick="validateRequestPreReportGeneration(); return false;"  style="width:75px;" />
+                <c:nosubmitbutton label="{!$Label.rstkf__saveandgenerate}" onclick="validateRequestPreReportGenerationAndSave(); return false;"  style="width:150px;" />
+                <c:nosubmitbutton label="{!$Label.rstkf__trial_deletereport}" onclick="deleteReportCriteria(); return false;" style="width:140px;"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel id="op_acknowledgeMsg">
+                <script>
+                    var acknowledgeMsg= "{!acknowledgeMsg}";
+                    var pageURL = "{!pageURL}";
+                </script>
+            </apex:outputPanel>
+            
+            <apex:outputPanel id="op_JobStatus">
+               <input type="hidden" id="processlogId" value="{!processlogId}"/>
+               <script>
+               		var araginghIdForDelete = '{!araginghIdForDelete}';
+                	var purgeOldRecordsdone = '{!purgeOldRecordsdone}';
+                	var herokuprocesingdone = '{!herokuprocesingdone}';
+               </script>
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" columns="2">
+                
+                <apex:outputField id="arreportparam_cmpno__c" value="{!o.rstkf__arreportparam_cmpno__c}" />
+                <apex:inputField id="arreportparam_reportname__c" value="{!o.rstkf__arreportparam_reportname__c}" style="width:120px;" taborderhint="13"/>
+                
+                <apex:outputField id="arreportparam_homecurr__c" value="{!o.rstkf__arreportparam_homecurr__c}" />
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arreportparam_useexistingreport__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__arreportparam_useexistingreport__c.label}"/>
+                    <apex:selectList id="arreportparam_useexistingreport__c" value="{!o.rstkf__arreportparam_useexistingreport__c}" size="1" style="width:120px;" tabIndex="140">
+                        <apex:selectOptions value="{!arAgingReports}" /> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField id="arreportparam_singlecurrcompany__c" value="{!o.rstkf__arreportparam_singlecurrcompany__c}" />
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arreportparam_deletecriteria__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__arreportparam_deletecriteria__c.label}"/>
+                    <apex:selectList id="arreportparam_deletecriteria__c" value="{!o.rstkf__arreportparam_deletecriteria__c}" size="1" style="width:120px;" tabIndex="150">
+                        <apex:selectOptions value="{!arAgingReports}" /> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="arreportparam_agingdate__c" value="{!o.rstkf__arreportparam_agingdate__c}" required="true" taborderhint="1"/>
+                <apex:inputField id="arreportparam_summaryreport__c" value="{!o.rstkf__arreportparam_summaryreport__c}" taborderhint="16"/>
+                
+                <apex:inputField id="arreportparam_cutoffdate__c" value="{!o.rstkf__arreportparam_cutoffdate__c}" taborderhint="2"/>
+                <apex:inputField id="arreportparam_allglacct__c" value="{!o.rstkf__arreportparam_allglacct__c}" taborderhint="17"/>
+                
+                <apex:inputField id="arreportparam_isaccountingcutoffdate__c" value="{!o.rstkf__arreportparam_isaccountingcutoffdate__c}" taborderhint="3"/>
+                <apex:pageBlockSectionItem id="arreportparam_glacct__c" helpText="{!f.rstkf__arreportparam_glacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__arreportparam_glacct__c.label}"/>
+                    <apex:outputPanel id="op_arreportparam_glacct__c">
+                        <c:glaccount id="arreportparam_glacct__c" cntr="{!controller}"
+                           ref="arreportparam_glacct__c"
+                           options="{!controlAccountList}"
+                           slDesc="{!glacctName}"
+                           query="{!glacctAutoCompleteQuery}"
+                           queryParms="[]"
+                           displaySelectList="{!controlAccountList.size <= 999}"
+                           width="180px"
+                           tabIndex="180" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="arreportparam_fwdorbackaging__c" value="{!o.rstkf__arreportparam_fwdorbackaging__c}" style="width:90px;" taborderhint="4" required="true"/>
+                <apex:inputField id="arreportparam_discntonseparateline__c" value="{!o.rstkf__arreportparam_discntonseparateline__c}" taborderhint="19"/>
+                
+                <apex:inputField id="arreportparam_printorexport__c" value="{!o.rstkf__arreportparam_printorexport__c}" style="width:90px;" taborderhint="5" required="true"/>
+                <apex:inputField id="arreportparam_openamt__c" value="{!o.rstkf__arreportparam_openamt__c}" taborderhint="20"/>
+                
+                <apex:inputField id="arreportparam_extendedformat__c" value="{!o.rstkf__arreportparam_extendedformat__c}" taborderhint="6"/>
+                <apex:inputField id="arreportparam_openbatches__c" value="{!o.rstkf__arreportparam_openbatches__c}" taborderhint="21"/>
+                
+                <apex:inputField id="arreportparam_docnoortranid__c" value="{!o.rstkf__arreportparam_docnoortranid__c}" style="width:90px;" taborderhint="7"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arreportparam_noofpastduecol__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__arreportparam_noofpastduecol__c.label}"/>
+                    <apex:selectList id="arreportparam_noofpastduecol__c" value="{!o.rstkf__arreportparam_noofpastduecol__c}" size="1" style="width:75px;" tabIndex="220"> 
+                        <apex:selectOptions value="{!NumOfPastFutureCols}" /> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="arreportparam_showexpireddiscount__c" value="{!o.rstkf__arreportparam_showexpireddiscount__c}" taborderhint="8"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arreportparam_nooffuturecol__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__arreportparam_nooffuturecol__c.label}"/>
+                    <apex:selectList id="arreportparam_nooffuturecol__c" value="{!o.rstkf__arreportparam_nooffuturecol__c}" size="1" style="width:75px;" tabIndex="230"> 
+                        <apex:selectOptions value="{!numOfPastFutureCols}" /> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="arreportparam_totexpireddiscount__c" value="{!o.rstkf__arreportparam_totexpireddiscount__c}" taborderhint="9"/>
+                <apex:inputField id="arreportparam_noofagingcol__c" value="{!o.rstkf__arreportparam_noofagingcol__c}" taborderhint="24" style="width:75px;"/>
+                
+                <apex:inputField id="arreportparam_toteligiblediscount__c" value="{!o.rstkf__arreportparam_toteligiblediscount__c}" taborderhint="10"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arreportparam_fromsocust__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__arreportparam_fromsocust__c.label}"/>
+                    <c:autocomplete id="arreportparam_fromsocust__c" 
+                        cntr="{!controller}" 
+                        slDesc="{!fromCustomerNumber}"
+                        ref="arreportparam_fromsocust__c"
+                        query="" 
+                        queryParms="[]" 
+                        width="width:125px;" 
+                        useCustomAutocomplete="true" 
+                        autocompleteController="ControllerExtnARAgingReport"
+                        autocompleteMethodParms="glcmpId={!o.rstkf__arreportparam_cmpno__c};glacctId={!o.rstkf__arreportparam_glacct__c};openSess={!o.rstkf__arreportparam_openbatches__c};isAccountingCutoffDate={!o.rstkf__arreportparam_isaccountingcutoffdate__c};cutoffdate={!o.rstkf__arreportparam_cutoffdate__c}"
+                        tabIndex="250"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="arreportparam_homecurronly__c" value="{!o.rstkf__arreportparam_homecurronly__c}" taborderhint="11"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arreportparam_thrusocust__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__arreportparam_thrusocust__c.label}"/>
+                    <c:autocomplete id="arreportparam_thrusocust__c" 
+                        cntr="{!controller}" 
+                        slDesc="{!thruCustomerNumber}"
+                        ref="arreportparam_thrusocust__c"
+                        query="" 
+                        queryParms="[]" 
+                        width="width:125px;" 
+                        useCustomAutocomplete="true" 
+                        autocompleteController="ControllerExtnARAgingReport"
+                        autocompleteMethodParms="glcmpId={!o.rstkf__arreportparam_cmpno__c};glacctId={!o.rstkf__arreportparam_glacct__c};openSess={!o.rstkf__arreportparam_openbatches__c};isAccountingCutoffDate={!o.rstkf__arreportparam_isaccountingcutoffdate__c};cutoffdate={!o.rstkf__arreportparam_cutoffdate__c}"
+                        tabIndex="260"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputHidden id="arreportparam_daysincol__c" value="{!o.rstkf__arreportparam_daysincol__c}" />
+                <apex:inputHidden id="arreportparam_singlecurrcompany_hidden__c" value="{!o.rstkf__arreportparam_singlecurrcompany__c}" />
+                
+                <apex:inputHidden id="arreportparam_savereport__c" value="{!o.rstkf__arreportparam_savereport__c}" />
+                <apex:pageBlockSectionItem />
+                
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <div id="assignColumnValue" style="display:none">
+        <div id="container">
+        </div>
+        <p align="center">
+            <input id="setbutton" type="button" value="{!$Label.OK}" onclick="validateDaysInColValues();"/>
+            <input type="button" value="{!$Label.Cancel}" onclick="unblockUI();"/>
+        </p>
+    </div>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    var hasMoreTrialBalCalc = 'true';
+    var hasMoreAragingd = 'true';
+    var numRetries = 0;
+    function purgeReportData() {
+        Visualforce.remoting.Manager.invokeAction(  
+            '{!$RemoteAction.ControllerExtnARAgingReport.deleteReportData}', //NameSpace
+            gluserId,
+            gluserlastcompany,
+            hasMoreTrialBalCalc,
+            araginghIdForDelete, 
+            hasMoreAragingd,
+            function(result, event){
+                if (event.status) {
+                	var response = JSON.parse(result);
+                	hasMoreTrialBalCalc = response.hasMoreTrialBalCalc;
+                	hasMoreAragingd = response.hasMoreAragingd;
+                	numRetries = 0;
+                    if(hasMoreTrialBalCalc == 'true') {
+                    	console.log('call deleteReportData as hasMoreTrialBalCalc = ' + hasMoreTrialBalCalc);
+                    	setPopStatus1('Deleting Trial Balance Report Calculation records');
+                        setTimeout(function() {purgeReportData();}, 1000);
+                    }
+                    else if(hasMoreTrialBalCalc == 'false' && hasMoreAragingd == 'true') {
+                    	console.log('call deleteReportData as hasMoreAragingd = ' + hasMoreAragingd);
+                    	setPopStatus1('Deleting AR Aging Drill Down records');
+                        setTimeout(function() {purgeReportData();}, 1000);
+                    }
+                    else if(hasMoreAragingd == 'false') {
+                    	console.log('Delete Records completed. Now will initiate the heroku process.');
+                    	setPopStatus1('Initiating processing at heroku');
+                    	initHerokuProcessing();
+                    }
+                    else {
+                        console.log('Invalid status...');
+                    }
+                } else if (event.type === 'exception') {
+                	if(numRetries < 20) {
+                		console.log('Retry as there was an exception : numRetries = ' + numRetries);
+                		numRetries++;
+                		setTimeout(function() {purgeReportData();}, 1000);
+                	}
+                	else {
+                		alert('Error occured while purging old data.');
+                        unblockUI();
+                        return false;	
+                	}
+                } else {
+                    alert("{!$Label.UnexpectedStatus}", event.message);
+                }
+            }, {escape:false}
+        );
+    }
+    
+    function checkRunbynaotherUser() { 
+        console.log(' checkRunbynaotherUser acknowledgeMsg'+acknowledgeMsg);
+        if(acknowledgeMsg != '') {
+            console.log(' checkRunbynaotherUser Error ');
+            unblockUI();
+        	alert(acknowledgeMsg);
+        } else {
+            console.log(' purgeReportDataInBatch calling');
+            validateOAuthToken(purgeReportDataInBatch, false);
+            //purgeReportDataInBatch(); // check for new validateOAuthToken method
+		}        
+    }    
+        
+    </script>
+</apex:page>

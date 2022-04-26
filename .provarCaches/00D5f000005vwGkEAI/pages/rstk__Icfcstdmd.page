@@ -1,0 +1,109 @@
+<apex:page id="pg" standardController="rstk__icfcstdmd__c" extensions="rstk.ControllerExtnIcfcstdmd,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icfcstdmd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icfcstdmd__c.fields}" />
+    <apex:variable var="f_icitem" value="{!$ObjectType.rstk__icitem__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icfcstdmd}" customInclude="{!$Resource.rstk__icfcstdmd_cli}" enableAutocomplete="true"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <input type="hidden" id="sydiv_projact__c" value="{!IF(currDivision.sydiv_projact__c,'1','0')}"/>
+            <apex:inputHidden id="icfcstdmd_runno__c" value="{!o.rstk__icfcstdmd_runno__c}"/>
+            <apex:inputHidden id="icfcstdmd_dmdsts__c" value="{!o.rstk__icfcstdmd_dmdsts__c}"/>
+            <apex:inputHidden id="icfcstdmd_dmdnetopt_pl__c" value="{!o.rstk__icfcstdmd_dmdnetopt_pl__c}"/>
+        </apex:outputPanel>
+        
+        <c:division id="icfcstdmd_div__c" cntr="{!controller}"/>
+        
+        <!-- c:site id="icfcstdmd_site__c" cntr="{!controller}"/ -->
+        
+        <apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icfcstdmd_ordno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icfcstdmd_ordno__c.label}"/>
+                <c:inputText id="icfcstdmd_ordno__c" required="true" cntr="{!controller}" tabIndex="2"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icfcstdmd_dmdsts_pl__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icfcstdmd_dmdsts_pl__c.label}"/>
+                <!-- <c:inputField id="icfcstdmd_dmdsts_pl__c" cntr="{!controller}" required="true" tabIndex="102"/> -->
+                <apex:outputPanel >
+                    <apex:selectList id="icfcstdmd_dmdsts_pl__c" value="{!o.rstk__icfcstdmd_dmdsts_pl__c}" required="true" size="1" style="width:250px;" tabIndex="102" rendered="{!!isView}"> 
+                        <apex:selectOptions value="{!Status}" /> 
+                    </apex:selectList>
+                    <apex:outputField value="{!o.rstk__icfcstdmd_dmdsts_pl__c}" rendered="{!isView}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icfcstdmd_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icfcstdmd_item__c.label}"/>
+                <c:autocomplete id="icfcstdmd_item__c" cntr="{!controller}" required="true" tabIndex="3" slDesc="{!itemDesc}" query="select id, name from icitem__c where icitem_item__r.peitem_inactivests__c != 'I' and icitem_div__c = 'prm'" queryParms="[['icfcstdmd_div__c','Division']]"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icfcstdmd_proj__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icfcstdmd_proj__c.label}"/>
+                <c:autocomplete id="icfcstdmd_proj__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_completed__c = false and pjproj_div__c = 'prm'" queryParms="[['icfcstdmd_div__c','Division']]" slDesc="{!projectDesc}" tabIndex="103"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icfcstdmd_strtdte__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icfcstdmd_strtdte__c.label}"/>
+                <c:inputField id="icfcstdmd_strtdte__c" required="true" cntr="{!controller}" tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_invuom__c.inlineHelpText}" rendered="{!!isview}">
+                <apex:outputLabel value="{!f_icitem.rstk__icitem_invuom__c.label}"/>
+                <apex:inputText id="icitem_invuom__c" value="{!icitem.icitem_invuom__r.rstk__syuom_uom__c}" disabled="true" tabIndex="204"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_invuom__c.inlineHelpText}" rendered="{!isview}">
+                <apex:outputLabel value="{!f_icitem.rstk__icitem_invuom__c.label}"/>
+                <apex:outputText value="{!icitem.icitem_invuom__r.rstk__syuom_uom__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icfcstdmd_enddte__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icfcstdmd_enddte__c.label}"/>
+                <c:inputField id="icfcstdmd_enddte__c" required="true" cntr="{!controller}" tabIndex="5"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icfcstdmd_dmdnetopt_pl__c.inlineHelpText}">
+            	<apex:outputLabel value="{!f.rstk__icfcstdmd_dmdnetopt_pl__c.label}"/>
+            	<c:inputField id="icfcstdmd_dmdnetopt_pl__c" cntr="{!controller}" tabIndex="205"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__icfcstdmd_qtyreq__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__icfcstdmd_qtyreq__c.label}"/>
+                <c:inputField id="icfcstdmd_qtyreq__c" required="true" cntr="{!controller}" filterNonNumeric="true" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel">
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_icfcstdmd_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    <script>
+         setSelectListRequired("icfcstdmd_dmdsts_pl__c");
+    </script>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        var project = "{!$Label.rstk__pleaseenteraproject}"; 
+        var StartDate = "{!$Label.rstk__startdateislessthanenddate}";                                         
+        var LABEL_UnableToRetrieveNextForecastOrder_MakeSureOrdNoRecSetup = "{!$Label.rstk__unabletoretrievenextforecastorder_makesureordnorecsetup}" 
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>  
+</apex:page>

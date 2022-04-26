@@ -1,0 +1,459 @@
+<apex:page id="pg" standardController="rstk__woorddmd__c" extensions="rstk.ControllerExtnWoorddmd,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__woorddmd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__woorddmd__c.fields}" />
+    <apex:variable var="f_wocst" value="{!$ObjectType.rstk__wocst__c.fields}" />
+    
+    <apex:variable var="f_woorddmdcst" value="{!$ObjectType.rstk__woorddmdcst__c.fields}" />
+    
+    <apex:variable var="f_woorddmd" value="{!$ObjectType.rstk__woorddmd__c.fields}" />
+    
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_woorddmd}" customInclude="{!$Resource.rstk__woorddmd_cli}" enableAutocomplete="true"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_woorddmd_allocate}" onclick="allocateDemand(); return false;" rendered="{!AllocationsActive}"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_woorddmd_deallocate}" onclick="deallocateDemand(); return false;" rendered="{!DeAllocationsActive}"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_woorddmd_swapallocation}" onclick="swapAllocation(); return false;" rendered="{!SwapDemandsAvailable}"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputText id="woorddmd_wbs__c" value="{!o.rstk__woorddmd_wbs__c}"/>
+            <apex:inputText id="woorddmd_proj__c" value="{!o.rstk__woorddmd_proj__c}"/>
+            <apex:inputText id="woorddmd_ordno__c" value="{!o.rstk__woorddmd_ordno__c}"/>
+            <apex:inputCheckbox id="wocst_disassmind__c" value="{!wocst.rstk__wocst_disassmind__c}"/>
+            <apex:inputCheckbox id="wocst_reworkind__c" value="{!wocst.rstk__wocst_reworkind__c}"/>
+            <apex:inputCheckbox id="woorddmd_icixrind__c" value="{!o.rstk__woorddmd_icixrind__c}"/>
+            <apex:inputField id="woorddmd_qtyscp__c" value="{!o.rstk__woorddmd_qtyscp__c}"/>
+            <apex:inputField id="woorddmd_duedte_ui__c" value="{!wocst.rstk__wocst_duedte__c}"/>
+            <apex:inputField id="woorddmd_pickdte_ui__c" value="{!wocst.rstk__wocst_schedpickdte__c}"/>
+            <apex:inputHidden id="woorddmd_item_ui__c" value="{!wocst.rstk__wocst_item__c}"/>
+            <apex:inputHidden id="wocst_ordno__c" value="{!wocst.rstk__wocst_ordno__c}"/>
+            <apex:inputHidden id="wocst_ordsts__c" value="{!wocst.rstk__wocst_ordsts__c}"/>
+            <apex:inputHidden id="wocst_ordsts_pl__c" value="{!wocst.rstk__wocst_ordsts_pl__c}"/>
+            <apex:inputHidden id="woorddmd_dmdsts__c" value="{!o.rstk__woorddmd_dmdsts__c}"/>
+            <apex:inputText id="woorddmd_isswbs__c" value="{!o.rstk__woorddmd_isswbs__c}"/>
+            <c:inputField id="woorddmd_qtyper__c" cntr="{!controller}"/>
+            <c:inputField id="woorddmd_qtyreq_pseudo__c" cntr="{!controller}"/>
+            <c:inputTextarea id="woorddmd_refdes__c" cntr="{!controller}" cols="100" rows="15" rendered="{!!showRefdesTab}"/>
+        </apex:outputPanel>
+        <c:division id="woorddmd_div__c" cntr="{!controller}" />
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_ordno__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_ordno__c.label}"/>
+                <apex:outputField value="{!o.rstk__woorddmd_ordno__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_compitem__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__woorddmd_compitem__c.label}"/>
+<!-- RCB: RSTK-1649 -->                
+                <c:autocomplete id="woorddmd_compitem__c" cntr="{!controller}" required="true" slDesc="{!compItemName}" secondarySearchColumn="icitem_descr__c" query="select id, name from icitem__c where id != '{!wocst.rstk__wocst_item__c}' and icitem_item__r.peitem_inactivests__c != 'I' and icitem_div__c = 'prm'" queryParms="[['woorddmd_div__c','Division']]" minChars="{!minCharForAutoComplete}" tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_item__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_item__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_item__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_lne__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__woorddmd_lne__c.label}"/>
+                <apex:outputPanel >
+                    <apex:inputField id="woorddmd_lne__c" value="{!o.rstk__woorddmd_lne__c}" rendered="{!!isView}"/>
+                    <apex:outputText html-decimals="0" value="{!o.rstk__woorddmd_lne__c}" rendered="{!isView}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_icixrind__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__woorddmd_icixrind__c.label}"/>
+                <apex:outputField value="{!o.rstk__woorddmd_icixrind__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_duedte__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_duedte__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_duedte__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_qtyreq__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_qtyreq__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_qtyreq__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_schedpickdte__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_schedpickdte__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_schedpickdte__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_ordsts_pl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_ordsts_pl__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_ordsts_pl__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_resp__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_resp__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_resp__c}"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <br/>
+        <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_componentqty}" name="tab_ComponentQty" id="tab_ComponentQty">
+                <apex:pageBlockSection id="pbs_ComponentQty" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_qtytype_qtyper_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_qtytype_qtyper_ui__c.label}"/>
+                        <c:inputCheckbox id="woorddmd_qtytype_qtyper_ui__c" cntr="{!controller}" tabIndex="201"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_invuom__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woorddmd_invuom__c.label}"/>
+                        <c:selectList id="woorddmd_invuom__c" cntr="{!controller}" options="{!sl.Syuoms}" tabIndex="221"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_qtytype_qtyreqd_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_qtytype_qtyreqd_ui__c.label}"/>
+                        <c:inputCheckbox id="woorddmd_qtytype_qtyreqd_ui__c" cntr="{!controller}" tabIndex="202"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_enginvumcf__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_enginvumcf__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_enginvumcf__c" value="{!o.rstk__woorddmd_enginvumcf__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__woorddmd_enginvumcf__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_qtytype_fixedqty_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_qtytype_fixedqty_ui__c.label}"/>
+                        <c:inputCheckbox id="woorddmd_qtytype_fixedqty_ui__c" cntr="{!controller}" tabIndex="203"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_scppct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_scppct__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_scppct__c" value="{!o.rstk__woorddmd_scppct__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="6" value="{!o.rstk__woorddmd_scppct__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem id="pbsi_qtyper" helpText="{!f.rstk__woorddmd_compqty_qtyper_ui__c.inlineHelpText}" >
+                        <apex:outputLabel id="qtyperlabel" value="{!f.rstk__woorddmd_compqty_qtyper_ui__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_compqty_qtyper_ui__c" value="{!o.rstk__woorddmd_compqty_qtyper_ui__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="6" value="{!o.rstk__woorddmd_compqty_qtyper_ui__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_setqty__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_setqty__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_setqty__c" value="{!o.rstk__woorddmd_setqty__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__woorddmd_setqty__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_compqty_ordqty_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_compqty_ordqty_ui__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_compqty_ordqty_ui__c" value="{!o.rstk__woorddmd_compqty_ordqty_ui__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__woorddmd_compqty_ordqty_ui__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_comments__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_comments__c.label}"/>
+                        <c:inputText id="woorddmd_comments__c" cntr="{!controller}" tabIndex="225"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_compqty_qtyreq_ui__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_compqty_qtyreq_ui__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_compqty_qtyreq_ui__c" value="{!o.rstk__woorddmd_compqty_qtyreq_ui__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__woorddmd_compqty_qtyreq_ui__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_issuemodifiers}" name="tab_IssueModifiers" id="tab_IssueModifiers">
+                <apex:pageBlockSection id="pbs_IssueModifiers" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_wctr__c.inlineHelpText}" rendered="{!!validwctr}">
+                        <apex:outputLabel value="{!f.rstk__woorddmd_wctr__c.label}"/>
+                        <apex:outputText value="?????"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_wctr__c.inlineHelpText}" rendered="{!validwctr}">
+                        <apex:outputLabel value="{!f.rstk__woorddmd_wctr__c.label}"/>
+                        <apex:outputField value="{!o.rstk__woorddmd_wctr__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_backflushpol_pl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_backflushpol_pl__c.label}"/>
+                        <c:inputField id="woorddmd_backflushpol_pl__c" cntr="{!controller}" tabIndex="475"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_procno__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_procno__c.label}"/>
+                        <apex:outputField value="{!o.rstk__woorddmd_procno__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dtereqd__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dtereqd__c.label}"/>
+                        <c:inputField id="woorddmd_dtereqd__c" required="true" cntr="{!controller}" tabIndex="476"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_oper__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_oper__c.label}"/>
+                        <c:inputText id="woorddmd_oper__c" cntr="{!controller}" tabIndex="453"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_qtydispositions}" name="tab_QtyDispositions" id="tab_QtyDispositions">
+                <apex:pageBlockSection id="pbs_QtyDispositions" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_qtyreq_pseudo__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_qtyreq_pseudo__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_qtyreq__c" value="{!o.rstk__woorddmd_qtyreq__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__woorddmd_qtyreq__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_qtyoutstdg__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_qtyoutstdg__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_qtyoutstdg__c" value="{!o.rstk__woorddmd_qtyoutstdg__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__woorddmd_qtyoutstdg__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_qtyiss__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_qtyiss__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_qtyiss__c" value="{!o.rstk__woorddmd_qtyiss__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__woorddmd_qtyiss__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dmdsts_pl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dmdsts_pl__c.label}"/>
+                        <c:inputField id="woorddmd_dmdsts_pl__c" required="true" cntr="{!controller}" tabIndex="526"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_qtyalloc__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_qtyalloc__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="woorddmd_qtyalloc__c" value="{!o.rstk__woorddmd_qtyalloc__c}" onkeypress="return filterNonNumeric(event, this)" rendered="{!!isView}"/>
+                            <apex:outputText html-decimals="{!qtyDecimal}" value="{!o.rstk__woorddmd_qtyalloc__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_issueproject}" name="tab_IssueProject" id="tab_IssueProject">
+                <apex:pageBlockSection id="pbs_IssueProject" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_proj__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_proj__c.label}"/>
+                        <apex:inputText value="{!o.woorddmd_proj__r.rstk__pjproj_proj__c}" disabled="true"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+                    <!-- 
+                    <apex:pageBlockSectionItem helpText="{!f.woorddmd_homeprojind_pl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.woorddmd_homeprojind_pl__c.label}"/>
+                        <c:inputField id="woorddmd_homeprojind_pl__c" cntr="{!controller}" tabIndex="575"/>
+                    </apex:pageBlockSectionItem> -->
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_issproj__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_issproj__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputHidden id="woorddmd_issproj__c" value="{!o.rstk__woorddmd_issproj__c}"/>
+                            <apex:inputText id="woorddmd_display_issproj__c" value="{!o.woorddmd_issproj__r.rstk__pjproj_proj__c}" disabled="true"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        &nbsp;
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_unitcost}" name="tab_UnitCost" id="tab_UnitCost">
+                <apex:pageBlockSection id="pbs_UnitCost" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstohdfrng__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstohdfrng__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstohdfrng__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstlab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstlab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstlab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstohdmach__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstohdmach__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstohdmach__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstohdmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstohdmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstohdmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstsubmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstsubmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstsubmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstohdlab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstohdlab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstohdlab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstsublab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstsublab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstsublab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstfrght__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstfrght__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstfrght__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_ucstothlnd__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_ucstothlnd__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_ucstothlnd__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_deductions}" name="tab_Deductions" id="tab_Deductions">
+                <apex:pageBlockSection id="pbs_Deductions" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutohdfrng__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutohdfrng__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutohdfrng__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutlab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutlab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutlab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutohdmach__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutohdmach__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutohdmach__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutohdmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutohdmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutohdmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutsubmtl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutsubmtl__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutsubmtl__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutohdlab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutohdlab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutohdlab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutsublab__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutsublab__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutsublab__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutfrght__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutfrght__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutfrght__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_dolchgoutothlnd__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__woorddmd_dolchgoutothlnd__c.label}"/>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__woorddmd_dolchgoutothlnd__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_referencedesignators}" name="tab_Refdesignators" id="tab_Refdesignators" rendered="{!showRefdesTab}">
+                <apex:pageBlockSection id="pbs_Refdesignators" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woorddmd_refdes__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woorddmd_refdes__c.label}"/>
+                        <c:inputTextarea id="woorddmd_refdes__c" cntr="{!controller}" cols="100" rows="15" tabIndex="601"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    <apex:pageBlock id="details">
+        <apex:tabPanel switchType="client" selectedTab="tab_Components" id="theTabPanel" rendered="{!showDetailsTab}">
+            <apex:tab label="{!$Label.rstk__pagetab_woorddmd_componentsdetails}" name="tab_ComponentsDetails" id="tab_ComponentsDetails">
+            <apex:pageBlockSection id="pbs_Components" showHeader="false" columns="1">
+                <apex:pageBlockTable value="{!components}" var="rec">
+                    <apex:column headerValue="{!$Label.rstk__view}"><apex:outputLink value="{!URLFOR($Action.rstk__woorddmdcst__c.View, rec.id)}{!ReturnUrlParms}">View</apex:outputLink></apex:column>
+                    <apex:column headerValue="{!$Label.rstk__component}" value="{!rec.Component}"/>
+                    <apex:column headerValue="{!$Label.rstk__project}" value="{!rec.Project}"/>
+                    <apex:column headerValue="{!f_woorddmdcst.rstk__woorddmdcst_lotno__c.label}" value="{!rec.LotNo}"/>
+                    <apex:column headerValue="{!f_woorddmdcst.rstk__woorddmdcst_srlno__c.label}" value="{!rec.SerialNo}"/>
+                    <apex:column headerValue="{!f_woorddmdcst.rstk__woorddmdcst_qtyiss__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.QtyIssued}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_woorddmdcst.rstk__woorddmdcst_lne__c.label}">
+                        <apex:outputText html-decimals="0" value="{!rec.Line}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+            </apex:tab>
+        </apex:tabPanel>
+        
+        <div id="selectSwapAllocations" style="display:none">
+            <h2>{!$Label.woorddmd_SwapAllocations}</h2>
+            <hr></hr>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:150px;overflow-y:auto;display:block">
+            <apex:pageBlockSection id="pbs_swapdemands" showHeader="false" columns="1" rendered="{!SwapDemandsAvailable}">
+                <apex:pageBlockTable id="pbt_swapdemands" value="{!swapdemands}" var="rec">
+                    <apex:column headerValue="{!$Label.rstk__select}">
+                        <apex:inputCheckbox id="swap_selected" onclick="swapSelectionChanged('{!rec.id}');"/>
+                        <apex:inputHidden id="demand_id" value="{!rec.id}"/>
+                        <apex:inputHidden id="demand_type" value="{!rec.dmdType}"/>
+                    </apex:column>                  
+                    <apex:column headerValue="{!$Label.rstk__demandtype}" value="{!rec.dmdLabel}"/>
+                    <apex:column headerValue="{!f_wocst.rstk__wocst_ordno__c.label}" value="{!rec.ordno}"/>
+                    <apex:column headerValue="{!f_woorddmd.rstk__woorddmd_lne__c.label}">
+                        <apex:outputText html-decimals="0" value="{!rec.lne}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_woorddmd.rstk__woorddmd_dtereqd__c.label}" value="{!rec.dateRequired}"/>
+                    <apex:column headerValue="{!f_woorddmd.rstk__woorddmd_qtyreq__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyRequired}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_woorddmd.rstk__woorddmd_qtyiss__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyIssued}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_woorddmd.rstk__woorddmd_qtyalloc__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyAllocated}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+            </div>
+            <div id="issueBtns" style="clear:both">
+                <p><input type="button" value="{!$Label.pagebtn_woorddmd_MoveAllocation}" onclick="swapSelectedDemand();"/><input type="button" value="{!$Label.pagebtn_woorddmd_Cancel}" onclick="unblockUI();"/></p>
+            </div>
+        </div>
+            
+    </apex:pageBlock>
+    </apex:form>
+    
+  
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var DateReqGreaterThanOrd = "{!$Label.rstk__daterequiredgreaterthanorder}";
+        var DateReqLessThanOrd = "{!$Label.rstk__daterequiredlessthanorder}";
+        var QtyPerMustBeGreater = "{!$Label.rstk__qtypermustbegreater}";      
+        var ComponentQtyGreater = "{!$Label.rstk__componentqtymustbegreater}";
+        var ComponentQtyLess = "{!$Label.rstk__componentqtycannotbeless}";
+        var ScrapFactorLeastZero = "{!$Label.rstk__scrapfactormustbeleastzero}";
+        var Reference = "{!$Label.rstk__referencedesignatorssyntaxerror}";
+        var Designators = "{!$Label.rstk__numberofreferencedesignators}";
+        var OnlyOneReferenceDesignatorAllowed = "{!$Label.rstk__onlyonereferencedesignatorallowed}";
+        var LABEL_DuplicateComponentFoundWithSameOpernNum = "{!$Label.rstk__duplicatecomponentfoundwithsameopernnum}";
+        var LABEL_AllocationSwapComplete = "{!$Label.rstk__allocationswapcomplete}";
+        var LABEL_SelectDemand = "{!$Label.rstk__selectdemand}";
+        var LABEL_AllocationComplete = "{!$Label.rstk__allocationcomplete}";
+        var LABEL_ErrorOccuredDuringProcesing = "{!$Label.rstk__erroroccuredduringprocesing}";
+        var LABEL_DeAllocationComplete = "{!$Label.rstk__deallocationcomplete}";
+        var LABEL_Soagh_Error = "{!$Label.rstk__soagh_error}";
+        var qtyperlabel = '{!f.rstk__woorddmd_compqty_qtyper_ui__c.label}';
+        var fixedqtylabel = '{!$Label.rstk__fixed_quantity}';
+    </script>
+    
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

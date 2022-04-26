@@ -1,0 +1,333 @@
+<!--
+/*******************************************************************************************************************************************************************************
+* Name                  :   UFXRunQuery
+* Date Created          :   03/13/2019
+* Created By            :   Karthik Rajendran
+* Purpose               :   RSTK-244 - Query view page
+*
+*******************************************************************************************************************************************************************************/
+-->
+<apex:page standardController="rstkf__ufxhead__c" extensions="rstkf.ControllerExtnUfxRunQuery,rstkf.RemoteQueryController" showHeader="true" sidebar="false" docType="html-5.0">
+    <!-- kendo/common css references -->
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__KendoUIStyle2018, '/KendoStyle/kendo.common.min.css')}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__KendoUIStyle2018, '/KendoStyle/kendo.bootstrap.min.css')}" />
+    <!-- kendo/common js references -->
+    <apex:includeScript value="{!$Resource.rstkf__jquery}" />    
+    <apex:includeScript value="{!URLFOR($Resource.rstkf__UnderscoreJS, 'underscore-min.js')}" />
+    <apex:includeScript value="{!URLFOR($Resource.rstkf__KendoUIScript2018, '/KendoUIScript/kendo.all.min.js')}" />
+    <apex:includeScript value="{!$Resource.rstkf__SecureFilters}" />
+    <apex:includeScript value="{!$Resource.rstkf__Sanitize}" />
+    <apex:includeScript value="{!$Resource.rstkf__RootstockCommon}" />
+    <apex:includeScript value="{!$Resource.rstkf__GridActionListJS}" />
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__ufx_title_ufx_run}" subtitle="{!thisUfxRun.rstkf__ufxhead_name__c}" showHeader="false" enableAutoComplete="true"/>
+    <apex:sectionHeader subtitle="{!thisUfxRun.rstkf__ufxhead_name__c}" help="{!helpUrl}"/>
+    <apex:variable var="o" value="{!rstkf__ufxhead__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__ufxhead__c.fields}" />
+    <apex:variable var="d" value="{!$ObjectType.rstkf__ufxdetail__c.fields}" />
+    <style type="text/css">
+        .k-grid  .k-grid-header  .k-header  .k-link {
+            height: auto;
+        }
+        .k-grid  .k-grid-header  .k-header {
+            white-space: normal;
+            font-weight: bold;
+        }
+        .change-background {
+            background-color: #FEDFDC;
+        }
+        .bPageBlock .detailList .dataCol {
+            width: 0%; 
+        }
+    </style>
+    <script>
+        $(document).ready(function() {
+            blockUI();
+            getAllUfxRunsCurr1();
+            $('#expand').click(function(e){
+                var grid = $("#ufxRunsSummaryGrid").data("kendoGrid");
+                $( ".k-master-row" ).each(function( index ) {
+                    grid.expandRow(this);
+                });
+            })
+
+            $('#collapse').click(function(e){
+                var grid = $("#ufxRunsSummaryGrid").data("kendoGrid");
+                $( ".k-master-row" ).each(function( index ) {
+                    grid.collapseRow(this);
+                });
+            })
+        });
+
+        function getAllUfxRunsCurr1() {
+            var ufxRunId = '{!thisUfxRun.Id}';
+            var deferred = $.Deferred();
+            Visualforce.remoting.Manager.invokeAction(
+                '{!$RemoteAction.ControllerExtnUfxRunQuery.getUfxRunAcctCurrSummaries}', ufxRunId,
+                function (result, event) {
+                    deferred.resolve(result, event);
+                    renderGrid(result.records);
+                    unblockUI();
+                },
+                {escape: false}
+            );
+            return deferred.promise();
+        }
+
+        function renderGrid(data) {
+            var grid = $("#ufxRunsSummaryGrid").kendoGrid({
+                dataSource: {
+                    data: data,
+                    pageSize: 15
+                },
+                height: 500,
+                scrollable: true,
+                sortable: true,
+                resizable: true,
+                pageable: { 
+	        		input: true,
+	                numeric: false,
+	        		pageSizes: [10, 15, 25, 50, 100],
+	        		messages: {
+	        			display: '{0} - {1} of {2} records',
+	        			empty: '',
+	        			itemsPerPage: 'records per page'
+	        		}
+				},
+                navigatable: true,
+                filterable: { mode: "row" },
+                detailInit: detailInit,
+                dataBound: function() {
+                    //this.expandRow(this.tbody.find("tr.k-master-row").first());
+                    var data = this.dataSource.data();
+                    $.each(data, function (i, row) {
+                        if (row.ufxacctcurrsum_ratemethod == "{!$Label.ufx_val_no_historical_rate_set}" ) {
+                            var element = $('tr[data-uid="' + row.uid + '"] ');
+                            $(element).addClass("change-background");
+                        }
+                        //if(row.ufxDetails.length == 0) {
+                        //    $('tr[data-uid="' + row.uid + '"] ').find("td.k-hierarchy-cell .k-i-expand").click(function(e){e.preventDefault();});
+                        //}
+                    });
+                },
+                columns: [
+                    {
+                        field: "ufxacctsum_glacct_r_Name",
+                        title: "{!$Label.ufx_kendo_clm_glaccount}"
+                    },
+                    {
+                        field: "ufxacctsum_glacct_r_fxtype",
+                        title: "{!$Label.ufx_kendo_clm_fxtype}"
+                    },
+                    {
+                        field: "ufxacctcurrsum_sycurr_r_Name",
+                        title: "{!$Label.ufx_kendo_clm_currency}"
+                    },
+                    {
+                        field: "ufxacctcurrsum_ratemethod",
+                        title: "{!$Label.ufx_kendo_clm_ratemethod}"
+                    },
+                    {
+                        field: "ufxacctcurrsum_rate",
+                        template: "#= formatNumber6(ufxacctcurrsum_rate) #",
+                        title: "{!$Label.ufx_kendo_clm_rate}",
+                        filterable: false
+                    },
+                    {
+                        field:'ufxacctcurrsum_gains', 
+                        title:'{!$Label.ufx_kendo_clm_acct_curr_total_gainloss}', 
+                        template: '#= formatNumber2(ufxacctcurrsum_gainOrLoss) #',
+                        filterable: false
+                    }
+                ]
+            });
+        }
+
+        function detailInit(e) {
+            $("<div/>").appendTo(e.detailCell).kendoGrid({
+                dataSource: {
+                    data:e.data.ufxDetails,
+                    filter: { field: "ufxacctcurrsum", operator: "eq", value: e.data.ufxacctcurrsum },
+                    pageSize: 10
+                },
+                scrollable: true,
+                sortable: true,
+                filterable: { mode: "row" },
+                pageable: { 
+	        		input: true,
+	                numeric: false,
+	        		pageSizes: [5, 10, 25, 50, 100],
+	        		messages: {
+	        			display: '{0} - {1} of {2} records',
+	        			empty: '',
+	        			itemsPerPage: 'records per page'
+	        		}
+				},
+                resizable: true,
+                dataBound: function() {
+                    var data = this.dataSource.data();
+                    $.each(data, function (i, row) {
+                        if (row.ufxdetail_ratemethod == "{!$Label.ufx_val_no_historical_rate_set}" || row.ufxdetail_rate == "0.00" || row.ufxdetail_homeafter == "0.00") {
+                            var element = $('tr[data-uid="' + row.uid + '"] ');
+                            $(element).addClass("change-background");
+                        }
+                    });
+                },
+                columns: [
+                    { 
+                        field: "ufxdetail_txndesc", 
+                        title: "{!d.ufxdetail_txndesc__c.label}",
+                        template: "<a href='/apex/UFXDetailView?Id=#=ufxdetail_Id#' target='_blank'>#= ufxdetail_txndesc #</a>"
+                    },
+                    {
+                        field: "ufxdetail_apinvtxn_name",
+                        title: "{!d.ufxdetail_apinvtxn__c.label}",
+                        template: "<a href='/#=ufxdetail_apinvtxn#' target='_blank'>#= ufxdetail_apinvtxn_name #</a>"
+                    },
+                    {
+                        field: "ufxdetail_arinvtxn_name",
+                        title: "{!d.ufxdetail_arinvtxn__c.label}",
+                        template: "<a href='/#=ufxdetail_arinvtxn#' target='_blank'>#= ufxdetail_arinvtxn_name #</a>"
+                    },
+                    {
+                        field: "ufxdetail_porcptap_name",
+                        title: "{!d.ufxdetail_porcptap__c.label}",
+                        template: "<a href='/#=ufxdetail_porcptap#' target='_blank'>#= ufxdetail_porcptap_name #</a>"
+                    },
+                    {
+                        field: "ufxdetail_rate",
+                        title: "{!$Label.ufx_kendo_clm_hist_rate}",
+                        template: "#= formatNumber6(ufxdetail_rate) #",
+                        filterable: false
+                    },
+                    {
+                        field: "ufxdetail_ratemethod",
+                        title: "{!d.ufxdetail_ratemethod__c.label}"
+                    },
+                    {
+                        field: "ufxdetail_curr",
+                        title: "{!d.ufxdetail_curr__c.label}"
+                    },
+                    {
+                        field: "ufxdetail_fcvalue",
+                        title: "{!d.ufxdetail_fcvalue__c.label}",
+                        template: "#= formatNumber(ufxdetail_fcvalue) #",
+                        filterable: false
+                    },
+                    {
+                        field: "ufxdetail_current_rate",
+                        title: "{!$Label.ufx_kendo_clm_current_rate}",
+                        template: "#= formatNumber6(ufxdetail_current_rate) #",
+                        filterable: false
+                    },
+                    {
+                        field: "ufxdetail_homebefore",
+                        title: "{!d.ufxdetail_homebefore__c.label}",
+                        template: "#= formatNumber(ufxdetail_homebefore) #",
+                        filterable: false
+                    },
+                    {
+                        field: "ufxdetail_homeafter",
+                        title: "{!d.ufxdetail_homeafter__c.label}",
+                        template: "#= formatNumber(ufxdetail_homeafter) #",
+                        filterable: false
+                    },
+                    {
+                        field: "ufxdetail_variance",
+                        title: "{!d.ufxdetail_variance__c.label}",
+                        template: "#= formatNumber2(ufxdetail_variance) #",
+                        filterable: false
+                    },
+                    {
+                        field: "ufxdetail_gainamt__c",
+                        title: "{!$Label.ufx_kendo_clm_gainloss}",
+                        template: '#= formatNumber2(ufxdetail_gainOrLoss) #',
+                        filterable: false
+                    }
+                ]
+            });
+        }
+
+        function formatNumber(data) {
+            return kendo.toString(parseFloat(data), "n");
+        }
+
+        function formatNumber2(data) {
+            var num = parseFloat(data);
+            if(num < 0) {
+                return "(" + kendo.toString(Math.abs(num), "n") + ")";
+            }
+            return kendo.toString(num, "n");
+        }
+
+        function formatNumber6(data) {
+            if(data) {
+                var num = parseFloat(data);
+                if(num < 0) {
+                    return "(" + kendo.toString(Math.abs(num), "n6") + ")";
+                }
+                return kendo.toString(num, "n6");
+            }
+            return "";
+        }
+    </script>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="back" action="{!goBack}" />
+        <apex:pageBlock id="pb">
+            <apex:pageBlockSection columns="1">
+                <apex:pageBlockSectionItem >
+                    <input type="button" id="btnGoBack" class="btn" value="{!$Label.ufx_btn_goback}" onclick="back();" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection id="pbs1" columns="1">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__ufxhead_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__ufxhead_glcmp__c.label}"/>
+                    <apex:outputField id="ufxhead_glcmp__c" value="{!thisUfxRun.rstkf__ufxhead_glcmp__c}"/>
+                </apex:pageBlockSectionItem>            
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs2" columns="4">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__ufxhead_runno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__ufxhead_runno__c.label}"/>
+                    <apex:outputField id="ufxhead_runno__c" value="{!thisUfxRun.rstkf__ufxhead_runno__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__ufxhead_rundate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__ufxhead_rundate__c.label}"/>
+                    <apex:outputField id="ufxhead_rundate__c" value="{!thisUfxRun.rstkf__ufxhead_rundate__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__ufxhead_effdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstkf__ufx_kendo_clm_run_effective_date}"/>
+                    <apex:outputField id="ufxhead_effdate__c" value="{!thisUfxRun.rstkf__ufxhead_effdate__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstkf__ufx_lbl_run_total_gain_loss}"/>
+                    <apex:outputText value="{!IF(totalGainOrLoss<0,'(','')}{!ABS(totalGainOrLoss)}{!IF(totalGainOrLoss<0,')','')}" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection id="pbs3" columns="1">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__ufxhead_poststatus__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__ufxhead_poststatus__c.label}"/>
+                    <apex:outputField id="ufxhead_poststatus__c" value="{!thisUfxRun.rstkf__ufxhead_poststatus__c}"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection id="pbs4" columns="1">
+                <apex:pageBlockSectionItem >
+                    <apex:outputPanel >
+                        <br />
+                        <a class="k-button" id="expand">{!$Label.ufx_btn_expand_all}</a>
+                        <a class="k-button" id="collapse">{!$Label.ufx_btn_collapse_all}</a>
+                        <div id="ufxRunsSummaryGrid"></div>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+
+    </apex:form>
+    <span style="background-color: #FEDFDC;">&nbsp;&nbsp;</span><i> - {!$Label.ufx_msg_highlight_baddata} </i>
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+	
+</apex:page>

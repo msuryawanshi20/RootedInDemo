@@ -1,0 +1,209 @@
+<apex:page id="pg" title="{!$Label.rstkf__title_cashrequirementsreport}" standardController="rstkf__apinvtxn__c" extensions="rstkf.ControllerExtnCashReqReport,rstkf.RemoteQueryController,rstkf.ControllerJobStatus" sideBar="false" showHeader="true" action="{!doBeforePageLoad}" readOnly="false">
+    <apex:variable var="f_t" value="{!$ObjectType.rstkf__apinvtxn__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="f_povend" value="{!$ObjectType.rstk__povend__c.fields}" />
+    <apex:variable var="f_paysessinv" value="{!$ObjectType.rstkf__paysessinv__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__title_cashrequirementsreport}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__title_cashrequirementsreport}" showHeader="false" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <style>
+     .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        
+        .sort {display:inline}
+        .numSort {display:inline}
+        
+        .floatingStyle { 
+            background-color:#829DC0 !important;
+        }
+    </style>
+    
+    <script>
+        function enableSort() {
+            jQuery('table[id$=pbt_transactions]').tablesorter({
+                headers: { 
+                    0: { sorter: false },
+                    1: { sorter: false },
+                    2: { sorter: false },
+                    3: { sorter: false },
+                    4: { sorter: false },
+                    5: { sorter: false },
+                    6: { sorter: false },
+                    7: { sorter: false },
+                    8: { sorter: false },
+                    9: { sorter: false },
+                    10: { sorter: false },
+                    11: { sorter: false },
+                    12: { sorter: false },
+                    13: { sorter: false },
+                    14: { sorter: false },
+                    15: { sorter: false }
+                }
+            }).vfFloatingHeaders();
+        }
+    </script>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="showFilteredVendors" action="{!showFilteredVendors}" oncomplete="enableSort();" rerender="op_transactions" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="generateReport" action="{!generateReport}" oncomplete="checkJobStatus();" rerender="op_JobStatus, op_vars, pageMessages" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="displayReport" action="{!displayReport}" rerender="op_transactions" oncomplete="enableSort();" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="firstPage" action="{!firstPage}" rerender="op_transactions" oncomplete="enableSort();" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="lastPage" action="{!lastPage}" rerender="op_transactions" oncomplete="enableSort();" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="nextPage" action="{!nextPage}" rerender="op_transactions" oncomplete="enableSort();" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="previousPage" action="{!previousPage}" rerender="op_transactions" oncomplete="enableSort();" immediate="false" status="statusProcessing"/>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+        </apex:outputPanel>
+        
+        <apex:outputpanel id="op_vars">
+            <script>
+                var sessionKey = '{!sessionKey}';
+            </script>
+        </apex:outputpanel>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons location="top">
+                <apex:commandbutton value="{!$Label.rstkf__btn_generatereport}" style="width: 120px;" onclick="doGenerateReport();return false;"/>
+                <apex:commandbutton value="{!$Label.rstkf__export}" style="width: 80px;" onclick="doExportReport();return false;"/>
+            </apex:pageBlockButtons>            
+            <apex:outputpanel id="op_filters">
+            <apex:pageBlockSection id="pbs_filterByVendor" showHeader="false" columns="2" collapsible="false">
+                 <apex:pageBlockSectionItem >
+                     <apex:outputLabel value="{!f_customext.rstkf__custom_glcmp__c.label}:" />
+                     <apex:outputField value="{!customObj.rstkf__custom_glcmp__c}"/>
+                 </apex:pageBlockSectionItem>
+                 <apex:pageBlockSectionItem >
+                 	<!-- Bank Account -->
+                 	<apex:outputLabel value="Bank Account:" />
+                    <apex:outputLink value="{!URLFOR($Action.rstkf__glbankacct__c.View, paysession.rstkf__paysession_glbankacct__c)}" 
+                    	target="_blank" rendered="{!paysession != null}">{!paysession.paysession_glbankacct__r.Name}
+                    </apex:outputLink>
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem />
+                 <apex:pageBlockSectionItem >
+                 	<!-- Bank Currency -->
+                 	<apex:outputLabel value="Bank Currency:" />
+                    <apex:outputLink value="{!URLFOR($Action.rstk__sycurr__c.View, paysession.paysession_glbankacct__r.rstkf__glbankacct_curr__c)}" 
+                    	target="_blank" rendered="{!paysession != null}">{!paysession.paysession_glbankacct__r.glbankacct_curr__r.Name}
+                    </apex:outputLink>
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstkf__filterbyvendor}" />
+                    <apex:outputpanel >
+                        <c:simpleSelectList id="filteredVendors__c" value="{!filteredVendor}" 
+                                style="width:150px;"
+                                label="{!$Label.rstkf__filterbyvendor}"
+                                onchange="showFilteredVendors();" 
+                                options="{!vendors}"/>
+                    </apex:outputpanel>
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                     <apex:outputLabel value="{!$Label.rstkf__paymentselectionbatch}:" />
+                     <apex:outputLink value="{!URLFOR($Action.rstkf__paysession__c.View, paysession.Id)}" target="_blank" rendered="{!paysession != null}">{!paysession.name}</apex:outputLink>
+                 </apex:pageBlockSectionItem>
+             </apex:pageBlockSection>
+             </apex:outputpanel>
+        </apex:pageBlock>
+        
+        <apex:outputPanel id="op_transactions">
+            <apex:outputPanel id="op_transactionsInner" rendered="{!displayRecs}">
+            <apex:pageBlock id="details" mode="detail"> 
+                <div style="overflow:auto; width:100%; height: 400px;" >
+                    <apex:pageBlockTable value="{!recsToDisplay}" var="rec" id="pbt_transactions" width="100%">
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; font-weight: bold;', '')}" headerValue="{!f_t.rstkf__apinvtxn_vendno__c.label}"> 
+                            <apex:outputLink value="{!URLFOR($Action.rstkf__povendcmpno__c.View, rec.rstkf__cashreqreport_povendcmpno__c)}" target="_blank" rendered="{!rec.rstkf__cashreqreport_isfirstrec__c && rec.rstkf__cashreqreport_povendcmpno__c != null}">{!rec.cashreqreport_vendno__r.name}</apex:outputLink>
+                            <apex:outputText value="{!$Label.rstkf__vendortotal}" rendered="{!rec.rstkf__cashreqreport_isvendorsubtotal__c}"/>
+                            <apex:outputText value="{!$Label.rstkf__payruntotal}" rendered="{!rec.rstkf__cashreqreport_ispayruntotal__c}"/>
+                        </apex:column>
+                        
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5', '')}" headerValue="{!$Label.rstkf__hold}" value="{!rec.cashreqreport_apinvtxn__r.apinvtxn_vendno__r.rstkf__povend_holdforpayment__c}" />
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; text-align: center;', 'text-align: center;')}" headerValue="{!f_t.rstkf__apinvtxn_tranid__c.label}">
+                             <apex:outputLink value="{!URLFOR($Action.rstkf__apinvtxn__c.View, rec.rstkf__cashreqreport_apinvtxn__c)}" target="_blank" rendered="{!rec.rstkf__cashreqreport_apinvtxn__c != null}">{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_tranid__c}</apex:outputLink>
+                        </apex:column>
+                        
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; text-align: center;', 'text-align: center;')}" headerValue="{!f_t.rstkf__apinvtxn_trandate__c.label}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_trandate__c}" />                 
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; text-align: center;', 'text-align: center;')}" headerValue="{!$Label.rstkf__docnum}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_docno__c}" />
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5', '')}" headerValue="{!f_t.rstkf__apinvtxn_trantype__c.label}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_trantype__c}" />
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5', '')}" headerValue="{!$Label.rstkf__txnhold}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_holdprocind__c}" />    
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5', '')}" headerValue="{!$Label.rstkf__paycurrency}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_paycurr__c}" />
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; font-weight: bold; text-align: right;', 'text-align: right;')}" headerValue="{!$Label.rstkf__txntotal}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_maintamt__c}" /> 
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; font-weight: bold; text-align: right;', 'text-align: right;')}" headerValue="{!f_t.rstkf__apinvtxn_discblamt__c.label}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_discblamt__c}" />                      
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; text-align: center;', 'text-align: center;')}" headerValue="{!f_t.rstkf__apinvtxn_agedate__c.label}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_agedate__c}" />
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; text-align: center;', 'text-align: center;')}" headerValue="{!f_t.rstkf__apinvtxn_termsdiscdate__c.label}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_termsdiscdate__c}" />                   
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; font-weight: bold; text-align: right;', 'text-align: right;')}" headerValue="{!$Label.rstkf__netpayment}" value="{!rec.rstkf__cashreqreport_netpay__c}" />                        
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; font-weight: bold; text-align: right;', 'text-align: right;')}" headerValue="{!$Label.rstkf__discamt}" value="{!rec.rstkf__cashreqreport_disctknamt__c}" />
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; font-weight: bold; text-align: right;', 'text-align: right;')}" headerValue="{!$Label.rstkf__bankamount}" value="{!rec.rstkf__cashreqreport_netpaybank__c}" />                   
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5; font-weight: bold; text-align: right;', 'text-align: right;')}" headerValue="{!$Label.rstkf__amountnotselected}" value="{!rec.rstkf__cashreqreport_amtnotselected__c}" />                     
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5', '')}" headerValue="{!$Label.rstkf__whynotselected}" value="{!rec.rstkf__cashreqreport_reasonfornonselection__c}"/>
+                        <apex:column style="{!IF(rec.rstkf__cashreqreport_apinvtxn__c == null, 'background-color: #e0e3e5', '')}" headerValue="{!f_t.rstkf__apinvtxn_holdcode__c.label}" value="{!rec.cashreqreport_apinvtxn__r.rstkf__apinvtxn_holdcode__c}" />
+                    </apex:pageBlockTable>
+                </div>
+                <apex:panelGrid columns="6"> 
+                    <apex:commandLink status="statusProcessingPaginate" reRender="op_transactions" onclick="firstPage(); return false;" >First</apex:commandlink>
+                    <apex:commandLink status="statusProcessingPaginate" reRender="op_transactions" onclick="previousPage(); return false;" rendered="{!setConCashreqreport.hasPrevious}" >Previous</apex:commandlink>
+                    <apex:commandLink status="statusProcessingPaginate" reRender="op_transactions" onclick="nextPage(); return false;" rendered="{!setConCashreqreport.hasNext}" >Next</apex:commandlink>
+                    <apex:commandLink status="statusProcessingPaginate" reRender="op_transactions" onclick="lastPage(); return false;" >Last</apex:commandlink>
+                    <apex:outputText >{!(setConCashreqreport.pageNumber * pagesize)+1-pagesize}-{!IF((setConCashreqreport.pageNumber * pagesize)>noOfRecords, noOfRecords,(setConCashreqreport.pageNumber * pagesize))} of {!noOfRecords}</apex:outputText>
+                    <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                        <apex:actionStatus id="statusProcessingPaginate" startText="Fetching..." stopText=""/>
+                    </apex:outputPanel>
+                </apex:panelGrid>
+            </apex:pageBlock>
+            </apex:outputPanel>
+        </apex:outputPanel>
+        
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+        function pageInit(){
+            enableSort();
+        }
+        
+        function doGenerateReport() {
+            blockUI();
+            generateReport();
+        }
+    
+        function doAfterJobComplete(pl) {
+            if(pl.iserror__c) {
+                unblockUI();
+            }
+            else {
+                unblockUI();
+                displayReport();
+            }
+        }
+        
+        function doExportReport() {
+            var cashreqreports = execQuery("select max(cashreqreport_exportnum__c) maxExportnum from cashreqreport__c where cashreqreport_key__c = '"+sessionKey+"'");
+            var exportnumofrecs = Number(cashreqreports[0].maxExportnum);
+            var numofexports = Math.ceil(exportnumofrecs / 3000);
+            var povend = jQuery('select[name*=filteredVendors__c]')[0].value;
+            for(var i=1; i<=numofexports; i++) {
+                window.open('/apex/CashReqCsvReport?filteredVendor='+povend+'&sessionKey='+sessionKey+'&exportnum='+i);
+            }
+            
+            
+        }
+    
+    </script>
+    
+</apex:page>

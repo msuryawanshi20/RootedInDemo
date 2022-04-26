@@ -1,0 +1,845 @@
+<apex:page id="pg" standardController="rstk__icreq__c" extensions="rstk.ControllerExtnReqRevWithTransfer,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <style>
+        .modal {
+            background-color:#fff;
+            display:none;
+            width:500px;
+            padding:15px;
+            text-align:left;
+            font-size:1em;
+            border:2px solid #333;
+        
+            opacity:1.0;
+            -moz-border-radius:6px;
+            -webkit-border-radius:6px;
+            -moz-box-shadow: 0 0 50px #ccc;
+            -webkit-box-shadow: 0 0 50x #ccc;
+        }
+        
+        .floatingStyle { 
+            background-color:#829DC0 !important;
+        }
+        
+        .menu-title:before {
+            content: "Configure Columns";
+            display: block;
+            position: absolute;
+            top: 0;
+            right: 0;
+            left: 0;
+            background: #829DC0;
+            padding: 2px;
+            
+            font-family: Verdana, Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+    </style>
+    <apex:variable var="o" value="{!rstk__icreq__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icreq__c.fields}" />
+    <apex:variable var="f_poitemvend" value="{!$ObjectType.rstk__poitemvend__c.fields}" /> 
+    <apex:variable var="f_icitem" value="{!$ObjectType.rstk__icitem__c.fields}" /> 
+    
+    <script type="text/javascript">var __sfdcSessionId = '{!GETSESSIONID()}';</script>
+    <script type="text/javascript">var __siteUrlPrefix = '{!$Site.Prefix}';</script>
+    <script type="text/javascript">var __busySpinner = "{!$Resource.rstk__busy}";</script>
+    <script type="text/javascript">var __iconpath = "{!URLFOR($Resource.rstk__treeIcons)}";</script>
+    <apex:includeScript value="{!$Resource.rstk__jquery144min}"/>
+    <!-- uncomment as needed<apex:includeScript value="{!$Resource.connection}" /> -->
+    <!-- uncomment as needed<apex:includeScript value="{!$Resource.sfff}" /> -->
+    <!-- uncomment as needed<apex:includeScript value="{!$Resource.common_client_lib}" /> -->
+    <!-- uncomment as needed<apex:includeScript value="{!$Resource.common_client_lib2}" /> -->
+    <apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icreqfirm}" enableAutocomplete="true"/>
+    <c:jquery_client_labels />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:stylesheet value="{!$Resource.rstk__jquery_contextmenu_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_contextmenu}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_blockUI_v2}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    
+    <script>
+        var convertedPOOrdno = '{!convertedPOOrdno}';
+        var convertedPOId = '{!convertedPOId}';
+        var convertedItem = '{!JSENCODE(convertedItem)}';
+        
+        jQuery(document).ready(function() {
+            console.log('ready');
+            
+            if(window.setupAutocomplete) setupAutocomplete();
+            
+            jQuery("button[rel]").overlay({
+                top: 0,
+                left: 350,
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                fixed:false,
+                closeOnClick: false
+            });
+            
+            jQuery.tablesorter.addParser({
+                id: "fancyNumber",
+                is: function(s) {
+                    return /^[0-9]?[0-9,\.]*$/.test(s);
+                },
+                format: function(s) {
+                return jQuery.tablesorter.formatFloat( s.replace(/,/g,'') );
+                },
+                type: "numeric"
+            });
+        });
+        
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="reloadList" action="{!doReloadIcrecList}" oncomplete="unblockUI();toggelButtons();enableSort();" rerender="op_SubList, pageMessages, pbcmdbtns"/>
+        <apex:actionFunction name="firmSelected" action="{!doFirmSelected}" oncomplete="unblockUI();enableSort();" rerender="op_SubList, pageMessages"/>
+        <apex:actionFunction name="reverseFirmSelected" action="{!doReverseFirmSelected}" oncomplete="unblockUI();enableSort();" rerender="op_SubList, pageMessages"/>
+        <apex:actionFunction name="approveSelected" action="{!doApproveSelected}" oncomplete="unblockUI();enableSort();" rerender="op_SubList, pageMessages"/>
+        <apex:actionFunction name="assignSelected" action="{!doAssignSelected}" oncomplete="unblockUI();enableSort();" rerender="op_SubList, pageMessages"/>
+        <apex:actionFunction name="convertSelected" action="{!doConvertSelected}" oncomplete="unblockUI();enableSort();" rerender="pageMessages"/>
+        
+        <button style="visibility:hidden" class="modalbtnAssignVendors" rel="#assignVendors"></button>
+        <div class="modal" id="assignVendors">
+            <h1>{!$Label.ReqRevWithTransfer_Assign_Vendors}</h1>
+            <apex:pageBlock mode="edit">
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__actiontype}"/>
+                        <apex:selectList id="assignaction__c" value="{!assignAction}" onchange="assignedActionChanged(this.value);" size="1" >
+                            <apex:selectOptions value="{!assignedActions}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__assignedvendor}"/>
+                        <c:selectList id="povend__c" cntr="{!controller}" options="{!assignedVendors}" objKey="assignVendor" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:pageBlock>   
+
+            <button type="button" onclick="assignVendors_ok()">{!$Label.reqrevwithtransfer_pagebtn_PerformAction}</button>
+            <button type="button" class="close">{!$Label.reqrevwithtransfer_pagebtn_Cancel}</button>
+        </div>
+        
+        <apex:outputPanel id="hidden_panel" style="display:none">
+            <apex:inputText value="{!convertedItem}" id="item_desc__c" />
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="edit">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+                <apex:commandButton id="btn_search" value="{!$Label.rstk__pagebtn_icreqfirm_searchrequisitions}" onclick="searchReqs(); return false;"/>
+                <apex:commandButton id="btn_process" value="{!$Label.rstk__reqrevwithtransfer_pagebtn_processselectedrequisitions}" onclick="if(checkSelected()){blockUI();firmSelected();} return false;" style="display:none"/>
+            </apex:pageBlockButtons>
+        
+            <button type="button" onclick="openRILPopup()">{!$Label.reqrevwithtransfer_pagebtn_DisplayReqswithInventoryLocations}</button>
+            <c:Popup popupId="reqWithInvLocsPopup" title="{!$Label.rstk__reqs_with_inventory_locations}" >
+                <c:FrameGrid height="425px" preLoad="false" jsController="reqWithInvLocs" page="/apex/reqWithInvLocs" rootId=""/>
+            </c:Popup>
+        
+            <apex:outputPanel id="pbcmdbtns" style="display:none">
+                <input type="hidden" id="reporttype" value="2"/>
+                <apex:inputHidden id="icreq_div__c" value="{!o.rstk__icreq_div__c}" />
+                <apex:outputText id="showFirm__c" value="{!showFirm}" />
+                <apex:outputText id="showRfirm__c" value="{!showRfirm}" />
+                <apex:outputText id="showConvert__c" value="{!showConvert}" />
+                <apex:outputText id="clientMessage" value="{!clientMessage}" />
+            </apex:outputPanel>
+        
+            <div style="width:1200px;">
+            <apex:pageBlockSection id="pbs_div" showHeader="false" columns="2" >
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f.rstk__icreq_div__c.label}"/>
+                    <apex:outputField id="icreq_div__c"  value="{!o.rstk__icreq_div__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_buydiv__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_buydiv__c.label}"/>
+                     <c:selectList id="icreq_buydiv__c" cntr="{!controller}" options="{!divs}"/>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_site__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_receiptsite__c.label}"/>
+                     <c:selectList id="icreq_receiptsite__c" cntr="{!controller}" options="{!sysites}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_iccomcod__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f_icitem.rstk__icitem_iccomcod__c.label}"/>
+                     <c:selectList id="icitem_iccomcod__c" cntr="{!controller}" options="{!iccomcods}" objKey="icitem"/>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_ordsts_pl__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_ordsts_pl__c.label}"/>
+                     <c:selectList id="icreq_ordsts_pl__c" cntr="{!controller}" required="true" options="{!Statuses}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_poitemvend.rstk__poitemvend_primeind__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f_poitemvend.rstk__poitemvend_primeind__c.label}"/>
+                     <c:selectList id="poitemvend_vendno__c" cntr="{!controller}" options="{!vendors}" objKey="poitemvend" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_respbuyer__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_respbuyer__c.label}"/>
+                     <c:selectList id="icreq_respbuyer__c" cntr="{!controller}" options="{!sl.syusrs}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_povend__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_povend__c.label}"/>
+                     <c:selectList id="icreq_povend__c" cntr="{!controller}" options="{!assignedVendors}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_respinv__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_respinv__c.label}"/>
+                     <c:selectList id="icreq_respinv__c" cntr="{!controller}" options="{!Planners}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_duedte__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_duedte__c.label}"/>
+                     <c:inputField id="icreq_duedte__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_proj__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_proj__c.label}"/>
+                    <c:autocomplete id="icreq_proj__c" cntr="{!controller}"
+                        query="select id, name from pjproj__c where pjproj_div__c = 'prm' and pjproj_completed__c = false"
+                        queryParms="[['icreq_div__c','Division']]"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_poplacedte__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_poplacedte__c.label}"/>
+                     <c:inputField id="icreq_poplacedte__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_item__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icreq_item__c.label}"/>
+                    <c:autocomplete id="icreq_item__c" cntr="{!controller}"
+                        query="select icitem_item__c, name from icitem__c where icitem_div__c = 'prm'" 
+                        queryParms="[['icreq_div__c','Division']]"  tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_schedfirmdte__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_schedfirmdte__c.label}"/>
+                     <c:inputField id="icreq_schedfirmdte__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__only_show_reqs_with_enough_inventory_in_other_projects}"/>
+                    <apex:inputCheckbox id="local_withqty" value="{!local_withqty}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreq_dckdte__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__icreq_dckdte__c.label}"/>
+                     <c:inputField id="icreq_dckdte__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            </div>
+            
+            <apex:outputPanel style="display:none">
+                    <apex:outputLabel id="label_customdate1" value="{!$Label.rstk__through}"/>
+                    <apex:inputField id="custom_date__c" value="{!customext.rstk__custom_date__c}" />
+                    <apex:outputLabel id="label_customdate2" value="{!$Label.rstk__through}"/>
+                    <apex:inputField id="custom_date2__c" value="{!customext.rstk__custom_date2__c}" />
+                    <apex:outputLabel id="label_customdate3" value="{!$Label.rstk__through}"/>
+                    <apex:inputField id="custom_date3__c" value="{!customext.rstk__custom_date3__c}" />
+                    <apex:outputLabel id="label_customdate4" value="{!$Label.rstk__through}"/>
+                    <apex:inputField id="custom_date4__c" value="{!customext.rstk__custom_date4__c}" />
+            </apex:outputPanel>
+            <apex:outputPanel id="op_SubList" style="width:100%; scroll:auto;">
+                <apex:pageBlock id="list" rendered="{!reqsFound}">
+                &nbsp;<apex:inputCheckbox id="selectAll" onclick="markAll(this.checked)"/>&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <script>var allReqs = [];document.getElementById("{!$Component.selectAll}").checked = false;</script>
+                <apex:outputLabel value="{!$Label.rstk__numberofrequisitionsfound}:"/>&nbsp;<apex:outputText value="{!numberOfReqsFound}"/>
+                <apex:outputPanel id="op_grid_header">
+                </apex:outputPanel>
+                <apex:pageBlockTable id="pbt_grid" value="{!icreqs}" style="table-layout:fixed;" var="rec"
+                    columnsWidth="45px,80px,235px,130px,130px,130px,118px,100px,115px,115px,111px,137px,135px,135px,175px,135px,135px,105px,135px,105px" >
+                    <apex:column headerValue="{!$Label.rstk__select}" width="45px">
+                        <apex:inputCheckbox id="icreq_selected" value="{!rec.rstk__icreq_temp_select__c}" onchange="reqSelected(this.id);"/>
+                        <script>allReqs.push(document.getElementById("{!$Component.icreq_selected}"));</script>
+                    </apex:column>
+                    <apex:column headerValue="{!f.name.label}">
+                        <apex:outputLink value="{!URLFOR($Action.rstk__icreq__c.View, rec.id)}{!ReturnUrlParms}" target="_blank">{!rec.Name}</apex:outputLink>
+                    </apex:column>
+                    <!-- <apex:column headerValue="{!f.icreq_ordno__c.label}" value="{!rec.icreq_ordno__c}" /> -->
+                    <apex:column headerValue="{!f.rstk__icreq_item__c.label}" value="{!rec.rstk__icreq_item__c}" />
+                    <apex:column headerValue="{!f.rstk__icreq_buydiv__c.label}" value="{!rec.rstk__icreq_buydiv__c}" />
+                    <apex:column headerValue="{!f.rstk__icreq_receiptsite__c.label}" value="{!rec.rstk__icreq_receiptsite__c}" />
+                    <apex:column headerValue="{!f.rstk__icreq_div__c.label}" value="{!rec.rstk__icreq_div__c}" />
+                    <apex:column headerValue="{!f.rstk__icreq_qtyreq__c.label}" styleClass="rl-rightalign">
+                        <c:outputFormattedNumber decimals="{!2}" value="{!rec.rstk__icreq_qtyreq__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__formula_qtyremain__c.label}" styleClass="rl-rightalign">
+                        <c:outputFormattedNumber decimals="{!2}" value="{!rec.rstk__formula_qtyremain__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__icreq_homeprojqty__c.label}" styleClass="rl-rightalign" rendered="{!customext.rstk__custom_checkbox__c = true}">
+                        <c:outputFormattedNumber decimals="{!2}" value="{!rec.rstk__icreq_homeprojqty__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__icreq_nonhomeqty__c.label}" styleClass="rl-rightalign" rendered="{!customext.rstk__custom_checkbox__c = true}">
+                        <c:outputFormattedNumber decimals="{!2}" value="{!rec.rstk__icreq_nonhomeqty__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__icreq_dckdte__c.label}" value="{!rec.rstk__icreq_dckdte__c}" styleClass="rl-rightalign"/>
+                    <apex:column headerValue="{!f.rstk__icreq_duedte__c.label}" value="{!rec.rstk__icreq_duedte__c}" styleClass="rl-rightalign"/>
+                    <apex:column headerValue="{!f.rstk__icreq_schedfirmdte__c.label}" value="{!rec.rstk__icreq_schedfirmdte__c}" styleClass="rl-rightalign"/>
+                    <apex:column headerValue="{!f.rstk__icreq_poplacedte__c.label}" value="{!rec.rstk__icreq_poplacedte__c}" styleClass="rl-rightalign"/>
+                    <apex:column headerValue="{!f.rstk__icreq_povend__c.label}" value="{!rec.rstk__icreq_povend__c}" />
+                    <apex:column headerValue="{!f.rstk__icreq_primarypovend__c.label}" value="{!rec.rstk__icreq_primarypovend__c}" />
+                    <apex:column headerValue="{!f.rstk__icreq_proj__c.label}" value="{!rec.rstk__icreq_proj__c}" />
+                    <!-- <apex:column headerValue="{!f.rstk__icreq_ordsts_pl__c.label}" value="{!rec.icreq_ordsts_pl__c}" /> -->
+                    <apex:column headerValue="{!f.rstk__icreq_respbuyer__c.label}" value="{!rec.rstk__icreq_respbuyer__c}" />
+                    <apex:column headerValue="{!f.rstk__icreq_respinv__c.label}" value="{!rec.rstk__icreq_respinv__c}" />
+                    <apex:column headerValue="{!f.rstk__icreq_itemtype_pl__c.label}" value="{!rec.rstk__icreq_itemtype_pl__c}" />
+                    <!-- <apex:column headerValue="{!f.icreq_tempmsg__c.label}" value="{!rec.icreq_tempmsg__c}"/>-->
+                </apex:pageBlockTable>
+                </apex:pageBlock>
+            </apex:outputPanel>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        var Entries = "{!$Label.rstk__selectedentrie}"; 
+        var SelectedZero = "{!$Label.rstk__selectedzeroentrie}";
+        /*if (convertedPOOrdno) {
+            jQuery('input[id*=icreq_item__c_autocomplete]')[0].value = convertedItem;
+        }*/
+    </script>
+    
+    <script>
+        var LABEL_SpecifyRequisitionStatusBeforeSearching = "{!$Label.rstk__specifyrequisitionstatusbeforesearching}";
+        var LABEL_SelAtleastOneRequisition = "{!$Label.rstk__selatleastonerequisition}";
+        var LABEL_Selected_MaxOfUpto100RequisitionsCanBeConvertedATime = "{!$Label.rstk__selected_maxofupto100requisitionscanbeconvertedatime}";
+    </script>
+    
+    <script>
+        var autoCompleteRefs = new Array();
+        
+        function pageInit() {
+            
+            var duedateDiv = jQuery('div[id*=icreq_duedte__c]');
+            var placedateDiv = jQuery('div[id*=icreq_poplacedte__c]');
+            var firmdateDiv = jQuery('div[id*=icreq_schedfirmdte__c]');
+            var dckdateDiv = jQuery('div[id*=icreq_dckdte__c]');
+            
+            if (duedateDiv) {
+                duedateDiv.append(jQuery('label[id*=label_customdate1]'));
+                duedateDiv.append(jQuery('input[id*=custom_date__c]')[0].parentNode);
+            }
+            if (placedateDiv) {
+                placedateDiv.append(jQuery('label[id*=label_customdate2]'));
+                placedateDiv.append(jQuery('input[id*=custom_date2__c]')[0].parentNode);
+            }
+            if (firmdateDiv) {
+                firmdateDiv.append(jQuery('label[id*=label_customdate3]'));
+                firmdateDiv.append(jQuery('input[id*=custom_date3__c]')[0].parentNode);
+            }
+            if (dckdateDiv) {
+                dckdateDiv.append(jQuery('label[id*=label_customdate4]'));
+                dckdateDiv.append(jQuery('input[id*=custom_date4__c]')[0].parentNode);
+            }
+            
+            // onDivChanged();
+            updateAutoCompleteSetup('');
+            onStatusChanged();
+            toggelButtons();
+            
+            if (convertedPOOrdno || convertedItem) {
+                jQuery('input[id*=icreq_item__c_autocomplete]')[0].value = convertedItem;
+            }
+            
+            if (sfffGetFieldValue('icreq_buydiv__c') != '') {
+                fieldDisable("icreq_site__c");
+                fieldDisable("icreq_proj__c");
+            }
+            
+            if (jQuery('table[id$=pbt_grid]').length > 0) {
+                enableSort();
+            }
+        }
+        
+        function searchReqs() {
+            if (!sfffGetFieldValue('icreq_ordsts_pl__c')) {
+                alert(LABEL_SpecifyRequisitionStatusBeforeSearching);
+                return;
+            }
+            
+            if (jQuery('span[id=clientMessageSpan]').length > 0) {
+                jQuery('span[id=clientMessageSpan]').remove();
+            }
+            blockUI();
+            reloadList();
+        }
+        
+        function convert() {
+            jQuery('input[id*=item_desc__c]')[0].value = jQuery('input[id*=icreq_item__c_autocomplete]')[0].value;
+            convertSelected();
+        }
+        
+        function markAll(checked) {
+            var count = 0;
+            for(var i = 0; i < allReqs.length; i++) {
+                allReqs[i].checked = checked;
+                count++;
+            }
+        }
+        
+        function getSelectedCount() {
+            var selectedCount = 0;
+            for(var i = 0; i < allReqs.length; i++) {
+                if(allReqs[i].checked)
+                    selectedCount++;
+            }
+            return selectedCount;
+        }
+        
+        function checkSelected(mode) {
+            var selectedCount = getSelectedCount();
+            if (selectedCount > 100 && mode && mode == 'convert') {
+                alert(LABEL_Selected_MaxOfUpto100RequisitionsCanBeConvertedATime, selectedCount);
+                //alert(Entries.replace('#selectedCount#', selectedCount));
+                return false;
+            }
+            
+            if (jQuery('span[id=clientMessageSpan]').length > 0) {
+                jQuery('span[id=clientMessageSpan]').remove();
+            }
+            
+            if(selectedCount == 0) {
+                alert(LABEL_SelAtleastOneRequisition);
+                return false;
+            } else return true;
+        }
+        
+        function createFieldChangeHandlers(){
+            fieldChangeHandlers['icreq_div__c'] = onDivChanged;
+            fieldChangeHandlers['icreq_buydiv__c'] = onBuyDivChanged;
+            fieldChangeHandlers['icreq_ordsts_pl__c'] = onStatusChanged;
+            fieldChangeHandlers['icreq_duedte__c'] = onDueDateChanged;
+            fieldChangeHandlers['icreq_schedfirmdte__c'] = onFirmDateChanged;
+            fieldChangeHandlers['icreq_poplacedte__c'] = onPLaceDateChanged;
+            fieldChangeHandlers['icreq_dckdte__c'] = onDockDateChanged;
+        }
+        
+        function onDivChanged() {
+            var value = sfffGetFieldValue('icreq_div__c');
+            if(!value) {
+                sfffSetFieldValue('icreq_item__c', '', true, true);
+                clearSelectList('icreq_proj__c');
+                fieldDisable('icreq_item__c');
+            } else {
+                sfffSetFieldValue('icreq_item__c', '', true, true);
+                fieldEnable('icreq_item__c');
+            }
+        }
+        
+        function onBuyDivChanged() {
+            var value = sfffGetFieldValue('icreq_buydiv__c');
+            if(!value) {
+                fieldEnable('icreq_site__c');
+                fieldEnable('icreq_proj__c');
+            } else {
+                clearSelectList('icreq_site__c');
+                clearSelectList('icreq_proj__c');
+                fieldDisable('icreq_site__c');
+                fieldDisable('icreq_proj__c');
+            }
+            
+            updateAutoCompleteSetup(value);
+        }
+        
+        function onDueDateChanged() {
+            var value = sfffGetFieldValue('icreq_duedte__c');
+            if(!value) {
+                fieldEnable('icreq_schedfirmdte__c');
+                fieldEnable('icreq_poplacedte__c');
+                fieldEnable('icreq_dckdte__c');
+            } else {
+                sfffSetFieldValue('icreq_schedfirmdte__c', '');
+                sfffSetFieldValue('icreq_poplacedte__c', '');
+                sfffSetFieldValue('icreq_dckdte__c', '');
+                fieldDisable('icreq_schedfirmdte__c');
+                fieldDisable('icreq_poplacedte__c');
+                fieldDisable('icreq_dckdte__c');
+            }
+        }
+        
+        function onFirmDateChanged() {
+            var value = sfffGetFieldValue('icreq_schedfirmdte__c');
+            if(!value) {
+                fieldEnable('icreq_duedte__c');
+                fieldEnable('icreq_poplacedte__c');
+                fieldEnable('icreq_dckdte__c');
+            } else {
+                sfffSetFieldValue('icreq_duedte__c', '');
+                sfffSetFieldValue('icreq_poplacedte__c', '');
+                sfffSetFieldValue('icreq_dckdte__c', '');
+                fieldDisable('icreq_duedte__c');
+                fieldDisable('icreq_poplacedte__c');
+                fieldDisable('icreq_dckdte__c');
+            }
+        }
+        
+        function onPLaceDateChanged() {
+            var value = sfffGetFieldValue('icreq_poplacedte__c');
+            if(!value) {
+                fieldEnable('icreq_schedfirmdte__c');
+                fieldEnable('icreq_duedte__c');
+                fieldEnable('icreq_dckdte__c');
+            } else {
+                sfffSetFieldValue('icreq_schedfirmdte__c', '');
+                sfffSetFieldValue('icreq_duedte__c', '');
+                sfffSetFieldValue('icreq_dckdte__c', '');
+                fieldDisable('icreq_schedfirmdte__c');
+                fieldDisable('icreq_duedte__c');
+                fieldDisable('icreq_dckdte__c');
+            }
+        }
+        
+        function onDockDateChanged() {
+            var value = sfffGetFieldValue('icreq_dckdte__c');
+            if(!value) {
+                fieldEnable('icreq_schedfirmdte__c');
+                fieldEnable('icreq_duedte__c');
+                fieldEnable('icreq_poplacedte__c');
+            } else {
+                sfffSetFieldValue('icreq_schedfirmdte__c', '');
+                sfffSetFieldValue('icreq_duedte__c', '');
+                sfffSetFieldValue('icreq_poplacedte__c', '');
+                fieldDisable('icreq_schedfirmdte__c');
+                fieldDisable('icreq_duedte__c');
+                fieldDisable('icreq_poplacedte__c');
+            }
+        }
+        
+        function onStatusChanged() {
+            var value = sfffGetFieldValue('icreq_ordsts_pl__c');
+            //VK:TODO enable/disable not working need to review by SAM
+            //firmButton = document.getElementById("btn_process");
+            //firmButton.disabled = (value != Enums.StaticList.RequisitionStatus.Planned_LABEL);
+            //rfirmButton.disabled = (value != Enums.StaticList.RequisitionStatus.FirmNotApproved_LABEL);
+        }
+        
+        function itemChanged(item) {
+            alert(item);
+        }
+        
+        function reqSelected(id) {
+            console.log(id);
+        }
+        
+        function toggelButtons() {
+            var showFirm = jQuery('[id*=showFirm__c]')[0].innerHTML;
+                        
+            jQuery('input[id*=btn_process]').each(function(index, node) {
+                node.style.display = '';
+            });
+        }
+        
+        function assignVendors() {
+            sfffSetFieldValue('assignaction__c', 'Assign Vendor');
+            jQuery(".modalbtnAssignVendors").click();
+            
+            return false;
+        }
+        
+        function assignVendors_ok() {
+            console.log('assignVendors_ok');
+        
+            blockUI();
+            assignSelected();
+            
+            jQuery(".close").click();
+        }
+        
+        function assignedActionChanged(action) {
+            if (action) {
+                jQuery('select[id*=assignvendor__c]').parent().parent().css('display', (action == 'Clear Assigned Vendor' ? 'none' : ''));
+            }
+        }
+        
+        function updateAutoCompleteSetup(div) {
+            var acField = jQuery('input[name*=icreq_item__c]')[1];
+            var divColumn = 'icitem_div__c';
+            if (div == '') {
+                div = sfffGetFieldValue('icreq_div__c');
+            } else {
+                divColumn = 'icitem_buydiv__c';
+            }
+            acField.setAttribute('aq', 'select icitem_item__c, name from icitem__c where ' + divColumn + ' = \'' + div + '\'');
+            acField.setAttribute('codeColumn', 'icitem_item__c');
+            acField.setAttribute('descColumn', 'name');
+            if (autoCompleteRefs[acField.name])
+                autoCompleteRefs[acField.name].flushCache();
+        }
+        
+        var fieldIndex = {};
+        fieldIndex['icreq_buydiv__c'] = 4;
+        fieldIndex['icreq_receiptsite__c'] = 5;
+        fieldIndex['formula_qtyremain__c'] = 8;
+        fieldIndex['icreq_dckdte__c'] = 9;
+        fieldIndex['icreq_schedfirmdte__c'] = 11;
+        fieldIndex['icreq_poplacedte__c'] = 12;
+        fieldIndex['icreq_povend__c'] = 13;
+        fieldIndex['icreq_primarypovend___c'] = 14;
+        fieldIndex['icreq_proj__c'] = 15;
+        fieldIndex['icreq_respbuyer__c'] = 16;
+        fieldIndex['icreq_respinv__c'] = 17;
+        fieldIndex['icreq_itemtype_pl__c'] = 18;
+        
+        function menuToggled(event) {
+            console.log('menu toggle');
+            var index = fieldIndex[event.target.name.replace('context-menu-input-','')];
+            
+            jQuery('table[id*=pbt_grid]').find('col:nth-child(' + index + ')').toggle();
+            
+            jQuery('table[id*=pbt_grid]').find('tr th:nth-child(' + index + '), td:nth-child(' + index + ')').slice(20).toggle();
+            jQuery('table[id*=pbt_grid]').find('tr th:nth-child(' + index + '), td:nth-child(' + index + ')').slice(0,20).toggle("drop", {}, "slow");
+        }
+        
+        function enableSort() {
+            jQuery('table[id$=pbt_grid]').tablesorter({
+                headers: { 
+                    0: { sorter: false },
+                    1: { sorter: "text" },
+                    3: { sorter: "fancyNumber" },
+                    4: { sorter: "fancyNumber" }
+                }
+            }).vfFloatingHeaders();
+            
+            columnStates = null;
+            loadOptions(true);
+            
+            /*
+            jQuery.contextMenu({
+                selector: ".headerRow",
+                items: {
+                    name: {
+                        name: "Configure Columns",
+                        className: 'menu-title'
+                    },
+                    sep1: "---------",
+                    icreq_buydiv__c: {
+                        name: "Buying Division", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_receiptsite__c: {
+                        name: "Receipt Site", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    formula_qtyremain__c: {
+                        name: "Qty Remaining", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_dckdte__c: {
+                        name: "Scheduled Dock Date", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_schedfirmdte__c: {
+                        name: "Scheduled Firm Date", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_poplacedte__c: {
+                        name: "Scheduled PO Place Date", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_povend__c: {
+                        name: "Assigned Vendor", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_primarypovend___c: {
+                        name: "Primary Vendor", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_proj__c: {
+                        name: "Project", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_respbuyer__c: {
+                        name: "Buyer", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_respinv__c: {
+                        name: "Planner", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    },
+                    icreq_itemtype_pl__c: {
+                        name: "Requisition Item Type", 
+                        type: 'checkbox',
+                        events: { click: function(e) { menuToggled(e); } }
+                    }
+                }, 
+                events: {
+                    show: function(opt) {
+                        var $this = this;
+                        var cs = loadOptions();
+                        jQuery.contextMenu.setInputValues(opt, cs);
+                    }, 
+                    hide: function(opt) {
+                        blockUI('Save settings...');
+                        var $this = this;
+                        jQuery.contextMenu.getInputValues(opt, this.data());
+                        unsavedData = this.data();
+                        
+                        jQuery.wait(200).then(function() {
+                          updateOptions(unsavedData);
+                        });
+                    }
+                }
+            });
+            */
+            
+            
+            var msg = getFieldText(jQuery('[id*=clientMessage]')[0]);
+            if (msg) {
+                var message = '<span id="clientMessageSpan" xmlns="http://www.w3.org/1999/xhtml"><span><div class="message infoM3" role="alert"><table border="0" cellpadding="0" cellspacing="0" class="messageTable" style="padding:0px;margin:0px;"><tbody><tr valign="top"><td><img alt="INFO" class="msgIcon" src="/s.gif" title="INFO"></td><td class="messageCell"><div class="messageText"><span><h4></h4></span>'
+                    + msg + '<br></div></td></tr><tr><td></td><td></td></tr></tbody></table></div></span></span>';
+                jQuery('script:contains("document.title")').after(message);
+            }
+        }
+        
+        function cbfunction(key, options) {
+            console.log('key: ' + key);
+        }
+        
+        var unsavedData;
+        var columnStates;
+        var hiddens = {};
+        function loadOptions(reset) {
+            if (!columnStates || reset) {
+                if (!columnStates) {
+                    columnStates = {
+                        icreq_buydiv__c: true,
+                        icreq_receiptsite__c: true,
+                        formula_qtyremain__c: true,
+                        icreq_dckdte__c: true,
+                        icreq_schedfirmdte__c: true,
+                        icreq_poplacedte__c: true,
+                        icreq_povend__c: true,
+                        icreq_primarypovend___c: true,
+                        icreq_proj__c: true,
+                        icreq_respbuyer__c: true,
+                        icreq_respinv__c: true,
+                        icreq_itemtype_pl__c: true
+                    };
+                        
+                    var sql = "select syreg_control__c from syreg__c where syreg_syusr__c = '" + pageParms.syusrId + 
+                        "' and syreg_page__c = 'icreqfirm' and syreg_attribute__c = 'hidden'";
+                        
+                    if (!sforce.connection.defaultNamespace && pageParms.namespaceprefix) 
+                        sforce.connection.defaultNamespace = pageParms.namespaceprefix;
+                        
+                    var qr1 = sforce.connection.query(sql);
+                    hiddens = qr1.getArray("records");
+                }
+                if (hiddens.length > 0) {
+                    for (var i = 0; i < hiddens.length; i++) {
+                        columnStates[hiddens[i].syreg_control__c] = false;
+                        
+                        var index = fieldIndex[hiddens[i].syreg_control__c];
+                        if (index) {
+                            jQuery('table[id*=pbt_grid]').find('col:nth-child(' + index + ')').hide();
+                            jQuery('table[id*=pbt_grid]').find('tr th:nth-child(' + index + '), td:nth-child(' + index + ')').hide();
+                        }
+                    }
+                }
+            }
+            
+            if (!sfffGetFieldValue('icreq_buydiv__c')) {
+                jQuery('table[id*=pbt_grid]').find('col:nth-child(' + 6 + ')').hide();
+                jQuery('table[id*=pbt_grid]').find('tr th:nth-child(' + 6 + '), td:nth-child(' + 6 + ')').hide();
+            }
+            
+            return columnStates;
+        }
+        
+        jQuery.wait = function(time) {
+          return jQuery.Deferred(function(dfd) {
+            setTimeout(dfd.resolve, time);
+          });
+        }
+        
+        function updateOptions(data){
+            var records = [];
+            var syreg;
+            
+            try {
+                for (var key in data) {
+                    if (data[key] == false) {
+                        syreg = new sforce.SObject("syreg__c");
+                        syreg.set("syreg_page__c", 'icreqfirm');
+                        syreg.set("syreg_attribute__c", 'hidden');
+                        syreg.set("syreg_control__c", key);
+                        syreg.set("syreg_value__c", 'true');
+                        syreg.set("syreg_syusr__c", pageParms.syusrId);
+                        
+                        records[records.length] = syreg;
+                    }
+                    
+                    columnStates[key] = data[key];
+                }
+                
+                var errorMsg;
+                
+                var sql = "select id from syreg__c where syreg_syusr__c = '" + pageParms.syusrId + 
+                        "' and syreg_page__c = 'icreqfirm' and syreg_attribute__c = 'hidden'";
+                        
+                if (!sforce.connection.defaultNamespace && pageParms.namespaceprefix) 
+                    sforce.connection.defaultNamespace = pageParms.namespaceprefix;
+                    
+                var qr1 = sforce.connection.query(sql);
+                var deleteRecords = qr1.getArray("records");
+                if (deleteRecords.length > 0) {
+                    var IdsToDelete = new Array();
+                    for (var k = 0; k < deleteRecords.length; k++) {
+                        IdsToDelete[k] = deleteRecords[k].Id;
+                    }
+                    sforce.connection.deleteIds(IdsToDelete);
+                }
+                    
+                if (records.length > 0) {
+                    var cr = sforce.connection.create(records);
+                }
+            } catch (e) {
+                console.log(e);
+            }
+            
+            unblockUI();
+        }
+        
+        reqWithInvLocsPopup_isloading = false;
+        function openRILPopup() {
+            if (!_isDialogOpen()) {
+                _showDialog('reqWithInvLocsPopup',1300);
+                reqWithInvLocsPopup_load();
+            }
+        }
+    </script>
+</apex:page>

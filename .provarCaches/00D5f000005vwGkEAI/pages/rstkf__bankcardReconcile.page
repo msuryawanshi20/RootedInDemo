@@ -1,0 +1,459 @@
+<apex:page id="pg" docType="html-5.0" standardController="rstkf__glbankacct__c" extensions="rstkf.ControllerExtnBankcardReconcile,rstkf.ControllerJobStatus" title="{!$Label.rstkf__title_bankcardreconcile}" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__glbankacct__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__glbankacct__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="f_glbanktxn" value="{!$ObjectType.rstkf__glbanktxn__c.fields}" />
+    <apex:variable var="f_glacct" value="{!$ObjectType.rstkf__glacct__c.fields}" />
+    <apex:sectionHeader subtitle="{!$Label.rstkf__title_bankcardreconcile}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__title_bankcardreconcile}" customInclude="{!$Resource.rstkf__bankcardReconcile_cli}" showHeader="false"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="getAccountDetails" action="{!getAccountDetails}" onComplete="unblockUI();" rerender="op_BankAcct,op_vars,op_addinterest" immediate="false"/>
+        <apex:actionFunction name="changeBankAccount" action="{!changeBankAccount}" onComplete="unblockUI();" rerender="pageMessages,op_BankAcct,op_vars,op_ReverseTxns,op_OpenUploadTxns,op_reconcile" immediate="false"/>
+        <apex:actionFunction name="getReconcileDetails" action="{!getReconcileDetails}" onComplete="unblockUI();" rerender="op_reconcile,op_OpenUploadTxns,op_ReverseTxns" immediate="false"/>
+        <apex:actionFunction name="processreconcilerequest" action="{!processreconcilerequest}" onComplete="unblockUI();" rerender="op_reconcile,op_OpenUploadTxns,op_ReverseTxns,pageMessages_reconcile" immediate="false"/>
+        <apex:actionFunction name="getOpenUploadTxns" action="{!getOpenUploadTxns}" onComplete="unblockUI();" rerender="op_OpenUploadTxns,op_ReverseTxns,op_reconcile,op_pbs_BankAcct" immediate="false"/>
+        <apex:actionFunction name="getReverseTxns" action="{!getReverseTxns}" onComplete="unblockUI();" rerender="op_ReverseTxns,op_OpenUploadTxns,op_reconcile,op_TxnGroup,op_pbs_BankAcct" immediate="false"/>
+        <apex:actionFunction name="processUploadTxnsRequest" action="{!processUploadTxnsRequest}" onComplete="checkJobStatus();" rerender="op_JobStatus,op_OpenUploadTxns,op_ReverseTxns,op_reconcile,pageMessages_OpenUploadTxns,op_BankAcct" immediate="false"/>
+        <apex:actionFunction name="processReverseTxnsRequest" action="{!processReverseTxnsRequest}" onComplete="checkJobStatus();" rerender="op_JobStatus,op_ReverseTxns,op_OpenUploadTxns,op_reconcile,pageMessages_ReverseTxns,op_BankAcct" immediate="false"/>
+        <apex:actionFunction name="getTxnsGroup" action="{!getTxnsGroup}" onComplete="unblockUI();" rerender="op_ReverseTxns,op_OpenUploadTxns,op_reconcile" immediate="false"/>
+        <apex:actionFunction name="calculatePayment" action="{!calculatePayment}" rerender="op_paymentcalc" immediate="false"/>
+       
+       <apex:outputpanel id="op_vars">
+            <input type="hidden" id="isMultiCurrency" value="{!currCompany.glcmp_multicurrency__c}"/>
+            <input type="hidden" id="bankCurr" value="{!glbankacct.glbankacct_curr__c}"/>
+            <script>
+            var cmpId = '{!glbankacct.rstkf__glbankacct_cmpno__c}'
+            var glbankacctId = '{!glbankacct.Id}'
+            var BankCardTxnType_InterestCharge = '{!BankCardTxnType_InterestCharge}';
+            var BankCardTxnType_BalanceAdjustment = '{!BankCardTxnType_BalanceAdjustment}';
+            var BankCardTxnType_MiscellaneousBankCharge = '{!BankCardTxnType_MiscellaneousBankCharge}';
+            var BankCardTxnType_MiscellaneousBankCredit = '{!BankCardTxnType_MiscellaneousBankCredit}';
+            //var amtbank = '{!glbankacct.rstkf__glbankacct_amtbank__c}';
+            var amtbank = '{!customext.rstkf__glbnkcard_balaftsettlement__c}';            
+            var isUploadTxnsRequest =false;
+            var isReverseTxnsRequest =false;
+            </script>
+           </apex:outputpanel>
+        
+       <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+       </apex:outputPanel>
+            
+       <apex:outputpanel id="op_BankAcct">
+       <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockSection id="pbs_Main" showHeader="true" title="{!$Label.rstkf__pbs_bankaccount}" columns="1" collapsible="false">
+                <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstkf__bankcardaccountnumber}" />
+                	<apex:outputPanel >
+                		<apex:selectList id="bankcardtxn_bankacc__c" value="{!customext.rstkf__bankcardtxn_bankacc__c}" size="1" style="width:250px;" tabindex="15" onchange="bankAcctChanged();" disabled="{!displayBankAcct}">
+                			<apex:selectOptions value="{!glbankaccts}" /> 
+                        </apex:selectList>
+                    <apex:commandButton value="{!$Label.rstkf__btn_changebankacct}" onclick="blockUI();changeBankAccount(); return false;"  rendered="{!displayBankAcct}" />
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+       </apex:pageBlockSection>
+            
+       <apex:commandButton value="{!$Label.rstkf__button_make_a_payment}" onclick="setpaymentvalue();_showDialog('MakePaymentPopup'); return false;"  rendered="{!AND(displayBankAcct,ShowVendCmp)}" />
+       <apex:commandButton value="{!$Label.rstkf__button_reconcile}" onclick="blockUI();getReconcileDetails(); return false;"  rendered="{!displayBankAcct}" />
+       <apex:commandButton value="{!$Label.rstkf__button_interest} " onclick="_showDialog('AddInterestPopup'); setExpenseAccount(); return false;"  rendered="{!displayBankAcct}" />
+       
+       <apex:outputPanel id="op_pbs_BankAcct" > 
+       		<apex:pageBlockSection id="pbs_BankAcct" title="{!$Label.rstkf__pbs_bankacctdetails}" showHeader="true" columns="2" collapsible="false" rendered="{!displayBankAcct}">
+	        	<apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_cmpno__c.inlineHelpText}" >
+	        		<apex:outputLabel value="{!f.rstkf__glbankacct_cmpno__c.label}"/>
+	                    <apex:outputField value="{!glbankacct.rstkf__glbankacct_cmpno__c}" />
+	                </apex:pageBlockSectionItem>
+	               
+	            <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_glacct__c.inlineHelpText}" >
+	            	<apex:outputLabel value="{!f.rstkf__glbankacct_glacct__c.label}"/>
+	                <apex:outputField value="{!glbankacct.rstkf__glbankacct_glacct__c}" />
+	            </apex:pageBlockSectionItem>
+	                
+	            <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_maskednumber__c.inlineHelpText}" >
+	            	<apex:outputLabel value="{!f.rstkf__glbankacct_maskednumber__c.label}"/>
+	                <apex:outputField value="{!glbankacct.rstkf__glbankacct_maskednumber__c}" />
+	            </apex:pageBlockSectionItem>
+	                
+	            <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_name__c.inlineHelpText}" >
+	            	<apex:outputLabel value="{!f.rstkf__glbankacct_name__c.label}"/>
+	                <apex:outputField value="{!glbankacct.rstkf__glbankacct_name__c}" />
+	            </apex:pageBlockSectionItem>
+	                
+	            <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_institution__c.inlineHelpText}" >
+	            	<apex:outputLabel value="{!f.rstkf__glbankacct_institution__c.label}"/>
+	                <apex:outputField value="{!glbankacct.rstkf__glbankacct_institution__c}" />
+	            </apex:pageBlockSectionItem>
+	                
+	            <apex:pageBlockSectionItem helpText="{!f_glacct.rstkf__glacct_desc__c.inlineHelpText}" >
+	            	<apex:outputLabel value="{!f_glacct.rstkf__glacct_desc__c.label}"/>
+	                <apex:outputField value="{!glbankacct.glbankacct_glacct__r.rstkf__glacct_desc__c}" />
+	            </apex:pageBlockSectionItem>
+	                
+	            <apex:pageBlockSectionItem helpText="{!$Label.rstkf__page_field_balance_help}" >
+	            	<apex:outputLabel value="{!$Label.rstkf__page_field_balance}"/>
+	                <apex:outputField value="{!glbankacct.rstkf__glbankacct_amtbank__c}" />
+	            </apex:pageBlockSectionItem>
+	               
+	            <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__bnkacc_paypend__c.inlineHelpText}" >
+	            	<apex:outputLabel value="{!f_customext.rstkf__bnkacc_paypend__c.label}" />
+	                <apex:outputField value="{!customext.rstkf__bnkacc_paypend__c}"  />
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glbnkcard_balaftsettlement__c.inlineHelpText}" >
+	            	<apex:outputLabel value="{!f_customext.rstkf__glbnkcard_balaftsettlement__c.label}" />
+	                <apex:outputField value="{!customext.rstkf__glbnkcard_balaftsettlement__c}"  />
+	            </apex:pageBlockSectionItem>
+	            
+	            
+	       </apex:pageBlockSection>
+       </apex:outputPanel>
+       <pageblockSection> 
+          <apex:commandButton value=" {!$Label.rstkf__button_maintain_upload_txns} " onclick="blockUI(); openFrameApplications(); return false"  rendered="{!displayBankAcct}" />
+          <apex:commandButton value="{!$Label.rstkf__button_post_open_upload_txns}" onclick="blockUI(); getOpenUploadTxns(); return false;"  rendered="{!displayBankAcct}" />
+          <apex:commandButton value="{!$Label.rstkf__button_reverse_transactions} " onclick="blockUI(); getTxnsGroup(); return false;"  rendered="{!displayBankAcct}" />
+           
+        </pageblockSection>
+            
+        </apex:pageBlock>
+        </apex:outputpanel>
+        <apex:outputpanel id="op_reconcile"  >
+            <apex:pageblock rendered="{!isshowReconcile}" id="reconcile" >
+            	<apex:outputpanel id="op_pageMessagesreconcile"  >
+					<apex:pageMessages id="pageMessages_reconcile" rendered="{!isshowReconcile}" /> 
+				</apex:outputpanel>
+	    
+	        	<apex:pageBlockSection id="reconcile_Main" showHeader="true" title="{!$Label.rstkf__reconcile_reconciledetail}" columns="1" collapsible="false"/>
+			     	<apex:outputpanel id="op_paymentcalc"  >
+				     	<apex:outputLabel value="{!$Label.rstkf__bankcardreconcile_total_payment}"/>&nbsp;&nbsp;
+				        <apex:outputField id="glbnkacc_totalpayment__c" value=" {!customext.rstkf__glbnkacc_totalpayment__c}"  />  &nbsp;&nbsp; 
+				        <apex:outputLabel value="{!$Label.rstkf__bankcardreconcile_total_selected_row}"/>&nbsp;&nbsp;
+				        <apex:outputField id="glbnkacc_totalSelectedRow__c" value=" {!customext.rstkf__glbnkacc_totalSelectedRow__c}" />
+			       </apex:outputpanel>
+			     	<apex:outputPanel id="selectAll" layout="block" > <!-- rendered="{!hasCustomerStmts}" -->
+			        	<input type="checkbox" id="selAllcbxs" onclick="selectAll(this);"  />
+		                <apex:outputLabel value="{!$Label.rstkf__selectallrec}"  />
+		            </apex:outputPanel>
+		                        
+			        <apex:pageBlockButtons location="Top">
+			        	<apex:commandButton value="{!$Label.rstkf__button_acceptselectedtransactions}" onclick="blockUI(); processreconcilerequest(); return false;" />
+			        </apex:pageBlockButtons>
+			         <apex:pageblocktable value="{!ReconcileDetail}" var="cc" >
+			        	<apex:column >
+			        		<apex:inputCheckbox id="selected" value="{!cc.reconcileYN}" onclick="docalculatePayment(this);" />
+			        		<apex:inputHidden value="{!cc.glbanktxn.id}" id="uid"/>
+			        		<script>
+			        						var reconcileRows = {}; 
+		                                    reconcileRows["{!cc.glbanktxn.id}"] = {
+		                                         uid:"{!cc.glbanktxn.id}",
+		                                        selected: document.getElementById("{!$Component.selected}")
+		                                    };
+		                                </script>
+		                </apex:column>
+			        	<apex:column value="{!cc.glbanktxn.rstkf__glbanktxn_txndate__c}"/>
+			        	<apex:column value="{!cc.glbanktxn.rstkf__glbanktxn_viewbankamt__c}"/>
+			        	<apex:column Value="{!cc.glbanktxn.rstkf__glbanktxn_comment__c}"/>
+		        	</apex:pageblocktable>
+		       
+		        	
+		        <apex:panelGrid columns="6">
+	            	<apex:commandLink status="fetchStatusVendors"  action="{!Reconcile.First}" rerender="op_reconcile">First</apex:commandlink>
+	                <apex:commandLink status="fetchStatusVendors"  action="{!Reconcile.Previous}" rerender="op_reconcile" rendered="{!Reconcile.hasPrevious}">Previous</apex:commandlink>
+	                <apex:commandLink status="fetchStatusVendors"  action="{!Reconcile.Next}" rerender="op_reconcile" rendered="{!Reconcile.hasNext}">Next</apex:commandlink>
+	                <apex:commandLink status="fetchStatusVendors"  action="{!Reconcile.Last}" rerender="op_reconcile" >Last</apex:commandlink>
+	                <apex:outputText >{!(Reconcile.pageNumber * reconcilePagesize)+1-reconcilePagesize}-{!IF((Reconcile.pageNumber * reconcilePagesize)>noOfReconcileRecords, noOfReconcileRecords,(Reconcile.pageNumber * reconcilePagesize))} of {!noOfReconcileRecords}</apex:outputText>
+	                <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+	                <apex:actionStatus id="fetchStatusVendors" startText="Fetching..." stopText=""/>
+	                </apex:outputPanel>
+	            </apex:panelGrid>
+	             
+	        </apex:pageblock>
+	     </apex:outputpanel>
+	   
+        <apex:outputpanel id="op_MaintainUploadTxns">
+        	<div id="MaintainUpload" style="display:none;" >
+            	<iframe id="popMaintainUploadTxns" src="" width="100%" height="480px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+            	<input type="button" id="close" value="{!$Label.pagevalClose}" class="btn" onclick="unblockUI(); return false;"/>  
+        	</div>
+        </apex:outputpanel>
+
+		<script>
+		 function openFrameApplications() {
+            var pMaintainUploadFrame = jQuery('iframe[id*=popMaintainUploadTxns]')[0];
+            pMaintainUploadFrame.src = "/apex/glbankcardtxnGrid?Id=" + glbankacctId ;
+            showPopup('#MaintainUpload', 1350, 500);
+        }
+        
+         function showPopup(popName, popWidth, popHeight) {
+            var top = ((jQuery(window).height() - popHeight) / 2);
+            var width = jQuery(window).width();
+            var left = (width - popWidth) / 2;
+            if (popWidth > width) {
+                left = 0;
+            } else {
+                width = popWidth;
+            }
+            jQuery.blockUI({
+                message: jQuery(popName),
+                baseZ: 1,
+                css: {
+                    backgroundColor:'#fff',
+                    left: (left + 'px'),
+                    top: (top + 'px'),
+                    width:(width + 'px'),
+                    height:(popHeight + 'px'),
+                    padding:'15px',
+                    textAlign:'left',
+                    fontSize:'1em',
+                    border:'2px solid #333',
+                    
+                    opacity:'1.0',
+                    '-moz-border-radius':'6px',
+                    '-webkit-border-radius':'6px',
+                    '-moz-box-shadow': '0 0 50px #ccc',
+                    '-webkit-box-shadow': '0 0 50x #ccc'
+                }
+            });
+        }
+		</script>
+		
+		
+		       
+	    <apex:outputpanel id="op_OpenUploadTxns">
+	    	<apex:pageblock rendered="{!isshowOpenUploadTxns}" id="openUploadTxns"  >
+	    		<apex:outputpanel id="op_pageMessagesReverseTxns">
+					<apex:pageMessages id="pageMessages_UploadTxns" rendered="{!isshowOpenUploadTxns}" /> 
+				</apex:outputpanel>
+	         	<apex:pageBlockSection id="openUploadTxns_Main" showHeader="true" title="{!$Label.rstkf__openuploadtxns_openuploadtxnsdetail}" columns="1" collapsible="false"/>
+	         	 	<apex:outputPanel id="selectAll" layout="block" > 
+	                        	<input type="checkbox" id="selAllcbxs" onclick="selectAll(this);"  />
+	                            <apex:outputLabel value="{!$Label.rstkf__selectallrec}"  />
+	                </apex:outputPanel>
+	                        
+		        	<apex:pageBlockButtons location="Top">
+		        		<apex:commandButton value="{!$Label.rstkf__button_postselectedtransactions}" onclick="blockUI(); doprocessUploadTxnsRequest(); return false;" />
+		        	</apex:pageBlockButtons>
+		        
+		        	<apex:pageblocktable value="{!UploadTxnsDetail}" var="oc" >
+		        		<apex:column >
+		        			<apex:inputCheckbox id="selectedtxn" value="{!oc.uploadTxnYN}" />
+		        			<apex:inputHidden value="{!oc.glbankcardtxn.id}" id="uid"/>
+		        			<script>
+		        						var uploadTxnsRows = {}; 
+	                                    uploadTxnsRows["{!oc.glbankcardtxn.id}"] = {
+	                                         uid:"{!oc.glbankcardtxn.id}",
+	                                        selected: document.getElementById("{!$Component.selected}")
+	                                    };
+	                        </script> 
+	                    </apex:column>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_txnamount__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_txndate__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_glacct__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_desc__c}"/>
+			        	<apex:column Value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_payee__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_odcid__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_gldiv__c}"/>
+			        	<apex:column Value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_glproj__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_dim1__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_dim2__c}"/>
+			        	<apex:column Value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_dim3__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_dim4__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_dim5__c}"/>
+			        	<apex:column Value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_dim6__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_dim7__c}"/>
+			        	<apex:column value="{!oc.glbankcardtxn.rstkf__glbankcardtxn_dim8__c}"/>
+		            </apex:pageblocktable>
+		        	
+		        	<apex:panelGrid columns="6">
+	                   <apex:commandLink status="fetchStatus"  action="{!UploadTxns.First}" rerender="op_OpenUploadTxns">First</apex:commandlink>
+	                   <apex:commandLink status="fetchStatus"  action="{!UploadTxns.Previous}" rerender="op_OpenUploadTxns" rendered="{!UploadTxns.hasPrevious}">Previous</apex:commandlink>
+	                   <apex:commandLink status="fetchStatus"  action="{!UploadTxns.Next}"  rerender="op_OpenUploadTxns" rendered="{!UploadTxns.hasNext}">Next</apex:commandlink>
+	                   <apex:commandLink status="fetchStatus"  action="{!UploadTxns.Last}" rerender="op_OpenUploadTxns">Last</apex:commandlink>
+	                   <apex:outputText >{!(UploadTxns.pageNumber * txnPagesize)+1-txnPagesize}-{!IF((UploadTxns.pageNumber * txnPagesize)>noOfTxnRecords, noOfTxnRecords,(UploadTxns.pageNumber * txnPagesize))} of {!noOfTxnRecords}</apex:outputText>
+	                   <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+	                   	<apex:actionStatus id="fetchStatusVendors" startText="Fetching..." stopText=""/>
+	                   </apex:outputPanel>
+	                </apex:panelGrid>
+		     </apex:pageblock> 
+        </apex:outputpanel>
+        <apex:outputpanel id="op_ReverseTxns" >
+        	<apex:pageblock rendered="{!isshowReverseTxns}"  >
+        		<apex:outputpanel id="op_pageMessagesReverseTxns">
+					<apex:pageMessages id="pageMessages_ReverseTxns" rendered="{!isshowReverseTxns}" /> 
+				</apex:outputpanel>   
+        	<apex:outputPanel id="op_TxnGroup"  >
+	        	<apex:pageblock rendered="{!isshowTxnsGroup}"   >
+	        		<apex:pageBlockSection id="openUploadTxns_Main" showHeader="true" title="{!$Label.rstkf__reversetxns_reversetxnsdetail}" columns="1" collapsible="false">
+		        		<apex:outputpanel id="op_daterangeReverseTxns">
+			        		<apex:outputLabel value="{!f_customext.rstkf__bankcard_fromdate__c.label}"/>&nbsp;&nbsp;
+			         		<apex:inputField id="bankcard_fromdate__c" value="{!customext.rstkf__bankcard_fromdate__c}"  />&nbsp;&nbsp; &nbsp;&nbsp;
+			         		<apex:outputLabel value="{!f_customext.rstkf__bankcard_thrudate__c.label}"/> &nbsp;&nbsp;
+			         		<apex:inputField id="bankcard_thrudate__c" value="{!customext.rstkf__bankcard_thrudate__c}"  />&nbsp;&nbsp;
+			         		<apex:commandButton value="{!$Label.rstkf__button_displaytransactions}" onclick="dogetReverseTxns(); return false;" />
+			        	</apex:outputpanel>
+			        	 
+			        </apex:pageBlockSection>
+			   </apex:pageblock>
+        	</apex:outputPanel>
+        
+        		<apex:pageBlockSection id="openUploadTxns_Main" showHeader="true"  columns="1" collapsible="false"/>
+	        		<apex:outputPanel id="selectAll" layout="block" > <!-- rendered="{!hasCustomerStmts}" -->
+	                	<input type="checkbox" id="selAllcbxs" onclick="selectAll(this);"  />
+	                    <apex:outputLabel value="{!$Label.rstkf__selectallrec}"  />
+	                </apex:outputPanel>
+	               
+	                <apex:pageBlockButtons location="Top">
+		        		<apex:commandButton value="{!$Label.rstkf__button_reversepostselectedtxns}" onclick="blockUI(); doprocessReverseTxnsRequest(); return false;" />
+		        	</apex:pageBlockButtons>
+		        
+		        	<apex:pageblocktable value="{!ReverseTxnsDetail}" var="rt" >
+		        		<apex:column >
+		        			<apex:inputCheckbox id="selectedtxn" value="{!rt.reverseTxnsYN}" />
+		        			<apex:inputHidden value="{!rt.glbankcardtxn.id}" id="uid"/>
+		        			<script>
+		        						var vendorRows = {}; 
+	                                    reverseTxnsRows["{!rt.glbankcardtxn.id}"] = {
+	                                         uid:"{!rt.glbankcardtxn.id}",
+	                                        selected: document.getElementById("{!$Component.selected}")
+	                                    };
+	                                  alert('function called in rerndered') ; 
+	                        </script>
+	                    </apex:column>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_txnamount__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_txndate__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_glacct__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_desc__c}"/>
+			        	<apex:column Value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_payee__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_odcid__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_gldiv__c}"/>
+			        	<apex:column Value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_glproj__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_dim1__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_dim2__c}"/>
+			        	<apex:column Value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_dim3__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_dim4__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_dim5__c}"/>
+			        	<apex:column Value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_dim6__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_dim7__c}"/>
+			        	<apex:column value="{!rt.glbankcardtxn.rstkf__glbankcardtxn_dim8__c}"/>
+		            </apex:pageblocktable>
+		        	
+		        	<apex:panelGrid columns="6">
+	                   <apex:commandLink status="fetchStatus"  action="{!ReverseTxns.First}" rerender="op_ReverseTxns" >First</apex:commandlink>
+	                   <apex:commandLink status="fetchStatus"  action="{!ReverseTxns.Previous}" rerender="op_ReverseTxns" rendered="{!ReverseTxns.hasPrevious}">Previous</apex:commandlink>
+	                   <apex:commandLink status="fetchStatus"  action="{!ReverseTxns.Next}"  rerender="op_ReverseTxns" rendered="{!ReverseTxns.hasNext}">Next</apex:commandlink>
+	                   <apex:commandLink status="fetchStatus"  action="{!ReverseTxns.Last}" rerender="op_ReverseTxns" >Last</apex:commandlink>
+	                   <apex:outputText >{!(ReverseTxns.pageNumber * reverseTxnPagesize)+1-reverseTxnPagesize}-{!IF((ReverseTxns.pageNumber * reverseTxnPagesize)>noOfReverseTxnRecords, noOfReverseTxnRecords,(ReverseTxns.pageNumber * reverseTxnPagesize))} of {!noOfReverseTxnRecords}</apex:outputText>
+	                   <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+	                   	<apex:actionStatus id="fetchStatus" startText="Fetching..." stopText=""/>
+	                   </apex:outputPanel>
+	                </apex:panelGrid>
+	
+        	</apex:pageblock> 
+        </apex:outputpanel>
+    </apex:form>
+    
+    <c:Popup popupId="MakePaymentPopup" title="{!$Label.rstkf__pagepopup_glbankacct_makeapayment}" onOk="blockUI(); processpaymentrequest();"  okCaption="Create Payment" buttonsOnTop="false">
+    	<apex:form id="fpopup"  >
+    		<apex:actionFunction name="processpaymentrequest" action="{!processpaymentrequest}" oncomplete="unblockUI();_closeDialog();" immediate="false" rerender="pageMessages,op_pbs_BankAcct,op_vars" /> 
+	       		<apex:pageBlockSection id="pbs_jobpopup" showHeader="false" columns="2">
+	           		<apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glbnkacc_localcurrentbalance__c.inlineHelpText}" >
+	                	<apex:outputLabel value="{!f_customext.rstkf__glbnkacc_localcurrentbalance__c.label}" />
+	                	<apex:inputField id="glbnkacc_localcurrentbalance__c" value="{!customext.rstkf__glbnkacc_localcurrentbalance__c}"  />
+	                </apex:pageBlockSectionItem>
+		            
+		            <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glbnkacc_localpayment__c.inlineHelpText}" >
+	                   	<apex:outputLabel value="{!f_customext.rstkf__glbnkacc_localpayment__c.label}" />
+	                    <apex:inputField id="glbnkacc_localpayment__c" value="{!customext.rstkf__glbnkacc_localpayment__c}"  />
+	                </apex:pageBlockSectionItem>
+		             	
+		            <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glbnkacc_localtxndate__c.inlineHelpText}" >
+	                   	<apex:outputLabel value="{!f_customext.rstkf__glbnkacc_localtxndate__c.label}" />
+	                    <apex:inputField id="glbnkacc_localtxndate__c" value="{!customext.rstkf__glbnkacc_localtxndate__c}"  />
+	                </apex:pageBlockSectionItem>
+		             	
+		    </apex:pageBlockSection>
+	    </apex:form>  
+    </c:Popup>
+    <c:Popup popupId="AddInterestPopup" title="{!$Label.rstkf__pagepopup_glbankacct_addinterest}" onOk="doAddGlbankcardtxnEntry();"  okCaption="Process" buttonsOnTop="false">
+		<apex:form id="fpopup"  >
+	    	<apex:outputPanel id="op_addinterest"  >
+		        <apex:actionFunction name="addGlbankcardtxnEntry" action="{!addGlbankcardtxnEntry}" oncomplete="getAccountDetails();_closeDialog();" immediate="false" rerender="pageMessages,op_pbs_BankAcct" />
+		        <apex:pageBlockSection id="pbs_jobpopup" showHeader="false" columns="2">
+		        	<apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glbnkacc_transactiontype__c.inlineHelpText}" >
+	                	<apex:outputLabel value="{!f_customext.rstkf__glbnkacc_transactiontype__c.label}" />
+	                    <apex:inputField id="glbnkacc_transactiontype__c" value="{!customext.rstkf__glbnkacc_transactiontype__c}"  onchange="setExpenseAccount();" />
+	                </apex:pageBlockSectionItem>
+		             	
+		           	<apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glbnkacc_chargeamount__c.inlineHelpText}" >
+	                	<apex:outputLabel value="{!f_customext.rstkf__glbnkacc_chargeamount__c.label}" />
+	                    <apex:inputField id="glbnkacc_chargeamount__c" value="{!customext.rstkf__glbnkacc_chargeamount__c}"  />
+	                </apex:pageBlockSectionItem>
+		             	
+		            <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glbnkacc_expenseaccount__c.inlineHelpText}" >
+	                	<apex:outputLabel value="{!f_customext.rstkf__glbnkacc_expenseaccount__c.label}" />
+	                    <c:selectList id="glbnkacc_expenseaccount__c" objKey="customextf" cntr="{!controller}"  options="{!expenseAccounts}" width="250px" />
+	                </apex:pageBlockSectionItem>
+		        </apex:pageBlockSection>
+	        </apex:outputPanel>
+	    </apex:form>  
+    </c:Popup>        
+ 
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+    	function doprocessUploadTxnsRequest(pl) {
+		    isUploadTxnsRequest =true;
+		    processUploadTxnsRequest();
+	    }
+	    
+	    function doprocessReverseTxnsRequest(pl) {
+	        isReverseTxnsRequest =true;
+		    processReverseTxnsRequest();
+	    }
+	    
+	    function dogetReverseTxns() {
+	    var bankcard_fromdate = jQuery("input[id*=bankcard_fromdate__c]")[0].value;	
+	    var bankcard_thrudate = jQuery("input[id*=bankcard_thrudate__c]")[0].value;	
+	    
+	    /*if(bankcard_fromdate==''){
+		     alert("{!$Label.From_Date_cannot_be_blank}");
+		     return false;
+	    }
+	     
+	    if(bankcard_thrudate==''){
+		     alert("{!$Label.Thru_Date_cannot_be_blank}");
+		     return false;
+	    }*/
+	    
+	    if(bankcard_fromdate != '' && bankcard_thrudate != '' && bankcard_thrudate < bankcard_fromdate){
+		     alert("{!$Label.Thru_Date_cannot_be_less_than_From_Date}");
+		     return false;
+	    }
+	    blockUI(); 
+		getReverseTxns();
+		}
+	    
+	    
+    	function doAfterJobComplete(pl) {
+    		if(isUploadTxnsRequest){
+    			isUploadTxnsRequest=false;
+    			getOpenUploadTxns();
+    		}
+    		
+    		if(isReverseTxnsRequest){
+    			isReverseTxnsRequest=false;
+    			getReverseTxns();
+    		}
+        	unblockUI();
+        	//
+	    }
+    </script>
+    
+    <script>
+    	var LABEL_FieldTranType_ExpAcct_ChrgAmt_AreReqd_ChrgAmtMustBeGT0 = "{!$Label.FieldTranType_ExpAcct_ChrgAmt_AreReqd_ChrgAmtMustBeGT0}";
+    </script>
+ </apex:page>

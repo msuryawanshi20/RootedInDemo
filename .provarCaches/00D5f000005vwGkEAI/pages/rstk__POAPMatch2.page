@@ -1,0 +1,791 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_poapmatch}" standardController="rstk__poaphdr__c" extensions="rstk.ControllerExtnPOAPmatch2,rstk.RemoteQueryController,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="f" value="{!$ObjectType.rstk__poaphdr__c.fields}" />
+    <apex:variable var="pohdr_f" value="{!$ObjectType.rstk__pohdr__c.fields}" />
+    <apex:variable var="syapcntl_f" value="{!$ObjectType.rstk__syapcntl__c.fields}" />
+    <apex:variable var="customext_f" value="{!$ObjectType.rstk__customext__c.fields}" />
+    
+    <apex:variable var="f_povend" value="{!$ObjectType.rstk__povend__c.fields}" />
+    <apex:variable var="f_porcptap" value="{!$ObjectType.rstk__porcptap__c.fields}" />
+    <apex:variable var="f_ttaphdr" value="{!$ObjectType.rstk__ttaphdr__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poapmatch}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <apex:includeScript value="{!$Resource.rstk__line_items2}" />
+    <apex:includeScript value="{!$Resource.rstk__poapmatch2_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__messageformat}" />
+    
+    <style>
+        .hidden{visibility:hidden;}
+        select:disabled {
+            color: #555;
+            background-color: #DDD;
+        }
+        .rcptinput{
+            width:60px;
+            text-align:right; 
+            font-size: 95%;
+        }
+        .sort {display:inline}
+        .numSort {display:inline}
+        .dateSort {display:inline}
+        .dispOnlyCol {background-color:#E4E4E4;}
+    </style>
+
+    <script>    
+        var uArrowUrl = "{!URLFOR($Resource.sort_arrows,'images/sort_asc_arrow.gif')}";
+        var dArrowUrl = "{!URLFOR($Resource.sort_arrows,'images/sort_desc_arrow.gif')}";
+        var isAccsys = {!accsysExists};
+        var isVatActive = {!isVatActive};
+        var vatrecognition = '{!vatrecognition}';
+        var isRounding = {!syapcntl.syapcntl_roundrcpt__c};
+        var companyId = '{!JSENCODE(sycmp.sycmp_ff_company__c)}';
+        var isAllowDuplicateInvoice = {!allowDuplicateInvoice};
+        var poaphdrDivId = "{!JSENCODE(poaphdr__c.poaphdr_div__c)}";
+        function setFocusOnLoad() {}
+        var showSelectAll = false;
+        var hasFFLicense = {!HasFFLicense};
+        var apperbyregdate = {!syapcntl.syapcntl_apperbyregdate__c};
+        var useRegisteredDateForPayableInvoicePeriod = {!UseRegisteredDateForPayableInvoicePeriod};
+        var payTypeEl;
+        var bankCardAccountEl;
+        var doWhtEl;
+        var apWhtEl;
+		var maxGlLines = {!maxGlLines};
+    </script>
+    
+    <apex:form id="frm">
+    <apex:actionFunction name="selectPorctap" action="{!selectPorcptap}" rerender="porcptapSelectedPanel, pageMessages" 
+        immediate="true" oncomplete="formatLocaleOutputFields();setVendorInfo();doAfterSelectPorctap();">
+        <apex:param name="porcptapIdx" assignTo="{!porcptapIdx}" value="" />
+        <apex:param name="invDate" assignTo="{!invoiceInputObj.rstk__zzsobj_date__c}" value="" />
+        <apex:param name="invNum" assignTo="{!invoiceNum}" value="" />
+    </apex:actionFunction>
+    <apex:actionFunction name="doProcessingModeChange" action="{!changeProcessingMode}"  
+        immediate="true" oncomplete="unblockUI();" rerender="hiddenFieldsPanel, headerPanelA, headerPanelB, receiptsPanel, porcptapSelectedPanel, pageMessages">
+        <apex:param name="pMode" assignTo="{!processingMode}" value="" />
+    </apex:actionFunction>
+    <apex:actionFunction name="doGetNewBatch" action="{!getNewBatch}"  rerender="headerPanelB, pageMessages" />
+    <apex:actionFunction name="doSaveInvoice" action="{!submitInvoice}"  rerender="headerPanelB, receiptsPanel, porcptapSelectedPanel, pageMessages, op_JobStatus" oncomplete="checkJobStatus();">
+        <apex:param name="porcptapID" assignTo="{!porcptapID}" value="" />
+    </apex:actionFunction>
+    <apex:actionFunction name="setCurrentFFCompany" action="{!setCurrentFFCompany}" oncomplete="" immediate="true"/>
+    <apex:actionFunction name="displayInvoices" action="{!displayInvoices}" oncomplete="unblockUI();" rerender="op_displayInvoices, pageMessages"/>
+    
+    <apex:actionFunction name="searchReceipts" 
+                        action="{!doCmd}" 
+                        oncomplete="formatLocaleOutputFields();" 
+                        rerender="receiptsPanel, headerPanelA, headerPanelB, hiddenFieldsPanel, pageMessages, pbs_batchNumSelect"
+                        status="loadRcptsStatus" />
+    
+    <apex:outputPanel id="hiddenFieldsPanel" style="display:none;">
+        <apex:inputHidden id="initSortOrder" value="{!initialSortOrder}" />
+        <apex:inputHidden id="poaphdr_appayamtinitind__c" value="{!rstk__poaphdr__c.rstk__poaphdr_appayamtinitind__c}" rendered="{!showRcpts}"/>
+    </apex:outputPanel>
+
+    <apex:actionRegion >
+      <apex:pageblock id="headerPanelA">
+		<apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        <apex:pageblocksection columns="2">
+            <apex:pageblocksectionitem helpText="{!f.rstk__poaphdr_apmatchind__c.inlineHelpText}"> 
+                <apex:outputLabel value="{!f.rstk__poaphdr_apmatchind__c.label}" for="processingMode"/>
+                <apex:selectlist id="processingMode" value="{!processingMode}" size="1" onchange="processingModeChanged();">
+                    <apex:selectOptions value="{!processingModes}"/>
+                </apex:selectlist>
+             </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem id="pbs_batchNumSelect" helpText="{!f.rstk__poaphdr_apbatchno__c.inlineHelpText}" rendered="{!processingMode == 'Close Batch'}">
+                <apex:outputLabel id="lblBatchNumSlct" value="{!f.rstk__poaphdr_apbatchno__c.label}" rendered="{!processingMode == 'Close Batch'}"/>
+                <!-- <apex:selectlist id="fldBatchNumSlct" value="{!batchNum}" size="1" rendered="{!processingMode == 'Close Batch'}">
+                    <apex:selectOptions value="{!batchNums}"/>
+                </apex:selectlist> -->
+                <apex:dynamicComponent componentValue="{!OpenBatches}" rendered="{!processingMode == 'Close Batch'}"/>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem id="pbs_batchNumSelectReopen" helpText="{!f.rstk__poaphdr_apbatchno__c.inlineHelpText}" rendered="{!processingMode == 'Reopen Closed Batch'}">
+                <apex:outputLabel id="lblBatchNumSlctReopen" value="{!f.rstk__poaphdr_apbatchno__c.label}" rendered="{!processingMode == 'Reopen Closed Batch'}"/>
+                <apex:dynamicComponent componentValue="{!ReOpenBatches}" rendered="{!processingMode == 'Reopen Closed Batch'}"/>
+            </apex:pageblocksectionitem>
+        </apex:pageblocksection>
+     </apex:pageBlock>
+      <apex:pageblock id="headerPanelB">
+        <apex:pageblocksection id="hdrA" columns="2" rendered="{!processingMode=='Automatic Match'}">
+            <apex:pageblocksectionitem helpText="{!f.rstk__poaphdr_div__c.inlineHelpText}"> 
+                <apex:outputLabel value="{!f.rstk__poaphdr_div__c.label}" for="poaphdr_div__c"/>
+                <apex:outputField id="poaphdr_div__c"  value="{!rstk__poaphdr__c.rstk__poaphdr_div__c}" />
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem helpText="{!syapcntl_f.rstk__syapcntl_cmp__c.inlineHelpText}"> 
+                <apex:outputLabel value="{!syapcntl_f.rstk__syapcntl_cmp__c.label}" for="comp"/>
+                <apex:outputField value="{!syapcntl.rstk__syapcntl_cmp__c}" />
+            </apex:pageblocksectionitem>
+
+            <apex:pageblocksectionitem helpText="{!f.rstk__poaphdr_rcptselectdate__c.inlineHelpText}"> 
+                <apex:outputLabel value="{!f.rstk__poaphdr_rcptselectdatefrom__c.label}" for="poaphdr_rcptselectdatefrom__c"/>
+                <apex:outputPanel >
+                  <apex:inputField id="poaphdr_rcptselectdatefrom__c" value="{!rstk__poaphdr__c.rstk__poaphdr_rcptselectdatefrom__c}" rendered="{!!showRcpts}"/>
+                  <apex:outputField value="{!rstk__poaphdr__c.rstk__poaphdr_rcptselectdatefrom__c}" rendered="{!showRcpts}"/>
+                  &nbsp;&nbsp;Thru&nbsp;&nbsp;
+                  <apex:inputField id="poaphdr_rcptselectdate__c" value="{!rstk__poaphdr__c.rstk__poaphdr_rcptselectdate__c}" rendered="{!!showRcpts}"/>
+                  <apex:outputField value="{!rstk__poaphdr__c.rstk__poaphdr_rcptselectdate__c}" rendered="{!showRcpts}"/>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem helpText="{!f.rstk__poaphdr_apbatchno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__poaphdr_apbatchno__c.label}"/>
+                <apex:outputPanel >
+                    <apex:outputText id="batch_text__c" value="{0,number,#####0}">
+                        <apex:param value="{!rstk__poaphdr__c.rstk__poaphdr_apbatchno__c}" />
+                    </apex:outputText> &nbsp;&nbsp;&nbsp;
+                    <apex:outputText rendered="{!IF(ISNULL(rstk__poaphdr__c.rstk__poaphdr_numbtxns__c) , false , true)}" 
+                        value="{!TEXT(round(rstk__poaphdr__c.rstk__poaphdr_numbtxns__c, 0)) + ' transaction(s)'}"></apex:outputText>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            
+            <apex:pageblocksectionitem helpText="{!f.rstk__poaphdr_vendno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__poaphdr_vendno__c.label}"/>
+                <apex:outputPanel >
+                    <apex:outputPanel rendered="{!!showRcpts}">
+                        <input type="text" name="poaphdr_vendno__c_autocomplete" id="poaphdr_vendno__c_autocomplete" class="ac_input" style="width:200px;" tabIndex="70"/>
+                        <apex:inputText id="poaphdr_vendno__c" value="{!rstk__poaphdr__c.rstk__poaphdr_vendno__c}" style="display:none" onchange="vendnoChanged(this)"/>
+                        <script>
+                            var vendnoFld = document.getElementById("{!$Component.poaphdr_vendno__c}");
+                            setupAutocompleteField(
+                                "poaphdr_vendno__c_autocomplete", 
+                                vendnoFld, 
+                                {
+                                    query:"select id, name from povend__c", 
+                                    queryParms:[], 
+                                    codeColumn:"id", 
+                                    descColumn:"name"
+                                }
+                            );
+                            </script>
+                    </apex:outputPanel>
+                    <apex:outputField value="{!rstk__poaphdr__c.rstk__poaphdr_vendno__c}" rendered="{!showRcpts}" />
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            
+            <apex:pageblocksectionitem helpText="{!f.rstk__poaphdr_appayamtinitind__c.inlineHelpText}"> 
+                <apex:outputLabel value="{!f.rstk__poaphdr_appayamtinitind__c.label}" for="poaphdr_appayamtinitind__c"/>
+                <apex:outputPanel >
+                  <apex:inputField id="poaphdr_appayamtinitind__c" value="{!rstk__poaphdr__c.rstk__poaphdr_appayamtinitind__c}" rendered="{!!showRcpts}"/>
+                  <apex:outputField value="{!rstk__poaphdr__c.rstk__poaphdr_appayamtinitind__c}" rendered="{!showRcpts}" />
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            
+            <apex:pageBlockSectionItem helpText="{!customext_f.rstk__pohdr__c.inlineHelpText}">
+                <apex:outputLabel value="{!customext_f.rstk__pohdr__c.label}"/>
+                <apex:outputPanel >
+                    <!-- <apex:selectList id="pohdr__c" value="{!customext.rstk__pohdr__c}" size="1" style="width:250px;" rendered="{!!showRcpts}">
+                        <apex:selectOptions value="{!vendorPOs}"/>
+                    </apex:selectList> -->
+                    <apex:outputPanel rendered="{!!showRcpts}">
+                        <input type="text" name="pohdr__c_autocomplete" id="pohdr__c_autocomplete" class="ac_input" style="width:200px;" tabIndex="80"/>
+                        <apex:inputText id="pohdr__c" value="{!customext.rstk__pohdr__c}" style="display:none" onchange="pohdrChanged(this)"/>
+                        <script>
+                        setupAutocompleteField(
+                            "pohdr__c_autocomplete", 
+                            document.getElementById("{!$Component.pohdr__c}"), 
+                            {
+                                query: "select porcptap_ordno__c pohdrId, porcptap_ordno__r.pohdr_ordno__c ordno from porcptap__c where porcptap_div__c = '{!JSENCODE(rstk__poaphdr__c.rstk__poaphdr_div__c)}' and porcptap_payauthind__c = true and porcptap_apmatchind__c = null and porcptap_ordno__r.pohdr_vendno__c = 'prm' and (formula_pomatchqty__c != 0 or porcptap_qtyrtv__c > 0) group by porcptap_ordno__c, porcptap_ordno__r.pohdr_ordno__c order by porcptap_ordno__r.pohdr_ordno__c", 
+                                queryParms: [[vendnoFld,"Vendor"]], 
+                                codeColumn: "pohdrId", 
+                                descColumn: "porcptap_ordno__r.pohdr_ordno__c", 
+                                displayColumn: "ordno",
+                                minChars: "2"
+                            }
+                        );
+                        </script>
+                    </apex:outputPanel>
+                    <apex:outputField value="{!customext.rstk__pohdr__c}" rendered="{!showRcpts}" />
+                    <script>var pohdrfld = document.getElementById("{!$Component.pohdr__c}");</script>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!$Label.rstk__helptext_retaincurrentbatchnumbercheckbox}">
+                <apex:outputLabel value="{!$Label.rstk__retainthecurrentbatchnumber}"/>
+                 <apex:inputCheckbox id="retain_batch__c" onchange="retainBatch(this.checked);" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageblocksectionitem helpText="{!customext_f.rstk__poap_fromline__c.inlineHelpText}"> 
+                <apex:outputLabel value="{!customext_f.rstk__poap_fromline__c.label}"/>
+                <apex:outputPanel >
+                  <apex:inputField id="poap_fromline__c" value="{!customext.rstk__poap_fromline__c}" rendered="{!!showRcpts}"/>
+                  <apex:outputField value="{!customext.rstk__poap_fromline__c}" rendered="{!showRcpts}" />
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem helpText="{!customext_f.rstk__poap_toline__c.inlineHelpText}"> 
+                <apex:outputLabel value="{!customext_f.rstk__poap_toline__c.label}"/>
+                <apex:outputPanel >
+                  <apex:inputField id="poap_toline__c" value="{!customext.rstk__poap_toline__c}" rendered="{!!showRcpts}"/>
+                  <apex:outputField value="{!customext.rstk__poap_toline__c}" rendered="{!showRcpts}" />
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+        </apex:pageblocksection>
+          <apex:commandButton id="selectReceiptsButton" value="{!cmdLabel}" onclick="doSearchReceipts(); return false;" rendered="{!!showRcpts && displaySelectPOReceipts}" />
+          <apex:commandButton id="DdsplayInvoices" value="{!$Label.rstk__poapmatch_pagebtn_displayinvoices}" onclick="doDisplayInvoices(); return false;" rendered="{!processingMode == 'Close Batch' || processingMode == 'Reopen Closed Batch'}"/>
+          <apex:outputPanel id="op_displayInvoices">
+          <apex:pageblocksection rendered="{!AND(displayInvoiceHeaders, (processingMode == 'Close Batch' || processingMode == 'Reopen Closed Batch'))}" columns="1">
+            <apex:pageblocktable id="pbt_displayInvoices" value="{!ttaphdrList}" var="di" width="100%">
+                <apex:column headerValue="{!f_ttaphdr.Name.label}">
+                    <!-- apex:outputField id="Name" value="{!di.Name}"/-->
+                    <apex:outputLink value="{!URLFOR($Action.rstk__ttaphdr__c.View, di.id)}">{!di.Name}</apex:outputLink>
+                </apex:column>
+                <apex:column headerValue="{!f_ttaphdr.rstk__ttaphdr_povend__c.label}">
+                    <apex:outputField id="ttaphdr_povend" value="{!di.rstk__ttaphdr_povend__c}"/>
+                </apex:column>
+                <apex:column headerValue="{!f_ttaphdr.rstk__ttaphdr_invoice_number__c.label}">
+                    <apex:outputField id="ttaphdr_invoice_number__c" value="{!di.rstk__ttaphdr_invoice_number__c}"/>
+                </apex:column>
+                <apex:column headerValue="{!f_ttaphdr.rstk__ttaphdr_duedate__c.label}">
+                    <apex:outputField id="ttaphdr_duedate__c" value="{!di.rstk__ttaphdr_duedate__c}"/>
+                </apex:column>
+                <apex:column headerValue="{!f_ttaphdr.rstk__ttaphdr_invtotalmcurr__c.label}">
+                    <apex:outputField id="ttaphdr_invtotalmcurr__c" value="{!di.rstk__ttaphdr_invtotalmcurr__c}"/>
+                </apex:column>
+                <apex:column headerValue="{!f_ttaphdr.rstk__ttaphdr_invoice_description__c.label}">
+                    <apex:outputField id="ttaphdr_invoice_description__c" value="{!di.rstk__ttaphdr_invoice_description__c}"/>
+                </apex:column>
+            </apex:pageblocktable>  
+          </apex:pageblocksection>
+          </apex:outputPanel>
+      </apex:pageblock>     
+        <apex:actionStatus id="loadRcptsStatus" onstart="startCmd();" onstop="onCmdComplete()"/>
+    </apex:actionRegion>
+    <apex:pageblock id="receiptsPanel">
+        <apex:pageblocksection id="pbs_InvoiceInfo" title="{!$Label.rstk__enterinvoiceinformation}" columns="4" collapsible="false" rendered="{!showRcpts}">
+            <apex:pageblocksectionitem helpText="{!$Label.rstk__helptext_vendorinvoicenumber}">
+                <apex:outputlabel value="{!$Label.rstk__vendor_invoice_number}" for="invoicenumber__c"/>
+                <apex:inputText id="invoiceNumber" value="{!invoiceNum}"/>
+            </apex:pageblocksectionitem>                
+            <apex:pageblocksectionitem helpText="{!$Label.rstk__helptext_vendorinvoicedate}">
+                <apex:outputlabel value="{!$Label.rstk__invoicedate}" for="invoicedate__c"/>
+                <apex:inputField id="invoiceDate" value="{!invoiceInputObj.rstk__zzsobj_date__c}" onchange="verifyInvoiceDate(this)"/>
+            </apex:pageblocksectionitem> 
+            <apex:pageblocksectionitem helpText="{!$Label.rstk__helptext_vendorinvoiceamt}">
+                <apex:outputlabel value="{!$Label.rstk__total_invoice_amount}" for="invoiceamt__c"/>
+                <apex:inputField id="invoiceAmt" value="{!invoiceInputObj.rstk__zzsobj_amount__c}" style="text-align:right;" styleClass="amountInput" onchange="invoiceAmountChanged(this);" onkeypress="return filterNonNumeric(event, this);"/>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem helpText="{!$Label.rstk__helptext_bankchargeamount}">
+                <apex:outputlabel value="{!$Label.rstk__bank_charge_amount}" for="qtyRcvd__c"/>
+                <!-- <apex:inputField id="bankChrgeAmt" value="{!ttaphdrInputObj.ttaphdr_bankcharge__c}" style="text-align:right;" styleClass="amountInput" onkeypress="return filterNonNumeric(event, this);"/> -->
+                <apex:inputField id="qtyRcvd" value="{!invoiceInputObj.rstk__qtyRcvd__c}" style="text-align:right;" styleClass="amountInput" />
+            </apex:pageblocksectionitem> 
+        </apex:pageblocksection>
+        <apex:pageblocksection id="pbs_receipts" title="{!$Label.rstk__receipts}" collapsible="false" rendered="{!showRcpts}" columns="1" >
+            <script>showSelectAll = {!!ISBLANK(customext.rstk__pohdr__c)};</script>
+            <apex:pageblocktable id="pbt_rcptLines" value="{!rcptLines}" var="r"  
+                columnsWidth="10px, 100px, 250px, 250px, 100px, 250px, 100px, 100px">
+                <apex:column >
+                    <apex:facet name="header"><div class="wrappingHeader">X</div></apex:facet>
+                    <apex:inputCheckbox id="selectRcptLine" value="{!r.lineSelect}" onchange="rcptclick(this)"/>
+                    <apex:inputHidden id="porcptapId" value="{!r.porcptap.id}" />
+                    <apex:inputHidden id="qtyDecimal" value="{!r.qtyDecimal}" />
+                    <apex:inputHidden id="isServiceAmt" value="{!r.isServiceAmt}" />
+                    <apex:inputHidden id="rowId" value="{!r.line}" />
+                    <apex:inputHidden id="vendorId" value="{!r.porcptap.porcptap_ordno__r.pohdr_vendno__r.rstk__povend_sf_account__c}" />
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__vendor_s}<br/>{!$Label.rstk__invoice_no}</div></apex:facet>
+                    <apex:outputText id="invoiceNum" />
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div id="vendorHdrDiv" class="wrappingHeader sort">{!$Label.POAPMatch_Vendor}<br/>{!$Label.POAPMatch_Name}</div></apex:facet>
+                    <apex:outputPanel >
+                        <a rel="#vendInfoDiv{!r.line}" href="/apex/povend?actioinType=view&id={!r.porcptap.porcptap_ordno__r.pohdr_vendno__c}">{!r.porcptap.porcptap_ordno__r.pohdr_vendno__r.Name}</a> 
+                    </apex:outputPanel>
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div id="poNumHdrDiv" class="wrappingHeader sort">{!$Label.PO}<br/>{!$Label.POAPMatch_Line}</div></apex:facet>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!r.porcptap.rstk__porcptap_poline__c}" />
+                        <apex:inputHidden id="ordNo" value="{!r.porcptap.porcptap_ordno__r.Name}" />
+                    </apex:outputPanel>
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader dateSort">{!$Label.rstk__po}<br/>{!$Label.rstk__date}</div></apex:facet>
+                    <apex:outputField value="{!r.porcptap.porcptap_ordno__r.rstk__pohdr_poadddte__c}" />
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol" style="text-align:center;">
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__receipt}<br/>{!$Label.rstk__number}</div></apex:facet>
+                    <apex:outputText value="{0,Number,######0}">
+                        <apex:param value="{!r.porcptap.rstk__porcptap_rcptno__c}"/>
+                    </apex:outputText>
+                    <!-- <apex:outputField value="{!r.porcptaplookup.porcptap__c}"/> -->
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader dateSort">{!$Label.rstk__receipt}<br/>Date</div></apex:facet>
+                    <apex:outputField value="{!r.porcptap.rstk__porcptap_rcptdate__c}" />
+                </apex:column>
+                <apex:column value="{!r.porcptap.porcptap_poline__r.poline_item__r.rstk__poitem_itemno__c}" styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader sort">{!$Label.rstk__poapmatch_item}<br/>{!$Label.rstk__number}</div></apex:facet>
+                </apex:column>
+                <apex:column value="{!r.porcptap.rstk__porcptap_packslipno__c}" styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader sort">{!$Label.rstk__packing}<br/>{!$Label.rstk__slip_no}</div></apex:facet>
+                </apex:column>
+                <apex:column value="{!r.porcptap.porcptap_ordno__r.pohdr_maintcurr__r.rstk__sycurr_currency__c}" styleClass="dispOnlyCol" style="text-align:center;">
+                    <apex:facet name="header"><div class="wrappingHeader sort">{!$Label.rstk__maint}<br/>{!$Label.rstk__poapmatch_currency}</div></apex:facet>
+                </apex:column>
+                <apex:column style="text-align:right;">
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__ap_entry}<br/>{!$Label.rstk__poreceipt_qty}</div></apex:facet>
+                    <apex:inputText id="apQty" onchange="apInfoChanged(this);" value="{!r.apQtyStr}" styleclass="rcptinput qtyDecimal" onkeypress="return filterNonNumeric(event, this);"/>
+                </apex:column>
+                <apex:column style="text-align:right;">
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__ap_entry}<br/>{!$Label.rstk__poapmatch_unit_price}</div></apex:facet>
+                    <apex:inputText id="apUnitPrice" onchange="apInfoChanged(this);" value="{!r.apUnitPricemcurr}" styleclass="rcptinput amountInput" onkeypress="return filterNonNumeric(event, this);"/>
+                </apex:column>
+                <apex:column style="text-align:right; padding-right:5px;">
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__ap_entry}<br/>{!$Label.rstk__poapmatch_amount}</div></apex:facet>
+                    <apex:inputText id="apAmount" onchange="apInfoChanged(this);" value="{!r.apAmountmcurr}" rendered="{!r.isServiceAmt}" 
+                        styleclass="rcptinput amountInput" onkeypress="return filterNonNumeric(event, this);"/>
+                </apex:column>
+                <apex:column style="text-align:right;" styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__receipt}<br/>{!$Label.rstk__poreceipt_qty}</div></apex:facet>
+                    <apex:outputPanel >
+                        <apex:outputText value="{!r.poQty}" html-decimals="{!r.qtyDecimal}"/>
+                        <apex:inputHidden id="poQty" value="{!r.poQty}" />
+                    </apex:outputPanel>
+                </apex:column>
+                <apex:column style="text-align:right;" styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__receipt}<br/>{!$Label.rstk__poapmatch_unit_price}</div></apex:facet>
+                    <apex:outputPanel >
+                        <apex:outputText value="{!r.poUnitPricemcurr}" html-decimals="4"/>
+                        <apex:inputHidden id="poUnitPrice" value="{!r.poUnitPricemcurr}" />
+                        <apex:inputHidden id="amtInv" value="{!r.porcptap.rstk__formula_amtinvmcurr__c}" />
+                        <apex:inputHidden id="amtVend" value="{!r.porcptap.rstk__formula_amtvendmcurr__c}" />
+                        <apex:inputHidden id="polineDescr" value="{!r.porcptap.porcptap_poline__r.rstk__poline_longdescr__c}" />
+                        <apex:inputHidden id="polineDim1" value="{!r.dim1Id}" />
+                        <apex:inputHidden id="polineDim2" value="{!r.dim2Id}" />
+                        <apex:inputHidden id="polineDim3" value="{!r.dim3Id}" />
+                        <apex:inputHidden id="polineDim4" value="{!r.dim4Id}" />
+                        <apex:inputHidden id="polineDim5" value="{!r.dim5Id}" />
+                        <apex:inputHidden id="polineDim6" value="{!r.dim6Id}" />
+                        <apex:inputHidden id="polineDim7" value="{!r.dim7Id}" />
+                        <apex:inputHidden id="polineDim8" value="{!r.dim8Id}" />
+                        <apex:inputHidden id="polineOvrsyforexsched" value="{!r.porcptap.porcptap_poline__r.rstk__poline_ovrsyforexsched__c}" />
+                        <apex:inputHidden id="porcptSyforexschedno" value="{!r.porcptap.rstk__porcptap_syforexschedno__c}" />
+                        <apex:inputHidden id="porcptAcct" value="{!r.porcptAcct}" />
+                        <apex:inputHidden id="porcptAcctName" value="{!r.porcptAcctName}" />
+                        <apex:inputHidden id="porcptVatbypass" value="{!r.porcptVatbypass}" />
+                        <apex:inputHidden id="polineVatclass" value="{!r.polineVatclass}" />
+                        <apex:inputHidden id="polineVatpct" value="{!r.porcptap.porcptap_poline__r.poline_vatclass__r.rstk__syvatclass_vatpct__c}" />
+                        <apex:inputHidden id="polinepjprojId" value="{!r.porcptap.porcptap_poline__r.rstk__poline_proj__c}" />
+                        <apex:inputHidden id="polinepjprojwbsId" value="{!r.porcptap.porcptap_poline__r.rstk__poline_pjprojwbs__c}" />
+                        <apex:inputHidden id="poterms" value="{!r.porcptap.porcptap_ordno__r.rstk__pohdr_terms__c}" />
+                        <apex:inputHidden id="maintcurr" value="{!r.porcptap.porcptap_ordno__r.rstk__pohdr_maintcurr__c}" />
+                        <apex:inputHidden id="poordno" value="{!r.porcptap.rstk__porcptap_ordno__c}" />
+                        <apex:inputHidden id="city" value="{!r.billtoAddr.rstk__pohdraddr_city__c}" />
+                        <apex:inputHidden id="country" value="{!r.billtoAddr.rstk__pohdraddr_country__c}" />
+                        <apex:inputHidden id="stateprov" value="{!r.billtoAddr.rstk__pohdraddr_stateprov__c}" />
+                        <apex:inputHidden id="street" value="{!r.billtoAddr.rstk__pohdraddr_street__c}" />
+                        <apex:inputHidden id="zippostalcode" value="{!r.billtoAddr.rstk__pohdraddr_zippostalcode__c}" />
+                        <apex:inputHidden id="fax" value="{!r.billtoAddr.rstk__pohdraddr_fax__c}" />
+                        <apex:inputHidden id="phone" value="{!r.billtoAddr.rstk__pohdraddr_phone__c}" />
+                        <apex:inputHidden id="website" value="{!r.billtoAddr.rstk__pohdraddr_website__c}" />
+                        <apex:inputHidden id="contactemail" value="{!r.billtoAddr.rstk__pohdraddr_contactemail__c}" />
+                    </apex:outputPanel>
+                </apex:column>
+                <apex:column style="text-align:right;" styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__receipt}<br/>{!$Label.rstk__poapmatch_amount}</div></apex:facet>
+                    <apex:outputText value="{!r.poAmtmcurr}" html-decimals="6"/>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__poapmatch_invoice}<br/>{!$Label.rstk__poreceipt_qty}</div></apex:facet>
+                    <apex:inputText id="vendInvQty" value="{!r.invQtyStr}" onchange="vendInvInfoChanged(this);" styleclass="rcptinput qtyDecimal" onkeypress="return filterNonNumeric(event, this);"/>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__poapmatch_invoice}<br/>{!$Label.rstk__poapmatch_unit_price}</div></apex:facet>
+                    <apex:inputText id="vendInvUnitPrice" value="{!r.invUnitPricemcurr}" onchange="vendInvInfoChanged(this);" styleclass="rcptinput amountInput" onkeypress="return filterNonNumeric(event, this);"/>
+                </apex:column>
+                <apex:column style="text-align:right; padding-right:5px;">
+                    <apex:facet name="header"><div class="wrappingHeader numSort">{!$Label.rstk__poapmatch_invoice}<br/>{!$Label.rstk__poapmatch_amount}</div></apex:facet>
+                    <apex:inputText id="vendInvAmount" value="{!r.invAmountmcurr}" rendered="{!r.isServiceAmt}" styleclass="rcptinput amountInput" onkeypress="return filterNonNumeric(event, this);"/>
+                </apex:column>
+            </apex:pageblocktable>
+        </apex:pageblocksection>
+    </apex:pageBlock>
+    <apex:pageBlock id="porcptapSelectedPanel">
+        
+        <apex:pageblocksection id="pbs_vendorDetails" title="{!$Label.rstk__vendordetails}" columns="2" collapsible="true"  rendered="{!showVoucherSection}">
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__vendorname}" for="vendname"/>
+                <apex:outputPanel >
+                    <apex:inputHidden id="termsDueDates" value="{!termsDueDatesJS}" />
+                    <apex:inputHidden id="vendorInputVATCode" value="{!vendorInputVATCode}" />
+                    <apex:outputField value="{!porcptap.porcptap_ordno__r.pohdr_vendno__r.rstk__povend_sf_account__c}"/>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!f_povend.rstk__povend_vendno__c.label}" for="vendnum"/>
+                <apex:outputtext value="{!porcptap.porcptap_ordno__r.pohdr_vendno__r.rstk__povend_vendno__c}"/>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__invoicenumber}" for="vendInfo_InvNum"/>
+                <apex:outputtext id="vendInfo_InvNum" value="{!porcptap.rstk__porcptap_vendinvoice__c}"/>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__vendoraddress}" for="vendaddr"/>
+                <c:outputAddress object="{!vendorAddress}" prefix="pohdraddr" />
+            </apex:pageblocksectionitem>                                                            
+            <apex:pageblocksectionitem > 
+                <!-- <apex:outputLabel value="{!f_porcptap.porcptap_ordno__c.label}" for="purchord"/>
+                <apex:outputField value="{!porcptap.porcptap_ordno__c}"/> -->
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!displayReference2}"> 
+                <apex:outputLabel value="{!$Label.rstk__reference2}" for="ref2"/>
+                <apex:outputtext id="ref2" value="{0,number,#####0}">
+                    <apex:param value="{!reference2}" />
+                </apex:outputtext>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!!displayReference2}"/>
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__invoicedate}" for="invdate2"/>
+                <apex:outputText id="vendInfo_InvDate"/>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!displayRegDate}"> 
+                <apex:outputLabel value="{!$Label.rstk__registereddate}" for="regdate"/>
+                <apex:inputField id="vendInfo_RegDate" value="{!regDateObj.rstk__zzsobj_date__c}" onchange="registerdateChanged(this)"/>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!!displayRegDate}"/>
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__terms}" for="terms"/>
+                <apex:SelectList id="terms" value="{!term}" size="1" onchange="termsChanged(this);">
+                    <apex:selectoptions value="{!terms}"/>
+                </apex:SelectList>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__period}" for="period"/>
+                <apex:outputPanel >
+                    <apex:outputText id="period" value="{!periodName}"/>
+                    <script>var periodNameField = document.getElementById("{!$Component.period}");</script>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>                                
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__duedate1}" for="vendInfo_DueDate"/>
+                <apex:inputField id="vendInfo_DueDate" value="{!dueDateObj.rstk__zzsobj_date__c}" />
+            </apex:pageblocksectionitem>
+            
+            <apex:pageblocksectionitem rendered="{!IsRSAccountingSystem}"> 
+                <apex:outputLabel value="{!customext_f.rstk__paytype__c.label}" for="vendInfo_PayType"/>
+                <apex:outputPanel >
+                <apex:inputField id="vendInfo_PayType" value="{!customext.rstk__paytype__c}" onchange="payTypeChanged(this)"/>
+                <script>
+                    payTypeEl = document.getElementById("{!$Component.vendInfo_PayType}");
+                </script>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!!IsRSAccountingSystem}"/>
+            
+            <apex:pageblocksectionitem rendered="{!AND(IsRSAccountingSystem, isWht)}"> 
+                <apex:outputLabel value="{!customext_f.rstk__dowht__c.label}" for="vendInfo_DoWht"/>
+                <apex:outputPanel >
+                <apex:inputField id="vendInfo_DoWht" value="{!customext.rstk__dowht__c}" onchange="doWhtChanged(this)"/>
+                <script>
+                    doWhtEl = document.getElementById("{!$Component.vendInfo_DoWht}");
+                </script>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!!AND(IsRSAccountingSystem, isWht)}"/>
+            
+            <apex:pageblocksectionitem rendered="{!IsRSAccountingSystem}"> 
+                <apex:outputLabel value="{!customext_f.rstk__bankcardaccountid__c.label}" for="vendInfo_BankCardAccount"/>
+                <apex:outputPanel >
+                <apex:SelectList id="vendInfo_BankCardAccount" value="{!customext.rstk__bankcardaccountid__c}" size="1" style="width:250px;">
+                    <apex:selectoptions value="{!BankCardBankAccounts}"/>
+                </apex:SelectList>
+                <script>
+                    bankCardAccountEl = document.getElementById("{!$Component.vendInfo_BankCardAccount}");
+                    payTypeChanged(payTypeEl);
+                </script>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!!IsRSAccountingSystem}"/>
+            
+            <apex:pageblocksectionitem rendered="{!AND(IsRSAccountingSystem, isWht)}"> 
+                <apex:outputLabel value="{!customext_f.rstk__apwht__c.label}" for="vendInfo_ApWht"/>
+                <apex:outputPanel >
+                <apex:SelectList id="vendInfo_ApWht" value="{!customext.rstk__apwht__c}" size="1" style="width:250px;">
+                    <apex:selectoptions value="{!ApWhts}"/>
+                </apex:SelectList>
+                <script>
+                    apWhtEl = document.getElementById("{!$Component.vendInfo_ApWht}");
+                    doWhtChanged(doWhtEl);
+                </script>
+                </apex:outputPanel>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!!AND(IsRSAccountingSystem, isWht)}"/>
+        </apex:pageblocksection>
+        
+        <apex:pageblocksection id="subtotsect" title="{!$Label.rstk__subtotals}" columns="1" collapsible="true" rendered="{!showVoucherSection}">
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__totalamtofreceipts}" for="rcptTotal"/>
+                <apex:outputText id="rcptTotal" value="0" html-decimals="6"/>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__totalinvoiceamountdue}" for="invAmtTotal"/>
+                <apex:outputText id="invAmtTotal" value="0" html-decimals="6"/>
+            </apex:pageblocksectionitem>
+        </apex:pageblocksection>
+        <script>
+        var separateGlLinePerReceipt = {!separateGlLinePerReceipt};
+        var displayAllDimensions = {!displayAllDimensions};
+        var dim1options = {!dim1sString};
+        var dim2options = {!dim2sString};
+        var dim3options = {!dim3sString};
+        var dim4options = {!dim4sString};
+        <apex:outputPanel layout="none" rendered="{!displayAllDimensions}">
+        var dim5options = {!dim5sString};
+        var dim6options = {!dim6sString};
+        var dim7options = {!dim7sString};
+        var dim8options = {!dim8sString};
+        </apex:outputPanel>
+        </script>
+        <apex:pageblocksection title="{!$Label.rstk__glentry}" rendered="{!showVoucherSection}">
+            <apex:actionRegion >
+            <apex:actionFunction name="expandGLLines" action="{!expandGLLines}"  rerender="grid_GLLines" oncomplete="glTableExpanded();"/>
+            <apex:panelGrid id="grid_GLLines" columns="1">
+            <apex:pageBlockTable styleClass="LineItemTable" id="glTable" value="{!glLines}" var="gl">
+                <apex:column id="delCol" width="20px">
+                    <apex:outputPanel id="removeLinkPanel">
+                        <a href='javascript:{}' onclick="removeGLRow(this);" style="font-weight:bold">remove</a>
+                    </apex:outputPanel>
+                </apex:column>
+                <apex:column rendered="{!isVat}">
+                    <apex:facet name="header">{!$Label.rstk__tax_exp_line}</apex:facet>
+                    <apex:outputPanel >
+                        <apex:inputcheckbox id="taxExpenseInd" value="{!gl.taxExpense}" onchange="taxExpenseIndChanged(this);"/>
+                    </apex:outputPanel>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">{!$Label.rstk__poapmatch_amount}</apex:facet>
+                    <apex:outputPanel >
+                    <apex:inputText id="amount" value="{!gl.amountStr}" styleclass="rcptinput amountInput" onchange="amountChanged(this);" onfocus="saveOrigAmount(this);"/>
+                        <apex:inputHidden id="origAmount" />
+                        <apex:inputHidden id="lineId"  value="{!gl.lineId}"/>
+                        <apex:inputHidden id="recId" value="{!gl.recId}"/>
+                        <apex:inputHidden id="porcptapIds" value="{!gl.porcptapIds}" />
+                    </apex:outputPanel>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">{!$Label.rstk__gl_account}</apex:facet>
+                    <!-- <apex:selectList id="syAccount" value="{!gl.syaccId}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!glAccts}"/>
+                    </apex:selectList> -->
+                    <apex:dynamicComponent componentValue="{!SyAccounts}"/>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">{!$Label.rstk__line_description}</apex:facet>
+                    <apex:inputText id="descr" value="{!gl.descr}" />
+                </apex:column>
+                
+                <apex:column rendered="{!isVatActive}">
+                    <apex:facet name="header">{!$Label.rstk__vat_class}</apex:facet>
+                    <apex:selectList id="glVatClass" value="{!gl.vatClass}" onchange="vatclassChanged(this);" multiselect="false" size="1">
+                        <apex:selectOptions value="{!vatClasses}"/>
+                    </apex:selectList>
+                </apex:column>
+                
+                <apex:column rendered="{!isVatActive}">
+                    <apex:facet name="header">{!$Label.rstk__vat_added_to_amount}</apex:facet>
+                    <apex:inputText id="vatAddedToAmount" value="{!gl.vatAddedToAmountStr}" styleclass="rcptinput qtyDecimal"/>
+                </apex:column>
+                
+                <apex:column rendered="{!isVatActive}">
+                    <apex:facet name="header">{!$Label.rstk__vat_included_in_amount}</apex:facet>
+                    <apex:inputText id="vatIncludedInAmount" value="{!gl.vatIncludedInAmountStr}" styleclass="rcptinput qtyDecimal"/>
+                </apex:column>
+                
+                <apex:column rendered="{!isVat}">
+                    <apex:facet name="header">{!$Label.rstk__input_vat_code}</apex:facet>
+                    <apex:selectList id="glVatCode" value="{!gl.vatCode}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!taxCodes}"/>
+                    </apex:selectList>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">{!$Label.rstk__dim_1}</apex:facet>
+                    <apex:selectList id="glDim1" value="{!gl.dim1}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!dim1s}"/>
+                    </apex:selectList>
+                    <script>
+                        var dim1el = document.getElementById("{!$Component.glDim1}");
+                        dim1el.options.length = 0;
+                        var len = dim1options.length;
+                        for(var i = 0; i < len; i++) {
+                            dim1el.options[dim1el.length] = new Option(dim1options[i][0], dim1options[i][1], false, (dim1options[i][1] == "{!JSENCODE(gl.dim1)}"));
+                        }
+                    </script>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">{!$Label.rstk__dim_2}</apex:facet>
+                    <apex:selectList id="glDim2" value="{!gl.dim2}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!dim2s}"/>
+                    </apex:selectList>
+                    <script>
+                        var dim2el = document.getElementById("{!$Component.glDim2}");
+                        dim2el.options.length = 0;
+                        var len = dim2options.length;
+                        for(var i = 0; i < len; i++) {
+                            dim2el.options[dim2el.length] = new Option(dim2options[i][0], dim2options[i][1], false, (dim2options[i][1] == "{!JSENCODE(gl.dim2)}"));
+                        }
+                    </script>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">{!$Label.rstk__dim_3}</apex:facet>
+                    <apex:selectList id="glDim3" value="{!gl.dim3}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!dim3s}"/>
+                    </apex:selectList>
+                    <script>
+                        var dim3el = document.getElementById("{!$Component.glDim3}");
+                        dim3el.options.length = 0;
+                        var len = dim3options.length;
+                        for(var i = 0; i < len; i++) {
+                            dim3el.options[dim3el.length] = new Option(dim3options[i][0], dim3options[i][1], false, (dim3options[i][1] == "{!JSENCODE(gl.dim3)}"));
+                        }
+                    </script>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">{!$Label.rstk__dim_4}</apex:facet>
+                    <apex:selectList id="glDim4" value="{!gl.dim4}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!dim4s}"/>
+                    </apex:selectList>
+                    <script>
+                        var dim4el = document.getElementById("{!$Component.glDim4}");
+                        dim4el.options.length = 0;
+                        var len = dim4options.length;
+                        for(var i = 0; i < len; i++) {
+                            dim4el.options[dim4el.length] = new Option(dim4options[i][0], dim4options[i][1], false, (dim4options[i][1] == "{!JSENCODE(gl.dim4)}"));
+                        }
+                    </script>
+                </apex:column>
+                <apex:column rendered="{!displayAllDimensions}">
+                    <apex:facet name="header">{!$Label.rstk__dim_5}</apex:facet>
+                    <apex:selectList id="glDim5" value="{!gl.dim5}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!dim5s}"/>
+                    </apex:selectList>
+                    <script>
+                        var dim5el = document.getElementById("{!$Component.glDim5}");
+                        dim5el.options.length = 0;
+                        var len = dim5options.length;
+                        for(var i = 0; i < len; i++) {
+                            dim5el.options[dim5el.length] = new Option(dim5options[i][0], dim5options[i][1], false, (dim5options[i][1] == "{!JSENCODE(gl.dim5)}"));
+                        }
+                    </script>
+                </apex:column>
+                <apex:column rendered="{!displayAllDimensions}">
+                    <apex:facet name="header">{!$Label.rstk__dim_6}</apex:facet>
+                    <apex:selectList id="glDim6" value="{!gl.dim6}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!dim6s}"/>
+                    </apex:selectList>
+                    <script>
+                        var dim6el = document.getElementById("{!$Component.glDim6}");
+                        dim6el.options.length = 0;
+                        var len = dim6options.length;
+                        for(var i = 0; i < len; i++) {
+                            dim6el.options[dim6el.length] = new Option(dim6options[i][0], dim6options[i][1], false, (dim6options[i][1] == "{!JSENCODE(gl.dim6)}"));
+                        }
+                    </script>
+                </apex:column>
+                <apex:column rendered="{!displayAllDimensions}">
+                    <apex:facet name="header">{!$Label.rstk__dim_7}</apex:facet>
+                    <apex:selectList id="glDim7" value="{!gl.dim7}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!dim7s}"/>
+                    </apex:selectList>
+                    <script>
+                        var dim7el = document.getElementById("{!$Component.glDim7}");
+                        dim7el.options.length = 0;
+                        var len = dim7options.length;
+                        for(var i = 0; i < len; i++) {
+                            dim7el.options[dim7el.length] = new Option(dim7options[i][0], dim7options[i][1], false, (dim7options[i][1] == "{!JSENCODE(gl.dim7)}"));
+                        }
+                    </script>
+                </apex:column>
+                <apex:column rendered="{!displayAllDimensions}">
+                    <apex:facet name="header">{!$Label.rstk__dim_8}</apex:facet>
+                    <apex:selectList id="glDim8" value="{!gl.dim8}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!dim8s}"/>
+                    </apex:selectList>
+                    <script>
+                        var dim8el = document.getElementById("{!$Component.glDim8}");
+                        dim8el.options.length = 0;
+                        var len = dim8options.length;
+                        for(var i = 0; i < len; i++) {
+                            dim8el.options[dim8el.length] = new Option(dim8options[i][0], dim8options[i][1], false, (dim8options[i][1] == "{!JSENCODE(gl.dim8)}"));
+                        }
+                    </script>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">Project</apex:facet>
+                    <apex:inputText id="glPjproj" value="{!gl.pjproj}" onchange="pjprojChanged(this);" />   
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header">Project Charge Code</apex:facet>
+                    <apex:selectList id="glPjprojwbs" value="{!gl.pjprojwbs}" multiselect="false" size="1">
+                        <apex:selectOptions value="{!pjprojwbss}"/>
+                    </apex:selectList>
+                </apex:column>
+            </apex:pageblocktable>
+            <apex:outputPanel >
+            <script>initGLTable("{!$Component.glTable}"); </script>
+            <input id="addGLLine" type="button" value="{!$Label.poapmatch_pagebtn_AddGLLine}" onclick="addAddlGLRow();"/>
+            </apex:outputPanel>
+            </apex:panelGrid>            
+            </apex:actionRegion>
+            
+        </apex:pageblocksection>    
+        <apex:pageblocksection id="amtRemSect" columns="2" collapsible="false" rendered="{!showVoucherSection}">
+            <apex:pageblocksectionitem > 
+                <apex:outputLabel value="{!$Label.rstk__amountremaining}" for="amtRemaining"/>
+                <apex:outputText id="amtRemaining" html-decimals="6"/>
+            </apex:pageblocksectionitem>
+            
+            <apex:pageblocksectionitem rendered="{!isVat}"> 
+                <apex:outputLabel value="{!$Label.rstk__totaltaxamount}" for="totalTaxAmt"/>
+                <apex:outputText id="totalTaxAmt" html-decimals="6"/>
+            </apex:pageblocksectionitem>
+            <apex:pageblocksectionitem rendered="{!!isVat}"/>
+            
+            <apex:pageBlockSectionItem rendered="{!showVoucherSection}">
+                <input type="button" onclick="saveInvoice(); return true;" value="{!$Label.pagebtn_Submit}" />
+            </apex:pageBlockSectionItem>
+        </apex:pageblocksection>
+    
+        
+    </apex:pageblock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_MaxInvLinesThatCanBeProcAsPayablesInvLineReached_RefreshPgToCreateNewBatchNum = "{!$Label.rstk__maxinvlinesthatcanbeprocaspayablesinvlinereached_refreshpgtocreatenewbatchnum}";
+        var LABEL_EnterInvNum_InvDateAndInvAmtBeforeSelReceipt = "{!$Label.rstk__enterinvnum_invdateandinvamtbeforeselreceipt}";
+        var LABEL_InvAlreadyExists_EnterDiffInvNum = "{!$Label.rstk__invalreadyexists_enterdiffinvnum}";
+        var LABEL_PurchInvAlreadyExists_EnterDiffInvNum = "{!$Label.rstk__purchinvalreadyexists_enterdiffinvnum}";
+        var LABEL_VendorInvInfoMandatory_EnterInvAmt = "{!$Label.rstk__vendorinvinfomandatory_enterinvamt}";
+        var LABEL_VendorInvInfoMandatory_EnterInvQty = "{!$Label.rstk__vendorinvinfomandatory_enterinvqty}";
+        var LABEL_VendorInvInfoMandatory_EnterInvUnitPrice = "{!$Label.rstk__vendorinvinfomandatory_enterinvunitprice}";
+        var LABEL_APEntryUnitPriceMustBeGrtrThan0 = "{!$Label.rstk__apentryunitpricemustbegrtrthan0}";
+        var LABEL_InvUnitPriceMustBeGrtrThan0 = "{!$Label.rstk__invunitpricemustbegrtrthan0}";
+        var LABEL_EnterAPQty = "{!$Label.rstk__enterapqty}";
+        var LABEL_EnterAPUnitPrice = "{!$Label.rstk__enterapunitprice}";
+        var LABEL_EnterTerms = "{!$Label.rstk__enterterms}";
+        var LABEL_EnterDueDate = "{!$Label.rstk__enterduedate}";
+        var LABEL_TotalGLAmtsCantExceedTotInvAmt_EnterLesserAmt = "{!$Label.rstk__totalglamtscantexceedtotinvamt_enterlesseramt}";
+        var LABEL_AdjustGLAmtsUntilTheySumToTotInvAmt = "{!$Label.rstk__adjustglamtsuntiltheysumtototinvamt}";
+        var LABEL_DateIsInClosedPerios_EnterDateInOpenPeriod = "{!$Label.rstk__dateisinclosedperios_enterdateinopenperiod}";
+        var LABEL_Please_enter_a_value_for_Registered_Date = "{!$Label.rstk__please_enter_a_value_for_registered_date}";
+        var LABEL_An_open_FF_period_not_found_for_Registered_Date = "{!$Label.rstk__an_open_ff_period_not_found_for_registered_date}";        
+        var LABEL_Filter_applies_to_sort_column_click_on_column_header_to_sort_on_that_column = "{!$Label.rstk__filter_applies_to_sort_column_click_on_column_header_to_sort_on_that_column}";
+        var LABEL_Filter = "{!$Label.rstk__filter}";
+        var LABEL_Select_All = "{!$Label.rstk__select_all}";
+        var LABEL_Please_wait_while_additional_GL_Lines_are_allocated = "{!$Label.rstk__please_wait_while_additional_gl_lines_are_allocated}";
+        var LABEL_Please_wait_while_PO_Receipts_are_retrieved = "{!$Label.rstk__please_wait_while_po_receipts_are_retrieved}";
+        var LABEL_Please_wait_while_Vendor_information_is_retrieved = "{!$Label.rstk__please_wait_while_vendor_information_is_retrieved}";
+        var LABEL_Maximum_limit_of_receipt_lines_per_invoice_has_reached = "{!$Label.rstk__maximum_limit_of_receipt_lines_per_invoice_has_reached}";
+        var LABEL_Maximum_limit_of_invoice_lines_per_batch_has_reached = "{!$Label.rstk__maximum_limit_of_invoice_lines_per_batch_has_reached}";
+        var LABEL_PlzSpecifyVendor = "{!$Label.rstk__plzspecifyvendor}";
+        var LABEL_CantProceed_MultiCurrPORcptsFound = "{!$Label.rstk__cantproceed_multicurrporcptsfound}";
+        var LABEL_TermsOnPORcptsAreNotSame = "{!$Label.rstk__termsonporcptsarenotsame}";
+        var LABEL_BillToAddrOnPORcptsIsNotSame = "{!$Label.rstk__billtoaddronporcptsisnotsame}";
+        var LABEL_VATClassMustHaveVATNotInPOPriceSetToTrue = "{!$Label.rstk__vatclassmusthavevatnotinpopricesettotrue}";
+        var LABEL_AllPoLinesMustEitherHaveTheFlagCurrentSpotRateHasBeenOverriddenCheckOrAllUnchkd = "{!$Label.rstk__allpolinesmusteitherhavetheflagcurrentspotratehasbeenoverriddencheckorallunchkd}";
+        var LABEL_AllRcptsIncludedOnInvoiceMustCarrySameExchRateOverride = "{!$Label.rstk__allrcptsincludedoninvoicemustcarrysameexchrateoverride}";
+    </script>
+</apex:page>

@@ -1,0 +1,464 @@
+<apex:page id="pg" standardController="rstk__icitemsrl__c" extensions="rstk.ControllerExtnIcitemsrl,rstk.TreeViewController,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icitemsrl__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icitemsrl__c.fields}" />
+    <apex:variable var="f_icitemsrlfeat" value="{!$ObjectType.rstk__icitemsrlfeat__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icitemsrl}" customInclude="{!$Resource.rstk__Icitemsrl_cli}" enableTreeView="true" enableAutocomplete="true"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doRefreshHists" rerender="op_srlHists" immediate="true"/>
+        <apex:actionFunction name="doRefreshTree" rerender="op_tracking" immediate="true"/>
+        <apex:actionFunction name="setSrlHistIdAB" action="{!setSrlHistId}" immediate="true" oncomplete="historyGridComplete('ab');" rerender="op_srlHists_ab">
+            <apex:param name="serialHistId" assignTo="{!serialHistId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="setSrlHistIdAM" action="{!setSrlHistId}" immediate="true" oncomplete="historyGridComplete('am');" rerender="op_srlHists_am">
+            <apex:param name="serialHistId" assignTo="{!serialHistId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="doRefreshFeatures" rerender="op_Features" immediate="true"/>
+
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableDelete="true"/>
+            </apex:pageBlockButtons>
+        
+            <apex:outputPanel style="display:none">
+                <apex:inputhidden id="icitemsrl_id__c" value="{!o.id}" />
+                <c:inputText id="icitemsrl_locnum__c" cntr="{!controller}" rendered="{!sylocnumReq}"/>
+            </apex:outputPanel>
+        
+            <c:division id="icitemsrl_div__c" cntr="{!controller}"/>
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_item__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_item__c.label}"/>
+                    <apex:outputField id="icitemsrl_item_display__c" value="{!o.rstk__icitemsrl_item__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_replaceicitem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_replaceicitem__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isView}">
+                            <c:autocomplete id="icitemsrl_replaceicitem__c" cntr="{!controller}" slDesc="{!IcitemName}" 
+                                query="select id, name from icitem__c where icitem_div__c = 'prm' and icitem_srlcontrol__c = true" 
+                                queryParms="[['icitemsrl_div__c','Division']]" width="200px" tabIndex="51"/>
+                        </apex:outputPanel>
+                        <apex:outputField value="{!o.rstk__icitemsrl_replaceicitem__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_srlno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_srlno__c.label}"/>
+                    <apex:outputField id="icitemsrl_srlno__c" value="{!o.rstk__icitemsrl_srlno__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_replaceicitemsrl__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_replaceicitemsrl__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isView}">
+                            <c:autocomplete id="icitemsrl_replaceicitemsrl__c" cntr="{!controller}" slDesc="{!ItemsrlName}" 
+                                query="select id, icitemsrl_srlno__c from icitemsrl__c where id != '{!o.id}' and icitemsrl_div__c = 'prm'" codeColumn="id" descColumn="icitemsrl_srlno__c"
+                                queryParms="[['icitemsrl_div__c','Division']]" width="200px" tabIndex="52"/>
+                            </apex:outputPanel>
+                        <apex:outputField value="{!o.icitemsrl_replaceicitemsrl__r.rstk__icitemsrl_srlno__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_udi__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_udi__c.label}"/>
+                    <apex:outputField id="icitemsrl_udi__c" value="{!o.rstk__icitemsrl_udi__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_numbreworked__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_numbreworked__c.label}"/>
+                    <apex:outputText id="icitemsrl_numbreworked__c" value="{0,number,##0}">
+                        <apex:param value="{!o.rstk__icitemsrl_numbreworked__c}" />
+                    </apex:outputText>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_origin__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_origin__c.label}"/>
+                    <apex:outputField id="icitemsrl_origin__c" value="{!o.rstk__icitemsrl_origin__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_numbshipped__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_numbshipped__c.label}"/>
+                    <apex:outputText id="icitemsrl_numbshipped__c" value="{0,number,##0}">
+                        <apex:param value="{!o.rstk__icitemsrl_numbshipped__c}" />
+                    </apex:outputText>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_origitemrev__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_origitemrev__c.label}"/>
+                    <c:selectList id="icitemsrl_origitemrev__c" required="false" cntr="{!controller}" options="{!ItemRevs}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_numbrmaed__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_numbrmaed__c.label}"/>
+                    <apex:outputText id="icitemsrl_numbrmaed__c" value="{0,number,##0}">
+                        <apex:param value="{!o.rstk__icitemsrl_numbrmaed__c}" />
+                    </apex:outputText>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_itemrev__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_itemrev__c.label}"/>
+                    <c:selectList id="icitemsrl_itemrev__c" required="false" cntr="{!controller}" options="{!ItemRevs}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_rmadisp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_rmadisp__c.label}"/>
+                    <apex:outputField value="{!o.rstk__icitemsrl_rmadisp__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_sorma__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_sorma__c.label}"/>
+                    <apex:outputField value="{!o.rstk__icitemsrl_sorma__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_refsrlno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrl_refsrlno__c.label}"/>
+                    <c:inputField id="icitemsrl_refsrlno__c" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            <br/>
+            <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_icitemsrl_stocklocation}" name="tab_StockLocation" id="tab_StockLocation">
+                    <apex:pageBlockSection id="pbs_StockLocation" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_locdiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_locdiv__c.label}"/>
+                            <c:hoverDetail recId="{!o.rstk__icitemsrl_locdiv__c}" recName="{!o.icitemsrl_locdiv__r.Name}" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_lotno__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_lotno__c.label}"/>
+                            <c:inputText id="icitemsrl_lotno__c" cntr="{!controller}" disabled="true" tabIndex="150"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_locsite__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_locsite__c.label}"/>
+                            <c:hoverDetail recId="{!o.rstk__icitemsrl_locsite__c}" recName="{!o.icitemsrl_locsite__r.Name}" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_loctype_pl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_loctype_pl__c.label}"/>
+                            <c:inputField id="icitemsrl_loctype_pl__c" cntr="{!controller}" disabled="true" tabIndex="151"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_locid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_locid__c.label}"/>
+                            <apex:outputPanel >
+	                            <c:hoverDetail recId="{!o.rstk__icitemsrl_locid__c}" recName="{!o.icitemsrl_locid__r.Name}" rendered="{!isView || !allowLocChange}"/>
+	                            <c:largeSelectList id="icitemsrl_locid__c" cntr="{!controller}" options="{!Sylocids}" rendered="{!isEdit && allowLocChange}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_locadddate__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_locadddate__c.label}"/>
+                            <c:inputField id="icitemsrl_locadddate__c" cntr="{!controller}" disabled="true" tabIndex="152"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_locnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_locnum__c.label}"/>
+                            <apex:outputPanel >
+	                            <c:inputText id="icitemsrl_locnum__c" cntr="{!controller}" disabled="{!!allowLocChange}" rendered="{!!sylocnumReq}"/>
+	                            <c:largeSelectList id="icitemsrl_locnum_sel__c" cntr="{!controller}" options="{!Sylocnums}" useValue="true" rendered="{!isEdit && sylocnumReq}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icitemsrl_features}" name="tab_Features" id="tab_Features" rendered="{!dispFeaturesTab}">
+                    <apex:pageBlockSection id="pbs_Features" showHeader="false" columns="1">
+                    	<input type="button" class="btn" value="{!$Label.pagebtn_featcat_add_delete}" onclick="_showDialog('featuresPopup');" />
+                    	<apex:outputPanel id="op_Features">
+	                        <apex:pageBlockTable value="{!icitemsrlfeats}" var="rec">
+	                            <apex:column headerValue="{!f_icitemsrlfeat.rstk__icitemsrlfeat_featcat__c.label}" value="{!rec.rstk__icitemsrlfeat_featcat__c}"/>
+	                            <apex:column headerValue="{!f_icitemsrlfeat.rstk__icitemsrlfeat_feature__c.label}" value="{!rec.rstk__icitemsrlfeat_feature__c}"/>
+	                            <apex:column headerValue="{!f_icitemsrlfeat.rstk__icitemsrlfeat_dateadded__c.label}" value="{!rec.rstk__icitemsrlfeat_dateadded__c}"/>
+	                            <apex:column headerValue="{!f_icitemsrlfeat.rstk__icitemsrlfeat_active__c.label}" value="{!rec.rstk__icitemsrlfeat_active__c}"/>
+	                        </apex:pageBlockTable>
+                        </apex:outputPanel>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icitemsrl_order}" name="tab_Order" id="tab_Order">
+                    <apex:pageBlockSection id="pbs_Order" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_ordtype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_ordtype__c.label}"/>
+                            <c:inputText id="icitemsrl_ordtype__c" cntr="{!controller}" disabled="true" tabIndex="175"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_lne__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_lne__c.label}"/>
+                            <c:inputField id="icitemsrl_lne__c" cntr="{!controller}" disabled="true" tabIndex="200"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_orddiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_orddiv__c.label}"/>
+                            <c:hoverDetail recId="{!o.rstk__icitemsrl_orddiv__c}" recName="{!o.icitemsrl_orddiv__r.Name}" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_lnerel__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_lnerel__c.label}"/>
+                            <c:inputField id="icitemsrl_lnerel__c" cntr="{!controller}" disabled="true" tabIndex="201"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_ordsite__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_ordsite__c.label}"/>
+                            <c:hoverDetail recId="{!o.rstk__icitemsrl_ordsite__c}" recName="{!o.icitemsrl_ordsite__r.Name}" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_ordadddate__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_ordadddate__c.label}"/>
+                            <c:inputField id="icitemsrl_ordadddate__c" cntr="{!controller}" disabled="true" tabIndex="201"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_ordno__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_ordno__c.label}"/>
+                            <c:inputText id="icitemsrl_ordno__c" cntr="{!controller}" disabled="true" tabIndex="178"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_origordno__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_origordno__c.label}"/>
+                            <apex:outputField value="{!o.rstk__icitemsrl_origordno__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+						<apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_origordtype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_origordtype__c.label}"/>
+                            <apex:outputField value="{!o.rstk__icitemsrl_origordtype__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrl_origordlne__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__icitemsrl_origordlne__c.label}"/>
+                            <apex:outputField value="{!o.rstk__icitemsrl_origordlne__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_icitemsrl_asbuilt}" name="tab_asbuilt" id="tab_asbuilt" rendered="{!isView}">
+                    <apex:outputPanel id="op_asbuilt">
+                        <table width="100%" border="0">
+                            <tr>
+                                <td>
+                                    <div id="tree_anchor_ab" treetype="ab" style="height:400px;overflow-y:scroll;display:block">
+                                    </div>
+                                </td>
+                                <td id="treesrlhist_ab" width="0%">
+                                    <div id="srlHistoryGrid_ab" style="display:none;">
+                                        <apex:outputPanel id="op_srlHists_ab">
+                                            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:400px;overflow-y:scroll;display:block">
+                                            <apex:pageBlockSection id="pbs_srlHists_ab" showHeader="false" columns="1">
+                                                <apex:pageBlockTable id="pbt_srlHists_ab" value="{!srlhistorys}" var="rec">
+                                                    <apex:column headerValue="{!$Label.rstk__date}" value="{!rec.createddate}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__reason}" value="{!rec.reason}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__casenumber}"><apex:outputLink value="{!IF(ISNULL(rec.caseId),'',URLFOR($Action.Case.View, rec.caseId))}{!ReturnUrlParms}">{!rec.caseNumber}</apex:outputLink></apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__replacementitem}"><apex:outputLink value="{!IF(ISNULL(rec.newItemId),'',URLFOR($Action.rstk__icitem__c.View, rec.newItemId))}{!ReturnUrlParms}">{!rec.newItem}</apex:outputLink></apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__serialnumber}" value="{!rec.newItemSrl}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__comments}" value="{!rec.comments}"/>
+                                                </apex:pageBlockTable>
+                                            </apex:pageBlockSection>
+                                            </div>
+                                        </apex:outputPanel>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:outputPanel>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icitemsrl_asmaintained}" name="tab_asmaintained" id="tab_asmaintained" rendered="{!isView}">
+                    <apex:outputPanel id="op_asmaintained">
+                        <table width="100%" border="0">
+                            <tr>
+                                <td>
+                                    <div id="tree_anchor_am" treetype="am" style="height:400px;overflow-y:scroll;display:block">
+                                    </div>
+                                </td>
+                                <td id="treesrlhist_am" width="0%">
+                                    <div id="srlHistoryGrid_am" style="display:none;">
+                                        <apex:outputPanel id="op_srlHists_am">
+                                            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:400px;overflow-y:scroll;display:block">
+                                            <apex:pageBlockSection id="pbs_srlHists_am" showHeader="false" columns="1">
+                                                <apex:pageBlockTable id="pbt_srlHists_am" value="{!srlhistorys}" var="rec">
+                                                    <apex:column headerValue="{!$Label.rstk__date}" value="{!rec.createddate}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__reason}" value="{!rec.reason}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__casenumber}"><apex:outputLink value="{!IF(ISNULL(rec.caseId),'',URLFOR($Action.Case.View, rec.caseId))}{!ReturnUrlParms}">{!rec.caseNumber}</apex:outputLink></apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__replacementitem}"><apex:outputLink value="{!IF(ISNULL(rec.newItemId),'',URLFOR($Action.rstk__icitem__c.View, rec.newItemId))}{!ReturnUrlParms}">{!rec.newItem}</apex:outputLink></apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__serialnumber}" value="{!rec.newItemSrl}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__comments}" value="{!rec.comments}"/>
+                                                </apex:pageBlockTable>
+                                            </apex:pageBlockSection>
+                                            </div>
+                                        </apex:outputPanel>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:outputPanel>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icitemsrl_asbuilt_asmaintained}" name="tab_treecomp" id="tab_treecomp" rendered="{!isView}">
+                    <apex:outputPanel id="op_treecomp">
+                        <table width="100%" border="0">
+                            <tr>
+                                <td width="50%">
+                                    <div id="tree_anchor_ab_comp" treetype="comp" style="height:400px;overflow-y:scroll;display:block">
+                                    </div>
+                                </td>
+                                <td width="50%">
+                                    <div id="tree_anchor_am_comp" treetype="comp" style="height:400px;overflow-y:scroll;display:block">
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:outputPanel>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icitemsrl_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+            
+            <div id="replaceItem" style="display:none">
+                <iframe id="replaceItemFrame" src="" width="100%" height="330px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+            </div>
+        </apex:pageBlock>
+        
+	    <div id="pleaseWaitPopup" style="display:none">
+	        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+	        <apex:outputPanel styleClass="topPopup">
+	           <apex:image url="{!$Resource.rstk__busy}"/>
+	        </apex:outputPanel>
+	    </div>
+        
+	    <c:Popup popupId="featuresPopup" title="{!$Label.rstk__pagetab_featcat_features}" onOk="features_saveAndClose();">
+	            <c:PageableGrid width="880" jsController="features" data="{!FeatureGrid}" pageSize="15" editable="true" ispopup="true" disableSave="false"/>
+	            <script>
+					function setSelectList(rowCtrl, row, fieldId, values, valueFieldId, withNone) {
+						var col = rowCtrl.getRowObj(row, fieldId);
+						var nameOf = rowCtrl.nameOf();
+						col.children().remove();
+						col.html('<select style="max-width:90%;" class="'+nameOf+'-'+rowCtrl.getRowNum(row)+'-select_'+fieldId+'" onchange="'+nameOf+'.rowChanged(event);"/>');
+						var theSel = col.find('select');
+						if (!!withNone) {
+							theSel.append('<option value="">--None--</option>');
+						}	
+						for (var i=0;i <values.length; i++) {
+						 	theSel.append('<option value="'+values[i].Id+'">'+escapeHtml(values[i].Name)+'</option>');
+						}
+						if (valueFieldId != null && valueFieldId != '') {
+							jQuery(theSel).val(rowCtrl.getRowValue(row, valueFieldId));
+							rowCtrl.setRowValue(row, valueFieldId, jQuery(theSel).val());
+						}
+					}
+	                    
+					features.onGridLoad = function() {
+						console.log('onGridLoad');
+						self = this;
+	                        
+						var featcatids = '';
+						features.getVisibleRows().each(function() {
+							var row = jQuery(this);
+							var featcatid = features.getRowValue(row, 'icitemsrlfeat_featcat__c');
+							if (featcatid) {
+								featcatids += (featcatids ? "," : "") + "'" + featcatid + "'";
+							}
+						});
+				
+						var featcats = [];
+	
+						if (featcatids) {
+							featcats = execQuery("select Id, (select Id, Name from features__r order by Name) from featcat__c where id in (" + featcatids + ")");
+						}
+	                        
+						features.getRows().each(function() {
+							console.log('onGridLoad');
+							var row = jQuery(this);
+			    	
+					    	var featcatFeatures = [];
+					    	var featcatid = features.getRowValue(row, 'icitemsrlfeat_featcat__c');
+					    	for (i = 0; i < featcats.length; i++) {
+					    		if (featcatid == featcats[i].Id) {
+					    			console.log(featcats[i].features__r);
+					    			if (featcats[i].features__r && featcats[i].features__r.size > 0) {
+					    				featcatFeatures = featcats[i].features__r.size > 1 ? featcats[i].features__r.records : [featcats[i].features__r.records];
+					    			}
+					    			break;
+					    		}
+					    	}
+					    	var icitemsrlfeatId = features.getRowValue(row, 'Id');
+							if (isEmpty(icitemsrlfeatId)) icitemsrlfeatId = features.rowIds[i];
+							if (isEmpty(icitemsrlfeatId)) {
+								setSelectList(self, row, 'icitemsrlfeat_feature__g', featcatFeatures, 'icitemsrlfeat_feature__c', true);
+							} else {
+								var col = features.getRowObj(row, 'icitemsrlfeat_feature__g');
+								col.children().remove();
+								for (var i=0;i <featcatFeatures.length; i++) {
+								 	if (featcatFeatures[i].Id == features.getRowValue(row, 'icitemsrlfeat_feature__c')) {
+								 		col.html('<span>' + featcatFeatures[i].Name + '</span>');
+								 	}
+								}
+							}
+						});
+					}
+	                    
+					features.resetRow = function(row) {
+						self = this;
+						featuresHandler.prototype.resetRow.call(self, row);
+						setSelectList(this, row, 'icitemsrlfeat_feature__g', [], 'icitemsrlfeat_feature__c', true);
+						features.setRowValue(row, "icitemsrlfeat_active__c", true);
+					}
+	                    
+	                features.entryChanged = function(row, rowNum, name, value) {
+	                	console.log(name+':'+value);
+	                	console.log('name'+':'+name);
+	                    if(name == 'icitemsrlfeat_featcat__c') {
+	                    	features.setRowValue(row, "icitemsrlfeat_feature__c", '');
+	                    	var featureSl = features.getRowObj(row, 'icitemsrlfeat_feature__g').find('select')[0];
+	                    	featureSl.value = '';
+	                    	if(value) {
+	                        	populateHtmlSelectList(featureSl, "select Id, Name from feature__c where feature_featcat__c = '" + value + "' order by Name");
+	                        }
+						} else if (name == 'select_icitemsrlfeat_feature__g') {
+							features.setRowValue(row, "icitemsrlfeat_feature__c", value);
+						}
+	                }
+	        
+					features.onSaved = function(row) {
+						doRefreshFeatures();
+					}
+	            </script>
+	    </c:Popup>
+        
+      </apex:form>
+      <br />
+
+     <apex:pageBlock id="pb_RelatedLists" rendered="{!!isNew}">
+        <apex:pageBlockSection id="pbs_RelatedLists" showHeader="true" title="{!$Label.rstk__pagetab_icitemsrl_relatedlists}" columns="1">
+            <apex:tabPanel switchType="client" selectedTab="tab_RelatedLists" id="theTabPanel_RelatedLists">
+                <apex:tab label="{!$Label.rstk__pagetab_icitemsrl_itemhistory}" name="tab_itemHist" id="tab_itemHist" rendered="{!!isNew}">
+                    <apex:relatedList list="icitemsrlhists__r"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlockSection>
+     </apex:pageBlock>
+
+    <c:footerInclude cntr="{!controller}" />
+    <script>       
+        var Directly = "{!$Label.rstk__thisrecordcannotbedirectlyeditedandsaved}";
+        var LABEL_ReplacementSrlNumsReqdWhenReplacementItemSpec = "{!$Label.rstk__replacementsrlnumsreqdwhenreplacementitemspec}";                                        
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

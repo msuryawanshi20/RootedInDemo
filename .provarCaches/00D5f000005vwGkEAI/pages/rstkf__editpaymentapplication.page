@@ -1,0 +1,235 @@
+<apex:page id="pg" standardController="rstkf__arcashd__c" extensions="rstkf.ControllerExtnEditPaymentApplication,rstkf.ControllerJobStatus" 
+    sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__arcashd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__arcashd__c.fields}" />
+    <apex:variable var="f_arinvdue" value="{!$ObjectType.rstkf__arinvdue__c.fields}" />
+    <apex:variable var="f_arinvtxn" value="{!$ObjectType.rstkf__arinvtxn__c.fields}" />
+    <apex:variable var="f_customextf" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="f_arapplic" value="{!$ObjectType.rstkf__arapplic__c.fields}" />
+    <apex:variable var="f_arcashd" value="{!$ObjectType.rstkf__arcashd__c.fields}" />
+    <apex:variable var="f_arcashh" value="{!$ObjectType.rstkf__arcashh__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" displayListLink="false" title="{!$Label.rstkf__ttile_editpaymentapplications}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <style>
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 2000; /* Sit on top */
+            left: 30%;
+            top: 30%;
+            width: 800px; 
+            height: 500px;
+            background-color: transparent;
+        }
+        
+        /* Modal Content */
+        .modal-content {
+            background-color: #fefefe;
+            margin: -100px;
+            padding: 15px;
+            border: 1px solid #888;
+            width: 800px;
+            height: 500px;
+        }
+        
+        .overlay {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 300;
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%;
+            text-align: center;
+            background-color: rgba(0,0,0,0.4);
+        }
+         
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        
+        input:disabled {
+            background: #dddddd;
+        }
+        
+        .sort {display:inline}
+        .numSort {display:inline}
+        
+        .floatingStyle { 
+            background-color:#829DC0 !important;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessingCashRcpts" startStyleClass="Processing"/>
+        <apex:actionFunction name="saveApplications" 
+            action="{!saveApplications}" 
+            oncomplete="unblockUI();"
+            rerender="op_arapplics, pageMessages"
+            immediate="false" status="statusProcessingCashRcpts"/>
+            
+        <apex:outputpanel id="op_vars">
+            <script>
+            </script>
+        </apex:outputpanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons >
+                <!-- <apex:commandButton id="EditApplication" value="Edit Application" onclick="editSelected(); return false;"/> -->
+                <apex:commandButton id="saveApplications" value="{!$Label.rstkf__btn_saveapplications}" onclick="doSaveApplications(); return false;"/>
+                <apex:commandButton id="quitEditApplications" value="{!$Label.rstkf__btn_close}" onclick="window.parent.location.reload(); return false;"/>
+            </apex:pageBlockButtons>
+            <apex:outputPanel id="op_arapplics" >
+                <script>var arapplicRows = {}; var arapplicSelectcbxs = [];</script>
+                <div id="div_pbt_arapplics" style="overflow: auto; height: 400px;">
+                    <apex:pageBlockTable value="{!arapplicRecsForDisplay}" var="a" id="pbt_arapplics" title="{!$Label.rstkf__title_applications}">
+                        <apex:column headerValue="{!$Label.rstkf__pagevalselect}">
+                            <apex:inputCheckbox id="selected" value="{!a.selected}" onchange="selectArapplic('{!a.key}')"/>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_arapplic.rstkf__arapplic_arinvdue__c.label}" value="{!a.arapplic.rstkf__arapplic_arinvdue__c}" />
+                        <apex:column headerValue="{!f_arapplic.rstkf__arapplic_trantype__c.label}" value="{!a.arapplic.rstkf__arapplic_trantype__c}" /> 
+                        <apex:column headerValue="{!f_arapplic.rstkf__arapplic_arapplic_applied__c.label}" value="{!a.arapplic.rstkf__arapplic_arapplic_applied__c}" />
+                        <apex:column headerValue="{!f_customextf.rstkf__cashreceipts_aritem_amtAppliedARCurr__c.label}">
+                            <apex:inputField id="amtAppliedARCurr" value="{!a.customextf.rstkf__cashreceipts_aritem_amtAppliedARCurr__c}" onchange="amtAppliedARCurrChanged('{!a.key}');"/>
+                        </apex:column>      
+                        <apex:column headerValue="{!f_customextf.rstkf__cashreceipts_aritem_discntAmtARCurr__c.label}">
+                            <apex:inputField id="discntAmtARCurr" value="{!a.customextf.rstkf__cashreceipts_aritem_discntAmtARCurr__c}" onchange="discntAmtARCurrChanged('{!a.key}');"/>
+                            <script>
+                               arapplicSelectcbxs[arapplicSelectcbxs.length] = document.getElementById("{!$Component.selected}");
+                               arapplicRows["{!a.key}"] = {
+                                   key: '{!a.key}',
+                                   selected: document.getElementById("{!$Component.selected}"),
+                                   amtAppliedARCurr: document.getElementById("{!$Component.amtAppliedARCurr}"),
+                                   amtAppliedOrigVal: '{!a.customextf.rstkf__cashreceipts_aritem_amtAppliedARCurr__c}',
+                                   discntAmtARCurr: document.getElementById("{!$Component.discntAmtARCurr}"),
+                                   discAmtOrigVal: '{!a.customextf.rstkf__cashreceipts_aritem_discntAmtARCurr__c}',
+                                   origOrRev: '{!a.arapplic.arapplic_orig_rev__c}'
+                               };
+                               
+                               if(document.getElementById("{!$Component.selected}").checked) {
+                                    document.getElementById("{!$Component.amtAppliedARCurr}").disabled = false; 
+                                    var discnt = getLocaleFloat(document.getElementById("{!$Component.discntAmtARCurr}").value);
+                                    if(discnt != null && discnt > 0) {
+                                        document.getElementById("{!$Component.discntAmtARCurr}").disabled = false;
+                                    }
+                                    else {
+                                    	document.getElementById("{!$Component.discntAmtARCurr}").disabled = true;
+                                    }                               
+                               }
+                               else {
+                                   document.getElementById("{!$Component.amtAppliedARCurr}").disabled = true;
+                                   document.getElementById("{!$Component.discntAmtARCurr}").disabled = true;
+                               }
+                           </script>
+                        </apex:column>
+                    </apex:pageBlockTable>    
+                </div>
+            </apex:outputPanel>    
+        </apex:pageBlock>
+        
+        <div id="pleaseWaitPopup" class="overlay">
+            <span style="padding: 5px; border-radius: 5px;color: #000;background-color: #fff;">
+            </span>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+    function amtAppliedARCurrChanged(rowid) {
+        var row = arapplicRows[rowid];
+        if(row.amtAppliedARCurr.length == 0) {
+            row.amtAppliedARCurr.value = 0;
+            return;
+        }
+        
+        var amtApplied = getLocaleFloat(row.amtAppliedARCurr.value);
+        if(amtApplied < 0) {
+            alert('{!$Label.AmtAppliedMustBeGTZero}');
+            row.amtAppliedARCurr.value = '';
+            return;
+        }
+    }
+    
+    function discntAmtARCurrChanged(rowid) {
+        var row = arapplicRows[rowid];
+        if(row.discntAmtARCurr.length == 0) {
+            row.discntAmtARCurr.value = 0;
+        }
+        
+        if(getLocaleFloat(row.discntAmtARCurr.value) < 0) {
+        	alert('{!$Label.DiscntAmtCantBeNegative}');
+        	row.discntAmtARCurr.value = 0;
+        }
+    }
+    
+    function selectArapplic(rowid) {
+        var row = arapplicRows[rowid];
+        if(row.selected.checked) {
+        	if(row.origOrRev == 'Reversal') {
+                alert('{!$Label.updatesToReversalApplicsNotAllowed}');
+        		row.selected.checked = false;
+        		return;
+        	}
+        	
+            row.amtAppliedARCurr.disabled = false;
+            if(row.discAmtOrigVal != null && row.discAmtOrigVal.length > 0) {
+                row.discntAmtARCurr.disabled = false;           
+            }
+        }
+        else {
+            row.amtAppliedARCurr.disabled = true;
+            row.amtAppliedARCurr.value = formatLocaleFloat(Number(row.amtAppliedOrigVal), 2);
+            row.discntAmtARCurr.disabled = true;    
+            row.discntAmtARCurr.value = formatLocaleFloat(Number(row.discAmtOrigVal), 2);   
+        }
+    }
+    
+    function doSaveApplications() {
+        var selectCount = 0;
+        for(i = 0; i < arapplicSelectcbxs.length; i++) {
+            var row = arapplicRows[Object.keys(arapplicRows)[i]];
+            if(row.selected.checked) {
+                selectCount++;
+                if((row.amtAppliedARCurr.disabled == false && row.amtAppliedARCurr.value.length == 0) 
+                    || (row.discntAmtARCurr.disabled == false && row.discntAmtARCurr.value.length == 0)) {
+                    alert('{!$Label.plzSpecifyAmtToBeApplied}');
+                    return false;
+                }
+            }   
+        }
+        
+        if(selectCount == 0) {
+            alert('{!$Label.PlzSelectATransaction}');
+            return false;
+        }
+        
+        saveApplications();
+    }
+    
+    function getLocaleFloat(val) {
+        return !isNumber(val) ? 0 : parseLocaleFloat(val);
+    }
+    </script>
+</apex:page>

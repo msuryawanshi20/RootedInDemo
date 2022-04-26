@@ -1,0 +1,413 @@
+<apex:page id="pg" title="{!$Label.rstkf__ar_invoice_and_memo_review_and_mass_post}" standardController="rstkf__customextf__c" extensions="rstkf.ControllerExtnAInvoiceAndMemoReview,rstkf.ControllerJobStatus" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+	<apex:sectionHeader title="{!$Label.rstkf__ar_invoice_and_memo_review_and_mass_post}" help="{!helpUrl}" />
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__ar_invoice_and_memo_review_and_mass_post}" customInclude="{!$Resource.rstkf__ARsInvoiceAndMassReview_cli}" showHeader="false" enableQuickMenu="true" />
+	<apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+	<apex:variable var="f_arinvh" value="{!$ObjectType.rstkf__arinvh__c.fields}" />
+	<apex:variable var="f_arinvtxn" value="{!$ObjectType.rstkf__arinvtxn__c.fields}" />
+	<apex:variable var="f_arinvdue" value="{!$ObjectType.rstkf__arinvdue__c.fields}" />
+	<apex:variable var="f_arinvdist" value="{!$ObjectType.rstkf__arinvdist__c.fields}" />	
+	<apex:variable var="o" value="{!customext}" />	
+	
+	<style>
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 12; /* Sit on top */
+            left: 30%;
+            top: 30%;
+            width: 800px; 
+            height: 150px;
+            background-color: rgb(0,0,0); 
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modalCustom {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 14; /* Sit on top */
+            left: 20%;
+            top: 30%;
+            width: 900px; 
+            height: 400px;
+            background-color: rgb(0,0,0); 
+            background-color: rgba(0,0,0,0.4);
+        }
+        /* Modal Content */
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 15px;
+            border: 1px solid #888;
+            width: 850px;
+            height: 390px;
+        }
+        
+        .overlay {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 13;
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%;
+            text-align: center;
+            background-color: rgba(0,0,0,0.4);
+        }
+         
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+         
+    </style>
+	
+	<script>
+	// To remove focus from input field
+    function setFocusOnLoad() {}
+    
+    function openInvoiceTransPopup(bId){
+    	sfffSetFieldValue('atb_dayslist__c', bId);
+    	sfffSetFieldValue('atb_printreport__c', true);
+    	document.getElementById('{!$Component.pg:fm:arInvoiceTransOP}').innerHTML = "";
+    	showPopup('#arInvoiceTransPopup', 1000, 550);
+    	reLoadARInvoiceTrans();
+    	return false;
+    }
+    
+    function afterPostEntryCheck() {
+     		var testResultString = document.getElementById('pg:fm:testResultString').value;
+     		if(testResultString != ''){
+                //alert(testResultString);
+                console.log('posting failed '+testResultString);
+     		} 
+     		document.getElementById('pg:fm:testResultString').value = '';
+     	}
+    
+    function postBatchesCheck() {
+    	console.log('inside postBatchesCheck ');
+        var singleResultString = document.getElementById('pg:fm:singleResultString').value;
+        var singleSelectedStatus = document.getElementById('pg:fm:singleSelectedStatus').value;
+        if (singleResultString != '') {
+            unblockUI();   
+            alert(singleResultString);
+        } else {
+            if(confirm("{!$Label.Please_Confirm_you_wish_to_Post_Selected_Batches}")) {
+                postBatches();
+            } else {
+                unblockUI();   
+            }  		
+        }     		
+        document.getElementById('pg:fm:singleResultString').value = '';
+        document.getElementById('pg:fm:singleSelectedStatus').value = '';    	
+    }
+    
+    function validate(){
+        /*
+    	var salesDiv = sfffGetFieldValue('arsir_salesdiv__c');
+    	if(!salesDiv){
+    		alert('{!$Label.SalesDivisionIsRequired}');
+    		return false;
+    	}
+    	
+    	var fromBatchDate = sfffGetFieldValue('arsir_frdate__c');
+    	var toBatchDate = sfffGetFieldValue('arsir_todate__c');
+    	
+    	if(fromBatchDate && toBatchDate && fromBatchDate > toBatchDate){
+    		alert('{!$Label.FromBatchDtMustLessThanThroughBatchDt}');
+    		return false;
+    	}*/
+    	return true;
+    }
+    
+        function verifyDate(firstDate,secondDate,flag){
+        	Visualforce.remoting.Manager.invokeAction(  
+		        '{!$RemoteAction.ControllerExtnAInvoiceAndMemoReview.verifyDate}', //NameSpace  
+		        firstDate,
+		        secondDate,   
+		        function(result, event){
+		        	if (event.status) {
+						var statusResult = checkResult(result,flag);
+						counterCheck = 0;
+						console.log('statusResult  '+statusResult);	
+						console.log('statusResult counterCheck  '+counterCheck);						
+						//alert('statusResult '+statusResult);
+						returnStatusResult = statusResult;
+					} else if (event.type === 'exception') {
+						//alert("{!$Label.Exception}", event.message);
+						checkException(event.message,datefieldID)
+						returnStatusResult = false;	
+		            } else {
+						alert("{!$Label.UnexpectedStatus}", event.message); 
+						returnStatusResult = false;
+		            }
+		        }, {escape:false}
+		    );
+        }
+    
+    	function initiateVerifyDate(flag) {
+            console.log(' inside initiateVerifyDate');
+            var frmDate = document.getElementById('pg:fm:pb:pbs_main:arsir_frdate__op:arsir_frdate__c').value;
+            var thruDate = document.getElementById('pg:fm:pb:pbs_main:arsir_todate__op:arsir_todate__c').value;
+            /*var frmDate = sfffGetFieldValue('memo_fromdate__c');
+			var thruDate = sfffGetFieldValue('memo_thrudate__c');*/
+			console.log(' inside saveEntryCheck() : From date changed to = '+ frmDate + ' & Thru Date changed to = '+ thruDate );
+			if (frmDate && thruDate){
+				if(verifyDate(frmDate,thruDate,flag) == false){
+					return false;
+				}
+			}
+        }
+    	
+    	function checkResult(result,flag){
+            console.log(' inside checkResult() : result = '+ result + ' & flag = '+ flag);
+            if(result){
+                if(flag == 'from') {
+                    //console.log('checkResult counterCheck  '+counterCheck);	
+                    
+                    alert(Label_value1mustbegreaterthanval2,[LABEL_gljetemplth_thrudate__c,LABEL_gljetemplth_fromdate__c]);
+                    document.getElementById('pg:fm:pb:pbs_main:arsir_frdate__op:arsir_frdate__c').value = '';                         
+                    //sfffSetFieldValue(datefieldID,'',false);
+                    document.getElementById('pg:fm:pb:pbs_main:arsir_frdate__op:arsir_frdate__c').focus();
+                    return false;
+                } else {
+                    alert(Label_value1mustbegreaterthanval2,[LABEL_gljetemplth_thrudate__c,LABEL_gljetemplth_fromdate__c]);
+                    //sfffSetFieldValue('memo_thrudate__c','',false);
+                    document.getElementById('pg:fm:pb:pbs_main:arsir_todate__op:arsir_todate__c').value = '';   
+                    document.getElementById('pg:fm:pb:pbs_main:arsir_todate__op:arsir_todate__c').focus();
+                    return false;
+                }
+                
+            }	
+        }
+        
+        function showArinvdists() {
+			console.log('showArinvdists ');            
+            var overlayPopup = document.getElementById('overlayPopup');
+            overlayPopup.style.display = "block";
+			var showArinvdistPopup = document.getElementById('showArinvdistPopup');
+            showArinvdistPopup.style.display = "block";
+		}
+		
+		function notes_close() {
+			console.log('showArinvdists ');
+            var overlayPopup = document.getElementById('overlayPopup');
+            overlayPopup.style.display = "none";
+			var showArinvdistPopup = document.getElementById('showArinvdistPopup');
+            showArinvdistPopup.style.display = "none";
+		
+		}
+    
+    
+	</script>
+	
+	<apex:form id="fm">
+        <apex:inputHidden id="testResultString" value="{!testResultString}" />
+    	<apex:inputHidden id="singleResultString" value="{!singleResultString}" />
+    	<apex:inputHidden id="singleSelectedStatus" value="{!singleSelectedStatus}" />    	
+    	<apex:outputPanel id="consSelectedSize">
+    		 <script>
+    		 	var consSelectedSize = "{!consSelectedSize}";
+    		 	var consSelectedStatus = "{!consSelectedStatus}";
+    		 	var consSelectedBatchNo = "{!consSelectedBatchNo}";
+             </script>
+    	</apex:outputPanel>
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+        </apex:outputPanel>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:actionFunction name="reLoadARInvoiceTrans" action="{!setInvoiceTransValues}" rerender="pageMessages,hiddenTransPanel,arInvoiceTransOP" /> 
+            <apex:actionFunction name="reLoadBatchRecords" action="{!setSearchFieldValues}" oncomplete="unblockUI();" rerender="pageMessages,batchRecordsOP,postedButtonop2"/> 
+            <apex:actionFunction name="fetchAllArinvdistsOfArinvtxn" action="{!fetchAllArinvdistsOfArinvtxn}" oncomplete="showArinvdists();" rerender="pageMessages,arinvdistList"> 
+				<apex:param name="arinvtxnSelected" assignTo="{!arinvtxnSelected}" value=""/>
+			</apex:actionFunction>
+            <apex:pageBlockSection id="pbs_main" showHeader="false" columns="2">
+            	<apex:pageBlockSectionItem helpText="{!f_customext.rstkf__custom_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__custom_glcmp__c.label}"/>
+                    <apex:outputField value="{!customext.rstkf__arsalesinvoice_glcmp__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__arinvoicememo_status__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__arinvoicememo_status__c.label}"/>
+                     <apex:selectList value="{!o.rstkf__arinvoicememo_status__c}" size="1" id="arinvoicememo_status__c"> 
+                         <apex:selectOptions value="{!Status}" /> 
+                     </apex:selectList>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                	 <apex:outputPanel id="hiddenTransPanel">
+		              	<apex:inputHidden value="{!o.rstkf__atb_dayslist__c}" id="atb_dayslist__c"/>
+		              	<apex:inputHidden value="{!o.rstkf__atb_printreport__c}" id="atb_printreport__c"/>
+		            </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__arsir_frdate__c.inlineHelpText}" id="arsir_frdate__op">
+                    <apex:outputLabel value="{!f_customext.rstkf__arsir_frdate__c.label}"/>
+                     <apex:inputField value="{!o.rstkf__arsir_frdate__c}" id="arsir_frdate__c" onchange="initiateVerifyDate('from');"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__arsir_year__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__arsir_year__c.label}"/>
+                     <apex:selectList value="{!o.rstkf__arsir_year__c}" size="1" id="arsir_year__c"> 
+                         <apex:selectOptions value="{!FiscalYear}" /> 
+                     </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__arsir_todate__c.inlineHelpText}" id="arsir_todate__op">
+                    <apex:outputLabel value="{!f_customext.rstkf__arsir_todate__c.label}"/>
+                     <apex:inputField value="{!o.rstkf__arsir_todate__c}" id="arsir_todate__c" onchange="initiateVerifyDate('through');"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__arsir_period__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__arsir_period__c.label}"/>
+                     <apex:selectList value="{!o.rstkf__arsir_period__c}" size="1" id="arsir_period__c"> 
+                         <apex:selectOptions value="{!Periods}" /> 
+                     </apex:selectList>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+           
+            <table style="padding-top:10px;padding-bottom:10px;width:100%;">
+				<tr>
+					<td width="50%" align="center">
+						<apex:commandbutton value="{!$Label.rstkf__refreshdetaildisplay}" onclick="if(validate()){blockUI();reLoadBatchRecords();}return false;"/>
+					</td>
+					<td width="50%" align="center">
+                        <apex:outputPanel id="postedButtonop2">						
+							<apex:outputPanel id="postedButtonop" rendered="{!AND(statusSelected != postedStatus,batchList != null)}">
+								<apex:commandbutton value="{!$Label.rstkf__postselectedbatches}" onclick="blockUI();multipleSelectedCheck();return false;" />
+							</apex:outputPanel>
+						</apex:outputPanel>
+					</td>
+				</tr>
+			</table>            
+			<apex:actionFunction name="multipleSelectedCheck" action="{!multipleSelectedCheck}" oncomplete="postBatchesCheck();" rerender="pageMessages,singleResultString,batchRecordsOP"/>            
+            <apex:actionFunction name="postBatches" action="{!postSelectedBatchs}" oncomplete="afterPostEntryCheck();checkJobStatus();" rerender="pageMessages,testResultString,batchRecordsOP,op_JobStatus"/>            
+            <apex:outputPanel id="batchRecordsOP">
+            	<apex:outputPanel id="batchRecordsPanel" rendered="{!batchList != null}">
+	            <apex:pageBlockTable value="{!batchList}" var="a">
+	             	<apex:column >
+	             		<apex:inputCheckbox value="{!a.sel}" disabled="{!a.isDisable}"/>
+	             	</apex:column>
+	             	<apex:column headerValue="{!f_arinvh.rstkf__arinvh_batchno__c.label}">
+	             	 	<apex:outputLink value="/{!a.bId}">{!a.batchNo}</apex:outputLink>
+	             	</apex:column>
+	             	<apex:column headerValue="{!f_arinvh.rstkf__arinvh_poststatus__c.label}" value="{!a.postStatus}"/>
+                    <apex:column headerValue="{!f_arinvh.rstkf__arinvh_accountingdate__c.label}" value="{!a.custext.rstkf__aratb_agingdate__c}" />
+                    <apex:column headerValue="{!f_arinvh.CreatedDate.label}" value="{!a.custext.rstkf__arsalesinvoice_createdDate__c}"/>
+	             	<!--apex:column headerValue="{!f_arinvh.arinvh_soibatch__c.label}" value="{!a.soiBatchName}"/-->
+	             	<apex:column headerValue="{!f_arinvh.rstkf__arinvh_glyear__c.label}" value="{!a.glyear}"/>
+	             	<apex:column headerValue="{!f_arinvh.rstkf__arinvh_period__c.label}" value="{!a.period}"/>
+	             	<apex:column headerValue="{!f_arinvh.rstkf__arinvh_postdate__c.label}" value="{!a.postDateString}"/>
+	             	<apex:column >
+        				<apex:outputLink value="javascript:void(0)" onclick="return openInvoiceTransPopup('{!a.bId}');">{!$Label.rstkf__invoicedetail}</apex:outputLink>
+	             	</apex:column>
+	            </apex:pageBlockTable>
+	            <apex:panelGrid columns="6">
+	                <apex:commandButton status="fetchStatus1" reRender="batchRecordsPanel" value="|<" action="{!firstOfsetOfCons}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+	                <apex:commandButton status="fetchStatus1" reRender="batchRecordsPanel" value="<" action="{!previousOfsetOfCons}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+	                <apex:commandButton status="fetchStatus1" reRender="batchRecordsPanel" value=">" action="{!nextOfsetOfCons}" disabled="{!!setCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+	                <apex:commandButton status="fetchStatus1" reRender="batchRecordsPanel" value=">|" action="{!lastOfsetOfCons}" disabled="{!!setCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+	                <apex:outputText >{!(setCon.pageNumber * size)+1-size}-{!IF((setCon.pageNumber * size)>noOfRecords, noOfRecords,(setCon.pageNumber * size))} {!$Label.rstkf__page_no_of} {!noOfRecords}</apex:outputText>
+	                <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+	                    <apex:actionStatus id="fetchStatus1" startText="{!$Label.rstkf__fetching}" stopText=""/>
+	                </apex:outputPanel>
+	            </apex:panelGrid>
+            </apex:outputPanel>
+            </apex:outputPanel>
+		 </apex:pageBlock>
+		    
+		<div id="arInvoiceTransPopup" title="{!$Label.rstkf__invoice_transaction}" style="display:none;z-index: 10;">
+			<apex:outputPanel id="arInvoiceTransOP">
+				<apex:outputPanel rendered="{!o.rstkf__atb_dayslist__c != null}">
+	                <apex:pageBlock title="{!$Label.rstkf__invoice_transaction}" id="gljhs" mode="detail">
+	                     	    
+						 <div align="center" style="padding-bottom: 10px;">                
+							<input type="button" value="{!$Label.pagevalClose}" onclick="jQuery.unblockUI();" />
+						</div>
+	                    
+						<apex:outputPanel id="arinvtxnRecordsPanel">
+                            <apex:outputPanel id="arinvtxnRecordsPanel23" layout="block" style="overflow-y: scroll;">
+                                <apex:pageBlockTable value="{!ArinvtxnRecords}" var="a">
+                                     <apex:column headerValue="{!f_arinvtxn.rstkf__arinvtxn_docno__c.label}" value="{!a.docNo}"/>
+                                     <apex:column headerValue="{!f_arinvtxn.rstkf__arinvtxn_socust__c.label}" value="{!a.soCust}"/>
+                                     <apex:column headerValue="{!f_arinvtxn.rstkf__arinvtxn_trantype__c.label}" value="{!a.tranType}"/>
+                                     <apex:column headerValue="{!f_arinvtxn.rstkf__arinvtxn_soinv__c.label}" value="{!a.soInv}"/>
+                                     <apex:column headerValue="{!f_arinvtxn.rstkf__arinvtxn_sumhomeamt__c.label}" value="{!a.homeAmtStr}"/>
+                                     <apex:column headerValue="{!f_arinvtxn.rstkf__arinvtxn_trandate__c.label}" value="{!a.tranDateString}"/>
+                                     <apex:column headerValue="{!f_arinvtxn.rstkf__arinvtxn_syterms__c.label}" value="{!a.syTerms}"/>
+                                     <apex:column headerValue="{!f_arinvdue.rstkf__arinvdue_duedate__c.label}" value="{!a.dueDateString}"/>
+                                     <apex:column >
+                                     	<input type="button" id="ShowArinvdist" value="{!$Label.Dist}" class="btn" onclick="fetchAllArinvdistsOfArinvtxn('{!a.artxnId}');"/>                                     	
+                                     </apex:column>
+                                </apex:pageBlockTable>
+                            </apex:outputPanel>    
+				        	<apex:panelGrid columns="6">
+				                <apex:commandButton status="fetchStatus2" reRender="arinvtxnRecordsPanel" value="|<" action="{!setArinvtxnCon.first}" disabled="{!!setArinvtxnCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+				                <apex:commandButton status="fetchStatus2" reRender="arinvtxnRecordsPanel" value="<" action="{!setArinvtxnCon.previous}" disabled="{!!setArinvtxnCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+				                <apex:commandButton status="fetchStatus2" reRender="arinvtxnRecordsPanel" value=">" action="{!setArinvtxnCon.next}" disabled="{!!setArinvtxnCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+				                <apex:commandButton status="fetchStatus2" reRender="arinvtxnRecordsPanel" value=">|" action="{!setArinvtxnCon.last}" disabled="{!!setArinvtxnCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+				                <apex:outputText >{!(setArinvtxnCon.pageNumber * arinvtxnSize)+1-arinvtxnSize}-{!IF((setArinvtxnCon.pageNumber * arinvtxnSize)>noOfArinvtxnRecords, noOfArinvtxnRecords,(setArinvtxnCon.pageNumber * arinvtxnSize))} {!$Label.rstkf__page_no_of} {!noOfArinvtxnRecords}</apex:outputText>
+				                <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+				                    <apex:actionStatus id="fetchStatus2" startText="{!$Label.rstkf__fetching}" stopText=""/>
+				                </apex:outputPanel>
+				            </apex:panelGrid>
+				        </apex:outputPanel>
+					</apex:pageBlock>        
+		        </apex:outputPanel>
+	        </apex:outputPanel>
+		</div>
+		     	
+		<apex:outputPanel id="arinvdistList">
+            <div class="modalCustom" id="showArinvdistPopup" style="display:none;overflow-y: scroll;">
+                <div class="modal-content">                 
+                <apex:pageBlock title="{!$Label.rstkf__receivable_transaction_distributions}" id="dists" mode="detail" >
+                    <apex:pageBlockTable id="distData" value="{!allArinvdistsOfArinvtxn}" var="dist">                  
+                        <apex:column headerValue="{!f_arinvdist.rstkf__arinvdist_glacct__c.label}">
+                            <apex:outputField id="distAcct" value="{!dist.rstkf__arinvdist_glacct__c}"/>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_arinvdist.rstkf__arinvdist_dramt__c.label}">
+                            <apex:outputField id="distDramt" value="{!dist.rstkf__arinvdist_dramt__c}"/>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_arinvdist.rstkf__arinvdist_cramt__c.label}">
+                            <apex:outputField id="distCramt" value="{!dist.rstkf__arinvdist_cramt__c}"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                    <p style="position:auto;text-align:center">
+                        <input type="button" name="popupCancelButton" class="btn" value="{!$Label.pagevalClose}" onclick="notes_close();" tabIndex="9992"/>
+                    </p>
+                </apex:pageBlock>            	   
+                </div>    
+            </div>  
+        </apex:outputPanel>
+        <div id="overlayPopup" class="overlay">            
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+    	var Label_value1mustbegreaterthanval2 = "{!$Label.value1mustbegreaterthanval2}";		
+		var LABEL_gljetemplth_fromdate__c = "{!f_customext.rstkf__arsir_frdate__c.label}";
+		var LABEL_gljetemplth_thrudate__c = "{!f_customext.rstkf__arsir_todate__c.label}";
+    	var LABEL_SelectedBatchsPostedSuccessfully = "{!$Label.SelectedBatchsPostedSuccessfully}";
+        	
+    	function openDistFramePopup() {
+            showPopup('#showArinvdistPopup', 850, 400);
+    	}
+    </script>
+</apex:page>

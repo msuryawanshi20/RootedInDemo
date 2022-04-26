@@ -1,0 +1,112 @@
+<apex:page id="pg" standardController="rstkf__glfstmplt6__c" extensions="rstkf.ControllerExtnGlfstmplt6Maint" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    
+    <apex:variable var="o" value="{!glfstmplt6}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__glfstmplt6__c.fields}" />
+    <c:standardHeader cntr="{!controller}" showHeader="false" enableQuickMenu="false" customInclude="{!$Resource.rstkf__glfstmplt6Maint_cli}"/>
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        
+        .bPageHeader
+        {
+            display : none;
+        }
+        
+        .bPageFooter
+        {
+            display : none;
+        }
+        
+        .hasMotif {
+            margin: 0 0px;
+        }
+        
+        .bodyDiv
+        {
+            border-top : 0px;
+        }
+        
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="upsertRecord" action="{!doupsertRecord}" immediate="false" reRender="pageMessages,op_isSuccess" oncomplete="closeAndRefreshTable(); return false;" status="statusProcessing"/>
+        <apex:outputPanel id="op_isSuccess">
+            <script>
+                var isSuccess = "{!isSuccess}";
+                var isNewMode = "{!isNewMode}";
+            </script>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons location="bottom">
+                <apex:commandButton id="saveBtn" onclick="validateAndSaveRecord();return false;" value="{!$Label.rstkf__pagevalsave}" styleclass="btn"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main" columns="1">
+                <apex:outputField value="{!o.rstkf__glfstmplt6_cmpno__c}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glfstmplt6_label__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glfstmplt6_label__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__glfstmplt6_label__c}" rendered="{!AND(isNewMode,!isNewEntry)}"/>
+                        <apex:inputField id="glfstmplt6_labelNewEntry__c" value="{!o.rstkf__glfstmplt6_label__c}" required="true" rendered="{!isNewEntry}" taborderhint="1"/>
+                        <apex:inputHidden id="glfstmplt6_label_hidden__c" value="{!o.rstkf__glfstmplt6_label__c}" rendered="{!AND(isNewMode,!isNewEntry)}"/>
+                        <apex:selectList id="glfstmplt6_label__c" value="{!o.rstkf__glfstmplt6_label__c}" size="1" rendered="{!AND(!isNewMode,!isNewEntry)}" style="width:180px;" tabindex="10"> 
+                            <apex:selectOptions value="{!extDataLabels}"/> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glfstmplt6_fromyear__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glfstmplt6_fromyear__c.label}"/>
+                    <apex:selectList id="glfstmplt6_fromyear__c" value="{!o.rstkf__glfstmplt6_fromyear__c}" size="1" style="width:180px;" tabindex="11"> 
+                        <apex:selectOptions value="{!fiscalYears}"/> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glfstmplt6_fromperiod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glfstmplt6_fromperiod__c.label}"/>
+                    <apex:selectList id="glfstmplt6_fromperiod__c" value="{!o.rstkf__glfstmplt6_fromperiod__c}" size="1" style="width:180px;" tabindex="12"> 
+                        <apex:selectOptions value="{!periods}"/> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glfstmplt6_thruyear__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glfstmplt6_thruyear__c.label}"/>
+                    <apex:selectList id="glfstmplt6_thruyear__c" value="{!o.rstkf__glfstmplt6_thruyear__c}" size="1" style="width:180px;" tabindex="13"> 
+                        <apex:selectOptions value="{!fiscalYears}"/> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glfstmplt6_thruperiod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glfstmplt6_thruperiod__c.label}"/>
+                    <apex:selectList id="glfstmplt6_thruperiod__c" value="{!o.rstkf__glfstmplt6_thruperiod__c}" size="1" style="width:180px;" tabindex="14"> 
+                        <apex:selectOptions value="{!periods}"/> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="glfstmplt6_scale__c" value="{!o.rstkf__glfstmplt6_scale__c}" required="true" onchange="scaleChanged(); return false;" taborderhint="2"/>
+                <apex:inputField id="glfstmplt6_currencyval__c" value="{!o.rstkf__glfstmplt6_currencyval__c}" taborderhint="3"/>
+                <apex:inputField id="glfstmplt6_generalval__c" value="{!o.rstkf__glfstmplt6_generalval__c}" taborderhint="4"/>
+            </apex:pageBlockSection>
+        </apex:pageBlock> 
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+        var company = "{!o.rstkf__glfstmplt6_cmpno__c}";
+        setSelectListRequired("glfstmplt6_label__c");
+        setSelectListRequired("glfstmplt6_fromyear__c");
+        setSelectListRequired("glfstmplt6_fromperiod__c");
+        setSelectListRequired("glfstmplt6_thruyear__c");
+        setSelectListRequired("glfstmplt6_thruperiod__c");
+        var label_fieldmustbegreaterthanorequaltovalue = "{!$Label.fieldmustbegreaterthanorequaltovalue}";
+        var label_whenfield1valueisXthenfield2valuemustbeY = "{!$Label.whenfield1valueisXthenfield2valuemustbeY}";
+    </script>
+    
+</apex:page>

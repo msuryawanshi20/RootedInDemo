@@ -1,0 +1,287 @@
+<apex:page id="pg" standardController="rstk__ictransreq__c" extensions="rstk.ControllerExtnIctransreq,rstk.RemoteQueryController" sidebar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__ictransreq__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__ictransreq__c.fields}" />
+    
+    <script>
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+        var isView = {!isView};
+        var divid = "{!currDivision.id}";
+    </script>
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_ictransreq}" enableAutocomplete="true" customInclude="{!$Resource.rstk__ictransreq_cli}"/>
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" />
+        <apex:actionFunction name="doView" action="{!view}" immediate="true" />
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true" />
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true" />
+        <apex:actionFunction name="doSave" action="{!save}" />
+
+        <apex:pageblock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" />
+            </apex:pageBlockButtons>
+             
+            <apex:outputPanel style="display:none;">
+                <apex:inputHidden id="currentSydivId__c" value="{!currentSydiv.rstk__div__c}"/>
+                <apex:inputHidden id="issrl__c" value="{!o.ictransreq_item__r.icitem_item__r.rstk__peitem_tracksrl_pl__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="isLot__c" value="{!o.ictransreq_item__r.icitem_item__r.rstk__peitem_tracklot_pl__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="ictransreq_frsite__c" value="{!o.rstk__ictransreq_frsite__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="ictransreq_tosite__c" value="{!o.rstk__ictransreq_tosite__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="ictransreq_item__c" value="{!o.rstk__ictransreq_item__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="ictransreq_frproject__c" value="{!o.rstk__ictransreq_frproject__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="ictransreq_status__c" value="{!o.rstk__ictransreq_status__c}" rendered="{!isEdit}"/>
+                <apex:selectList id="ictransreq_iclicplate__c" value="{!o.rstk__ictransreq_iclicplate__c}" size="1" style="width:250px;" tabIndex="60" rendered="{!AND(isNew, !isCSG)}">
+                    <apex:selectOptions value="{!licensePlate}" />
+                </apex:selectList>
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!AND(o.rstk__ictransreq_status__c!='Processed' ,OR(isNew, isEdit))}">
+                <apex:outputField value="{!currentSydiv.rstk__div__c}"/>
+                <apex:pageBlockSectionItem />
+                <apex:outputfield value="{!o.rstk__ictransreq_seq__c}" rendered="{!isEdit}"/>
+                
+                <apex:pageBlockSectionItem rendered="{!isEdit}"></apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_item__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_item__c.label}" />
+                     <apex:outputPanel >
+                        <c:autocomplete id="ictransreq_item__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}"
+                            query="select id, name from icitem__c where icitem_div__c = '{!currentSydiv.rstk__div__c}'"
+                            queryParms="[]" tabIndex="10" rendered="{!isNew}"/>
+                    
+                        <apex:outputfield value="{!o.rstk__ictransreq_item__c}" rendered="{!isEdit}" />
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem ></apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_frproject__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_frproject__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="ictransreq_frproject__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_completed__c = false and pjproj_div__c = '{!currentSydiv.rstk__div__c}'" slDesc="{!frprojectDesc}" required="true" tabIndex="20" rendered="{!isNew}"/>
+                        <apex:outputfield value="{!o.rstk__ictransreq_frproject__c}" rendered="{!isEdit}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_toproject__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_toproject__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="ictransreq_toproject__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_completed__c = false and pjproj_div__c = '{!currentSydiv.rstk__div__c}'" slDesc="{!toprojectDesc}" required="true" tabIndex="120" rendered="{!isNew}"/>
+                        <apex:outputfield value="{!o.rstk__ictransreq_toproject__c}" rendered="{!isEdit}"  />
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_frsite__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_frsite__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList cntr="{!controller}" options="{!sites}" id="ictransreq_frsite__c" width="250px" tabIndex="30" required="true" rendered="{!isNew}"/>
+                        <apex:outputfield value="{!o.rstk__ictransreq_frsite__c}" rendered="{!isEdit}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_tosite__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_tosite__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList cntr="{!controller}" options="{!sites}" id="ictransreq_tosite__c" width="250px" tabIndex="130" required="true" rendered="{!isNew}"/>
+                        <apex:outputfield value="{!o.rstk__ictransreq_tosite__c}" rendered="{!isEdit}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_frlocid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_frlocid__c.label}" />
+                    <apex:selectList id="ictransreq_frlocid__c" value="{!o.rstk__ictransreq_frlocid__c}" size="1" style="width:250px;" tabIndex="40">
+                        <apex:selectOptions value="{!fromlocids}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_tolocid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_tolocid__c.label}" />
+                    <apex:selectList id="ictransreq_tolocid__c" value="{!o.rstk__ictransreq_tolocid__c}" size="1" style="width:250px;" tabIndex="140" required="true">
+                        <apex:selectOptions value="{!tolocids}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                   
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_frlocno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_frlocno__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="ictransreq_frlocno__c" value="{!o.rstk__ictransreq_frlocno__c}" style="display:{!IF(displayfrlocnumlist,'none','')};" taborderhint="5"/>
+                        <c:largeSelectList id="ictransreq_frlocnumlist__c" cntr="{!controller}" options="{!frlocnums}" useValue="true" hidden="{!!displayfrlocnumlist}" onchange="document.getElementById('{!$Component.ictransreq_frlocno__c}').value = this.value;" tabIndex="50" />
+                        <script>
+                            var frlocnumfld = document.getElementById("{!$Component.ictransreq_frlocno__c}");
+                            if(frlocnumfld)frlocnumfld.disabled = {!displayfrlocnumlist};
+                            var frlocnumlistfld = document.getElementById("{!$Component.ictransreq_frlocnumlist__c}");
+                            if(frlocnumlistfld)frlocnumlistfld.firstChild.firstChild.firstChild.value = "{!o.rstk__ictransreq_frlocno__c}";
+                        </script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+              
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_tolocno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_tolocno__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="ictransreq_tolocno__c" value="{!o.rstk__ictransreq_tolocno__c}" style="display:{!IF(displaytolocnumlist,'none','')};" taborderhint="15"/>
+                        <c:largeSelectList id="ictransreq_tolocnumlist__c" cntr="{!controller}" options="{!tolocnums}" useValue="true" hidden="{!!displaytolocnumlist}" onchange="document.getElementById('{!$Component.ictransreq_tolocno__c}').value = this.value;" tabIndex="150" />
+                        <script>
+                            var tolocnumfld = document.getElementById("{!$Component.ictransreq_tolocno__c}");
+                            if(tolocnumfld)tolocnumfld.disabled = {!displaytolocnumlist};
+                            var tolocnumlistfld = document.getElementById("{!$Component.ictransreq_tolocnumlist__c}");
+                            if(tolocnumlistfld)tolocnumlistfld.firstChild.firstChild.firstChild.value = "{!o.rstk__ictransreq_tolocno__c}";
+                        </script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                 
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_iclicplate__c.inlineHelpText}" rendered="{!isCsg}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_iclicplate__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="ictransreq_iclicplate__c" value="{!o.rstk__ictransreq_iclicplate__c}" size="1" style="width:250px;" tabIndex="60" rendered="{!isNew}">
+                            <apex:selectOptions value="{!licensePlate}" />
+                        </apex:selectList>
+                        <apex:outputfield value="{!o.rstk__ictransreq_iclicplate__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!!isCsg}"/>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_origqty__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_origqty__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="ictransreq_origqty__c" value="{!o.rstk__ictransreq_origqty__c}" taborderhint="16"/>
+                        <script>document.getElementById("{!$Component.ictransreq_origqty__c}").disabled = true;</script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_icreplenish__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_icreplenish__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="ictransreq_icreplenish__c" value="{!o.rstk__ictransreq_icreplenish__c}" size="1" style="width:250px;" tabIndex="70" rendered="{!isNew}">
+                            <apex:selectOptions value="{!replenishment}" />
+                        </apex:selectList>
+                        <apex:outputfield value="{!o.rstk__ictransreq_icreplenish__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="ictransreq_urgent__c" value="{!o.rstk__ictransreq_urgent__c}" taborderhint="17" />
+                
+                <apex:inputField id="ictransreq_transqty__c" value="{!o.rstk__ictransreq_transqty__c}" required="true" onkeypress="return filterNonNumeric(event, this)" taborderhint="8"/>
+                
+                <apex:inputField id="ictransreq_reqdate__c" value="{!o.rstk__ictransreq_reqdate__c}" required="true"  taborderhint="18"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ictransreq_lotno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_lotno__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="ictransreq_lotno__c" value="{!o.rstk__ictransreq_lotno__c}" taborderhint="9"/>
+                     </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_status__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_status__c.label}" />
+                    <apex:selectList id="ictransreq_status__c" value="{!o.rstk__ictransreq_status__c}" size="1" style="width:250px;" tabIndex="190">
+                        <apex:selectOptions value="{!statuses}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__ictransreq_serials__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ictransreq_serials__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="ictransreq_serials__c" value="{!o.rstk__ictransreq_serials__c}" taborderhint="10" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField id="ictransreq_procdate__c" value="{!o.rstk__ictransreq_procdate__c}" />
+
+                <apex:outputField id="ictransreq_sydatat__c" value="{!o.rstk__ictransreq_sydatat__c}" />
+                
+                <apex:outputField id="ictransreq_ictransreqh__c" value="{!o.rstk__ictransreq_ictransreqh__c}" />
+                
+                <apex:inputField id="ictransreq_tracking__c" value="{!o.rstk__ictransreq_tracking__c}" taborderhint="11"/>
+
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_main1" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!OR(isView, o.rstk__ictransreq_status__c=='Processed')}">
+                <apex:outputField value="{!currentSydiv.rstk__div__c}"/>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_seq__c}" />
+                
+                <apex:pageBlockSectionItem ></apex:pageBlockSectionItem>
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_item__c}" />
+                
+                <apex:pageBlockSectionItem ></apex:pageBlockSectionItem>
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_frproject__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_toproject__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_frsite__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_tosite__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_frlocid__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_tolocid__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_frlocno__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_tolocno__c}" /> 
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_iclicplate__c}" rendered="{!isCSG}"/>
+                <apex:outputtext value="" rendered="{!!isCSG}"/>
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_origqty__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_icreplenish__c}" />
+            
+                <apex:outputfield value="{!o.rstk__ictransreq_urgent__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_transqty__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_reqdate__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_lotno__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_status__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_serials__c}" />
+                
+                <apex:outputField value="{!o.rstk__ictransreq_procdate__c}" />
+
+                <apex:outputField value="{!o.rstk__ictransreq_sydatat__c}" />
+                
+                <apex:outputField value="{!o.rstk__ictransreq_ictransreqh__c}" />
+                
+                <apex:outputfield value="{!o.rstk__ictransreq_tracking__c}" />
+
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel" rendered="{!OR(isView, isEdit)}">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_ictransreq_info}" name="Info" id="Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+             </apex:tabPanel>
+            
+        </apex:pageblock>
+        <script>
+            setSelectListRequired("ictransreq_frproject__c");
+            setSelectListRequired("ictransreq_toproject__c");
+            setSelectListRequired("ictransreq_frsite__c");
+            setSelectListRequired("ictransreq_tosite__c");
+            setSelectListRequired("ictransreq_tolocid__c");
+            setInputFieldRequired("ictransreq_tolocno__c");
+        </script>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_TransfFromLocIdReqd = "{!$Label.rstk__transffromlocidreqd}";
+        var LABEL_TransfFromLocNumReqd = "{!$Label.rstk__transffromlocnumreqd}";
+        var LABEL_TransfQtyMustGrtrThan0 = "{!$Label.rstk__transfqtymustgrtrthan0}";
+        var LABEL_InvalidSrcReplenishmentLocSpecified = "{!$Label.rstk__invalidsrcreplenishmentlocspecified}";
+        var LABEL_InvalidLicensePlateSpecified = "{!$Label.rstk__invalidlicenseplatespecified}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

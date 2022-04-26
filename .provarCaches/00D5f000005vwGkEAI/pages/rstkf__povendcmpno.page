@@ -1,0 +1,576 @@
+<apex:page id="pg" standardController="rstkf__povendcmpno__c" extensions="rstkf.ControllerExtnPovendcmpno,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__povendcmpno__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__povendcmpno__c.fields}" />
+    <c:standardHeader cntr="{!controller}" enableAutoComplete="true"/>
+    
+    <style>
+        input[type=checkbox][disabled]{
+          opacity: 0.4;
+        }
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <script>
+        var PAYTYPE_CC = 'Credit Card';
+        var autoCompleteRefs = new Array();
+        var isNew = {!isNew};
+        var currGlcmpId = "{!currCompany.glcmp_cmpno__c}";
+        var povendId = "{!o.rstkf__povendcmpno_vendno__c}"
+        var povendCmpId = "{!o.rstkf__povendcmpno_cmpno__c}"
+        function pageInit(type) {
+            //console.log('pageInit type: ' + type);
+            //skipSetValue = true;
+            try {
+                povendcmpnoPaytypeChanged();
+                povendcmpnoCCIndChanged();
+                afterRefresh();
+            } catch (e) {
+                throw e;
+            } finally {
+                skipSetValue = false;
+            }
+        }
+    
+        function createFieldChangeHandlers() {
+            fieldChangeHandlers['povendcmpno_vendno__c'] = povendcmpnoVendnoChanged;
+            fieldChangeHandlers['povendcmpno_paytype__c'] = povendcmpnoPaytypeChanged;
+            fieldChangeHandlers['povendcmpno_ccind__c'] = povendcmpnoCCIndChanged;
+        }
+    
+        function povendcmpnoVendnoChanged() {
+            var vendorId = getValue('povendcmpno_vendno__c');
+            //console.log('povendcmpnoVendnoChanged() : vendorId = '+ vendorId);
+            var povends = execQuery("select rstk__povend_povclass__r.rstk__povclass_paytype__c from rstk__povend__c where Id = \'"+vendorId+"\'",true);
+            if(povends.length > 0){
+            	sfffSetFieldValue('povendcmpno_paytype__c', povends[0].rstk__povend_povclass__r.rstk__povclass_paytype__c);
+            }
+            vendorChanged(vendorId);
+        }
+        
+        function povendcmpnoCompanyChanged(){
+            var vendorId = getValue('povendcmpno_vendno__c');
+            var vendCompId = jQuery('select[name*=povendcmpno_cmpno__c]')[0].value;
+            //console.log('povendcmpnoCompanyChanged() : vendorId = '+ vendorId + ' and vendCompId = '+ vendCompId);
+            cmpnoChanged(vendorId, vendCompId);
+        }
+        
+        function postCompanyChanged() {
+            var vendorId = getValue('povendcmpno_vendno__c');
+            var vendCompId = jQuery('select[name*=povendcmpno_cmpno__c]')[0].value;
+            //console.log('postCompanyChanged() : vendorId = '+ vendorId + ' and vendCompId = '+ vendCompId);
+            
+            if(vendCompId){
+                var apcntls = execQuery("select apcntl_dfltapacct__c,apcntl_dfltaccruedapacct__c from apcntl__c where apcntl_glcmp__c = \'"+vendCompId+"\'",true);
+                if(apcntls.length > 0){
+                    //console.log('postCompanyChanged() : apcntls[0].apcntl_dfltapacct__c = ' + apcntls[0].apcntl_dfltapacct__c + '\n apcntls[0].apcntl_dfltaccruedapacct__c = '+ apcntls[0].apcntl_dfltaccruedapacct__c);
+                    set_povendcmpno_glapacct__c(apcntls[0].apcntl_dfltapacct__c);
+                    set_povendcmpno_glaccruedapacct__c(apcntls[0].apcntl_dfltaccruedapacct__c);
+                }
+            }else{
+                set_povendcmpno_glapacct__c('');
+                set_povendcmpno_glaccruedapacct__c('');
+            }
+            disable_povendcmpno_glapacct__c(vendCompId == '');
+            disable_povendcmpno_glaccruedapacct__c(vendCompId == '');
+            disable_povendcmpno_glexpenseacct__c(vendCompId == '');
+            
+            companyChanged();
+            clearSelectList('povendcmpno_glapcc__c');
+            populateSelectList('povendcmpno_glapcc__c', "select id, name from glapcc__c where glapcc_cmpno__c = '" + vendCompId + "' order by name");
+            
+            if(vendorId && vendCompId){
+                if(execQuery("select count() from povendcmpno__c where povendcmpno_vendno__c = \'"+vendorId+"\' and povendcmpno_cmpno__c = \'"+vendCompId+"\' limit 1",true) > 0){
+                    alert("{!$Label.povendcmpno_vendorcompanycomboduplicate}");
+                    jQuery('select[name*=povendcmpno_cmpno__c]')[0].value = '';
+                }
+            }
+        }
+        
+        function povendcmpnoPaytypeChanged(){
+            var val = getValue('povendcmpno_paytype__c');
+            //console.log('povendcmpnoPaytypeChanged() : val = '+ val);
+            setValue('povendcmpno_ccind__c', (val == PAYTYPE_CC));
+            sfffDisableField('povendcmpno_ccind__c', val != PAYTYPE_CC);
+        }
+        
+        function povendcmpnoCCIndChanged(){
+            var val = getValue('povendcmpno_ccind__c');
+            if(!val){
+                setValue('povendcmpno_glapcc__c', '');
+            }
+            sfffDisableField('povendcmpno_glapcc__c', !val);
+        }
+        
+        
+    </script>
+
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:actionFunction name="vendorChanged" action="{!vendorChanged}" immediate="true" rerender="pageMessages,op_cmpno__c" status="statusProcessing" oncomplete="afterRefresh();">
+            <apex:param name="vendno" assignTo="{!o.rstkf__povendcmpno_vendno__c}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="getSelesctedGLAccount" action="{!getSelesctedGLAccount}" immediate="true" rerender="pageMessages,op_bankacct" status="statusProcessing" />
+        
+        <apex:actionFunction name="cmpnoChanged" action="{!cmpnoChanged}" immediate="true" rerender="pageMessages,op_apusrno__c,tab_panel" status="statusProcessing" oncomplete="afterRefresh();postCompanyChanged();">
+            <apex:param name="vendno" assignTo="{!o.rstkf__povendcmpno_vendno__c}" value="" />
+            <apex:param name="cmpno" assignTo="{!o.rstkf__povendcmpno_cmpno__c}" value="" />
+        </apex:actionFunction>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection id="pbs_main" columns="2">
+
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_vendno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_vendno__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__povendcmpno_vendno__c}" rendered="{!OR(isView,isEdit)}"/>
+                        <apex:outputPanel rendered="{!isNew}">
+                            <c:autocomplete ref="povendcmpno_vendno__c" id="povendcmpno_vendno__c" cntr="{!controller}" slDesc="{!vendorCompanyName}" query="select id, name from rstk__povend__c" tabIndex="1" required="true"/>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_paytype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_paytype__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__povendcmpno_paytype__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povendcmpno_paytype__c" value="{!o.rstkf__povendcmpno_paytype__c}" size="1" style="width:120px;" onChange="dogetSelesctedGLAccount(); return false;" rendered="{!OR(isNew,isEdit)}">
+                            <apex:selectOptions value="{!Paytypes}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_cmpno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_cmpno__c.label}"/>
+                    <apex:outputPanel id="op_cmpno__c">
+                        <apex:outputField value="{!o.rstkf__povendcmpno_cmpno__c}" rendered="{!OR(isView,isEdit)}"/>
+                        <apex:selectList id="povendcmpno_cmpno__c" value="{!o.rstkf__povendcmpno_cmpno__c}" size="1" onchange="povendcmpnoCompanyChanged();" style="width:250px;" tabIndex="2" rendered="{!isNew}">
+                            <apex:selectOptions value="{!glCmp}" />
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_1099ind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_1099ind__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__povendcmpno_1099ind__c}" rendered="{!isView}"/>
+                        <apex:inputCheckbox value="{!o.rstkf__povendcmpno_1099ind__c}" rendered="{!OR(isNew,isEdit)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_apusrno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_apusrno__c.label}"/>
+                    <apex:outputPanel id="op_apusrno__c">
+                        <apex:outputField value="{!o.rstkf__povendcmpno_apusrno__c}" rendered="{!OR(isView,isEdit)}"/>
+                        <apex:selectList id="povendcmpno_apusrno__c" value="{!o.rstkf__povendcmpno_apusrno__c}" size="1" style="width:250px;" rendered="{!isNew}" disabled="{!o.rstkf__povendcmpno_cmpno__c==null || CONTAINS(o.rstkf__povendcmpno_cmpno__c,'None')}" tabIndex="3">
+                            <apex:selectOptions value="{!glUsr}" />
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_ccind__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_ccind__c.label}"/>
+                    <apex:outputPanel id="op_ccind">
+                        <apex:outputField value="{!o.rstkf__povendcmpno_ccind__c}" rendered="{!isView}"/>
+                        <apex:inputCheckbox id="povendcmpno_ccind__c" value="{!o.rstkf__povendcmpno_ccind__c}" rendered="{!!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_dimval__c.inlineHelpText}" rendered="{!isView}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_dimval__c.label}"/>
+                    <apex:outputField value="{!o.rstkf__povendcmpno_dimval__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_dimval__c.inlineHelpText}" rendered="{!!isView}">
+                    <apex:outputLabel style="padding-top:15px" value="{!f.rstkf__povendcmpno_dimval__c.label}"/>
+                    <c:autocomplete id="povendcmpno_dimval__c" cntr="{!controller}" slDesc="{!sydimDesc}" 
+                        query="" 
+                        queryParms="[]"  
+                        useCustomAutocomplete="true" 
+                        autocompleteController="ControllerExtnPovendcmpno"
+                        autocompleteMethodParms="fieldId=povendcmpno_dimval__c;sycmpID={!currCompany.rstkf__glcmp_cmpno__c}"
+                        tabIndex="31"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_glapcc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_glapcc__c.label}"/>
+                    <apex:outputPanel id="op_glapcc">
+                        <apex:outputField value="{!o.rstkf__povendcmpno_glapcc__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povendcmpno_glapcc__c" value="{!o.rstkf__povendcmpno_glapcc__c}" size="1" style="width:120px;" rendered="{!!isView}">
+                            <apex:selectOptions value="{!Glapccs}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <!--apex:pageBlockSectionItem ><apex:outputText value="" rendered="{!isWithholdingTaxEnabled}"/></apex:pageBlockSectionItem-->
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_1099type__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_1099type__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__povendcmpno_1099type__c}" rendered="{!isView}"/>
+                        <apex:inputField value="{!o.rstkf__povendcmpno_1099type__c}" rendered="{!!isView}"/>                        
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_apwht__c.inlineHelpText}" rendered="{!isWithholdingTaxEnabled}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_apwht__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__povendcmpno_apwht__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povendcmpno_apwht__c" value="{!o.rstkf__povendcmpno_apwht__c}" size="1" style="width:120px;" rendered="{!!isView}">
+                            <apex:selectOptions value="{!Apwhts}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_individual__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_individual__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__povendcmpno_individual__c}" rendered="{!isView}"/>
+                        <apex:inputField value="{!o.rstkf__povendcmpno_individual__c}" rendered="{!!isView}"/>                        
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_whtform__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_whtform__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__povendcmpno_whtform__c}" rendered="{!isView}"/>
+                        <apex:inputField value="{!o.rstkf__povendcmpno_whtform__c}" rendered="{!!isView}"/>                        
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!isEdit || isView}">
+                    <apex:commandButton id="vendorAcctInquiryBtn" value="{!$Label.rstkf__btn_vendoracctinquiry}" onclick="openVendorAcctInquiry();return false;"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <BR/>
+            <apex:tabPanel id="tab_panel" switchType="client" selectedTab="tab_detail">
+                <apex:tab label="{!$Label.rstkf__pagetab_account}" name="tab_detail" id="tab_detail">
+                    <apex:pageBlockSection id="pbs_account" columns="2" collapsible="false">
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_glapacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_glapacct__c.label}"/>
+                            <apex:outputPanel id="op_glapacct">
+                                <apex:outputField value="{!o.rstkf__povendcmpno_glapacct__c}" rendered="{!isView}"/>
+                                <c:glaccount id="povendcmpno_glapacct__c" 
+                                   cntr="{!controller}"
+                                   ref="povendcmpno_glapacct__c"
+                                   options="{!glAcct}"
+                                   slDesc="{!glacctName}"
+                                   query="{!glacctAutoCompleteQuery}"
+                                   queryParms="[['povendcmpno_cmpno__c','Company']]"
+                                   displaySelectList="{!glAcct.size <= 999}"
+                                   rendered="{!OR(isNew,isEdit)}"
+                                   required="true"
+                                   width="250px"
+                                   tabIndex="4" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_socustcmpno__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_socustcmpno__c.label}"/>
+                            <apex:outputPanel id="op_socustcmpno">
+                            	<apex:outputField value="{!o.rstkf__povendcmpno_socustcmpno__c}" rendered="{!isVIew}"/>
+                                <c:autocomplete id="povendcmpno_socustcmpno__c" 
+                                	cntr="{!controller}" 
+                                	slDesc="{!custCompanyDesc}" 
+			                        query="select id, name from socustcmpno__c where socustcmpno_cmpno__c = '{!o.rstkf__povendcmpno_cmpno__c}'" 
+			                        rendered="{!OR(isNew,isEdit)}"
+			                        tabIndex="31"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_glaccruedapacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_glaccruedapacct__c.label}"/>
+                            <apex:outputPanel id="op_glaccruedapacct">
+                                <apex:outputField value="{!o.rstkf__povendcmpno_glaccruedapacct__c}" rendered="{!isView}"/>
+                                <c:glaccount id="povendcmpno_glaccruedapacct__c" 
+                                   cntr="{!controller}"
+                                   ref="povendcmpno_glaccruedapacct__c"
+                                   options="{!glAccruedAPAcct}"
+                                   slDesc="{!glAccruedAPAcctName}"
+                                   query="{!apAccruedAutoCompleteQuery}"
+                                   queryParms="[['povendcmpno_cmpno__c','Company']]"
+                                   displaySelectList="{!glAccruedAPAcct.size <= 999}"
+                                   rendered="{!OR(isNew,isEdit)}"
+                                   required="true"
+                                   width="250px"
+                                   tabIndex="5" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                       <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_lastoffsetdate__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_lastoffsetdate__c.label}"/>
+                            <apex:outputField value="{!o.rstkf__povendcmpno_lastoffsetdate__c}" />
+                       </apex:pageBlockSectionItem>
+                       
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_bankacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_bankacct__c.label}"/>
+                            <apex:outputPanel id="op_bankacct">
+                            <apex:outputField value="{!o.rstkf__povendcmpno_bankacct__c}" rendered="{!isVIew}"/>
+                                <apex:selectList id="povendcmpno_bankacct__c" value="{!o.rstkf__povendcmpno_bankacct__c}" size="1" style="width:250px;" rendered="{!OR(isNew,isEdit)}" tabIndex="6" disabled="{!o.rstkf__povendcmpno_cmpno__c==null || CONTAINS(o.rstkf__povendcmpno_cmpno__c,'None')}">
+                                    <apex:selectOptions value="{!glBankAcct}" />
+                                </apex:selectList>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_apcloseday__c.inlineHelpText}">
+		                    <apex:outputLabel value="{!f.rstkf__povendcmpno_apcloseday__c.label}"/>
+		                    <apex:outputPanel id="op_apcloseday">
+		                        <apex:outputField value="{!o.rstkf__povendcmpno_apcloseday__c}" rendered="{!isView}"/>
+		                        <apex:selectList id="povendcmpno_apcloseday__c" value="{!o.rstkf__povendcmpno_apcloseday__c}" size="1" style="width:120px;" rendered="{!!isView}">
+		                            <apex:selectOptions value="{!monthDay}"/>
+		                        </apex:selectList>
+		                    </apex:outputPanel>
+		                </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_glexpenseacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_glexpenseacct__c.label}"/>
+                            <apex:outputPanel id="op_glexpenseacct">
+                                <apex:outputField value="{!o.rstkf__povendcmpno_glexpenseacct__c}" rendered="{!isView}"/>
+                                <c:glaccount id="povendcmpno_glexpenseacct__c" 
+                                   cntr="{!controller}"
+                                   ref="povendcmpno_glexpenseacct__c"
+                                   options="{!glExpenseAcct}"
+                                   slDesc="{!glExpenseAcctName}"
+                                   query="{!expenseGLAutoCompleteQuery}"
+                                   queryParms="[['povendcmpno_cmpno__c','Company']]"
+                                   displaySelectList="{!glExpenseAcct.size <= 999}"
+                                   rendered="{!OR(isNew,isEdit)}"
+                                   width="250px"
+                                   required="true"
+                                   tabIndex="7" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_arcloseday__c.inlineHelpText}">
+		                    <apex:outputLabel value="{!f.rstkf__povendcmpno_arcloseday__c.label}"/>
+		                    <apex:outputPanel id="op_arcloseday">
+		                        <apex:outputField value="{!o.rstkf__povendcmpno_arcloseday__c}" rendered="{!isView}"/>
+		                        <apex:selectList id="povendcmpno_arcloseday__c" value="{!o.rstkf__povendcmpno_arcloseday__c}" size="1" style="width:120px;" rendered="{!!isView}">
+		                            <apex:selectOptions value="{!monthDay}"/>
+		                        </apex:selectList>
+		                    </apex:outputPanel>
+		                </apex:pageBlockSectionItem>
+                        
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_balanceowedhome__c.inlineHelpText}" rendered="{!!isNew}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_balanceowedhome__c.label}"/>
+                            <apex:outputField value="{!o.rstkf__povendcmpno_balanceowedhome__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSection />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_unappldrhomeamt__c.inlineHelpText}" rendered="{!!isNew}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_unappldrhomeamt__c.label}"/>
+                            <apex:outputField value="{!o.rstkf__povendcmpno_unappldrhomeamt__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSection />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_unapplcrhomeamt__c.inlineHelpText}" rendered="{!!isNew}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_unapplcrhomeamt__c.label}"/>
+                            <apex:outputField value="{!o.rstkf__povendcmpno_unapplcrhomeamt__c}"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    
+                    <apex:pageBlockSection />
+                </apex:tab>
+                <apex:tab label="{!$Label.rstkf__pagetab_receiptbankinfo}" name="tab_receiptBankInfo" id="tab_receiptBankInfo">
+                    <apex:pageBlockSection id="pbs_receiptBankInfo" columns="2" collapsible="false">
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_bic__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_bic__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.rstkf__povendcmpno_bic__c}" rendered="{!isView}"/>
+                                <apex:inputField value="{!o.rstkf__povendcmpno_bic__c}" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_remittempl__c.inlineHelpText}">
+                        	    <apex:outputLabel value="{!f.rstkf__povendcmpno_remittempl__c.label}"/>
+			                     <apex:outputPanel >
+			                     <apex:selectList id="povendcmpno_remittempl__c" value="{!o.rstkf__povendcmpno_remittempl__c}" size="1" style="width:250px;" rendered="{!!isView}">
+			                        <apex:selectOptions value="{!remitTemplate}"/>
+			                    </apex:selectList>
+			                    <apex:outputText value="{!dfltremittemplname}" rendered="{!isView}"/>
+		                    </apex:outputPanel>
+		                </apex:pageBlockSectionItem>
+                         
+                         
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_iban__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_iban__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.rstkf__povendcmpno_iban__c}" rendered="{!isView}"/>
+                                <apex:inputField value="{!o.rstkf__povendcmpno_iban__c}" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_remitemail__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_remitemail__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.rstkf__povendcmpno_remitemail__c}" rendered="{!isView}"/>
+                                <apex:inputField value="{!o.rstkf__povendcmpno_remitemail__c}" rendered="{!!isView}" onchange="validateEmailField(this)" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                         
+                         
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_bankgiro__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_bankgiro__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.rstkf__povendcmpno_bankgiro__c}" rendered="{!isView}"/>
+                                <apex:inputField value="{!o.rstkf__povendcmpno_bankgiro__c}" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                         <apex:pageBlockSectionItem />
+                         
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_bankref__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__povendcmpno_bankref__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.rstkf__povendcmpno_bankref__c}" rendered="{!isView}"/>
+                                <apex:inputField value="{!o.rstkf__povendcmpno_bankref__c}" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                         <apex:pageBlockSectionItem />
+                    </apex:pageBlockSection>
+                 </apex:tab>
+                        
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstkf__pagetab_info}" name="tab_Info" id="tab_Info" rendered="{!!isNew}">
+                    <c:InfoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <br />
+    <apex:relatedList list="povendcmpnos__r" /> 
+        
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+        function afterRefresh() {
+            setSelectListRequired("povendcmpno_cmpno__c");
+            setSelectListRequired("povendcmpno_apusrno__c");
+            setRequired('povendcmpno_glapacct__c', false);
+            setRequired('povendcmpno_glaccruedapacct__c', false);
+            setRequired('povendcmpno_glexpenseacct__c', false);
+        }
+    
+        function companyChanged(){
+            if (isNew) {
+                setValue('povendcmpno_dimval__c', '');
+                var glcmpId = getValue('povendcmpno_cmpno__c');
+                var sycmpId = "";
+                if (glcmpId) {
+                    var glcmps = execQuery("select glcmp_cmpno__c from glcmp__c where id = '" + glcmpId + "'");
+                    sycmpId = glcmps[0].glcmp_cmpno__c;
+                }
+                var ref1 = autoCompleteRefs[getFmFld('povendcmpno_dimval__c').name];
+                ref1.flushCache();
+                var options1 = ref1.getOptions();
+                if (options1 && options1.extraParams) {
+                    options1.extraParams['autocompleteMethodParms'] = "fieldId=povendcmpno_dimval__c;sycmpID=" + sycmpId;
+                }
+            }
+            enableDisableDimVals();
+        }
+        
+        
+        function dogetSelesctedGLAccount(){
+        	getSelesctedGLAccount();
+        	return false;
+        }
+        function enableDisableDimVals(){
+            var val = '';
+            if(isNew){
+                val = getValue('povendcmpno_cmpno__c');
+            }else{
+                val = currGlcmpId;
+            }
+            //console.log('enableDisableDimVals() : company = '+ val);
+            if(val == ''){
+                setValue('povendcmpno_dimval__c', '');
+            }
+            sfffDisableField('povendcmpno_dimval__c', val == '');
+        }
+        
+        function doCheckRequired(name, messages) {
+            var error = (fieldExists(name) && getValue(name) == '');
+            if (error) {
+                messages.push(getMessage(LABEL_Fieldisrequired,[getFieldLabel(name)]));
+            }
+            return !error;
+        }
+        
+        function saveRecord() {
+            var messages = [];
+            
+            doCheckRequired('povendcmpno_vendno__c', messages);
+            doCheckRequired('povendcmpno_cmpno__c', messages);
+            
+            var companyId = '';
+            if(isNew == 'true'){
+                companyId = jQuery('select[name*=povendcmpno_cmpno__c]')[0].value;
+            }else{
+                companyId = "{!o.rstkf__povendcmpno_cmpno__c}";
+            }
+            //console.log('saveRecord() : companyId = '+ companyId + ' and isNew = '+ isNew);
+            if(companyId != ''){
+                if(get_povendcmpno_glapacct__c() == ''){
+                    messages.push(getMessage(LABEL_Fieldisrequired,["{!f.rstkf__povendcmpno_glapacct__c.label}"]));
+                }
+                if(get_povendcmpno_glaccruedapacct__c() == ''){
+                    messages.push(getMessage(LABEL_Fieldisrequired,["{!f.rstkf__povendcmpno_glaccruedapacct__c.label}"]));
+                }
+                if(get_povendcmpno_glexpenseacct__c() == ''){
+                    messages.push(getMessage(LABEL_Fieldisrequired,["{!f.rstkf__povendcmpno_glexpenseacct__c.label}"]));
+                }
+                doCheckRequired('povendcmpno_apusrno__c', messages);
+            }
+            
+            var ccIndVal = getValue('povendcmpno_ccind__c');
+            if(getValue('povendcmpno_paytype__c') == PAYTYPE_CC && !ccIndVal){
+                messages.push("{!$Label.Credit_Card_Vendor_must_be_true_when_Pay_Type_is_Credit_Card}");
+            }
+            
+            if(ccIndVal){
+                doCheckRequired('povendcmpno_glapcc__c', messages);
+            }
+            
+            if (messages.length > 0) {
+                alert(LABEL_Please_resolve_the_following_validation_errors + "\n" + arrayToString(messages));
+                return false;
+            }
+            return true;
+        }
+        
+        function arrayToString(arry) {
+            var s = '';
+            if (arry && arry.length > 0) {
+                for (i = 0; i < arry.length; i++) {
+                    s += "\n- " + arry[i];
+                }
+            }
+            return s;
+        }
+        
+        function openVendorAcctInquiry() {
+            window.open('/apex/povendcmpnoAcctInquiry?povendid=' + povendId + '&glcmpid=' + povendCmpId);
+        }
+    </script>
+</apex:page>

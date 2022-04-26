@@ -1,0 +1,489 @@
+<apex:page id="pg" title="{!$Label.rstkf__pagevalapspecialprocesses}" standardController="rstkf__apinvtxn__c" extensions="rstkf.ControllerExtnAPProcess,rstkf.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__apinvtxn__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__apinvtxn__c.fields}" />
+    <apex:sectionHeader subtitle="{!$Label.rstkf__pagevalapspecialprocesses}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__pagevalapspecialprocesses}" enableAutoComplete="true" showHeader="false"/> 
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    
+    <style>
+		input[type=checkbox][disabled]{
+		  opacity: 0.4;
+		}
+		.modalPopupX{
+		     z-index: 30011;
+		 }
+		.popupBackgroundX{
+		     z-index: 30010;
+		}
+		.ct{
+			text-align:center;
+		}
+	    .Processing
+	    {
+	        position: fixed;
+	        background: url({!$Resource.busy});
+	        background-repeat: no-repeat;
+	        background-position: center;
+	        width: 100%;
+	        height: 100%;
+	        z-index: 2004;
+	        left: 0%;
+	        top: 0%;
+	    }
+		.ac_results {
+		    z-index: 9999;
+		    background-color: #eee;
+		}
+	</style>
+
+   
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    	<apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+		<apex:actionFunction name="clearSearchCriteria" action="{!clearSearchCriteria}" immediate="false" rerender="pb_detail,op_txns" status="statusProcessing"/>
+        <apex:actionFunction name="doDisplayResults" action="{!doDisplayResults}" oncomplete="enableFixedHeaderSort(); unblockUI();" rerender="pageMessages,op_txns" immediate="false"/>
+        <apex:actionFunction name="selectedChanged" action="{!selectedChanged}" immediate="false" rerender="pageMessages,op_txns,op_vars" oncomplete="enableFixedHeaderSort()" status="statusProcessing">
+           	<apex:param name="selectedTxnId" assignTo="{!selectedTxnId}" value="" />
+       	</apex:actionFunction>
+		<apex:actionFunction name="quickpayInput" action="{!quickpayInput}" immediate="true" rerender="op_quickpay" oncomplete="showPopup('#popQuickpay', 800, 245);return false;" status="statusProcessing"/>
+		<apex:actionFunction name="paybyCreditcardInput" action="{!paybyCreditcardInput}" immediate="true" rerender="op_paybycc" oncomplete="showPopup('#popPaybyCreditcard', 800, 155);return false;" status="statusProcessing"/>
+		<apex:actionFunction name="paybyEFTorCheckInput" action="{!paybyEFTorCheckInput}" immediate="true" rerender="op_paybyeftcheck" oncomplete="showPopup('#popPaybyEFTCheck', 800, 145);return false;" status="statusProcessing"/>
+		<apex:actionFunction name="deletePrepayment" action="{!deletePrepayment}" immediate="true" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();"/>
+		<apex:actionFunction name="deleteQuickpayment" action="{!deleteQuickpayment}" immediate="true" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();"/>
+
+		<apex:outputpanel id="op_vars">
+			<script>
+				var cpPaytype = '{!cpPaytype}';
+				var cpGlbankacct = '{!cpGlbankacct}';
+			</script>
+		</apex:outputpanel>
+       	<apex:pageBlock id="pb_detail" mode="detail" title="{!$Label.rstkf__pagevalsearch}">
+	        <apex:pageBlockButtons id="pbb" location="top">
+	            <apex:commandButton value="{!$Label.rstkf__pagevalsearch}" onclick="blockUI(); lastSelectdElementId = null; doDisplayResults(); return false;" style="width:120px;"/>
+	            <apex:commandButton value="{!$Label.rstkf__pagevalclearsearchcriteria}" onclick="lastSelectdElementId = null; clearSearchCriteria(); return false;" style="width:120px;"/>
+	        </apex:pageBlockButtons>
+
+			<apex:pageBlockSection id="pbs_details" showHeader="false" columns="2">
+				<apex:pageBlockSectionItem helpText="{!f.rstkf__apinvtxn_vendno__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstkf__apinvtxn_vendno__c.label}"/>
+					<apex:outputPanel >
+						<apex:selectList value="{!o.rstkf__apinvtxn_vendno__c}" size="1" rendered="{!!useVendorAC}">
+							<apex:selectOptions value="{!Vendors}"/>
+						</apex:selectList>
+						<apex:outputPanel layout="block" rendered="{!useVendorAC}">
+							<input type="text" name="apinvtxn_vendno__c_autocomplete" id="apinvtxn_vendno__c_autocomplete" class="ac_input" style="width:200px;"/>
+		        			<apex:inputText id="apinvtxn_vendno__c" value="{!o.rstkf__apinvtxn_vendno__c}" style="display:none"/>
+		        			<script>autocompleteParms["apinvtxn_vendno__c"] = {query:"select Id, Name from rstk__povend__c", queryParms:[], codeColumn:"Id", descColumn:"Name"};</script>
+		        		</apex:outputPanel>
+	        		</apex:outputPanel>
+					
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helpText="{!f.rstkf__apinvtxn_trantype__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstkf__apinvtxn_trantype__c.label}"/>
+					<apex:selectList id="apinvtxn_trantype__c" value="{!o.rstkf__apinvtxn_trantype__c}" size="1">
+						<apex:selectOptions value="{!TransactionTypes}"/>
+					</apex:selectList>
+				</apex:pageBlockSectionItem>
+				
+				<apex:inputField id="apinvtxn_docno__c" value="{!o.rstkf__apinvtxn_docno__c}"/>
+				
+				<apex:pageBlockSectionItem helpText="{!f.rstkf__apinvtxn_paytype__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstkf__apinvtxn_paytype__c.label}"/>
+					<apex:selectList id="apinvtxn_paytype__c" value="{!o.rstkf__apinvtxn_paytype__c}" size="1">
+						<apex:selectOptions value="{!PayTypes}"/>
+					</apex:selectList>
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helpText="{!f.rstkf__apinvtxn_tranid__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstkf__apinvtxn_tranid__c.label}"/>
+					<apex:inputText id="apinvtxn_tranid__c" value="{!txnTranid}"/>
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helpText="{!f.rstkf__apinvtxn_quickpaymentind__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstkf__apinvtxn_quickpaymentind__c.label}"/>
+					<apex:selectList id="apinvtxn_quickpaymentind__c" value="{!qpOption}" size="1">
+						<apex:selectOptions value="{!QuickpaymentOptions}"/>
+					</apex:selectList>
+				</apex:pageBlockSectionItem>
+
+				<apex:inputField id="apinvtxn_trandate__c" value="{!o.rstkf__apinvtxn_trandate__c}"/>
+
+				<apex:pageBlockSectionItem helpText="{!f.rstkf__apinvtxn_prepayind__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstkf__apinvtxn_prepayind__c.label}"/>
+					<apex:selectList id="apinvtxn_prepayind__c" value="{!ppOption}" size="1">
+						<apex:selectOptions value="{!PrepaymentOptions}"/>
+					</apex:selectList>
+				</apex:pageBlockSectionItem>
+			</apex:pageBlockSection>
+		</apex:pageBlock>
+        <apex:outputPanel id="op_txns">
+        	<apex:outputPanel rendered="{!displayResults}">
+        		<apex:pageBlock id="pb_results" mode="detail" title="{!$Label.rstkf__pagevalprocess}">
+			        <apex:pageBlockButtons id="pbb" location="top">
+			            <apex:commandButton value="{!$Label.rstkf__pagevalchangetoquickpay}" onclick="quickpayInput(); return false;" disabled="{!!changeToQuickpayEnabled}" />
+			            <apex:commandButton value="{!$Label.rstkf__pagevalchangetocheckeft}" onclick="showPopChangePayType(); return false;" disabled="{!!changeToCheckEFTEnabled}" />
+			            <apex:commandButton value="{!$Label.rstkf__pagevalpaybycreditcard}" onclick="paybyCreditcardInput(); return false;" disabled="{!!paybyCreditcardEnabled}" />
+			            <apex:commandButton value="{!$Label.rstkf__pagevalcancelcreditcardpayment}" onclick="showPopup('#popCancelCreditcardPay', 600, 165); return false;" disabled="{!!cancelCreditcardPayEnabled}" />
+			            <apex:commandButton value="{!$Label.rstkf__pagevalpaybyeftorcheckvscreditcard}" onclick="paybyEFTorCheckInput(); return false;" disabled="{!!paybyEFTorCheckEnabled}" />
+			            <apex:commandButton value="{!$Label.rstkf__pagevalcancelprepayment}" onclick="blockUI(); showPopup('#popCancelPrepayment', 600, 165); return false;" disabled="{!!cancelPrepaymentEnabled}" />
+			            <apex:commandButton value="{!$Label.rstkf__pagevaldeleteprepayment}" onclick="if (confirm('{!$Label.rstkf__pagevalareyousureyouwanttodeleteprepayment}')) {blockUI(); deletePrepayment();} return false;" disabled="{!!deletePrepaymentEnabled}" />
+			            <apex:commandButton value="{!$Label.rstkf__pagevaldeletequickpayment}" onclick="if (confirm('{!$Label.rstkf__pagevalareyousureyouwanttodeletequickpayment}')) {blockUI(); deleteQuickpayment();} return false;" disabled="{!!deleteQuickpaymentEnabled}" />
+			            <apex:commandButton value="{!$Label.rstkf__pagevalvoidquickpay}" onclick="showPopup('#popVoidQuickpay', 600, 165); return false;" disabled="{!!voidQuickpayEnabled}" />
+			        </apex:pageBlockButtons>
+			        <apex:outputPanel style="display:none">
+						<apex:outputPanel id="op_resultVars">
+							<script>
+								var actionError = {!actionError};
+								var actionResult = "{!JSENCODE(actionResult)}";
+							</script>
+						</apex:outputPanel>
+			        </apex:outputPanel>
+			        <apex:pageBlockSection id="pbs_results" showHeader="false" columns="1" >
+			        	<apex:outputPanel id="op_gridList" style="height:390px;overflow:auto;display:block">
+				        	<apex:pageBlockTable id="pbt_results" value="{!txns}" var="txn">
+				        		<apex:column headerValue="{!$Label.rstkf__pagevalselect}" style="width:35px;">
+				        			<apex:inputCheckbox id="inv_selected" value="{!txn.isSelected}" onchange="getScrollVal();setSelected(this);selectedChanged('{!txn.Id}');"/>
+				        		</apex:column>
+								<apex:column headerValue="{!f.rstkf__apinvtxn_tranid__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_tranid__c}"/>
+						       	<apex:column headerValue="{!$ObjectType.rstkf__apinvtxn__c.label}">
+						       		<apex:outputLink value="{!URLFOR($Action.rstkf__apinvtxn__c.View, txn.Id)}" target="_blank">{!txn.apinvtxn.Name}</apex:outputLink>
+								</apex:column>
+								<apex:column headerValue="{!f.rstkf__apinvtxn_status__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_status__c}"/>
+				        		<apex:column headerValue="{!f.rstkf__apinvtxn_vendno__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_vendno__c}"/>
+								<apex:column headerValue="{!$Label.rstkf__pagevaldocumentno}" value="{!txn.apinvtxn.rstkf__apinvtxn_docno__c}"/>
+								<apex:column headerValue="{!f.rstkf__apinvtxn_trantype__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_trantype__c}"/>
+								<apex:column headerValue="{!f.rstkf__apinvtxn_trandate__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_trandate__c}"/>
+								<apex:column headerValue="{!f.rstkf__apinvtxn_paytype__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_paytype__c}"/>
+								<apex:column headerValue="{!f.rstkf__apinvtxn_quickpaymentind__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_quickpaymentind__c}"/>
+								<apex:column headerValue="{!f.rstkf__apinvtxn_prepayind__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_prepayind__c}"/>
+								<apex:column headerValue="{!f.rstkf__apinvtxn_glproctxn__c.label}" value="{!txn.apinvtxn.rstkf__apinvtxn_glproctxn__c}"/>
+						       	<apex:column headerValue="{!$Label.rstkf__pagevalapplication}">
+						       		<apex:outputLink value="{!URLFOR($Action.rstkf__apapplic__c.View, txn.apapplic.Id)}" target="_blank" rendered="{!txn.apapplic != null}">{!txn.apapplic.Name}</apex:outputLink>
+								</apex:column>
+				        	</apex:pageBlockTable>
+		        		</apex:outputPanel>
+			        </apex:pageBlockSection>
+		        </apex:pageBlock>
+        	</apex:outputPanel>
+        </apex:outputPanel>
+    </apex:form>
+    
+    
+    <div id="popQuickpay" style="display:none">
+    	<apex:form id="fm2">
+	        <apex:outputPanel id="op_quickpay">
+				<apex:pageBlock mode="detail" title="{!$Label.rstkf__pagevalquickpaydetails}">
+					<apex:actionStatus id="statusProcessing2" startStyleClass="Processing"/>
+					<apex:actionFunction name="changeToQuickpay" action="{!changeToQuickpay}" immediate="false" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();"/>
+					<apex:actionFunction name="getNextCheckNo" action="{!getNextCheckNo}" immediate="true" rerender="pageMessages,op_quickpay_details" status="statusProcessing2"/>
+					<apex:actionFunction name="payTypeChanged" action="{!payTypeChanged}" immediate="true" rerender="pageMessages,op_quickpay_details" status="statusProcessing2">
+			           	<apex:param name="paytype" assignTo="{!batch.txn.apinvtxn.rstkf__apinvtxn_paytype__c}" value="" />
+			       	</apex:actionFunction>
+					<apex:pageBlockButtons location="top">
+			            <apex:commandButton value="{!$Label.rstkf__pagevalchangetoquickpay}" onclick="blockUI(); changeToQuickpay();return false;"/>
+			        </apex:pageBlockButtons>
+		        	<apex:outputPanel id="op_quickpay_details" rendered="{!(batch != null && batch.txn != null)}">
+						<apex:pageBlockSection id="pbs_payment" showHeader="false" columns="1">
+							<apex:pageBlockSectionItem helpText="{!f.rstkf__apinvtxn_paytype__c.inlineHelpText}">
+								<apex:outputLabel value="{!f.rstkf__apinvtxn_paytype__c.label}"/>
+								<apex:panelGrid columns="8" cellpadding="0" cellspacing="0">
+									<c:simpleSelectList value="{!batch.txn.apinvtxn.rstkf__apinvtxn_paytype__c}" options="{!PaytypesPDE}" onchange="payTypeChanged(this.value);return false;" required="true"/>
+									
+					                <apex:outputText value="X" style="visibility:hidden;" rendered="{!batch.txn.isPaytypeE}"/>
+					                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f.rstkf__apinvtxn_eftsubtype__c.label}" rendered="{!batch.txn.isPaytypeE}"/>
+									<apex:inputField value="{!batch.txn.apinvtxn.rstkf__apinvtxn_eftsubtype__c}" required="true" rendered="{!batch.txn.isPaytypeE}"/>
+									
+									<apex:outputText value="X" style="visibility:hidden;" rendered="{!batch.txn.isPaytypeP}"/>
+									<apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstkf__checkno}" rendered="{!(batch.txn.checkno != null) && batch.txn.isPaytypeP}"/>
+									<apex:commandButton onclick="getNextCheckNo();return false;" value="{!$Label.rstkf__getnextcheckno}" rendered="{!batch.txn.checkno == null && batch.txn.isPaytypeP}"/>
+									<apex:outputText value="{!batch.txn.checkno}" style="width:75px;" rendered="{!(batch.txn.checkno != null) && batch.txn.isPaytypeP}"/>
+									
+									<apex:outputText value="X" style="visibility:hidden;" rendered="{!batch.txn.isQuickpayment && (batch.txn.isPaytypeD || batch.txn.isPaytypeE)}"/>
+									<apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="Ref #" rendered="{!(batch.txn.isPaytypeD || batch.txn.isPaytypeE)}"/>
+									<apex:inputText value="{!batch.txn.refno}" style="width:75px;" rendered="{!(batch.txn.isPaytypeD || batch.txn.isPaytypeE)}"/>
+							    </apex:panelGrid>
+							</apex:pageBlockSectionItem>
+							
+							<apex:outputField value="{!batch.glcmp.rstkf__glcmp_dfltbankacctcheck__c}" rendered="{!batch.txn.isPaytypeP}"/>
+							<apex:outputField value="{!batch.glcmp.rstkf__glcmp_dfltbankacctcash__c}" rendered="{!batch.txn.isPaytypeD}"/>
+							<apex:outputField value="{!batch.glcmp.rstkf__glcmp_dfltbankaccteft__c}" rendered="{!batch.txn.isPaytypeE}"/>
+							
+							<apex:outputField value="{!batch.txn.apinvtxn.rstkf__apinvtxn_apacct__c}"/>
+							
+							<apex:pageBlockSectionItem rendered="{!showTermsDiscount}">
+								<apex:outputLabel value="{!$Label.rstkf__takeadvantageoftermsdiscount}"/>
+								<apex:inputCheckbox value="{!batch.txn.cashDiscount}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+		        	</apex:outputPanel>
+			        <p>
+			        	<apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+			        </p>
+				</apex:pageBlock>
+			</apex:outputPanel>
+		</apex:form>
+	</div>
+	
+    <div id="popVoidQuickpay" style="display:none">
+    	<apex:form id="fm3">
+			<apex:pageBlock mode="detail" title="{!$Label.rstkf__pagevalconfirmvoidquickpay}">
+				<apex:actionStatus id="statusProcessing3" startStyleClass="Processing"/>
+				<apex:actionFunction name="voidQuickpay" action="{!voidQuickpay}" immediate="false" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();" status="statusProcessing3"/>
+				<apex:pageBlockButtons location="top">
+		            <apex:commandButton value="{!$Label.rstkf__pagevalvoidquickpay}" onclick="voidQuickpay();return false;"/>
+		        </apex:pageBlockButtons>
+	        	<apex:outputPanel id="op_void_quickpay_details">
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem >
+							<apex:outputLabel value="{!$Label.rstkf__pagevalvoidcomments}"/>
+							<apex:inputTextarea value="{!inputComments}" rows="3" cols="65"/>
+						</apex:pageBlockSectionItem>
+					</apex:pageBlockSection>
+	        	</apex:outputPanel>
+		        <p>
+		        	<apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+		        </p>
+			</apex:pageBlock>
+		</apex:form>
+	</div>
+	
+    <div id="popPaybyCreditcard" style="display:none">
+    	<apex:form id="fm4">
+	        <apex:outputPanel id="op_paybycc">
+				<apex:pageBlock mode="detail" title="{!$Label.rstkf__pagevalpaybycreditcard}">
+					<apex:actionStatus id="statusProcessing4" startStyleClass="Processing"/>
+					<apex:actionFunction name="paybyCreditcard" action="{!paybyCreditcard}" immediate="false" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();" status="statusProcessing4"/>
+					<apex:pageBlockButtons location="top">
+			            <apex:commandButton value="{!$Label.rstkf__pagevalsave}" onclick="paybyCreditcard();return false;"/>
+			        </apex:pageBlockButtons>
+		        	<apex:outputPanel id="op_paybycc_details" rendered="{!(batch != null && batch.txn != null)}">
+						<apex:pageBlockSection id="pbs_paybycc" showHeader="false" columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.rstkf__apinvtxn_cctype__c.label}"/>
+								<c:simpleSelectList id="apinvtxn_cctype__c" value="{!batch.txn.apinvtxn.rstkf__apinvtxn_cctype__c}" options="{!Glapccs}" required="true"/>
+							</apex:pageBlockSectionItem>
+
+							<apex:pageBlockSectionItem rendered="{!showTermsDiscount}">
+								<apex:outputLabel value="{!$Label.rstkf__takeadvantageoftermsdiscount}"/>
+								<apex:inputCheckbox value="{!batch.txn.cashDiscount}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+		        	</apex:outputPanel>
+			        <p>
+			        	<apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+			        </p>
+				</apex:pageBlock>
+			</apex:outputPanel>
+		</apex:form>
+	</div>
+    
+    <div id="popPaybyEFTCheck" style="display:none">
+    	<apex:form id="fm5">
+			<apex:pageBlock mode="detail" title="{!$Label.rstkf__pagevalpaybyeftorcheckvscreditcard}">
+				<apex:actionStatus id="statusProcessing5" startStyleClass="Processing"/>
+				<apex:actionFunction name="paybyEFTorCheck" action="{!paybyEFTorCheck}" immediate="false" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();" status="statusProcessing5"/>
+				<apex:pageBlockButtons location="top">
+		            <apex:commandButton value="{!$Label.rstkf__pagevalsave}" onclick="paybyEFTorCheck();return false;"/>
+		        </apex:pageBlockButtons>
+	        	<apex:outputPanel id="op_paybyeftcheck">
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem >
+							<apex:outputLabel value="{!f.rstkf__apinvtxn_paytype__c.label}"/>
+							<c:simpleSelectList value="{!batch.txn.apinvtxn.rstkf__apinvtxn_paytype__c}" options="{!PaytypesPE}" required="true"/>
+						</apex:pageBlockSectionItem>
+					</apex:pageBlockSection>
+	        	</apex:outputPanel>
+		        <p>
+		        	<apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+		        </p>
+			</apex:pageBlock>
+		</apex:form>
+	</div>
+	
+    <div id="popCancelPrepayment" style="display:none">
+    	<apex:form id="fm6">
+			<apex:pageBlock mode="detail" title="{!$Label.rstkf__pagevalconfirmcancelprepayment}">
+				<apex:actionStatus id="statusProcessing6" startStyleClass="Processing"/>
+				<apex:actionFunction name="cancelPrepayment" action="{!cancelPrepayment}" immediate="false" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();" status="statusProcessing6"/>
+				<apex:pageBlockButtons location="top">
+		            <apex:commandButton value="{!$Label.rstkf__pagevalcancelprepayment}" onclick="cancelPrepayment();return false;"/>
+		        </apex:pageBlockButtons>
+	        	<apex:outputPanel id="op_cancel_prepayment_details">
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem >
+							<apex:outputLabel value="{!f.rstkf__apinvtxn_comments__c.label}"/>
+							<apex:inputTextarea value="{!inputComments}" rows="3" cols="65"/>
+						</apex:pageBlockSectionItem>
+					</apex:pageBlockSection>
+	        	</apex:outputPanel>
+		        <p>
+		        	<apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+		        </p>
+			</apex:pageBlock>
+		</apex:form>
+	</div>
+	
+    <div id="popCancelCreditcardPay" style="display:none">
+    	<apex:form id="fm7">
+			<apex:pageBlock mode="detail" title="{!$Label.rstkf__pagevalconfirmcancelcreditcardpayment}">
+				<apex:actionStatus id="statusProcessing7" startStyleClass="Processing"/>
+				<apex:actionFunction name="cancelCreditcardPay" action="{!cancelCreditcardPay}" immediate="false" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();" status="statusProcessing7"/>
+				<apex:pageBlockButtons location="top">
+		            <apex:commandButton value="{!$Label.rstkf__pagevalcancelcreditcardpayment}" onclick="cancelCreditcardPay();return false;"/>
+		        </apex:pageBlockButtons>
+	        	<apex:outputPanel id="op_cancel_creditcard_pay_details">
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem >
+							<apex:outputLabel value="{!f.rstkf__apinvtxn_comments__c.label}"/>
+							<apex:inputTextarea value="{!inputComments}" rows="3" cols="65"/>
+						</apex:pageBlockSectionItem>
+					</apex:pageBlockSection>
+	        	</apex:outputPanel>
+		        <p>
+		        	<apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+		        </p>
+			</apex:pageBlock>
+		</apex:form>
+	</div>
+	
+	<div id="popChangePaytype" style="display:none">
+    	<apex:form id="fm8">
+			<apex:pageBlock mode="detail" title="{!$Label.rstkf__pagevalchangepaytype}">
+				<apex:actionStatus id="statusProcessing4" startStyleClass="Processing"/>
+				<apex:actionFunction name="changeToCheckEFTBankCard" action="{!changeToCheckEFTBankCard}" immediate="false" rerender="pageMessages,op_txns" oncomplete="enableFixedHeaderSort(); unblockUI();" status="statusProcessing4"/>
+				<apex:pageBlockButtons location="top">
+		            <apex:commandButton value="{!$Label.rstkf__pagevalchangetocheckeft}" onclick="blockUI(); doChangeToCheckEFTBankCard();return false;"/>
+		        </apex:pageBlockButtons>
+	        	<apex:outputPanel id="op_change_paytype_details">
+					<apex:pageBlockSection showHeader="false" columns="1">
+						
+						<apex:pageBlockSectionItem >
+							<apex:outputLabel value="Pay Type"/>
+							<apex:selectList id="cp_apinvtxn_paytype__c" value="{!cpPaytype}" onchange="cpPaytypeChanged();" size="1">
+								<apex:selectOptions value="{!PayTypesCP}"/>
+							</apex:selectList>
+						</apex:pageBlockSectionItem>
+						
+						<apex:pageBlockSectionItem helpText="{!f.rstkf__apinvtxn_glbankacct__c.inlineHelpText}">
+                           	<apex:outputLabel value="{!f.rstkf__apinvtxn_glbankacct__c.label}"/>
+							<apex:selectList id="cp_apinvtxn_glbankacct__c" value="{!cpGlbankacct}" size="1">
+							    <apex:selectOptions value="{!Glbankaccts}"/>
+							</apex:selectList>
+						</apex:pageBlockSectionItem>
+						
+					</apex:pageBlockSection>
+	        	</apex:outputPanel>
+		        <p>
+		        	<apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+		        </p>
+			</apex:pageBlock>
+		</apex:form>
+	</div>
+	
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+		var scrollValue = 0;
+		var tableId = 'pg:fm:pb_results:pbs_results:pbt_results';
+		var lastSelectdElementId;
+		
+		function getScrollVal() {
+			var el = document.getElementById('pg:fm:pb_results:pbs_results:op_gridList');
+			scrollValue = el.scrollTop;
+		}
+		function setScrollVal() {
+			var el = document.getElementById('pg:fm:pb_results:pbs_results:op_gridList');
+			el.scrollTop = scrollValue;
+		}
+		
+		// Even though we do the deselection in the controller - this is done to show the immediate deselection of the previous selection
+		function setSelected(elem) {
+			if (elem.checked) {
+				if (lastSelectdElementId) {
+					document.getElementById(lastSelectdElementId).checked = false;
+				}
+				lastSelectdElementId = elem.id; 
+			} else {
+				lastSelectdElementId = null;
+			}
+		}
+
+		function enableFixedHeaderSort() {
+			setScrollVal();
+			var tbl = jQuery("table[id$=" + tableId + "]");
+			var sortOptions = {
+					0: { sorter: false },
+					7: { sorter: "shortDate" }
+		        };
+
+			if (tbl) {
+				tbl.vfFloatingHeaders();
+				tbl.tablesorter({
+					headers: sortOptions
+				});
+			}
+		}
+
+		function showPopup(popName, popWidth, popHeight) {
+			var top = ((jQuery(window).height() - popHeight) / 2);
+			var width = jQuery(window).width();
+			var left = (width - popWidth) / 2;
+			if (popWidth > width) {
+				left = 0;
+			} else {
+				width = popWidth;
+			}
+			
+			jQuery.blockUI({
+				message: jQuery(popName),
+				baseZ: 50,
+				css: {
+					backgroundColor:'#fff',
+					left: (left + 'px'),
+					top: (top + 'px'),
+					width:(width + 'px'),
+					height:(popHeight + 'px'),
+					padding:'15px',
+					textAlign:'left',
+					fontSize:'1em',
+					border:'2px solid #333',
+					
+					opacity:'1.0',
+					'-moz-border-radius':'6px',
+					'-webkit-border-radius':'6px',
+					'-moz-box-shadow': '0 0 50px #ccc',
+					'-webkit-box-shadow': '0 0 50x #ccc'
+				}
+			});
+		}
+		
+		function showPopChangePayType() {
+			jQuery('select[name*=cp_apinvtxn_paytype__c]')[0].value = cpPaytype;
+			jQuery('select[name*=cp_apinvtxn_glbankacct__c]')[0].value = cpGlbankacct;
+			cpPaytypeChanged();
+			showPopup('#popChangePaytype', 600, 165); 
+			return false;
+		}
+		
+		function cpPaytypeChanged() {
+			var paytype = jQuery('select[name*=cp_apinvtxn_paytype__c]')[0].value;
+			if(paytype != 'Bank Card') {
+				jQuery('select[name*=cp_apinvtxn_glbankacct__c]')[0].value = '';
+				jQuery('select[name*=cp_apinvtxn_glbankacct__c]')[0].disabled = true;
+			}
+			else {
+				jQuery('select[name*=cp_apinvtxn_glbankacct__c]')[0].disabled = false;
+			}
+		}
+		
+		function doChangeToCheckEFTBankCard() {
+			cpPaytype = jQuery('select[name*=cp_apinvtxn_paytype__c]')[0].value;
+			cpGlbankacct = jQuery('select[name*=cp_apinvtxn_glbankacct__c]')[0].value;
+			changeToCheckEFTBankCard();
+		}
+
+    </script>
+    
+</apex:page>

@@ -1,0 +1,142 @@
+<apex:page id="pg" standardController="rstk__soconrc__c" extensions="rstk.ControllerExtnSoconrc,rstk.RemoteQueryController" sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetab_soprod_salesaccountdistribution}"  showHeader="false" enableQuickMenu="false"/>
+	
+ 	<apex:includeScript value="{!$Resource.rstk__sublist}"/>
+  	<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <style>
+        .hidden{visibility:hidden;}
+        .rcptinput{
+            width:60px;
+            text-align:right; 
+        }
+        .sort {display:inline}
+        .numSort {display:inline}
+
+            .modal {
+                background-color:#fff;
+                display:none;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+            .modal h2 {
+                margin:0px;
+                padding:10px 0 10px 45px;
+                font-size:16px;
+            }
+            
+            .modalComponents {
+                color:#efefef;
+                height:200px;
+                z-index:50;
+            }
+             
+    </style>
+    
+    <apex:form id="fm">
+        <apex:pageBlock id="pb" mode="detail">
+        	<c:EditableGrid width="1550" jsController="productPrice" data="{!dateEffectivePricingDetails}" editable="true" ispopup="false"/>  
+        	<script> 
+				productPrice.onGridLoad = function() {
+                     self = this;
+                     if (productPrice.rowIds.length ){
+                       	this.getRows().each(function (index, el) {
+                           var row = jQuery(this);
+                           var rowId = self.getRowValue(row, 'Id');
+                           if (isEmpty(rowId)) rowId = productPrice.rowIds[index];
+                            if (!isEmpty(rowId)) {
+                            		self.getRowObj(row, 'soconrcprice_frdate__c').attr('disabled', true);
+                            		self.getRowObj(row, 'soconrcprice_todate__c').attr('disabled', true);
+                            	}
+	                       });	
+                      }
+                  }
+                  
+                productPrice.validate = function() {
+		         	self = this;
+		         	var isvalid = true;
+		         	this.getVisibleRows().each(function (index, el) {
+			              var row = jQuery(this);
+			              var price = productPrice.getRowValue(row, 'soconrcprice_price__c');
+			              var firstDate = productPrice.getRowValue(row, 'soconrcprice_frdate__c');
+						  var lastDate = productPrice.getRowValue(row, 'soconrcprice_todate__c');
+					
+			              if(!price || parseFloat(price) <= 0) {
+				   				alert("Periodic Price is Required and must be greater than zero."); 
+			                	productPrice.getRowObj(row, 'soconrcprice_price__c').focus();
+			                	isvalid = false;
+			                	return false;
+			              }
+			              
+			              if (!firstDate) {
+			              		alert("{!$Label.FirstEffectiveDate}"); 
+			                	productPrice.getRowObj(row, 'soconrcprice_frdate__c').focus();
+			                	isvalid = false;
+			                	return false;
+			              }
+			              
+			              if (!lastDate) {
+			              		alert("{!$Label.LastEffectiveDate}"); 
+			                	productPrice.getRowObj(row, 'soconrcprice_todate__c').focus();
+			                	isvalid = false;
+			                	return false;
+			              }
+			          });
+		           return isvalid;
+		     	 } 
+              
+	            function verifyDate(firstDate,lastDate,row){
+				   	Visualforce.remoting.Manager.invokeAction(  
+				        '{!$RemoteAction.ControllerExtnSoconrc.verifyDate}', //NameSpace  
+				        firstDate,lastDate,   
+				        function(result, event){
+				        	if (event.status) {
+								if(result){
+									alert("{!$Label.LstEfctDtCntBeLessThnFstEfctDte}");
+									productPrice.setRowValue(row, "soconrcprice_todate__c", '');
+									return true;
+								}
+				            } else if (event.type === 'exception') {
+				                alert("{!$Label.Exception1}" +event.message);
+				            } else {
+								alert("{!$Label.UnexpectedStatus}", event.message);
+				            }
+				        }, {escape:false}
+				    );
+		      	}    
+                  
+		      	productPrice.entryChanged = function(row, rowNum, name, value) {
+					if (name == 'soconrcprice_todate__c' || name == 'soconrcprice_frdate__c') {
+						var firstDate = productPrice.getRowValue(row, 'soconrcprice_frdate__c');
+						var lastDate = productPrice.getRowValue(row, 'soconrcprice_todate__c');
+						if ( firstDate != ''  && lastDate != '') {
+						    verifyDate(firstDate,lastDate,row);
+						}
+					}
+				}                    
+            </script>        
+        </apex:pageBlock>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+     <c:footerInclude cntr="{!controller}" />
+</apex:page>

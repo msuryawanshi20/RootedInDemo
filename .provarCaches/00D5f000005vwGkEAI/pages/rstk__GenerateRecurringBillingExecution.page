@@ -1,0 +1,168 @@
+<apex:page id="pgId"  title="{!objectLabel}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnGenerateRecurringBillingEx" action="{!doBeforePageLoad}" showHeader="true">
+    <apex:variable var="f_customext" value="{!$ObjectType.rstk__customext__c.fields}" />
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url('/img/loading32.gif');
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 10004;
+            left: 0%;
+            top: 0%;
+        }
+        .clsError
+        {
+            color : #cc0000;
+        }
+    </style>
+    
+    <c:standardHeader cntr="{!controller}" showHeader="false" title="{!$Label.rstk__title_generaterecurringbilling}"/>
+    <apex:form id="formId">
+        <!--for invalid call to page-->
+        <apex:panelGroup id="pgCriticalErrMsg" rendered="{!NOT(Render_pgMain)}">
+            <apex:pageMessage severity="{!CritErr.severity}" strength="{!CritErr.strength}" title="{!CritErr.title}" summary="{!CritErr.summary}" escape="false"></apex:pageMessage>
+        </apex:panelGroup>
+        <!--for invalid call to page-->
+        
+        <apex:actionFunction name="scheduleBillings" action="{!scheduleJob}" immediate="false">
+                <apex:param name="cronExpr" assignTo="{!cronExpr}" value=""/>
+                <apex:param name="schedName" assignTo="{!schedName}" value=""/>
+         </apex:actionFunction>
+         
+         <apex:actionFunction name="doGenerateRecurringBillings" action="{!GenerateRecurringBillings}" immediate="false" reRender="pgMain" oncomplete="specifycustrangeChanged();" status="statusProcessing"/>
+         <apex:actionFunction name="CheckBatchStatus" action="{!CheckBatchStatus}" immediate="false" />
+         <apex:actionFunction name="bindContractPickListValues" action="{!bindContractPickListValues}" immediate="false" reRender="op_idContract" status="statusProcessing"/>
+        <!--for valid call to Page--> 
+        <apex:panelGroup id="pgMain" rendered="{!Render_pgMain}">
+            <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+            <apex:pageMessage id="errorMsg" rendered="{!CritErr != null}" severity="{!CritErr.severity}" strength="{!CritErr.strength}" title="{!CritErr.title}" summary="{!CritErr.summary}" escape="false"></apex:pageMessage>
+            <apex:sectionHeader title="{!$Label.rstk__title_generaterecurringbilling}"/>
+            <apex:pageBlock id="pbId">
+                <apex:pageBlockButtons >
+                    <apex:commandButton value="{!$Label.rstk__btn_generaterecurringbilling}" onclick="doGenerateRecurringBillings(); return false;" disabled="{!isShowProcessingMsg}" status="statusProcessing"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_schedulebilling}" onclick="scheduleBillings()" rerender="pgMain" oncomplete="specifycustrangeChanged();"/>
+                    <apex:actionPoller action="{!CheckBatchStatus}" rendered="{!isStartPolling}" reRender="pgMain" oncomplete="specifycustrangeChanged();" interval="5" />
+                    <br/><br/>
+                </apex:pageBlockButtons>
+                <apex:PageBlockSection >
+                    <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_salesdiv__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_salesdiv__c.label}"/>
+                        <apex:outputfield value="{!genrecbill.rstk__genrecbill_salesdiv__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_runforalldivs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_runforalldivs__c.label}"/>
+                        <apex:inputCheckbox value="{!genrecbill.rstk__genrecbill_runforalldivs__c}" tabIndex="13"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_billrundate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_billrundate__c.label}"/>
+                        <apex:inputfield value="{!genrecbill.rstk__genrecbill_billrundate__c}" tabOrderHint="1"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_periodicbillingfreq__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_periodicbillingfreq__c.label}"/>
+                        <apex:selectList id="ipfldPeriodic_Billing_Frequency" value="{!genrecbill.rstk__genrecbill_periodicbillingfreq__c}" size="1" style="width:150px;" tabIndex="14"> 
+                              <apex:selectOptions value="{!billingFrequencys}" /> 
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="If checked, allows to specify a Customer range for billing">
+                        <apex:outputLabel value="Specify Customer Range"/>
+                        <apex:inputCheckbox id="genrecbill_specifycustrange__c"
+                         value="{!specifycustrange}" 
+                         onchange="specifycustrangeChanged();"
+                         tabIndex="12"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_customer__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_customer__c.label}"/>
+                        <c:largeSelectList id="genrecbill_customer__c" cntr="{!controller}" options="{!CUSTOMER_OPTIONS}" required="false" onchange="bindContractPickListValues();"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_contracttype__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_contracttype__c.label}"/>
+                        <apex:SelectList size="1" id="idContract_Type" value="{!genrecbill.rstk__genrecbill_contracttype__c}" tabIndex="15">
+                            <apex:selectOptions value="{!CONTRACT_TYPE_OPTIONS}"/>
+                        </apex:SelectList>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_socontract__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_socontract__c.label}"/>
+                         <apex:outputpanel id="op_idContract">
+                            <apex:SelectList size="1" id="genrecbill_socontract__c" value="{!genrecbill.rstk__genrecbill_socontract__c}" tabIndex="12">
+                                <apex:selectOptions value="{!CONTRACT_OPTIONS}"/>
+                            </apex:SelectList>
+                         </apex:outputpanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="Specify a From Customer to filter for billing">
+                        <apex:outputLabel value="From Customer"/>
+                        <c:largeSelectList id="genrecbill_fromcustomer__c" 
+                        	cntr="{!controller}" 
+                        	options="{!FROMTOCUSTOMER_OPTIONS}" 
+                        	value="{!fromCustomer}"
+                        	useValue="true"
+                        	required="false" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="Specify a To Customer to filter for billing">
+                        <apex:outputLabel value="To Customer"/>
+                        <c:largeSelectList id="genrecbill_tocustomer__c" 
+                        	cntr="{!controller}" 
+                        	options="{!FROMTOCUSTOMER_OPTIONS}" 
+                        	value="{!toCustomer}"
+                        	useValue="true"
+                        	required="false" />
+                    </apex:pageBlockSectionItem> 
+                    
+                 </apex:PageBlockSection>
+                   
+                 <apex:PageBlockSection title="{!$Label.rstk__title_schedulebilling}" >  
+                     <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_schedname__c.inlineHelpText}" Id="schedName">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_schedname__c.label}"/>
+                        <apex:inputText id="schedName" value="{!genrecbill.rstk__genrecbill_schedname__c}" tabIndex="21"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f_customext.rstk__genrecbill_cronexpr__c.inlineHelpText}" Id="cronExprSecItem">
+                        <apex:outputLabel value="{!f_customext.rstk__genrecbill_cronexpr__c.label}"/>
+                        <apex:inputText id="cronExpr" value="{!genrecbill.rstk__genrecbill_cronexpr__c}" tabIndex="22"/>
+                    </apex:pageBlockSectionItem>    
+                </apex:PageBlockSection>
+            </apex:pageBlock>
+        </apex:panelGroup>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    	function pageInit() {
+    		specifycustrangeChanged();
+    	}
+    	
+    	function specifycustrangeChanged(){
+   			var isSpecifyCustRange = jQuery("input[id*=genrecbill_specifycustrange__c]").is(':checked');
+   			if(isSpecifyCustRange == true) {
+   				jQuery("select[name*=genrecbill_customer__c]")[0].value = '';
+   				jQuery("select[name*=genrecbill_customer__c]")[0].disabled = true;
+   				
+   				jQuery("select[id*=genrecbill_socontract__c]")[0].value = '';
+   				jQuery("select[id*=genrecbill_socontract__c]")[0].disabled = true;
+   				
+   				jQuery("select[name*=genrecbill_fromcustomer__c]")[0].disabled = false;
+   				jQuery("select[name*=genrecbill_tocustomer__c]")[0].disabled = false;
+   			}
+   			else {
+   				jQuery("select[name*=genrecbill_fromcustomer__c]")[0].value = '';
+   				jQuery("select[name*=genrecbill_tocustomer__c]")[0].value = '';
+   				
+   				jQuery("select[name*=genrecbill_fromcustomer__c]")[0].disabled = true;
+   				jQuery("select[name*=genrecbill_tocustomer__c]")[0].disabled = true;
+   				
+   				jQuery("select[name*=genrecbill_customer__c]")[0].disabled = false;
+   				jQuery("select[id*=genrecbill_socontract__c]")[0].disabled = false;
+   			}
+    	}
+    </script>
+</apex:page>

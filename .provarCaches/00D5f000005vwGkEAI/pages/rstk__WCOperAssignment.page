@@ -1,0 +1,153 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_wcoperassignment}" standardController="rstk__woordop__c" extensions="rstk.ControllerExtnWCOperAssignment" sideBar="false" action="{!doBeforePageLoad}">
+    <style>
+		.floatingStyle { 
+		    background-color:#829DC0 !important;
+		}
+		
+		.menu-title:before {
+		    content: "Configure Columns";
+		    display: block;
+		    position: absolute;
+		    top: 0;
+		    right: 0;
+		    left: 0;
+		    background: #829DC0;
+		    padding: 2px;
+		    
+		    font-family: Verdana, Arial, Helvetica, sans-serif;
+		    font-size: 11px;
+		    font-weight: bold;
+		}
+		
+	</style>
+    <apex:variable var="o" value="{!rstk__woordop__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__woordop__c.fields}" />
+    <apex:variable var="fwc" value="{!$ObjectType.rstk__rtwctr__c.fields}" />
+    <apex:variable var="f_wopsch" value="{!$ObjectType.rstk__wopsch__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_wcoperassignment}" jqueryui="true"
+    	customInclude="{!$Resource.rstk__wcoperassignment_cli}" /> 
+   	<c:jquery_client_labels />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:stylesheet value="{!$Resource.rstk__jquery_contextmenu_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_contextmenu}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_blockUI_v2}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    
+    <script>
+        jQuery(document).ready(function() {
+        	console.log('ready');
+			
+			jQuery.tablesorter.addParser({
+				id: "fancyNumber",
+				is: function(s) {
+					return /^[0-9]?[0-9,\.]*$/.test(s);
+				},
+				format: function(s) {
+				return jQuery.tablesorter.formatFloat( s.replace(/,/g,'') );
+				},
+				type: "numeric"
+			});
+        });
+        
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" oncomplete="formatLocaleOutputFields();unblockUI();enableSort();" rerender="pageMessages" />
+        <apex:actionFunction name="loadOperations" action="{!doReloadOperations}" oncomplete="formatLocaleOutputFields();unblockUI();enableSort();" rerender="wcdetails, op_SubList, pageMessages"/>
+        
+        <apex:pageBlock id="pb" mode="edit">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableDelete="true"/>
+                <apex:commandButton id="btn_convert" value="{!$Label.rstk__pagebtn_wcoperassignment_displayoperations}" onclick="if(checkSelected()){blockUI();convert();} return false;" style="display:none"/>
+            </apex:pageBlockButtons>
+        
+        	<div style="width:1200px;">
+            <apex:pageBlockSection id="pbs_div" showHeader="false" columns="2" >
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f.rstk__woordop_div__c.label}"/>
+                    <apex:outputField id="woordop_div__c"  value="{!o.rstk__woordop_div__c}" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection id="wcdetails" showHeader="false" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_wctr__c.inlineHelpText}">
+                     <apex:outputLabel value="{!f.rstk__woordop_wctr__c.label}"/>
+                     <c:selectList id="woordop_wctr__c" cntr="{!controller}" options="{!workcenters}" onchange="onWCChange();" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!fwc.rstk__rtwctr_dept__c.inlineHelpText}" rendered="{!o.rstk__woordop_wctr__c != null}">
+                     <apex:outputLabel value="{!fwc.rstk__rtwctr_dept__c.label}"/>
+                     <apex:outputField value="{!workcenter.rstk__rtwctr_dept__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!fwc.rstk__rtwctr_descr__c.inlineHelpText}" rendered="{!o.rstk__woordop_wctr__c != null}">
+                     <apex:outputLabel value="{!fwc.rstk__rtwctr_descr__c.label}"/>
+                     <apex:outputField value="{!workcenter.rstk__rtwctr_descr__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!fwc.rstk__rtwctr_hrsperdaylab__c.inlineHelpText}" rendered="{!o.rstk__woordop_wctr__c != null}">
+                     <apex:outputLabel value="{!fwc.rstk__rtwctr_hrsperdaylab__c.label}"/>
+                     <apex:outputField value="{!workcenter.rstk__rtwctr_hrsperdaylab__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!fwc.rstk__rtwctr_resp__c.inlineHelpText}" rendered="{!o.rstk__woordop_wctr__c != null}">
+                     <apex:outputLabel value="{!fwc.rstk__rtwctr_resp__c.label}"/>
+                     <apex:outputField value="{!workcenter.rstk__rtwctr_resp__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!fwc.rstk__rtwctr_labhrsdaysconv__c.inlineHelpText}" rendered="{!o.rstk__woordop_wctr__c != null}">
+                     <apex:outputLabel value="{!fwc.rstk__rtwctr_labhrsdaysconv__c.label}"/>
+                     <apex:outputField value="{!workcenter.rstk__rtwctr_labhrsdaysconv__c}" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            </div>
+            
+            <apex:outputPanel id="op_SubList" style="width:100%; scroll:auto;">
+                <apex:pageBlock id="list" rendered="{!operations != null}">
+                &nbsp;<apex:inputCheckbox onclick="includeUnReleased(this.checked)" value="{!includeUnReleased}" />&nbsp;<apex:outputLabel value="{!$Label.rstk__includeunreleasedoperations}"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <apex:outputPanel id="op_grid_header">
+        		</apex:outputPanel>
+        		<apex:outputPanel id="op_gridList" style="height:440px;overflow:auto;display:block">
+                <apex:pageBlockTable id="pbt_grid" value="{!operations}" style="table-layout:fixed;" var="op"
+                	columnsWidth="120px,110px,118px,135px,100px,72px,100px,125px,155px,125px,100px" >
+                    <apex:column headerValue="{!$Label.rstk__workorder}" value="{!op.woordop.rstk__woordop_ordno__c}" />
+                    <apex:column headerValue="{!$Label.rstk__operation}" value="{!op.woordop.rstk__woordop_oper__c}" />
+                    <apex:column headerValue="{!$Label.rstk__project}" value="{!op.woordop.woordop_ordno__r.rstk__wocst_proj__c}" />
+                    <apex:column headerValue="{!f.rstk__woordop_assignedto__c.label}" >
+                    	<span class="hidden">{!op.woordop.woordop_assignedto__r.name}</span>
+                    	<apex:selectlist size="1" value="{!op.woordop.rstk__woordop_assignedto__c}" style="width:130px">
+							<apex:selectOptions value="{!users}"/>
+						</apex:selectlist>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__woordop_released__c.label}" styleClass="rl-centeralign" >
+                   		<span class="hidden">{!IF(op.woordop.rstk__woordop_released__c, '1', '0')}</span>
+                    	<apex:inputCheckbox value="{!op.woordop.rstk__woordop_released__c}" onchange="released(this, '{!op.woordopact.rstk__woordopact_qtyavail__c}');" />
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__started}">
+                    	<span class="hidden">{!IF(op.started, '1', '0')}</span>
+                    	<img src="/img/checkbox_{!IF(op.started, '', 'un')}checked.gif" title="{!IF(op.started, 'Checked', 'Not Checked')}" />
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__priority}" styleClass="rl-rightalign">
+                    	<apex:outputText html-decimals="0" value="{!op.priority}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_wopsch.rstk__wopsch_schstartdate__c.label}" value="{!op.wopsch.rstk__wopsch_schstartdate__c}" styleClass="rl-rightalign" />
+                    <apex:column headerValue="{!f_wopsch.rstk__wopsch_schcompdate__c.label}" value="{!op.wopsch.rstk__wopsch_schcompdate__c}" styleClass="rl-rightalign" />
+                    <apex:column headerValue="{!$Label.rstk__scheduledhours}" styleClass="rl-rightalign">
+                    	<apex:outputText html-decimals="2" value="{!op.scheduledHours}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__actualhours}" styleClass="rl-rightalign">
+                    	<apex:outputText html-decimals="2" value="{!op.actualHours}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+                </apex:outputPanel>
+                </apex:pageBlock>
+            </apex:outputPanel>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    	var LABEL_CantBeUnreleasedIfQtyAvailableMoreThan0 = "{!$Label.CantBeUnreleasedIfQtyAvailableMoreThan0}";
+	</script>
+</apex:page>

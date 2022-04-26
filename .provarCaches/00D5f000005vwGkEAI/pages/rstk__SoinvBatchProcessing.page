@@ -1,0 +1,320 @@
+<apex:page id="pg" standardController="rstk__soibatch__c" extensions="rstk.ControllerSoinvBatchProcessing,rstk.ControllerJobStatus" sideBar="false" showHeader="false" 
+    standardStylesheets="true" title="{!$Label.rstk__salesorderinvoicebatches}" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__soibatch__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soibatch__c.fields}" />
+    <apex:variable var="f_soinv" value="{!$ObjectType.rstk__soinv__c.fields}" /> 
+    <apex:variable var="f_socntl" value="{!$ObjectType.rstk__socntl__c.fields}" />
+    
+    <c:popupPageHeader enableAutocomplete="false"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__line_items2}" />
+    <apex:includeScript value="{!$Resource.rstk__messageformat}" />
+    <apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <style>
+        .hidden{visibility:hidden;}
+        select:disabled {
+            color: #555;
+            background-color: #DDD;
+        }
+    </style>
+    <script>
+        function confirmTransferPrinted() {
+            if (confirm("{!$Label.rstk__warning_someofselectedbatchesalreadyprinted_pressoktoreopenelsepresscancel}")) {
+                blockUI();
+                setTimeout(doForceTransferBatch, 10);
+            }
+        }
+        var operationInProgress = null;
+        function checkInvoiceBatchStatus(opType) {
+            operationInProgress = opType;
+            var isBackground = (document.getElementById('isBackground') && document.getElementById('isBackground').value == 'true');
+            if (isBackground) {
+                blockUI();
+                checkJobStatus();
+            }
+        }
+        function doAfterJobComplete(processlog) {
+            if (operationInProgress == 1) {
+                transferBatchCompleted();
+            } else {
+                approveBatchCompleted();
+            }
+            operationInProgress = null;
+        }
+        
+    </script>
+    
+    <apex:form id="frm">
+    <apex:outputPanel id="hiddenFieldsPanel" style="display:none;">
+    </apex:outputPanel>
+
+    <apex:actionFunction name="doForceTransferBatch" action="{!forceTransferBatch}" rerender="pbMain, pb2, pageMessages" oncomplete="formatLocaleOutputFields(); unblockUI();"/>
+    <apex:actionFunction name="transferBatchCompleted" action="{!transferBatchCompleted}" rerender="pbMain, pb2, pageMessages" oncomplete="formatLocaleOutputFields(); unblockUI();"/>
+    <apex:actionFunction name="approveBatchCompleted" action="{!approveBatchCompleted}" rerender="pbMain, pb2, pageMessages" oncomplete="formatLocaleOutputFields(); unblockUI();"/>
+    <apex:outputPanel id="batchFns">
+      <script>
+        var templateOverride = {!templateOverride};
+        var defaultTemplate = '{!JSENCODE(defaultTemplate)}';
+        var creditTemplateOverride = {!creditTemplateOverride};
+        var defaultCreditTemplate = '{!JSENCODE(defaultCreditTemplate)}';
+        window.pageParms = {!pageParms};
+        
+        function openBatchWindow()
+        {
+            if (templateOverride || creditTemplateOverride) {
+                if (defaultTemplate) {
+                    jQuery('select[id$=selected_template__c]').val(defaultTemplate);
+                }
+                if (defaultCreditTemplate) {
+                    jQuery('select[id$=selected_credittemplate__c]').val(defaultCreditTemplate);
+                }
+                
+                if (!templateOverride) {
+                 jQuery("[id$=selected_template__c]").closest('tr').hide();
+             }
+             if (!creditTemplateOverride) {
+                 jQuery("[id$=selected_credittemplate__c]").closest('tr').hide();
+             }
+                _showDialog('selectEmailTemplate');
+                return false;
+            } else {
+                 goToBatchWindow(defaultTemplate);
+            }
+        }
+        
+       function template_ok() {
+            var theTemplate = jQuery('select[id$=selected_template__c]').val();
+            var theCreditTemplate = jQuery('select[id$=selected_credittemplate__c]').val();
+            goToBatchWindow(theTemplate, theCreditTemplate);
+        }
+
+        function goToBatchWindow(templateId, creditTemplate) {
+            window.open(getBatchProcessingURL(templateId, creditTemplate));
+        }
+        function getBatchProcessingURL(templateId, creditTemplate) {
+          var batchProcessingURL = "{!batchProcessingURL}";
+          if (isEmpty(templateId)) {
+            templateId = '';
+          }
+          if (isEmpty(creditTemplate)) {
+            creditTemplate = '';
+          }
+          return batchProcessingURL.replace('[ET]', templateId).replace('[CT]', creditTemplate);
+        }
+                    
+		jQuery(function() {
+		  sforce.connection.sessionId = __sfdcSessionId;
+		  formatLocaleOutputFields();
+		});
+      </script>
+    </apex:outputPanel>
+    <apex:pageBlock id="pbMain">
+        <apex:outputPanel id="jsPanel"> <script>setTimeout(function() { {!jsToExecute} }, 10);</script> </apex:outputPanel>
+        <apex:actionStatus id="submitStatus" onstart="blockUI();" onstop="formatLocaleOutputFields(); unblockUI()"/>
+        <apex:actionStatus id="submitStatus2" onstart="blockUI();" onstop="formatLocaleOutputFields();"/>
+        <script>try {unblockUI();} catch (e){}</script>
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            <input type="hidden" id="isBackground" value="{!isBackground}"/>
+        </apex:outputPanel>
+        <span style="display:none;" id='popStatus1'/>
+        <apex:pageBlockSection columns="1">
+                <apex:pageBlockSectionItem id="filterSection">
+                    <apex:outputLabel value="{!f.rstk__soibatch_div__c.label}"/>
+                    <apex:outputField value="{!o.rstk__soibatch_div__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                <apex:pageBlockSection columns="4" rendered="{!ISNULL(selectedBatch)}">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__soibatch_closed__c}" >
+                                <apex:actionSupport event="onchange" action="{!loadBatches}" rerender="pbMain,pageMessages" status="submitStatus"/>
+                            </apex:inputField>
+                            <apex:outputText value="{!$Label.rstk__includeclosedbatches}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <!--  apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.soibatch_printed__c}" >
+                                <apex:actionSupport event="onchange" action="{!loadBatches}" rerender="pbMain,pageMessages" status="submitStatus"/>
+                            </apex:inputField>
+                            <apex:outputText value="Include Printed Batches" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem  -->
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__soibatch_transferred__c}" >
+                                <apex:actionSupport event="onchange" action="{!loadBatches}" rerender="pbMain,pageMessages" status="submitStatus"/>
+                            </apex:inputField>
+                            <apex:outputText value="{!$Label.rstk__includetransferredbatches}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__soibatch_approved__c}" >
+                                <apex:actionSupport event="onchange" action="{!loadBatches}" rerender="pbMain,pageMessages" status="submitStatus"/>
+                            </apex:inputField>
+                            <apex:outputText value="{!$Label.rstk__includeapprovedbatches}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_refreshbatchdisplay}" action="{!refreshBatch}" status="submitStatus2"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection columns="1" id="sectBatchTable">
+                <apex:pageBlockSectionItem >
+                    <apex:pageBlockTable id="batchTable" value="{!batches}" var="l" rendered="{!!ISNULL(batches) && batches.size>0}">
+                        <apex:column headerValue="">
+                            <apex:inputCheckbox id="selected" value="{!l.selected}" disabled="{!addToBatchMode || removeFromBatchMode || !ISNULL(selectedBatch)}"/>
+                            <apex:inputHidden value="{!l.soibatch.id}" />
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__soibatch_invbatch__c.label}" value="{!l.soibatch.rstk__soibatch_invbatch__c}" style="text-align:right;"/>
+                        <apex:column headerValue="{!f.rstk__soibatch_dateclosed__c.label}">
+                            <apex:outputField value="{!l.soibatch.rstk__soibatch_dateclosed__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__soibatch_dateprinted__c.label}">
+                            <apex:outputField value="{!l.soibatch.rstk__soibatch_dateprinted__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__soibatch_datetransfer__c.label}">
+                            <apex:outputField value="{!l.soibatch.rstk__soibatch_datetransfer__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__soibatch_approved__c.label}">
+                            <apex:outputField value="{!l.soibatch.rstk__soibatch_dateapproved__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__numberofinv}" style="text-align:right;">
+                            <apex:outputText html-decimals="0" value="{!l.invCount}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__totalamount}" style="text-align:right;">
+                            <apex:outputText html-decimals="2" value="{!l.invTotal}"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    <apex:pageBlock id="pb2">
+        <apex:outputPanel >
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_showinvoices}" action="{!showInvoices}" rerender="pb2, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_addtobatch}" action="{!showSoinvsToAddToBatch}" rerender="sectBatchTable, pb2, pbMain, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_removefrombatch}" action="{!showSoinvsRemoveFromBatch}" rerender="sectBatchTable, pb2, pbMain, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_approvebatch}" action="{!approveBatch}" rerender="sectBatchTable, pb2, pbMain, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_de_approvebatch}" action="{!deapproveBatch}" rerender="sectBatchTable, pb2, pbMain, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_closebatch}" action="{!closeBatch}" rerender="pbMain, pb2, pageMessages, filterSection"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}"  rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_re_openbatch}" action="{!reopen}" rerender="pbMain, pb2, pageMessages, filterSection"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}"  rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <!-- apex:commandButton value="{!$Label.pagebtn_soinvbatchprocessing_PrintBatch}" action="{!printBatch}" rerender="pbMain, pb2, pageMessages"  status="submitStatus"  disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!addToBatchMode}"/ -->
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_transferbatch}" action="{!transferBatch}" rerender="pbMain, pb2, pageMessages, filterSection"  status="submitStatus2" disabled="{!ISNULL(batches) || batches.size==0 || isQB || isWorkday}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_printinvoicebatch}" action="{!printInvoiceBatch}" rerender="pageMessages,batchFns" oncomplete="openBatchWindow();" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!AND(isCSG, !OR(addToBatchMode,removeFromBatchMode))}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_emailinvoicebatch}" action="{!emailInvoiceBatch}"  rerender="pageMessages,batchFns" oncomplete="openBatchWindow();" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!AND(isCSG, !OR(addToBatchMode,removeFromBatchMode))}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_addselectedinvoicestobatch}" action="{!addToBatch}" rerender="sectBatchTable, pb2, pageMessages, soinvTable"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!addToBatchMode}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_removeselectedinvoicesfrombatch}" action="{!removeFromBatch}" rerender="sectBatchTable, pb2, pageMessages, soinvTable"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!removeFromBatchMode}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_cancel}" action="{!cancelAddToBatch}" rerender="sectBatchTable, pb2, pageMessages"  status="submitStatus"  rendered="{!OR(addToBatchMode, removeFromBatchMode)}"/>
+        </apex:outputPanel>
+        <apex:pageBlockTable id="soinvTable" value="{!soinvs}" var="l" rendered="{!!ISNULL(soinvs) && soinvs.size>0 && !addToBatchMode && !removeFromBatchMode}">
+            <apex:column headerValue="{!f_soinv.rstk__soinv_invoice__c.label}" style="text-align:right;" >
+                <c:ObjectLink valueId="{!l.Id}" valueName="{!l.rstk__soinv_invoiceno__c}" />
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_custno__c.label}" value="{!l.rstk__soinv_custno__c}"/>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_invdate__c.label}"><apex:outputField value="{!l.rstk__soinv_invdate__c}"/></apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_grandtotal__c.label}" style="text-align:right;">
+                <apex:outputText html-decimals="2" value="{!l.rstk__soinv_grandtotal__c}" />
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_duedate__c.label}"><apex:outputField value="{!l.rstk__soinv_duedate__c}"/></apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_year__c.label}">
+                <apex:outputText value="{0,number,###0}">
+                    <apex:param value="{!l.rstk__soinv_year__c}"/>
+                </apex:outputText>
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_period__c.label}" value="{!l.rstk__soinv_period__c}"/>
+        </apex:pageBlockTable>
+        
+
+        <apex:pageBlockTable id="removeFromBatchSoinvTable" value="{!removeFromBatchSoinvs}" var="l" rendered="{!!ISNULL(removeFromBatchSoinvs) && removeFromBatchSoinvs.size>0 && removeFromBatchMode}">
+            <apex:column headerValue="">
+                <apex:inputCheckbox id="selected" value="{!l.selected}"/>
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_invoice__c.label}" style="text-align:right;" >
+                <c:ObjectLink valueId="{!l.soinv.Id}" valueName="{!l.soinv.rstk__soinv_invoiceno__c}" />
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_custno__c.label}" value="{!l.soinv.rstk__soinv_custno__c}"/>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_invdate__c.label}"><apex:outputField value="{!l.soinv.rstk__soinv_invdate__c}"/></apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_grandtotal__c.label}" style="text-align:right;">
+                <apex:outputText html-decimals="2" value="{!l.soinv.rstk__soinv_grandtotal__c}" />
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_duedate__c.label}"><apex:outputField value="{!l.soinv.rstk__soinv_duedate__c}"/></apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_year__c.label}">
+                <apex:outputText value="{0,number,###0}">
+                    <apex:param value="{!l.soinv.rstk__soinv_year__c}"/>
+                </apex:outputText>
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_period__c.label}" value="{!l.soinv.rstk__soinv_period__c}"/>
+        </apex:pageBlockTable>   
+        
+        <apex:pageBlockTable id="addToBatchSoinvTable" value="{!addToBatchSoinvs}" var="l" rendered="{!!ISNULL(addToBatchSoinvs) && addToBatchSoinvs.size>0 && addToBatchMode}">
+            <apex:column headerValue="">
+                <apex:inputCheckbox id="selected" value="{!l.selected}"/>
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_invoice__c.label}" style="text-align:right;" >
+                <c:ObjectLink valueId="{!l.soinv.Id}" valueName="{!l.soinv.rstk__soinv_invoiceno__c}" />
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_custno__c.label}" value="{!l.soinv.rstk__soinv_custno__c}"/>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_invdate__c.label}"><apex:outputField value="{!l.soinv.rstk__soinv_invdate__c}"/></apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_grandtotal__c.label}" style="text-align:right;">
+                <apex:outputText html-decimals="2" value="{!l.soinv.rstk__soinv_grandtotal__c}" />
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_duedate__c.label}"><apex:outputField value="{!l.soinv.rstk__soinv_duedate__c}"/></apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_year__c.label}">
+                <apex:outputText value="{0,number,###0}">
+                    <apex:param value="{!l.soinv.rstk__soinv_year__c}"/>
+                </apex:outputText>
+            </apex:column>
+            <apex:column headerValue="{!f_soinv.rstk__soinv_period__c.label}" value="{!l.soinv.rstk__soinv_period__c}"/>
+        </apex:pageBlockTable>   
+         <apex:outputPanel rendered="{!(!ISNULL(soinvs) && soinvs.size>0) || (!ISNULL(addToBatchSoinvs) && addToBatchSoinvs.size>0)}">
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_showinvoices}" action="{!showInvoices}" rerender="pb2, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_addtobatch}" action="{!showSoinvsToAddToBatch}" rerender="sectBatchTable, pb2, pbMain, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_removefrombatch}" action="{!showSoinvsRemoveFromBatch}" rerender="sectBatchTable, pb2, pbMain, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_approvebatch}" action="{!approveBatch}" rerender="sectBatchTable, pb2, pbMain, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_de_approvebatch}" action="{!deapproveBatch}" rerender="sectBatchTable, pb2, pbMain, pageMessages"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_closebatch}" action="{!closeBatch}" rerender="pbMain, pb2, pageMessages, filterSection"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}"  rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_re_openbatch}" action="{!reopen}" rerender="pbMain, pb2, pageMessages, filterSection"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}"  rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <!-- apex:commandButton value="{!$Label.pagebtn_soinvbatchprocessing_PrintBatch}" action="{!printBatch}" rerender="pbMain, pb2, pageMessages"  status="submitStatus"  disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!!addToBatchMode}"/ -->
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_transferbatch}" action="{!transferBatch}" rerender="pbMain, pb2, pageMessages, filterSection"  status="submitStatus2" disabled="{!ISNULL(batches) || batches.size==0 || isQB || isWorkday}" rendered="{!!OR(addToBatchMode,removeFromBatchMode)}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_printinvoicebatch}" action="{!printInvoiceBatch}" rerender="pageMessages,batchFns" oncomplete="openBatchWindow();" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!AND(isCSG, !OR(addToBatchMode,removeFromBatchMode))}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_emailinvoicebatch}" action="{!emailInvoiceBatch}"  rerender="pageMessages,batchFns" oncomplete="openBatchWindow();" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!AND(isCSG, !OR(addToBatchMode,removeFromBatchMode))}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_addselectedinvoicestobatch}" action="{!addToBatch}" rerender="sectBatchTable, pb2, pageMessages, soinvTable"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!addToBatchMode}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_removeselectedinvoicesfrombatch}" action="{!removeFromBatch}" rerender="sectBatchTable, pb2, pageMessages, soinvTable"  status="submitStatus" disabled="{!ISNULL(batches) || batches.size==0}" rendered="{!removeFromBatchMode}"/>
+             <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_cancel}" action="{!cancelAddToBatch}" rerender="sectBatchTable, pb2, pageMessages"  status="submitStatus"  rendered="{!OR(addToBatchMode, removeFromBatchMode)}"/>
+        </apex:outputPanel>
+        
+         </apex:pageBlock>
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+
+        <c:Popup popupId="selectEmailTemplate" title="{!$Label.rstk__select_email_template}" onOk="_closeDialog(); template_ok();">
+            <apex:pageBlockSection columns="1" >
+            <apex:pageBlockSectionItem id="emailTemplate">
+				<apex:outputLabel value="{!f_socntl.rstk__socntl_soinvtemplate__c.label}"/>
+	            <apex:selectList id="selected_template__c" style="width:300px" multiselect="false" size="1" value="{!defaultTemplate}">
+	                <apex:selectOptions value="{!EmailTemplates}"/>
+	            </apex:selectList>
+	            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem id="creditEmailTemplate">
+				<apex:outputLabel value="{!f_socntl.rstk__socntl_socredittemplate__c.label}"/>
+            	<apex:selectList id="selected_credittemplate__c" style="width:300px" multiselect="false" size="1" value="{!defaultCreditTemplate}">
+                	<apex:selectOptions value="{!CreditEmailTemplates}"/>
+            	</apex:selectList>
+            </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </c:Popup>
+    </apex:form>
+</apex:page>

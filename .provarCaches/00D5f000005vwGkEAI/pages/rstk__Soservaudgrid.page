@@ -1,0 +1,97 @@
+<apex:page id="pg" standardController="rstk__solinenic__c" extensions="rstk.ControllerExtnSoservaudgrid" sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__solinenic__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__solinenic__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_soservaudgrid}" enableAutocomplete="true" enableQuickMenu="false" showHeader="false"/>
+ 	<apex:includeScript value="{!$Resource.rstk__sublist}"/>
+  	<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    
+    <apex:form id="fm">
+		<apex:actionFunction name="setSolineId" action="{!setSolineId}" immediate="true" oncomplete="setSolineComplete();" rerender="op_soline,op_solinenic,">
+           	<apex:param name="solineId" assignTo="{!solineId}" value="" />
+       	</apex:actionFunction>
+		<apex:actionFunction name="setSolinenicId" action="{!setSolinenicId}" immediate="true" oncomplete="setSolinenicComplete();" rerender="fm">
+           	<apex:param name="solinenicId" assignTo="{!solinenicId}" value="" />
+       	</apex:actionFunction>
+        <apex:pageBlock id="pb" mode="detail">
+        
+		<apex:panelGrid columns="11" id="theGrid" style="text-align:right;">
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstk__salesorder}" />
+                <apex:outputLink value="{!URLFOR($Action.rstk__sohdr__c.View, sohdr.Id)}">{!sohdr.Name}</apex:outputLink>
+                <apex:outputText value="{!$Label.rstk__labelxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstk__salesorderline}" />
+	            <apex:outputPanel id="op_soline">
+	                <apex:selectList id="solineid__c" value="{!soline.Id}" onchange="solineChanged()" required="true" size="1" style="width:250px;" rendered="{!soline == null}">
+	                    <apex:selectOptions value="{!solines}"/>
+	                </apex:selectList>
+	                <apex:outputField value="{!soline.name}" rendered="{!soline != null}"/>
+	            </apex:outputPanel>
+                <apex:outputText value="{!$Label.rstk__labelxxx}" style="visibility:hidden;"/>
+                <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstk__servicecomponent}" />
+	            <apex:outputPanel id="op_solinenic">
+	                <apex:selectList id="solinenicid__c" value="{!solinenic.Id}" onchange="solinenicChanged()" required="true" size="1" style="width:250px;" rendered="{!solinenic == null}">
+	                    <apex:selectOptions value="{!solinenics}"/>
+	                </apex:selectList>
+	                <apex:outputField value="{!solinenic.Name}" rendered="{!solinenic != null}"/>
+	            </apex:outputPanel>
+	    </apex:panelGrid>
+
+		<apex:outputPanel id="op_grid_parent">
+		<apex:outputPanel id="op_grid" rendered="{!solinenic != null}">
+			<c:EditableGrid width="800" jsController="soservauds" data="{!soservaudGrid}" editable="true" ispopup="false"/>
+		</apex:outputPanel>
+		</apex:outputPanel>
+<script>
+	var solinenic_qtyreq = {!qtyreq};
+	function solineChanged() {
+		showTopDialog('pleaseWaitPopup');
+		setSolineId(sfffGetFieldValue('solineid__c'));
+	}
+
+	function setSolineComplete() {
+		closeTopDialog();
+	}
+	
+	function solinenicChanged() {
+		showTopDialog('pleaseWaitPopup');
+		setSolinenicId(sfffGetFieldValue('solinenicid__c'));
+	}
+
+	function setSolinenicComplete() {
+		closeTopDialog();
+	}
+	
+	soservauds.validate = function() {
+		self=this;
+		
+		var sumhours = 0;
+		var qtyDecMap = {};
+
+		var rows = soservauds.getSelectableRows();
+		for (var i=0;i<rows.length;i++) {
+			var row = jQuery(rows[i]);
+			sumhours += ensureFloat(soservauds.getRowValue(row, 'soservaud_hours__c'));
+		}
+		
+		if (sumhours > solinenic_qtyreq) {
+			alert("{!$Label.SumOfHrsRecordedExceedsComponentQtyReqd}");
+		}
+		return true;
+	}
+	
+
+</script>
+        </apex:pageBlock>
+		     <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>   
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

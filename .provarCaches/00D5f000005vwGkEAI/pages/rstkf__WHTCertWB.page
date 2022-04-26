@@ -1,0 +1,146 @@
+<apex:page id="pg" title="{!$Label.rstkf__pgtitle_whtcertificateworkbench}" standardController="rstkf__apwhtcertgrp__c" extensions="rstkf.ControllerExtnWHTCertWB,rstkf.ControllerJobStatus,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!customextf}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <c:standardHeader cntr="{!controller}" displayListLink="false" enableAutocomplete="true" title="{!$Label.rstkf__pgtitle_whtcertificateworkbench}"/>
+    <script>
+    	var isRootDoxWHTC = {!isRootDoxWHTC};
+    </script>
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="generateCertificates" action="{!generateCertificates}" onComplete="checkJobStatus();" rerender="op_JobStatus"  immediate="false"/>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+            <script>
+                var generatedCertgrpId = '{!customextf.rstkf__whtcertwb_certgroup__c}';
+            </script>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_vars">
+            <apex:inputHidden id="glcmp__c" value="{!customextf.rstkf__custom_glcmp__c}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockSection id="pbs" columns="2" collapsible="false">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__whtcertwb_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtcertwb_glcmp__c.label}" />
+                    <apex:outputField value="{!customextf.rstkf__custom_glcmp__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+            
+                <apex:pageBlockSectionItem helptext="{!f.rstkf__whtcertwb_frvend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtcertwb_frvend__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="whtcertwb_frvend__c" objKey="customextf" cntr="{!controller}" query="select Id, Name from povendcmpno__c where povendcmpno_cmpno__c = 'prm' " queryParms="[['glcmp__c','Company']]"
+                                        tabIndex="1" slDesc="{!FrVendName}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__whtcertwb_certgroup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtcertwb_certgroup__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="whtcertwb_certgroup__c" 
+                                value="{!customextf.rstkf__whtcertwb_certgroup__c}"
+                                onchange="certgroupChanged();" 
+                                size="1" style="width:250px;" tabindex="15"> 
+                            <apex:selectOptions value="{!Apwhtcertgrps}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstkf__whtcertwb_thruvend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtcertwb_thruvend__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="whtcertwb_thruvend__c" objKey="customextf" cntr="{!controller}" query="select Id, Name from povendcmpno__c where povendcmpno_cmpno__c = 'prm' " queryParms="[['glcmp__c','Company']]"
+                                        tabIndex="1" slDesc="{!ToVendName}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="" />
+                    <apex:commandButton value="{!$Label.rstkf__btn_printcertificates}" onclick="printCertificates();return false;"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__whtcertwb_thrufiscalperiod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtcertwb_thrufiscalperiod__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="whtcertwb_thrufiscalperiod__c" value="{!customextf.rstkf__whtcertwb_thrufiscalperiod__c}" size="1" style="width:250px;" tabindex="15"> 
+                            <apex:selectOptions value="{!Glperiods}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="" />
+                    <apex:commandButton value="{!$Label.rstkf__btn_displaycertificates}" onclick="blockUI(); dodisplayCertificates();return false;"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__whtcertwb_certdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__whtcertwb_certdate__c.label}" />
+                    <apex:inputField Id="whtcertwb_certdate__c" value="{!customextf.rstkf__whtcertwb_certdate__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="" />
+                    <apex:commandButton value="{!$Label.rstkf__btn_generatecertificates}" onclick="blockUI(); generateCertificates();return false;"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <apex:outputpanel id="op_apcertlist">
+        <apex:relatedList list="apwhtcerts__r" id="apcertLists" />
+    </apex:outputpanel>
+    <script>
+        var displayCertList = '{!displayCertList}';
+        
+        function doAfterJobComplete(pl) {
+            window.open('/apex/WHTCertWB?id=' + generatedCertgrpId,'_self');
+        }
+        
+        function certgroupChanged() {
+            if(displayCertList == 'true') {
+                dodisplayCertificates();
+            }
+        }
+        
+        function dodisplayCertificates() {
+            var certgroup = sfffGetFieldValue('whtcertwb_certgroup__c');
+            if(certgroup.length > 0) {
+                window.open('/apex/WHTCertWB?id=' + certgroup,'_self');
+            }
+            else {
+                window.open('/apex/WHTCertWB','_self');
+            }
+        }
+        
+        function printCertificates() {
+            var glcmpId = '{!customextf.rstkf__custom_glcmp__c}';
+            var certgroupId = sfffGetFieldValue('whtcertwb_certgroup__c');
+            if(certgroupId == null || certgroupId.length == 0) {
+                alert("{!$Label.PlzSelectWHTCertificateGroupToPrint}");
+                return false;
+            }
+            
+            var apcntls = execQuery("select apcntl_whtcerttemplate__c from apcntl__c where apcntl_glcmp__c = '" + glcmpId + "'");
+            if(apcntls && apcntls.length > 0) {
+                if(apcntls[0].apcntl_whtcerttemplate__c == null || apcntls[0].apcntl_whtcerttemplate__c.length == 0) {
+                    alert("{!$Label.PlzConfigWHTCertTemplOnAPCNTL}");
+                    return false;
+                }
+            }
+            else {
+                alert("{!$Label.apcntlRecNotFound}");
+                return false;
+            }
+            
+            var whtcerttemplateId = apcntls[0].apcntl_whtcerttemplate__c;
+            if (isRootDoxWHTC){
+            	window.open('/apex/proxyMultiDoxPrintFin?batchid='+certgroupId+'&objectType=apwhtcert&templateId1='+whtcerttemplateId);
+            }else{
+            	var url = '/apex/WHTCertEmailTemplatePrint?id=' + certgroupId+'&emailtemplateid='+whtcerttemplateId;
+            	window.open(url, '', 'toolbar=0,resizeable=0');
+            }
+        }
+    </script>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+</apex:page>

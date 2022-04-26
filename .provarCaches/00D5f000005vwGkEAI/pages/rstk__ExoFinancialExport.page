@@ -1,0 +1,99 @@
+<apex:page id="pg" standardController="rstk__customext__c" extensions="rstk.ControllerExtnExoFinancialExport,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__customext__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+	
+	<c:standardHeader cntr="{!controller}" title="EXO Financial Export"/>
+	<script>
+		function salesexportChanged(el) {
+			if (el.checked) {
+				payablesExportEl.checked = false;
+				costtransExportEl.checked = false;
+			}
+		}
+		function payablesexportChanged(el) {
+			if (el.checked) {
+				salesExportEl.checked = false;
+				costtransExportEl.checked = false;
+			}
+		}
+		function costtransexportChanged(el) {
+			if (el.checked) {
+				payablesExportEl.checked = false;
+				salesExportEl.checked = false;
+			}
+		}
+		function doExport() {
+			if (!enddateEl.value) {
+				alert('Please enter an Ending Transaction (Accounting) Date.');
+				return;
+			}
+			if (!salesExportEl.checked && !payablesExportEl.checked && !costtransExportEl.checked) {
+				alert('Please select an export type.');
+				return;
+			}
+			blockUI();
+			document.getElementById('sytxnexportid').value = '';
+			document.getElementById('exportRecordsFound').value = '';
+			createExportData();
+		}
+		function doAfterCreateExportData() {
+			var sytxnexportid = document.getElementById('sytxnexportid').value;
+			if (!sytxnexportid) {
+				unblockUI();
+				alert('An error occurred while performing export');
+				return;
+			}
+			var exportRecordsFound = document.getElementById('exportRecordsFound').value;
+			if (exportRecordsFound == 'false') {
+				unblockUI();
+				alert('No qualifying records found for export');
+				return;
+			}
+			if (salesExportEl.checked) {
+				window.open('/apex/EXOFinancialExportCsv?exporttype=sales&sytxnexportid='+sytxnexportid);
+				window.open('/apex/EXOFinancialExportCsv?exporttype=salesje&sytxnexportid='+sytxnexportid);
+			} else if (payablesExportEl.checked) {
+				window.open('/apex/EXOFinancialExportCsv?exporttype=payables&sytxnexportid='+sytxnexportid);
+				window.open('/apex/EXOFinancialExportCsv?exporttype=payablesje&sytxnexportid='+sytxnexportid);
+			} else if (costtransExportEl.checked) {
+				window.open('/apex/EXOFinancialExportCsv?exporttype=costtrans&sytxnexportid='+sytxnexportid);
+			}
+			unblockUI();
+		}
+	</script>
+	<apex:form id="fm" rendered="{!displayPageContent}">
+    <apex:pageblock id="pb" mode="detail">
+    	<apex:actionFunction name="createExportData" action="{!createExportData}" oncomplete="doAfterCreateExportData()" rerender="pageMessages, op_sytxnexportid"/>
+        
+        <apex:outputPanel id="op_sytxnexportid">
+        	<input type="hidden" id="sytxnexportid" value="{!sytxnexportid}"/>
+        	<input type="hidden" id="exportRecordsFound" value="{!exportRecordsFound}"/>
+        </apex:outputPanel>
+    
+        <apex:pageblocksection id="pbs_header" columns="1">
+            <apex:outputField value="{!o.rstk__sycmp__c}"/>
+            
+            <apex:outputField value="{!o.rstk__div__c}"/>
+            
+            <apex:inputField id="transexport_enddate__c" value="{!o.rstk__transexport_enddate__c}" required="true"/>
+            
+            <apex:inputField id="transexport_exportsalesinvoices__c" value="{!o.rstk__transexport_exportsalesinvoices__c}" onchange="salesexportChanged(this)"/>
+            
+            <apex:inputField id="transexport_exportpayableinvoices__c" value="{!o.rstk__transexport_exportpayableinvoices__c}" onchange="payablesexportChanged(this)"/>
+            
+            <apex:inputField id="transexport_exportcosttrans__c" value="{!o.rstk__transexport_exportcosttrans__c}" onchange="costtransexportChanged(this)"/>
+            
+            <apex:pageblocksectionitem />
+            
+            <c:nosubmitbutton label="Generate Export Files" onclick="doExport();"/>
+            <script>
+            	var enddateEl = document.getElementById("{!$Component.transexport_enddate__c}");
+            	var salesExportEl = document.getElementById("{!$Component.transexport_exportsalesinvoices__c}");
+            	var payablesExportEl = document.getElementById("{!$Component.transexport_exportpayableinvoices__c}");
+            	var costtransExportEl = document.getElementById("{!$Component.transexport_exportcosttrans__c}");
+            </script>
+        </apex:pageblocksection>
+    </apex:pageblock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

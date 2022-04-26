@@ -1,0 +1,676 @@
+<apex:page controller="rstkf.ReportBuilderCon" standardStylesheets="false" >
+    
+    <apex:includeScript value="{!URLFOR($Resource.rstkf__jquery_ui_110,'/jquery-ui-1.10.0.custom/js/jquery-1.9.0.js')}" />
+    <apex:includeScript value="{!URLFOR ($Resource.rstkf__testcustomhierarchyjs)}"/>
+    <apex:includeScript value="{!URLFOR ($Resource.rstkf__jquerycontextmenu)}"/>
+    <apex:includeScript value="{!URLFOR ($Resource.rstkf__tagitthemeroller)}"/>
+	<apex:includeScript value="{!URLFOR ($Resource.rstkf__UnderscoreJS,'underscore-min.js')}"/>    
+    <apex:includeScript value="{!URLFOR ($Resource.rstkf__flatToNested)}"/>
+	    
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__testcustomjqueryui)}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__tagitcss)}"/>
+    
+    <script>
+	    var totalrecords;
+    
+		$(document).ready(function() {
+			initData();
+            buildcontextMenu();
+		});
+    
+		function initData() {
+		
+			Visualforce.remoting.Manager.invokeAction( 
+			    '{!$RemoteAction.ReportBuilderCon.reportHierarchy}', '{!frid}',
+			    function( result, event) {
+			        totalrecords = result;
+			        //console.log(totalrecords);
+			        checkErrors( event);
+			        if ( event.status) {
+			            //$item.attr('data-sobject-id', result);
+			            var flatToNested = new FlatToNested({id:'Id', parent: 'KNDY4__Parent_Financial_Report_Section__c', children:'children'});  
+			            var vglHierarchy = flatToNested.convert(result);
+			            console.log(vglHierarchy);
+                        if(vglHierarchy.hasOwnProperty('Id')){
+                            var hierarchynew = {};
+                            hierarchynew.children = [vglHierarchy];
+                            
+                            vglHierarchy = hierarchynew;
+                        }
+			            nestedHierarchy(vglHierarchy);
+			            buildHierarchy();
+			        } else { 
+			            //$item.remove(); 
+			        }
+			        
+			    } 
+			);
+
+			Visualforce.remoting.Manager.invokeAction( 
+			    '{!$RemoteAction.ReportBuilderCon.getglType}', 
+			    function( result, event) {
+			        if (event.status) { 
+			            buildglAccount(result);
+			        } else { 
+			        }
+			    } 
+			);		
+			
+		}    
+    
+	
+    function buildcontextMenu(){
+        $('#dvhierarchy').contextmenu({
+            delegate: ".ui-sortable",
+            autoFocus: true,
+            preventContextMenuForPopup: true,
+            preventSelect: true,
+            taphold: true,
+            menu: [
+                    {title: "Root", cmd: "root"},
+                    {title: "New Group", cmd: "group", uiIcon: "ui-icon-copy"}
+                  ],
+            // Handle menu selection to implement a fake-clipboard
+            select: function(event, ui) {
+                var $root = ui.target;
+                var parentid = $($root).attr('id');
+                var group = {};
+                switch(ui.cmd){
+                case "copy":
+                    CLIPBOARD = $target.text();
+                    break
+                case "root":
+                    var rootname = prompt("Enter new report header.");
+                    if(rootname != null){ 
+                        var newrootnode = {}
+                           newrootnode.parentid = null;
+                           newrootnode.groupname = rootname;
+                           newrootnode.category = 'Grouping';
+                            var groupnode = [];
+                            groupnode.push({
+                                //pId: parentStack[parentStack.length - 1],
+                                pid: null,
+                                name: rootname,
+                                frid: '{!frid}',
+                                category: 'Grouping'
+                            });
+                            addreportRemoteAction(groupnode,newrootnode);                        
+                    } 
+                    break
+                case "group":
+                    var groupname = prompt("Enter new group name.");
+                    
+                        if(groupname != null){    
+                           group.parentid = parentid;
+                           group.groupname = groupname;
+                           group.category = 'Grouping';
+                            var groupnode = [];
+                            groupnode.push({
+                                //pId: parentStack[parentStack.length - 1],
+                                pid: parentid,
+                                name: groupname,
+                                frid: '{!frid}',
+                                category: 'Grouping'
+                            });
+                            addreportRemoteAction(groupnode,group);
+                                
+                            
+                        }                        
+                    break
+                }
+                //alert("select " + ui.cmd + " on " + $target.text());
+                // Optionally return false, to prevent closing the menu now
+            },
+        });
+    }
+    
+	function addreportRemoteAction(groupnode,group){
+	    Visualforce.remoting.Manager.invokeAction( 
+	        '{!$RemoteAction.ReportBuilderCon.addReportItem}', 
+	        groupnode, function( result, event) {            
+	            checkErrors( event);
+	            console.log(result);
+	            if ( event.status ) { 
+	                if(group.category == 'Grouping'){
+	                    // First block to create Group node
+	                    if(group.parentid != null){
+	                        $('#dvhierarchy > ul li[id=' + group.parentid  + ']>ul').
+	                            append(
+		                            '<li id='+ result +' style="list-style:none;" rel="Grouping" data-parentid='+group.parentid +'>' +
+		                            '<img id='+ result +' width="15px" src="http://findicons.com/files/icons/2166/oxygen/48/list_remove.png"></img>' +
+		                            '<span>'+ group.groupname +'</span> - ' +
+		                            '<img src="http://findicons.com/files/icons/560/fast_icon_users/128/user_group.png" height="24px" width="24px" title="Group"></img>'+
+		                            '<ul class="ui-sortable"><li rel="dummyli" style="list-style:none"/></ul></li>'
+	                            );
+	                    } else { // Else for creating root node
+	                        $('#dvhierarchy > ul').
+	                            append(
+	                            	'<li id='+ result +' style="list-style:none;" rel="root">' +
+	                            	'<img id='+ result +' width="15px" src="http://findicons.com/files/icons/2166/oxygen/48/list_remove.png">'+ group.groupname +
+	                            	'<ul class="ui-sortable"></ul></li>'
+	                            	);                    		
+	                    } 
+	                } else { // Else block for creating data node.
+	                    $('#dvhierarchy > ul > li > ul li[id=' + glaccountdata.parentid  + ']>ul').
+	                        append(
+	                        	'<li id='+ result +' style="list-style:none" rel="data" data-parentid='+ glaccountdata.parentid +'>' +
+	                        	'<img id='+ result +' width="15px" src="http://findicons.com/files/icons/2166/oxygen/48/list_remove.png"/><span>' + glaccountdata.label +'</span> - ' +
+	                        	'<img src="http://findicons.com/files/icons/560/fast_icon_users/128/user_group.png" height="24px" width="24px" title="Group"></img>'+
+	                        	'<ul class="ui-sortable"></ul></li>'
+	                        	);
+	                }
+	                
+	                //Registering back deletenode()/deleterootNode()/deletedatanode() for group and root node delete
+	                deleteNodes();
+	                deleterootNode();
+	                deletedatanode();
+	                // Updating Report Sequence Order after creating new group.
+	                nodes = [];
+	                count = 0;
+	                gethierarchyOrder();
+	                updatereportRemoteAction(nodes);
+	            } 
+	        }
+	    );
+	}
+    
+    function updatereportRemoteAction(nodes) {
+        Visualforce.remoting.Manager.invokeAction( 
+            '{!$RemoteAction.ReportBuilderCon.updateReportItem}', 
+            nodes, function( result, event) {            
+                checkErrors( event);
+                console.log(result);
+                if ( event.status ) { 
+                    //  && $ui.remove(); 
+                    //reload(); // brute force the ui back into shape
+                } 
+            }
+        );
+    }
+    
+    function nestedHierarchy(vglHierarchy) {
+        if(vglHierarchy.hasOwnProperty('children') == true){
+            var nodeslength = vglHierarchy.children.length;
+            for(var i=0;i<nodeslength;i++){
+                //console.log(vglHierarchy.children[i]);
+                var isnotrootNode = vglHierarchy.children.hasOwnProperty('KNDY4__Parent_Financial_Report_Section__c');
+                //Creating root node
+                if(isnotrootNode === false){
+                    $('#dvhierarchy > ul').append('<li rel="root" data-order='+vglHierarchy.children[i]['KNDY4__Order__c']+' id='+vglHierarchy.children[i].Id+'><img id='+ vglHierarchy.children[i].Id +' width="15px" src="http://findicons.com/files/icons/2166/oxygen/48/list_remove.png">'+ vglHierarchy.children[i].Name +'<ul class="ui-sortable"></ul></li>');              
+                }
+                HasChildrens(vglHierarchy.children[i]);
+            }
+            function HasChildrens(parentnode){
+                var parentid = parentnode.Id;
+                if('children' in parentnode){
+                    for(var i=0;i<parentnode.children.length;i++){
+                        if(parentnode.children[i]['KNDY4__Section_Type__c'].toLowerCase() == 'grouping'){
+                            $('#dvhierarchy > ul li[id=' + parentid  + ']>ul').
+                            append('<li data-order='+parentnode.children[i]['KNDY4__Order__c']+' rel='+ parentnode.children[i]['KNDY4__Section_Type__c'] +' data-parentid='+ parentid +' id='+parentnode.children[i].Id+'><img id='+parentnode.children[i].Id+' width="15px" src="http://findicons.com/files/icons/2166/oxygen/48/list_remove.png"></img><span>'+ parentnode.children[i].Name +'</span> - <img src="http://findicons.com/files/icons/560/fast_icon_users/128/user_group.png" height="24px" width="24px" title="Group"></img><ul class="ui-sortable"><li rel="dummyli" style="list-style:none"/></ul></li>');
+                        }else{
+                            $('#dvhierarchy > ul li[id=' + parentid  + ']>ul').
+                            append('<li data-order='+parentnode.children[i]['KNDY4__Order__c']+' rel='+ parentnode.children[i]['KNDY4__Section_Type__c'] +' data-parentid='+ parentid +' id='+parentnode.children[i].Id+'><img id='+parentnode.children[i].Id+' width="15px" src="http://findicons.com/files/icons/2166/oxygen/48/list_remove.png"></img><span>'+ parentnode.children[i].Name +'</span> - <img src="http://findicons.com/files/icons/560/fast_icon_users/128/user_group.png" height="24px" width="24px" title="Group"></img><ul class="ui-sortable"></ul></li>');
+                        }
+                        HasChildrens(parentnode.children[i]);
+                    }
+                }
+            }
+        }
+    }
+    
+    
+    var glaccountdata = {};
+    function buildglAccount(result) {
+        
+        //result = _.pluck(result, 'Name');
+        var dataList = [];
+        $.each(result, function( idx, item ) {
+           	var data = { value: item.Id, label: item.Name};
+            dataList.push(data);
+        });
+        // Register tagit to glaccounts control
+        $("#glaccounts").tagit({
+            tagSource: dataList,
+           	triggerKeys:['enter', 'comma', 'tab'],
+            tagsChanged:function (event,ui) {
+                $('ul.tagit li.tagit-choice .tagit-close').css('position','relative');
+                $('.ui-state-default, .ui-widget-content .ui-state-default, .ui-widget-header .ui-state-default').css('background','#cfeef8 url(images/ui-bg_glass_85_dfeffc_1x400.png) 50% 50% repeat-x');
+                //Get the tags            
+                var tags = $('#glaccounts').tagit('tags');
+                glaccountdata.label = tags[tags.length-1].label;
+                glaccountdata.id = tags[tags.length-1].value;
+               
+            }
+        });
+        // glaccounts sortable
+        $("#glaccounts").sortable({
+             connectWith: "ul",
+             placeholder: "ui-state-highlight",
+             stop: function(event,ui){
+                if($(ui.item).hasClass("tagit-choice")){
+                   
+                    var gltype = $(ui.item);
+                    var parentid = $(ui.item).parent().parent().attr('id');
+                    glaccountdata.parentid = parentid;
+                    
+                    var group = {};
+                    group.category = 'Data';
+                    var groupnode = [];
+                    groupnode.push({
+                        //pId: parentStack[parentStack.length - 1],
+                        pid: parentid,
+                        name: glaccountdata.label,
+                        frid: '{!frid}',
+                        category: 'Data'
+                    });
+                    // Logic not to drag&drop gltype only as Data
+                    if($(gltype).parents('li:first').length > 0
+                      	&& $(gltype).parents('li:first').attr('rel').toLowerCase() == 'grouping'){
+                        $(gltype).remove();
+                        addreportRemoteAction(groupnode,group); 
+                        console.log('within group node');
+                       
+                    }else{
+                        $(this).sortable('cancel');
+                    }    
+                }
+             }
+        });
+    }
+    
+    // Function to set report hierarchy using sortable.
+    function buildHierarchy() {
+         $("#dvhierarchy ul").sortable({
+                connectWith: "#dvhierarchy ul",
+                placeholder: "ui-state-highlight",
+             	stop: function(event,ui){
+                   
+                    //var parentid = $(ui.item).parents('li:first').attr('id');
+                    if($(ui.item).attr('rel') != 'root' && $(ui.item).attr('rel').toLowerCase() != 'data'){
+                        var parentid = $(ui.item).parent().parent().attr('id');
+                        var currentitem = ($(ui.item));
+                        $(currentitem).attr('data-parentid',parentid);
+                        
+                         // Updating Report Sequence Order.
+                        nodes = [];
+                        count = 0;
+                        
+                        nodes = [];
+		                count = 0;
+                        if($(ui.item).attr('rel').toLowerCase() == 'grouping' && ($(ui.item).prev().attr('rel') == 'grouping' || $(ui.item).next().attr('rel') == 'grouping'))
+                        {
+                            gethierarchyOrder();
+                            updatereportRemoteAction(nodes);
+                        }
+                        return true;
+                    }
+                    // Logic not to get dragged 'Data node' over 'Group/Root' node 
+                    if($(ui.item).attr('rel').toLowerCase() == 'data' && ($(ui.item).prev().attr('rel') == 'data' || $(ui.item).next().attr('rel') == 'data'
+                       ||$(ui.item).prev().attr('rel') == 'dummyli'))
+                    {
+                        nodes = [];
+                        count = 0;
+                        gethierarchyOrder();
+                        updatereportRemoteAction(nodes);
+                    }else
+                    {
+                        $(this).sortable('cancel'); 
+                    }
+                    
+                   
+                }
+               
+		});
+        
+        // Building context menu
+        $('#dvhierarchy').contextmenu({
+            delegate: ".ui-sortable",
+            autoFocus: true,
+            preventContextMenuForPopup: true,
+            preventSelect: true,
+            taphold: true,
+            menu: [
+                    {title: "Root", cmd: "root"},
+                    {title: "New Group", cmd: "group", uiIcon: "ui-icon-copy"}
+                  ],
+            // Handle menu selection to implement a fake-clipboard
+            select: function(event, ui) {
+                var $root = ui.target;
+                var parentid = $($root).attr('id');
+                var group = {};
+                // If clause to make sure group can be created from root node only
+                //if(typeof parentid != 'undefined'){
+                    
+                    switch(ui.cmd){
+                        case "copy":
+                            CLIPBOARD = $target.text();
+                            break
+                            case "root":
+                            var rootname = prompt("Enter new report header.");
+                            if(rootname != null){ 
+                                var newrootnode = {}
+                                newrootnode.parentid = null;
+                                newrootnode.groupname = rootname;
+                                newrootnode.category = 'Grouping';
+                                var groupnode = [];
+                                groupnode.push({
+                                    //pId: parentStack[parentStack.length - 1],
+                                    pid: null,
+                                    name: rootname,
+                                    frid: '{!frid}',
+                                    category: 'Grouping'
+                                });
+                                addreportRemoteAction(groupnode,newrootnode);                        
+                            } 
+                            break
+                            case "group":
+                            var groupname = prompt("Enter new group name.");
+                            
+                            if(groupname != null){    
+                                group.parentid = parentid;
+                                group.groupname = groupname;
+                                group.category = 'Grouping';
+                                var groupnode = [];
+                                groupnode.push({
+                                    //pId: parentStack[parentStack.length - 1],
+                                    pid: parentid,
+                                    name: groupname,
+                                    frid: '{!frid}',
+                                    category: 'Grouping'
+                                });
+                                addreportRemoteAction(groupnode,group);
+                                
+                                
+                            }                        
+                            break
+                    }
+                //}else
+                //{
+                //    alert('Group can not be created');
+                //}
+                    
+                //alert("select " + ui.cmd + " on " + $target.text());
+                // Optionally return false, to prevent closing the menu now
+            },
+        });
+        
+        
+        // Removing bullets from ul
+        $("#dvhierarchy > ul  li").css('list-style','none');
+        
+        //Registering delete group node function
+        deleteNodes();
+        //Registering delete root and data node function
+        deleterootNode();deletedatanode();
+        // Making slideToggle Groups
+        /*$('#dvhierarchy > ul > li') .click(function(){
+          $(this).children('ul').slideToggle();
+          return false;
+        });*/
+        
+        // Getting report hierarchy order
+        //gethierarchyOrder();
+        
+    }
+    
+   // Function to invoke Remoteaction to remove/delete root/group/data node.
+   function invokereportDeleteRemoteaction(deleteids,message) {
+		Visualforce.remoting.Manager.invokeAction( 
+		    '{!$RemoteAction.ReportBuilderCon.removeReportIds}', 
+		    deleteids, function( result, event) {            
+		        checkErrors( event);
+		        console.log(result);
+		        if ( event.status ) { 
+		            console.log(message); 
+		        } 
+		    }
+		);
+   } 
+    
+   // Deleting root node only when cross image clicked
+   function deleterootNode() {
+        $('#dvhierarchy > ul > li[rel="root"] > img').on("click",function(){
+            if(confirm("Deleting this node will remove all group and linked childrens. Delete " + $(this).text() + " ?")) {
+                var deleteids = [];
+                var rootnodeid = $(this).attr('id');
+                //var rootnodeid = $('#dvhierarchy > ul > li[id="a1115000004FXp6AAG"] > ul li').parents('li:first').attr('id')
+                deleteids.push(rootnodeid);
+                
+                // Pushing group and children ids into the deleteids array
+                $(this).parents('li:first').find('ul li').each(function(){
+	                if($(this).attr('id') != undefined){
+	                    deleteids.push($(this).attr('id'))
+	                }
+            	});
+               
+                invokereportDeleteRemoteaction(deleteids,'Root node removed successfully');
+                
+                $(this).parent().remove();
+            }
+            
+        });
+    } 
+    
+    // Deleting data node only when cross image clicked
+    function deletedatanode() {
+    	$('#dvhierarchy > ul > li > ul  li[rel="data"] > img').on("click",function(){
+			if(confirm("Deleting this node will remove current data node. Delete " + $(this).text() + " ?")) {
+		   		 var deleteid = [];
+		   		 deleteid.push($(this).parent().attr('id'));
+		         
+		         invokereportDeleteRemoteaction(deleteid,'Data node removed successfully.');  
+		           
+              	 $(this).parent().remove();
+            }
+    	});
+    }
+    
+    // Deleting group and underneath childrens once click on close icon
+    function deleteNodes() {
+        $('#dvhierarchy > ul > li > ul > li[rel="grouping"] > img').on("click",function(){
+            if(confirm("Deleting this node will remove all childrens. Delete " + $(this).text() + " ?")) {
+                var deleteids = [];
+                deleteids.push($(this).parent().attr('id'));
+                
+                $(this).parent().find('li').each(function(){
+                    deleteids.push($(this).attr('id'));
+                });
+                
+                invokereportDeleteRemoteaction(deleteids,'Group node removed successfully.');
+                $(this).parent().remove();
+            }
+        });
+    }
+    
+
+    var nodes = [];
+    var count = 0;
+	function gethierarchyOrder(obj) {
+	    var parentStack = [];
+	    var result = {};
+	        
+		parentStack.push(0);
+	    var obj = obj || document.getElementById('dvhierarchy');
+	    //Note: Dummyli condition not to add this li while building hierarchy since this is dummy
+	    //li to drag and gl type to report structure.
+	    if (obj.tagName == 'LI' && $(obj).attr('rel') != 'dummyli') {
+	        ++count;
+			nodes.push({
+				pid: $(obj).attr('data-parentid'),
+				category: $(obj).attr('rel'), 
+				myId: $(obj).attr('id'),
+				order: count
+			});
+	    }
+	    
+	    if (obj.hasChildNodes()) {
+	        var child = obj.firstChild;
+	        while (child) {
+	            if (child.nodeType === 1) {
+	                if (child.tagName == 'UL') {
+	                    parentStack.push(count);
+	                }
+	                
+	                gethierarchyOrder(child);
+	                
+	                if (child.tagName == 'UL') {
+	                    parentStack.pop();
+	                }
+	            }
+	            child = child.nextSibling;
+	        }
+	    }
+	    
+	}
+    
+    function checkErrors ( event ) { 
+        if (event.status) { $('#responseErrors').hide(); return; }
+        $('#responseErrors').text( event.message + ' Please reload the page.').show();
+    }
+    </script>
+    
+    <div>
+        <apex:sectionHeader title="Build Report" subtitle="{!fr['name']}" />
+        <div id="responseErrors"  class="message  errorM4" style="display:none;"></div>
+    </div>
+
+    <div class="reportlegend">
+	    <ul class="legend">
+	        <li><span class="grouping"></span> Grouping</li>
+	        <li><span class="data"></span> Data</li>
+	    </ul>
+    </div>
+    <div style="float:right;position:fixed;left:800px;top:200px;">
+		Search GL Accounts to Create Data Section
+        <ul id="glaccounts" style="border:2px solid #1797c0;border-radius:5px;"/>
+    </div>
+    
+    <div id="dvhierarchy">
+        <ul class="ui-sortable ulborderstyle"/>
+    </div>
+    
+	<style>
+    
+		/* basic positioning */
+		.ulborderstyle{
+		    border: 2px solid #1797c0;
+		    border-radius: 15px;
+		    padding: 20px;
+		    width: 409px;
+		 background:#CFEEF8;
+		}
+		.reportlegend{
+		    border: 2px solid #1797c0;
+		    border-radius: 5px;
+		    padding-bottom: 20px;
+		    width: 450px;
+		    padding: 0;
+		    color: #fff;
+		    background: #1797c0 url('/img/alohaSkin/sidebar_sprite.png') -209px -34px no-repeat;
+		}
+		.legend { list-style: none; }
+		.legend li { float: left; margin-right: 10px; }
+		.legend span { float: left; width: 20px; height: 14px; margin: 2px; }
+		.legend .rootnode { content:url("http://findicons.com/files/icons/1742/ecqlipse_2/128/user_m.png"); }
+		.legend .grouping { content:url("http://findicons.com/files/icons/560/fast_icon_users/128/user_group.png"); }
+		.legend .data { content:url("http://findicons.com/files/icons/1588/farm_fresh_web/32/report.png"); }
+		        
+		cf:after { visibility: hidden; display: block; font-size: 0; content: " "; clear: both; height: 0; }
+		* html .cf { zoom: 1; }
+		*:first-child+html .cf { zoom: 1; }
+		/**
+		 * Nestable
+		 */
+		.dd { position: relative; display: block; margin: 0; padding: 0; max-width: 600px; list-style: none; font-size: 13px; line-height: 20px; }
+		.dd-list { display: block; position: relative; margin: 0; padding: 0; list-style: none; }
+		.dd-list .dd-list { padding-left: 30px; }
+		.dd-collapsed .dd-list { display: none;}
+		.dd-item {margin:0 1em 1em 0;},
+		.dd-empty,
+		.dd-placeholder { display: block; position: relative; margin: 0; padding: 0; min-height: 20px; font-size: 13px; line-height: 20px; }
+		.dd-handle { display: block; height: 30px; margin: 5px 0; padding: 5px 10px; color: #333; text-decoration: none; font-weight: bold; border: 1px solid #ccc;
+		    background: #fafafa;
+		    background: -webkit-linear-gradient(top, #fafafa 0%, #eee 100%);
+		    background:    -moz-linear-gradient(top, #fafafa 0%, #eee 100%);
+		    background:         linear-gradient(top, #fafafa 0%, #eee 100%);
+		    -webkit-border-radius: 3px;
+		            border-radius: 3px;
+		    box-sizing: border-box; -moz-box-sizing: border-box;
+		
+		}
+		.dd-handle:hover { color: #2ea8e5; background: #fff; }
+		.dd-item > button { display: block; position: relative; cursor: pointer; float: left; width: 25px; height: 20px; margin: 5px 0; padding: 0; text-indent: 100%; white-space: nowrap; overflow: hidden; border: 0; background: transparent; font-size: 12px; line-height: 1; text-align: center; font-weight: bold; }
+		.dd-item > button:before { content: '+'; display: block; position: absolute; width: 100%; text-align: center; text-indent: 0; }
+		.dd-item > button[data-action="collapse"]:before { content: '-'; }
+		.dd-placeholder,
+		.dd-empty { margin: 5px 0; padding: 0; min-height: 30px; background: #f2fbff; border: 1px dashed #b6bcbf; box-sizing: border-box; -moz-box-sizing: border-box; }
+		.dd-empty { border: 1px dashed #bbb; min-height: 100px; background-color: #e5e5e5;
+		    background-image: -webkit-linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff),
+		                      -webkit-linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff);
+		    background-image:    -moz-linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff),
+		                         -moz-linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff);
+		    background-image:         linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff),
+		                              linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff);
+		    background-size: 60px 60px;
+		    background-position: 0 0, 30px 30px;
+		}
+		.dd-dragel { position: absolute; pointer-events: none; z-index: 9999; }
+		.dd-dragel > .dd-item .dd-handle { margin-top: 0; }
+		.dd-dragel .dd-handle {
+		    -webkit-box-shadow: 2px 4px 6px 0 rgba(0,0,0,.1);
+		            box-shadow: 2px 4px 6px 0 rgba(0,0,0,.1);
+		}
+		/**
+		 * Nestable Extras
+		 */
+		.nestable-lists { display: block; clear: both; padding: 30px 0; width: 100%; border: 0; border-top: 2px solid #ddd; border-bottom: 2px solid #ddd; }
+		#nestable-menu { padding: 0; margin: 20px 0; }
+		#nestable-output,
+		#nestable2-output { width: 100%; height: 7em; font-size: 0.75em; line-height: 1.333333em; font-family: Consolas, monospace; padding: 5px; box-sizing: border-box; -moz-box-sizing: border-box; }
+		#nestable2 .dd-handle {
+		    color: #fff;
+		    border: 1px solid #999;
+		    background: #bbb;
+		    background: -webkit-linear-gradient(top, #bbb 0%, #999 100%);
+		    background:    -moz-linear-gradient(top, #bbb 0%, #999 100%);
+		    background:         linear-gradient(top, #bbb 0%, #999 100%);
+		}
+		#nestable2 .dd-handle:hover { background: #bbb; }
+		#nestable2 .dd-item > button:before { color: #fff; }
+		@media only screen and (min-width: 700px) {
+		    .dd { float: left; width: 48%; }
+		    .dd + .dd { margin-left: 2%; }
+		}
+		.dd-hover > .dd-handle { background: #2ea8e5 !important; }
+		/**
+		 * Nestable Draggable Handles
+		 */
+		.dd3-content { display: block; height: 30px; margin: 5px 0; padding: 5px 10px 5px 40px; color: #333; text-decoration: none; font-weight: bold; border: 1px solid #ccc;
+		    background: #fafafa;
+		    background: -webkit-linear-gradient(top, #fafafa 0%, #eee 100%);
+		    background:    -moz-linear-gradient(top, #fafafa 0%, #eee 100%);
+		    background:         linear-gradient(top, #fafafa 0%, #eee 100%);
+		    -webkit-border-radius: 3px;
+		            border-radius: 3px;
+		    box-sizing: border-box; -moz-box-sizing: border-box;
+		}
+		.dd3-content:hover { color: #2ea8e5; background: #fff; }
+		.dd-dragel > .dd3-item > .dd3-content { margin: 0; }
+		.dd3-item > button { margin-left: 30px; }
+		.dd3-handle { position: absolute; margin: 0; left: 0; top: 0; cursor: pointer; width: 30px; text-indent: 100%; white-space: nowrap; overflow: hidden;
+		    border: 1px solid #aaa;
+		    background: #ddd;
+		    background: -webkit-linear-gradient(top, #ddd 0%, #bbb 100%);
+		    background:    -moz-linear-gradient(top, #ddd 0%, #bbb 100%);
+		    background:         linear-gradient(top, #ddd 0%, #bbb 100%);
+		    border-top-right-radius: 0;
+		    border-bottom-right-radius: 0;
+		}
+		.dd3-handle:before { content: '≡'; display: block; position: absolute; left: 0; top: 3px; width: 100%; text-align: center; text-indent: 0; color: #fff; font-size: 20px; font-weight: normal; }
+		.dd3-handle:hover { background: #ddd; }
+    
+    
+	</style>
+    
+    
+</apex:page>

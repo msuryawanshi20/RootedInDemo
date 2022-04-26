@@ -1,0 +1,250 @@
+<apex:page id="pg" standardController="rstk__socust__c" extensions="rstk.ControllerExtnSocustacctinquiry" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="f" value="{!$ObjectType.rstk__socust__c.fields}" />
+    <apex:variable var="f_soline" value="{!$ObjectType.rstk__soline__c.fields}" />
+    <apex:variable var="f_soshipline" value="{!$ObjectType.rstk__soshipline__c.fields}" />
+	<apex:variable var="f_soinv" value="{!$ObjectType.rstk__soinv__c.fields}" />
+	<apex:variable var="f_socaddr" value="{!$ObjectType.rstk__socaddr__c.fields}" />
+	<apex:variable var="f_socontract" value="{!$ObjectType.rstk__socontract__c.fields}" />
+ 
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_socustacctinquiry}" customInclude="{!$Resource.rstk__socustacctinquiry_cli}" />
+	<style>
+	    .Processing
+	    {
+	        position: fixed;
+	        background: url({!$Resource.rstk__busy});
+	        background-repeat: no-repeat;
+	        background-position: center;
+	        width: 100%;
+	        height: 100%;
+	        z-index: 2004;
+	        left: 0%;
+	        top: 0%;
+	    }
+	</style>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    	<apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+    	<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    	<apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+  
+        <apex:actionFunction name="RefreshSalesOrder" action="{!doRefreshSalesOrder}" oncomplete="formatLocaleOutputFields();unblockUI(); " rerender="op_SalesOrders, pageMessages" immediate="false"/>
+		<apex:actionFunction name="RefreshSOShipper" action="{!doRefreshSOShipper}" oncomplete="formatLocaleOutputFields();unblockUI();" rerender="op_SOShippers, pageMessages" immediate="false"/>
+		<apex:actionFunction name="RefreshInvoice" action="{!doRefreshInvoice}" oncomplete="formatLocaleOutputFields();unblockUI();" rerender="op_Invoices, pageMessages" immediate="false"/>
+		<apex:actionFunction name="RefreshContracts" action="{!doRefreshContracts}" oncomplete="formatLocaleOutputFields();unblockUI();" rerender="op_SalesContracts, pageMessages" immediate="false"/>
+
+        <apex:actionFunction name="prevAddrPage" action="{!prevAddrPage}" rerender="pbs_Addresses" status="statusProcessing"/>
+        <apex:actionFunction name="nextAddrPage" action="{!nextAddrPage}" rerender="pbs_Addresses" status="statusProcessing"/>
+		
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socust_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socust_custno__c.label}"/>
+                   <apex:outputField value="{!socust.rstk__socust_custno__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socust_maxunbilled__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socust_maxunbilled__c.label}"/>
+                    <c:inputField id="socust_maxunbilled__c" required="false" cntr="{!controller}" disabled="true" width="110px;text-align:right;" tabIndex="21"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socust_sf_account__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socust_sf_account__c.label}"/>
+                    <apex:outputField value="{!socust.rstk__socust_sf_account__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socust_unbilledorders__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socust_unbilledorders__c.label}"/>
+					<c:inputField id="socust_unbilledorders__c" required="false" cntr="{!controller}" disabled="true" width="110px;text-align:right;" tabIndex="22"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socust_creditlimit__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socust_creditlimit__c.label}"/>
+                    <c:inputField id="socust_creditlimit__c" required="false" cntr="{!controller}" disabled="true" width="110px;text-align:right;" tabIndex="23"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socust_custcurr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socust_custcurr__c.label}"/>
+                    <apex:outputField value="{!socust.rstk__socust_custcurr__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socust_arbalance__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socust_arbalance__c.label}"/>
+                    <c:inputField id="socust_arbalance__c" required="false" cntr="{!controller}" disabled="true" width="110px;text-align:right;" tabIndex="24"/>
+                </apex:pageBlockSectionItem>
+                                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socust_maintcurrind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socust_maintcurrind__c.label}"/>
+                    <c:inputField id="socust_maintcurrind__c" required="false" cntr="{!controller}" disabled="true" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+			<br />	
+			
+			<apex:tabPanel switchType="client" selectedTab="tab_SalesOrders" id="theTabPanel">
+        		<apex:tab label="{!$Label.rstk__pagetab_socustacctinquiry_salesorders}" name="tab_SalesOrders" id="tab_SalesOrders">
+        			<apex:pageBlockSection id="pbs_SalesOrders" showHeader="false" columns="1">
+        				<apex:outputPanel id="op_SalesOrders">
+        					<apex:inputCheckbox id="SO_OpenOnly" onclick="verifiedSOOpenOnly(this.checked);" value="{!SOOpenOnly}"/><apex:outputLabel value="Open Orders Only"/> &nbsp; &nbsp; &nbsp; &nbsp; 
+        					<apex:inputCheckbox id="SO_InvOnly" onclick="verifiedSOInvOnly(this.checked);" value="{!SOInvOnly}"/><apex:outputLabel value="Invoiced Orders Only"/>
+							<br /> 
+							<apex:outputLabel value="{!$Label.rstk__duefromdate}"/>&nbsp; <apex:inputText id="SO_FrDate" styleClass="cssbody" value="{!SOFrDate}" size="10" onfocus="DatePicker.pickDate(false, 'pg:fm:pb:pbs_SalesOrders:SO_FrDate', false);"/> &nbsp; &nbsp; &nbsp; &nbsp; 
+							<apex:outputLabel value="{!$Label.rstk__duethrudate}"/>&nbsp; <apex:inputText id="SO_DueDate" styleClass="cssbody" value="{!SODueDate}" size="10" onfocus="DatePicker.pickDate(false, 'pg:fm:pb:pbs_SalesOrders:SO_DueDate', false);"/> &nbsp; &nbsp; &nbsp; &nbsp; 
+        					<apex:outputPanel >
+			        			<apex:outputLabel value="{!$Label.rstk__productnumber}"/>&nbsp; 
+			       				<apex:selectlist size="1" id="SO_Product" value="{!SOProduct}">
+									<apex:selectOptions value="{!Soprods}"/>
+								</apex:selectlist>
+				       		</apex:outputPanel>
+        					<br />
+		        	 		<apex:commandButton id="SO_button" value="{!$Label.rstk__pagebtn_socustacctinquiry_refreshsalesorders}" onclick="blockUI(); RefreshSalesOrder(); return false;"/>
+		        	 		<br />
+		        	 		<br />
+		        	 		<apex:pageBlockTable id="pbt_SalesOrders" value="{!SalesOrders}" var="so">
+		        	 			<apex:column headerValue="{!$Label.rstk__sales_order}"><apex:outputLink value="{!URLFOR($Action.rstk__sohdr__c.Edit, so.so_id)}{!ReturnUrlParms}"><apex:outputLabel value="{!so.so_order}"/></apex:outputLink></apex:column>
+		        	 			<apex:column headerValue="{!f_soline.rstk__soline_line__c.label}" value="{!so.so_line}"/>
+		        	 			<apex:column headerValue="{!$Label.rstk__productnumber}" value="{!so.so_prod}"/>
+		        	 			<apex:column headerValue="{!$Label.rstk__orderqty}" style="text-align:right;"><apex:outputText html-decimals="2" value="{!so.so_qtyord}" /></apex:column>
+		        	 			<apex:column headerValue="{!f_soline.rstk__soline_price__c.label}" style="text-align:right;"><apex:outputText html-decimals="2" value="{!so.so_price}" /></apex:column>
+		        	 			<apex:column headerValue="{!f_soline.rstk__soline_duedate__c.label}" style="text-align:right;" value="{!so.so_duedate}"/>
+		        	 		</apex:pageBlockTable>
+        				</apex:outputPanel>
+        			</apex:pageBlockSection>
+        		</apex:tab>
+        		
+        		<apex:tab label="{!$Label.rstk__pagetab_socustacctinquiry_salesordershippers}" name="tab_SOShippers" id="tab_SOShippers">
+        			<apex:pageBlockSection id="pbs_SOShippers" showHeader="false" columns="1">
+        				<apex:outputPanel id="op_SOShippers">
+        					<apex:outputLabel value="{!$Label.rstk__fromdate}"/>&nbsp; <apex:inputText id="SOSH_FrDate" styleClass="cssbody" value="{!SOSHFrDate}" size="10" onfocus="DatePicker.pickDate(false, 'pg:fm:pb:pbs_SOShippers:SOSH_FrDate', false);"/> &nbsp; &nbsp; &nbsp; &nbsp;
+        					<apex:outputLabel value="{!$Label.rstk__thrudate}"/>&nbsp; <apex:inputText id="SOSH_ThDate" styleClass="cssbody" value="{!SOSHThDate}" size="10" onfocus="DatePicker.pickDate(false, 'pg:fm:pb:pbs_SOShippers:SOSH_ThDate', false);"/>
+        					<br /> 
+        					<apex:outputPanel >
+			        			<apex:outputLabel value="{!$Label.rstk__productnumber}"/>&nbsp; 
+			       				<apex:selectlist size="1" id="SOSH_Product" value="{!SOSHProduct}">
+									<apex:selectOptions value="{!Soprods}"/>
+								</apex:selectlist>
+				       		</apex:outputPanel>
+				       		<br />
+        					<apex:commandButton id="SOSH_button" value="{!$Label.rstk__pagebtn_socustacctinquiry_refreshsalesordershippers}" onclick="blockUI(); RefreshSOShipper(); return false;"/>
+		        	 		<br />
+        					<br />
+        					<apex:pageBlockTable id="pbt_SOShippers" value="{!SOShippers}" var="sh">
+		        	 			<apex:column headerValue="{!$Label.rstk__sales_order}"><apex:outputLink value="{!URLFOR($Action.rstk__sohdr__c.Edit, sh.sosh_order_id)}{!ReturnUrlParms}"><apex:outputLabel value="{!sh.sosh_order}"/></apex:outputLink></apex:column>
+		        	 			<apex:column headerValue="{!$Label.rstk__pagetitle_soship}"><apex:outputLink value="{!URLFOR($Action.rstk__soship__c.View, sh.sosh_ship_id)}{!ReturnUrlParms}"><apex:outputLabel value="{!sh.sosh_shipper}"/></apex:outputLink></apex:column>
+		        	 			<apex:column headerValue="{!f_soline.rstk__soline_line__c.label}" value="{!sh.sosh_line}"/>
+		        	 			<apex:column headerValue="{!$Label.rstk__packingslip}" value="{!sh.sosh_packslip}"/>
+		        	 			<apex:column headerValue="{!$Label.rstk__productnumber}" value="{!sh.sosh_prod}"/>
+		        	 			<apex:column headerValue="{!$Label.rstk__date}" style="text-align:right;" value="{!sh.sosh_dateship}"/>
+		        	 			<apex:column headerValue="{!f_soshipline.rstk__soshipline_qtyship__c.label}"><apex:outputText html-decimals="2" style="text-align:right;" value="{!sh.sosh_qtyship}" /></apex:column>
+		        	 		</apex:pageBlockTable>
+		        	 	</apex:outputPanel>
+        			</apex:pageBlockSection>
+        		</apex:tab>
+        		
+        		<apex:tab label="{!$Label.rstk__pagetab_socustacctinquiry_invoices}" name="tab_Invoices" id="tab_Invoices">
+        			<apex:pageBlockSection id="pbs_Invoices" showHeader="false" columns="1">
+        				<apex:outputPanel id="op_Invoices">
+							<apex:outputLabel value="{!$Label.rstk__fromdate}"/>&nbsp; <apex:inputText id="Inv_FrDate" styleClass="cssbody" value="{!InvFrDate}" size="10" onfocus="DatePicker.pickDate(false, 'pg:fm:pb:pbs_Invoices:Inv_FrDate', false);"/> &nbsp; &nbsp; &nbsp; &nbsp;
+        					<apex:outputLabel value="{!$Label.rstk__thrudate}"/>&nbsp; <apex:inputText id="Inv_ThDate" styleClass="cssbody" value="{!InvThDate}" size="10" onfocus="DatePicker.pickDate(false, 'pg:fm:pb:pbs_Invoices:Inv_ThDate', false);"/>
+        					<br />
+        					<apex:commandButton id="Inv_button" value="{!$Label.rstk__pagebtn_socustacctinquiry_refreshinvoices}" onclick="blockUI(); RefreshInvoice(); return false;"/>
+		        	 		<br />
+        					<br />
+        					<apex:pageBlockTable id="pbt_Invoices" value="{!Invoices}" var="i">
+		        	 			<apex:column headerValue="{!$Label.rstk__invoice1}"><apex:outputLink value="{!URLFOR($Action.rstk__soinv__c.View, i.inv_id)}{!ReturnUrlParms}"><apex:outputLabel value="{!i.inv_invoice}"/></apex:outputLink></apex:column>
+		        	 			<apex:column headerValue="{!$Label.rstk__date}" style="text-align:right;" value="{!i.inv_invdate}"/>
+		        	 			<apex:column headerValue="{!f_soinv.rstk__soinv_total__c.label}" style="text-align:right;"><apex:outputText html-decimals="2" value="{!i.inv_total}" /></apex:column>
+		        	 			<apex:column headerValue="{!$Label.rstk__salestax}" style="text-align:right;"><apex:outputText html-decimals="2" value="{!i.inv_taxamt}" /></apex:column>
+		        	 			<apex:column headerValue="{!$Label.rstk__shiphandling}" style="text-align:right;"><apex:outputText html-decimals="2" value="{!i.inv_shiphandle}" /></apex:column>
+		        	 			<apex:column headerValue="{!$Label.rstk__discount}" style="text-align:right;"><apex:outputText html-decimals="2" value="{!i.inv_discount}" /></apex:column>
+		        	 			<apex:column headerValue="{!f_soinv.rstk__soinv_grandtotal__c.label}" style="text-align:right;"><apex:outputText html-decimals="2" value="{!i.inv_grandtotal}" /></apex:column>
+		        	 		</apex:pageBlockTable>
+		        	 	</apex:outputPanel>
+        			</apex:pageBlockSection>
+        		</apex:tab>
+        		
+        		<apex:tab label="{!$Label.rstk__pagetab_socustacctinquiry_addresses}" name="tab_Addresses" id="tab_Addresses">
+        			<apex:pageBlockSection id="pbs_Addresses" showHeader="false" columns="1">
+       				<apex:outputPanel >
+	       				<apex:outputPanel rendered="{!OR(dispNextAddr, dispPrevAddr)}">
+							<apex:outputLink value="javascript:prevAddrPage()" styleclass="next" disabled="{!!dispPrevAddr}">&lt;{!$Label.PreviousPage}</apex:outputLink>&nbsp;|&nbsp;
+							<apex:outputLink value="javascript:nextAddrPage()" styleclass="next" disabled="{!!dispNextAddr}">{!$Label.NextPage}&gt;</apex:outputLink>
+						</apex:outputPanel>
+					</apex:outputPanel>
+       				  <apex:pageBlockTable value="{!socaddrs}" var="caddr">
+    					<apex:column headerValue="{!$Label.rstk__seq}"><apex:outputField id="socaddr_seq__c" value="{!caddr.rstk__socaddr_seq__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__address1}"><apex:outputField id="socaddr_address1__c" value="{!caddr.rstk__socaddr_address1__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__address2}"><apex:outputField id="socaddr_address2__c" value="{!caddr.rstk__socaddr_address2__c}"/></apex:column>
+    					<apex:column headerValue="{!f_socaddr.rstk__socaddr_city__c.label}"><apex:outputField id="socaddr_city__c" value="{!caddr.rstk__socaddr_city__c}"/></apex:column>
+    					<apex:column headerValue="{!f_socaddr.rstk__socaddr_state__c.label}"><apex:outputField id="socaddr_state__c" value="{!caddr.rstk__socaddr_state__c}"/></apex:column>
+    					<apex:column headerValue="{!f_socaddr.rstk__socaddr_zip__c.label}"><apex:outputField id="socaddr_zip__c" value="{!caddr.rstk__socaddr_zip__c}"/></apex:column>
+    					<apex:column headerValue="{!f_socaddr.rstk__socaddr_country__c.label}"><apex:outputField id="socaddr_country__c" value="{!caddr.rstk__socaddr_country__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__phone}"><apex:outputField id="socaddr_phone__c" value="{!caddr.rstk__socaddr_phone__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__email}"><apex:outputField id="socaddr_email__c" value="{!caddr.rstk__socaddr_email__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__asbillto}"><apex:outputField id="socaddr_useasbillto__c" value="{!caddr.rstk__socaddr_useasbillto__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__dfltbillto}"><apex:outputField id="socaddr_defaultbillto__c" value="{!caddr.rstk__socaddr_defaultbillto__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__asack}"><apex:outputField id="socaddr_useasack__c" value="{!caddr.rstk__socaddr_useasack__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__dfltack}"><apex:outputField id="socaddr_defaultack__c" value="{!caddr.rstk__socaddr_defaultack__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__asshipto}"><apex:outputField id="socaddr_useasshipto__c" value="{!caddr.rstk__socaddr_useasshipto__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__dfltshipto}"><apex:outputField id="socaddr_defaultshipto__c" value="{!caddr.rstk__socaddr_defaultshipto__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__asinstall}"><apex:outputField id="socaddr_useasinstall__c" value="{!caddr.rstk__socaddr_useasinstall__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__dfltinstall}"><apex:outputField id="socaddr_defaultinstall__c" value="{!caddr.rstk__socaddr_defaultinstall__c}"/></apex:column>
+    					<apex:column headerValue="{!$Label.rstk__verified}"><apex:outputField id="socaddr_verified__c" value="{!caddr.rstk__socaddr_verified__c}"/></apex:column>
+    					<apex:column headerValue="{!f_socaddr.rstk__socaddr_locationref__c.label}"><apex:outputField id="socaddr_locationref__c" value="{!caddr.rstk__socaddr_locationref__c}"/></apex:column>
+    				  </apex:pageBlockTable>
+    				</apex:pageBlockSection>
+        		</apex:tab>
+        		
+        		<apex:tab label="{!$Label.rstk__salescontracts}" name="tab_SalesContracts" id="tab_SalesContracts" rendered="{!showSoContractRecs}">
+        			<apex:pageBlockSection id="pbs_SalesContracts" showHeader="false" columns="1">
+        				<apex:outputPanel id="op_SalesContracts">
+        					<apex:outputLabel value="{!$Label.rstk__estimatedstartdateonorafter}"/>&nbsp; <apex:inputText id="SO_SOContractFrDate" styleClass="cssbody" value="{!SOContractFrDate}" size="10" onfocus="DatePicker.pickDate(false, 'pg:fm:pb:pbs_SalesContracts:SO_SOContractFrDate', false);"/> &nbsp; &nbsp; &nbsp; &nbsp; 
+							<apex:outputLabel value="{!$Label.rstk__estimatedstartdateonorbefore}"/>&nbsp; <apex:inputText id="SO_SOContractToDate" styleClass="cssbody" value="{!SOContractToDate}" size="10" onfocus="DatePicker.pickDate(false, 'pg:fm:pb:pbs_SalesContracts:SO_SOContractToDate', false);"/> &nbsp; &nbsp; &nbsp; &nbsp; 
+        					<apex:outputPanel >
+			        			<apex:outputLabel value="{!$Label.rstk__contract_status}"/>&nbsp; 
+			       				<apex:selectlist size="1" id="SO_SOContractStatus" value="{!SOConStatus}">
+									<apex:selectOptions value="{!SocontractStatus}"/>
+								</apex:selectlist>
+				       		</apex:outputPanel>
+        					<br />
+		        	 		<apex:commandButton id="SO_Contractbutton" value="{!$Label.rstk__refresh_contracts}" onclick="blockUI(); RefreshContracts(); return false;"/>
+		        	 		<br />
+		        	 		<br />
+		        	 		<apex:pageBlockTable id="pbt_SalesContracts" value="{!Socontracts}" var="so">
+		        	 			<apex:column headerValue="NAME"><apex:outputLink value="{!URLFOR($Action.rstk__socontract__c.View, so.id)}{!ReturnUrlParms}"><apex:outputLabel value="{!so.name}"/></apex:outputLink></apex:column>
+		        	 			<apex:column headerValue="{!f_socontract.rstk__socontract_socustmsa__c.label}" value="{!so.rstk__socontract_socustmsa__c}"/>
+		        	 			<apex:column headerValue="{!f_socontract.rstk__socontract_soctt__c.label}" value="{!so.rstk__socontract_soctt__c}"/>
+		        	 			<apex:column headerValue="{!f_socontract.rstk__socontract_constatus__c.label}" value="{!so.rstk__socontract_constatus__c}"/>
+		        	 			<apex:column headerValue="{!f_socontract.rstk__socontract_type__c.label}" value="{!so.rstk__socontract_type__c}"/>
+		        	 			<apex:column headerValue="{!f_socontract.rstk__socontract_rev__c.label}" value="{!so.rstk__socontract_rev__c}"/>
+		        	 			<apex:column headerValue="{!f_socontract.rstk__socontract_rcbfreq__c.label}" value="{!so.rstk__socontract_rcbfreq__c}"/>
+		        	 			<apex:column headerValue="{!f_socontract.rstk__socontract_approvalsts__c.label}" value="{!so.rstk__socontract_approvalsts__c}"/>
+		        	 			<apex:column headerValue="{!f_socontract.rstk__socontract_custacceptsts__c.label}" value="{!so.rstk__socontract_custacceptsts__c}"/>
+		        	 		</apex:pageBlockTable>
+        				</apex:outputPanel>
+        			</apex:pageBlockSection>
+        		</apex:tab>
+        		
+        		<apex:tab label="{!$Label.rstk__pagetab_socustacctinquiry_salesforceaccount}" name="tab_SFAccount" id="tab_SFAccount" rendered="{!sfAccount != ''}">
+        			<apex:pageBlockSection id="pbs_SFAccount" showHeader="false" columns="1">
+        				<apex:outputLink value="{!URLFOR($Action.Account.View, sfAccount)}{!ReturnUrlParms}"><apex:outputLabel value="{!sfAccountName}"/></apex:outputLink>
+        			</apex:pageBlockSection>
+        		</apex:tab>
+        	</apex:tabPanel>
+        </apex:pageBlock>       
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />   
+</apex:page>

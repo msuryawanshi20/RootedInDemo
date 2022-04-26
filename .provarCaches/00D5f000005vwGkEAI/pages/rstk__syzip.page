@@ -1,0 +1,200 @@
+<apex:page id="pg" standardController="rstk__syzip__c" extensions="rstk.ControllerExtnSyzip" sidebar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__syzip__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__syzip__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_syzip}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <script>
+    var confgroup;
+    var isNew = {!isNew};
+    var isEdit = {!isEdit};
+    var isView = {!isView};
+    var userLastDiv = '{!lastDiv}';
+    var multiDivFlag = {!multiDivFlag};
+    function validateGrids() {
+        if(isNew) {
+            return true;
+        } else {
+            if(!syzipsites.isDirty()) {
+                return true;
+            } else {
+                var crfm = confirm("{!$Label.rstk__unsavedchangesininvsitestab_savechangesbeforesavingheader_ignorechanges}");
+                if(crfm) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }
+    }
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" />
+        <apex:actionFunction name="doView" action="{!view}" immediate="true" />
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true" />
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true" />
+        <apex:actionFunction name="doSave" action="{!save}" />
+        
+        <apex:pageblock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" />
+            </apex:pageBlockButtons>
+            
+            <apex:pageblockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__postalcodeinformation}" columns="1" rendered="{!OR(isNew,isEdit)}" >
+                <apex:inputField id="syzip_zipcode__c" value="{!o.rstk__syzip_zipcode__c}" required="true" taborderhint="1" rendered="{!isNew}"/>
+                <apex:outputField value="{!o.rstk__syzip_zipcode__c}" rendered="{!isEdit}"/>
+                <apex:inputField id="syzip_region__c" value="{!o.rstk__syzip_region__c}" taborderhint="2" />
+                <apex:inputField id="syzip_dfltcity__c" value="{!o.rstk__syzip_dfltcity__c}" taborderhint="3" />
+                <apex:inputField id="syzip_dfltstate__c" value="{!o.rstk__syzip_dfltstate__c}" taborderhint="4" />
+                <apex:inputField id="syzip_country__c" value="{!o.rstk__syzip_country__c}" taborderhint="5" rendered="{!isNew}"/>
+                <apex:outputField value="{!o.rstk__syzip_country__c}" rendered="{!isEdit}"/>
+                <apex:selectList id="syzip_dimval__c" value="{!o.rstk__syzip_dimval__c}" size="1" style="width:250px;" tabIndex="6">
+                    <apex:selectOptions value="{!dimensions}"/>
+                </apex:selectList>
+            </apex:pageblockSection>
+            <apex:pageblockSection id="pbs_main1" showHeader="false" title="{!$Label.rstk__postalcodeinformation}" columns="1" rendered="{!isView}" >
+                <apex:outputField value="{!o.rstk__syzip_zipcode__c}" />
+                <apex:outputField value="{!o.rstk__syzip_region__c}" />
+                <apex:outputField value="{!o.rstk__syzip_dfltcity__c}" />
+                <apex:outputField value="{!o.rstk__syzip_dfltstate__c}" />
+                <apex:outputField value="{!o.rstk__syzip_country__c}" />
+                <apex:outputField value="{!o.rstk__syzip_dimval__c}" />
+            </apex:pageblockSection>
+            <br/>
+            <apex:tabPanel switchType="client" selectedTab="tab_Sites" id="theTabPanel" rendered="{!!isNew}">
+                <apex:tab label="{!$Label.rstk__pagetab_syzip_inventorysites}" name="tab_Sites">
+                    <c:EditableGrid width="1150" jsController="syzipsites" data="{!syzipsiteGrid}" editable="true" ispopup="false" disableSave="false"/>
+                    <script>
+                        syzipsites.onGridLoad = function() {
+                            self = this;
+                            if (syzipsites.rowIds.length )
+                            this.getRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                            });
+                        }
+                        
+                        syzipsites.resetRow = function(row) {
+                            self = this;
+                            syzipsitesHandler.prototype.resetRow.call(self, row);
+                            
+                            var invsitefld = syzipsites.getRowObj(row, 'syzipsite_sysite__c')[0];
+                            invsitefld.options.length = 0;
+                            invsitefld.options[invsitefld.length] = new Option("--None--", "", false, false);
+                            
+                            syzipsites.getRowObj(row, 'syzipsite_invdiv__c')[0].value=userLastDiv;
+                            if(userLastDiv){
+                                invdivChanged(syzipsites.getRowObj(row, 'syzipsite_invdiv__c')[0], syzipsites.getRowObj(row, 'syzipsite_sysite__c')[0]);
+                            }
+                            
+                            if(!multiDivFlag){
+                                syzipsites.getRowObj(row, 'syzipsite_invdiv__c')[0].disabled = true;
+                            }
+                        }
+                        
+                        syzipsites.addRow = function(rowCallback) {
+                            self = this;
+                            syzipsitesHandler.prototype.addRow.call(self, rowCallback);
+                        }
+                        
+                        function invdivChanged(invdivfld, invsitefld) {
+                            invsitefld.value = '';
+                            invsitefld.options.length = 0;
+                            if(invdivfld.value) {
+                                var sysites = execQuery("select Id, Name from sysite__c where sysite_div__c = '"+ invdivfld.value +"' order by name");
+                                invsitefld.options[invsitefld.length] = new Option("--None--", "", false, false);
+                                if(sysites.length > 0) {
+                                    for(i = 0; i < sysites.length; i++) {
+                                        invsitefld.options[invsitefld.length] = new Option(sysites[i].Name, sysites[i].Id, false, false);
+                                    }
+                                }
+                            } else {
+                                invsitefld.options[invsitefld.length] = new Option("--None--", "", false, false);
+                            }
+                        }
+                        
+                        syzipsites.entryChanged = function(row, rowNum, name, value) {
+                            if (name == 'syzipsite_invdiv__c') {
+                                invdivChanged(syzipsites.getRowObj(row, 'syzipsite_invdiv__c')[0], syzipsites.getRowObj(row, 'syzipsite_sysite__c')[0]);
+                            }
+                        }
+                        
+                        syzipsites.validate = function() {
+                            self = this;
+                            var keys = [];
+                            var priorityKeys = [];
+                            var isvalid = true;
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var divObj = syzipsites.getRowObj(row, 'syzipsite_invdiv__c')[0];
+                                var siteObj = syzipsites.getRowObj(row, 'syzipsite_sysite__c')[0];
+                                var priorityObj = syzipsites.getRowObj(row, 'syzipsite_priority__c')[0];
+                                if(!divObj.value) {
+                                    alert("{!$Label.rstk__inventorydivcantbeblank}");
+                                    divObj.focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                if(!siteObj.value) {
+                                    alert("{!$Label.rstk__inventorycantbeblank}");
+                                    siteObj.focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                if(!priorityObj.value || isNaN(priorityObj.value) || parseInt(priorityObj.value) < 0) {
+                                    alert("{!$Label.rstk__prioritymustbenumericvalgte0}");
+                                    priorityObj.focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                var i ;
+                                var combExist = false;
+                                if(keys.length > 0){
+                                    for(i=0;i<keys.length;i++){
+                                        if(keys[i]==divObj.value+'_'+siteObj.value){
+                                            alert("{!$Label.rstk__divandsitecombinationalreadyexists}");
+                                            divObj.focus();
+                                            combExist = true;
+                                            isvalid = false;
+                                            break;
+                                        }
+                                        if(priorityKeys[i]==divObj.value+'_'+priorityObj.value){
+                                            alert("{!$Label.rstk__inventorysitepriorityalreadyexists_chooseuniquepriorityval}");
+                                            priorityObj.focus();
+                                            combExist = true;
+                                            isvalid = false;
+                                            break;
+                                        }
+                                    }
+                                    if(!combExist){
+                                        keys[keys.length]=divObj.value+'_'+siteObj.value;
+                                        priorityKeys[0]=divObj.value+'_'+priorityObj.value;
+                                    }else{
+                                        return false;
+                                    }
+                                }else if (keys.length == 0){
+                                    keys[0]=divObj.value+'_'+siteObj.value;
+                                    priorityKeys[0]=divObj.value+'_'+priorityObj.value;
+                                }
+                            });
+                            return isvalid;
+                        }
+                    </script>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageblock>
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

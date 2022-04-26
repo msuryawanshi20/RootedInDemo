@@ -1,0 +1,193 @@
+<apex:page id="pg" standardController="rstk__icdhr__c" extensions="rstk.ControllerExtnIcdhr,rstk.TreeViewController,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icdhr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icdhr__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icdhr}" customInclude="{!$Resource.rstk__icdhr_cli}" enableTreeView="true" enableAutocomplete="true"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doAutoCreateManualLink" action="{!doAutoCreateManualLink}" 
+            oncomplete="unblockUI();" rerender="pageMessages, pbs_icsrllink" immediate="false"/>
+        <apex:actionFunction name="setSrlHistIdAB" action="{!setSrlHistId}" immediate="true" oncomplete="historyGridComplete('ab');" rerender="op_srlHists_ab">
+            <apex:param name="serialHistId" assignTo="{!serialHistId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="setSrlHistIdAM" action="{!setSrlHistId}" immediate="true" oncomplete="historyGridComplete('am');" rerender="op_srlHists_am">
+            <apex:param name="serialHistId" assignTo="{!serialHistId}" value="" />
+        </apex:actionFunction>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/> &nbsp;&nbsp;
+                <apex:commandButton onclick="blockUI();doAutoCreateManualLink();return false;" value="{!$Label.rstk__pagebtn_icdhr_auto_createmanuallinks}" rendered="{!createlinkBtn}" immediate="true" style="width:160px"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+       
+            <c:division id="icdhr_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icdhr_dhrno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icdhr_dhrno__c.label}"/>
+                    <c:inputField id="icdhr_dhrno__c" required="true" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icdhr_soshipline__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icdhr_soshipline__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isView}">
+                            <c:autocomplete id="icdhr_soshipline__c" cntr="{!controller}" slDesc="{!ShiplineName}" 
+                                query="select id, name from soshipline__c where soshipline_line__r.soline_shipdiv__c= 'prm'" 
+                                queryParms="[['icdhr_div__c','Division']]" width="200px" tabIndex="21"/>
+                        </apex:outputPanel>
+                        <apex:outputField value="{!o.rstk__icdhr_soshipline__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icdhr_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icdhr_desc__c.label}"/>
+                    <c:inputField id="icdhr_desc__c" required="false" width="200px" cntr="{!controller}" tabIndex="6"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icdhr_socust__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icdhr_socust__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isView}">
+                            <c:autocomplete id="icdhr_socust__c" cntr="{!controller}" slDesc="{!CustName}" 
+                                query="select id, name from socust__c" width="200px" tabIndex="36"/>
+                        </apex:outputPanel>
+                        <apex:outputField value="{!o.rstk__icdhr_socust__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icdhr_entity__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icdhr_entity__c.label}"/>
+                    <c:selectList id="icdhr_entity__c" required="true" cntr="{!controller}" options="{!entityTypes}" tabIndex="11" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icdhr_pjproj__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icdhr_pjproj__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isView}">
+                            <c:autocomplete id="icdhr_pjproj__c" cntr="{!controller}" slDesc="{!ProjName}" 
+                                query="select id, name from pjproj__c where pjproj_div__c = 'prm'" 
+                                queryParms="[['icdhr_div__c','Division']]" width="250px" tabIndex="16"/>
+                        </apex:outputPanel>
+                        <apex:outputField value="{!o.rstk__icdhr_pjproj__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_asbuilt" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_icdhr_asbuilt}" name="tab_asbuilt" id="tab_asbuilt" rendered="{!isView}">
+                    <apex:outputPanel id="op_asbuilt">
+                        <table width="100%" border="0">
+                            <tr>
+                                <td>
+                                    <div id="tree_anchor_ab" treetype="ab" style="height:400px;overflow-y:scroll;display:block">
+                                    </div>
+                                </td>
+                                <td id="treesrlhist_ab" width="0%">
+                                    <div id="srlHistoryGrid_ab" style="display:none;">
+                                        <apex:outputPanel id="op_srlHists_ab">
+                                            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:400px;overflow-y:scroll;display:block">
+                                            <apex:pageBlockSection id="pbs_srlHists_ab" showHeader="false" columns="1">
+                                                <apex:pageBlockTable id="pbt_srlHists_ab" value="{!srlhistorys}" var="rec">
+                                                    <apex:column headerValue="{!$Label.rstk__date}" value="{!rec.createddate}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__reason}" value="{!rec.reason}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__casenumber}"><apex:outputLink value="{!IF(ISNULL(rec.caseId),'',URLFOR($Action.Case.View, rec.caseId))}{!ReturnUrlParms}">{!rec.caseNumber}</apex:outputLink></apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__replacementitem}"><apex:outputLink value="{!IF(ISNULL(rec.newItemId),'',URLFOR($Action.rstk__icitem__c.View, rec.newItemId))}{!ReturnUrlParms}">{!rec.newItem}</apex:outputLink></apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__serialnumber}" value="{!rec.newItemSrl}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__comments}" value="{!rec.comments}"/>
+                                                </apex:pageBlockTable>
+                                            </apex:pageBlockSection>
+                                            </div>
+                                        </apex:outputPanel>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:outputPanel>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icdhr_asmaintained}" name="tab_asmaintained" id="tab_asmaintained" rendered="{!isView}">
+                    <apex:outputPanel id="op_asmaintained">
+                        <table width="100%" border="0">
+                            <tr>
+                                <td>
+                                    <div id="tree_anchor_am" treetype="am" style="height:400px;overflow-y:scroll;display:block">
+                                    </div>
+                                </td>
+                                <td id="treesrlhist_am" width="0%">
+                                    <div id="srlHistoryGrid_am" style="display:none;">
+                                        <apex:outputPanel id="op_srlHists_am">
+                                            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:400px;overflow-y:scroll;display:block">
+                                            <apex:pageBlockSection id="pbs_srlHists_am" showHeader="false" columns="1">
+                                                <apex:pageBlockTable id="pbt_srlHists_am" value="{!srlhistorys}" var="rec">
+                                                    <apex:column headerValue="{!$Label.rstk__date}" value="{!rec.createddate}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__reason}" value="{!rec.reason}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__casenumber}"><apex:outputLink value="{!IF(ISNULL(rec.caseId),'',URLFOR($Action.Case.View, rec.caseId))}{!ReturnUrlParms}">{!rec.caseNumber}</apex:outputLink></apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__replacementitem}"><apex:outputLink value="{!IF(ISNULL(rec.newItemId),'',URLFOR($Action.rstk__icitem__c.View, rec.newItemId))}{!ReturnUrlParms}">{!rec.newItem}</apex:outputLink></apex:column>
+                                                    <apex:column headerValue="{!$Label.rstk__serialnumber}" value="{!rec.newItemSrl}"/>
+                                                    <apex:column headerValue="{!$Label.rstk__comments}" value="{!rec.comments}"/>
+                                                </apex:pageBlockTable>
+                                            </apex:pageBlockSection>
+                                            </div>
+                                        </apex:outputPanel>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:outputPanel>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icdhr_asbuilt_asmaintained}" name="tab_treecomp" id="tab_treecomp" rendered="{!isView}">
+                    <apex:outputPanel id="op_treecomp">
+                        <table width="100%" border="0">
+                            <tr>
+                                <td width="50%">
+                                    <div id="tree_anchor_ab_comp" treetype="comp" style="height:400px;overflow-y:scroll;display:block">
+                                    </div>
+                                </td>
+                                <td width="50%">
+                                    <div id="tree_anchor_am_comp" treetype="comp" style="height:400px;overflow-y:scroll;display:block">
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:outputPanel>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icdhr_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+            
+            <div id="replaceItem" style="display:none">
+                <iframe id="replaceItemFrame" src="" width="100%" height="330px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+            </div>
+        </apex:pageBlock>
+    </apex:form>
+    <br />
+    
+    <apex:pageBlock id="pb_RelatedLists" rendered="{!!isNew}">
+        <apex:pageBlockSection id="pbs_manuallinks" showHeader="true" title="{!$Label.rstk__pagetab_icdhr_relatedlists}" columns="1" >
+            <apex:tabPanel switchType="client" selectedTab="tab_RelatedLists" id="theTabPanel_RelatedLists">
+                <apex:tab label="{!$Label.rstk__pagetab_icdhr_manuallinks}" name="tab_manuallinks" id="tab_manuallinks" rendered="{!!isNew}"> 
+                    <apex:relatedList list="icsrllinks__r"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_EnterValForReqdFieldEntiryType = "{!$Label.rstk__entervalforreqdfieldentirytype}";
+        var LABEL_EnterValForReqdField = "{!$Label.rstk__entervalforreqdfield}";
+    </script>
+</apex:page>

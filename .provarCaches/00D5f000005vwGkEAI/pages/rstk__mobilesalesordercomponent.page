@@ -1,0 +1,226 @@
+<apex:page sideBar="false" showHeader="false"
+	standardStylesheets="false" showChat="false">
+	<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<apex:stylesheet value="{!URLFOR($Resource.rstk__jquery_mobile_1_4_5, '/jquery.mobile-1.4.5.css')}" />
+	<c:common_client_labels />
+	<apex:includeScript value="{!$Resource.rstk__alert_prototype_cli}" />
+	<apex:includeScript value="{!$Resource.rstk__jQuery_182}" />
+	<apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+	<apex:includeScript value="{!URLFOR($Resource.rstk__jquery_mobile_1_4_5, '/jquery.mobile-1.4.5.js')}" />
+	<apex:includeScript value="{!$Resource.rstk__mobilesalesordercomponent_cli}" />
+	<apex:includeScript value="{!$Resource.rstk__connection}" />
+	<apex:includeScript value="{!$Resource.rstk__common_client_mobile}" />
+	<apex:includeScript value="{!$Resource.rstk__sfff}" />
+	
+	<script>
+		var __siteUrlPrefix = '{!$Site.Prefix}';
+		var __sfdcSessionId = '{!GETSESSIONID()}';
+		sforce.connection.sessionId = __sfdcSessionId;
+		var userId = '{!$User.Id}';
+		var scriptSrc = jQuery('script')[1].src;
+		if (scriptSrc.indexOf("__") > 0) {
+			sforce.connection.defaultNamespace = scriptSrc.substring(scriptSrc.lastIndexOf("/") + 1).split("__")[0];
+		}
+		
+		var gradeA = jQuery.support.htmlSerialize;
+		// gradeA = jQuery.mobile.gradeA();
+		
+		var toPage;
+		var serialPage;
+		var fromPage;
+		
+		jQuery(document).ready(function() {
+			var nextLink = jQuery('#nextLinkFromPage');
+			var backLinkSerial = jQuery('#backLinkSerial');
+			
+			if (gradeA) {
+				jQuery('#serial_count_label').addClass('ui-input-text');
+				jQuery('.divnavb').remove();
+			} else {
+				jQuery('.ah').remove();
+				jQuery('.divnava').remove();
+				
+				serialPage = jQuery('#serialPage');
+				serialPage.hide();
+				
+				toPage = jQuery('#toPage');
+				toPage.hide();
+				
+				fromPage = jQuery('#fromPage');
+			}
+			setDefaults();
+		});
+	</script>
+	<style>
+	.leftItem {
+		clear: both;
+		float: left;
+		width: 30%;
+	}
+	
+	.rightItem {
+		float: left;
+		width: 65%
+	}
+	
+	.abnb {
+		font-size: 20px !important;
+		color: #99862F;
+		font-weight: bold;
+	}
+	
+	label.ui-input-text {
+		font-size: 20px !important;
+		font-weight: bold;
+		text-align: right;
+		vertical-align: bottom !important;
+		width: 80% !important;
+	}
+	
+	textarea {
+		font-weight: bold;
+	}
+	
+	textarea.ui-input-text {
+		height: 350px;
+	}
+	
+	.abna .ui-btn-inner {
+		font-size: 18px !important;
+	}
+	
+	bottom_div {
+		position: absolute;
+		bottom: 0;
+	}
+	</style>
+	</head>
+	<body>
+		<div data-role="page" id="fromPage">
+			<div data-theme="a" data-role="header">
+				<h3>{!$Label.Sales_Order_Component_Issue}</h3>
+				<a class="ah ui-btn-right" data-icon="home"
+					href="javascript:invokeMobileMenu()" rel="external">{!$Label.mobileInventoryTransfer_Home}</a>
+			</div>
+			<div data-role="content">
+				<div data-role="navbar" data-iconpos="bottom" data-position="fixed">
+					<div class="divnava">
+						<ul>
+							<li><a class="abna" href="javascript:callDoTransfer()"
+								id="nextLinkToPage" data-transition="fade" disabled="disabled"
+								data-theme="" data-icon="">{!$Label.Issue_Component}</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+				<form action="">
+					<div>
+						<div class="leftItem">
+							<label for="from_div__c"> {!$Label.mobilesalesordercomponent_Division}</label>
+						</div>
+						<div class="rightItem">
+							<input id="from_div__c" placeholder="Division"
+								type="text" onKeydown="return scanFocus(event, this);"
+								onchange="fromDivChanged(this);" />
+						</div>
+					</div>
+					<div>
+						<div class="leftItem">
+							<label for="qty__c">{!$Label.mobilesalesordercomponent_SoIssueMethod}</label>
+						</div>
+						<div class="rightItem">
+							<input id="soissuemethod__c"
+								type="text"
+								readonly="readonly" disabled="disabled"/>
+						</div>
+					</div>
+					<div>
+						<div class="leftItem">
+							<label for="sohdr__c">{!$Label.mobilesalesordercomponent_SalesOrderNumber}</label>
+						</div>
+						<div class="rightItem">
+							<input id="sohdr__c"
+								placeholder="Sales Order Number" type="text"
+								onKeydown="return scanFocus(event, this);"
+								onchange="sohdrChanged(this);" />
+						</div>
+					</div>
+					<div>
+						<div class="leftItem">
+							<label for="soline__c">{!$Label.mobilesalesordercomponent_SalesOrderLine}</label>
+						</div>
+						<div class="rightItem">
+							<input id="soline__c" placeholder="Sales Order Line"
+								type="text" onKeydown="return scanFocus(event, this);"
+								readonly="readonly" onchange="solineChanged(this);" />
+						</div>
+					</div>
+					<!-- <div>
+						<div class="leftItem">
+							<label for="compitem__c">Component Item</label>
+						</div>
+						<div class="rightItem">
+							<input id="compitem__c" placeholder="Component Item"
+								type="text" onKeydown="return scanFocus(event, this);"
+								readonly="readonly" onchange="compitemChanged(this);" />
+						</div>
+					</div> -->
+					<div>
+						<div class="leftItem">
+							<label for="qty__c">{!$Label.mobilesalesordercomponent_IssueQuantity}</label>
+						</div>
+						<div class="rightItem">
+							<input id="qty__c" placeholder="Issue Quantity"
+								type="number" onKeydown="return scanFocus(event, this);"
+								readonly="readonly" onchange="qtyChanged(this);" />
+						</div>
+					</div>
+					<!-- <div>
+						<div class="leftItem">
+							<label for="to_locationid__c">Location ID</label>
+						</div>
+						<div class="rightItem">
+							<input id="to_locationid__c" placeholder="Issue From Location ID"
+								type="text" onKeydown="return scanFocus(event, this);"
+								readonly="readonly" onchange="toLocIdChanged(this);" />
+						</div>
+					</div>
+					<div>
+						<div class="leftItem">
+							<label for="to_locationnumber__c">Location Number</label>
+						</div>
+						<div class="rightItem">
+							<input id="to_locationnumber__c"
+								placeholder="Issue From Location No" type="text"
+								readonly="readonly" onchange="toLocNumChanged(this);" />
+						</div>
+					</div> -->
+				</form>
+			</div>
+			<br></br>
+		</div>
+	</body>
+	
+	<script>
+		var LABEL_SOControlRecNotConfigForDiv = "{!$Label.SOControlRecNotConfigForDiv}";
+		var LABEL_DivMustBeNteredBeforeSpecSON = "{!$Label.DivMustBeNteredBeforeSpecSON}";
+		var LABEL_InvalidSONSpec = "{!$Label.InvalidSONSpec}";
+		var LABEL_SOLineCantBeSpecWithoutSON = "{!$Label.SOLineCantBeSpecWithoutSON}";
+		var LABEL_SONMustBeNumeric = "{!$Label.SONMustBeNumeric}";
+		var LABEL_InvalidSOLineSpec = "{!$Label.InvalidSOLineSpec}";
+		var LABEL_NoQualifyingComponentsFoundForIssue = "{!$Label.NoQualifyingComponentsFoundForIssue}";
+		var LABEL_ComponentItemCantBeSpecWithoutSOLine = "{!$Label.ComponentItemCantBeSpecWithoutSOLine}";
+		var LABEL_SpecComponentItemInvalidOrCantBeIssued = "{!$Label.SpecComponentItemInvalidOrCantBeIssued}";
+		var LABEL_IssueQtyCantBeSpecWithoutSOLine = "{!$Label.IssueQtyCantBeSpecWithoutSOLine}";
+		var LABEL_IssueQtyMustBeGrtrThan0 = "{!$Label.IssueQtyMustBeGrtrThan0}";
+		var LABEL_IssueQtyCantExceedMaxQty = "{!$Label.IssueQtyCantExceedMaxQty}";
+		var LABEL_ErrorProcessingSOIssue = "{!$Label.ErrorProcessingSOIssue}";
+		var LABEL_SOIssueCompletedSuccessfully = "{!$Label.SOIssueCompletedSuccessfully}";
+		var LABEL_ErrorProcessingSOIssue_ChkEmailForErrorLog = "{!$Label.ErrorProcessingSOIssue_ChkEmailForErrorLog}";
+		var LABEL_ErrorInProcessingSOIssue = "{!$Label.ErrorInProcessingSOIssue}";
+		var LABEL_InvalidDivisionspecified = "{!$Label.InvalidDivisionspecified}";
+		var LABEL_MfgUserNotFound = "{!$Label.MfgUserNotFound}";
+	</script>
+</apex:page>

@@ -1,0 +1,1429 @@
+<apex:page id="pg" standardController="rstkf__customextf__c" extensions="rstkf.ControllerExtnProcessUploadedStatement,rstkf.RemoteQueryController,rstkf.ControllerJobStatus" action="{!doBeforePageLoad}" showHeader="true" title="{!$Label.rstkf__pgtitle_processuploadedstatement}">
+    <apex:variable var="o" value="{!rstkf__customextf__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="f_glbankacct" value="{!$ObjectType.rstkf__glbankacct__c.fields}" />
+    <apex:variable var="f_glbankstmth" value="{!$ObjectType.rstkf__glbankstmth__c.fields}" />
+    
+    <!-- kendo/common css references -->
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__KendoUIStyle2018, '/KendoStyle/kendo.common.min.css')}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__KendoUIStyle2018, '/KendoStyle/kendo.bootstrap.min.css')}" />
+    
+    <!-- kendo/common js references -->
+    <apex:includeScript value="{!$Resource.rstkf__jquery}" />    
+    <apex:includeScript value="{!URLFOR($Resource.rstkf__UnderscoreJS, 'underscore-min.js')}" />
+    <apex:includeScript value="{!URLFOR($Resource.rstkf__KendoUIScript2018, '/KendoUIScript/kendo.all.min.js')}" />
+    <apex:includeScript value="{!$Resource.rstkf__SecureFilters}" />
+    <apex:includeScript value="{!$Resource.rstkf__Sanitize}" />
+    <apex:includeScript value="{!$Resource.rstkf__Sanitize}" />
+    <apex:includeScript value="{!$Resource.rstkf__RootstockCommon}" />
+    <apex:includeScript value="{!$Resource.rstkf__GridActionListJS}" />
+    
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+    
+    
+    <apex:variable var="o_customext" value="{!customextf}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <c:standardHeader cntr="{!controller}" displayListLink="false" title="{!$Label.rstkf__pgtitle_processuploadedstatement}" enableAutocomplete="true"/>
+    
+    <style>
+    /* Page Template for the exported PDF */
+        .page-template {
+          font-family: "DejaVu Sans", "Arial", sans-serif;
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          top: 0;
+          left: 0;
+        }
+        .page-template .header {
+          position: absolute;
+          top: 30px;
+          left: 30px;
+          right: 30px;
+          border-bottom: 1px solid #888;
+          color: #888;
+        }
+        .page-template .footer {
+          position: absolute;
+          bottom: 30px;
+          left: 30px;
+          right: 30px;
+          border-top: 1px solid #888;
+          text-align: center;
+          color: #888;
+        }
+        .page-template .watermark {
+          font-weight: bold;
+          font-size: 400%;
+          text-align: center;
+          margin-top: 30%;
+          color: #aaaaaa;
+          opacity: 0.1;
+          transform: rotate(-35deg) scale(1.7, 1.5);
+        }
+        
+        .box2 {
+          display: inline-block;
+          width: 300px;
+          height: 300px;
+          margin: 1em;
+        }
+                
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 2000; /* Sit on top */
+            left: 30%;
+            top: 30%;
+            width: 800px; 
+            height: 500px;
+            background-color: transparent;
+        }
+        
+        /* Modal Content */
+        .modal-content {
+            background-color: #fefefe;
+            margin: -100px;
+            padding: 15px;
+            border: 1px solid #888;
+            width: 800px;
+            height: 500px;
+        }
+        
+        .overlay {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 300;
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%;
+            text-align: center;
+            background-color: rgba(0,0,0,0.4);
+        }
+         
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        
+        input:disabled {
+            background: #dddddd;
+        }
+        
+        .sort {display:inline}
+        .numSort {display:inline}
+        
+        .floatingStyle { 
+            background-color:#829DC0 !important;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="getHeaderDetails" 
+            action="{!getHeaderDetails}" 
+            onComplete="unblockUI();queryStatement();" 
+            rerender="glbanktxnDetails, op_UnreconciledTrans, op_pb_reconciled_grid, op_pbsbutton, op_vars,pageMessages, op_errormessage" 
+            immediate="false"/>
+            
+        <apex:actionFunction name="refreshHeader" 
+            action="{!getHeaderDetails}" 
+            onComplete="unblockUI();"
+            rerender="glbanktxnDetails,pageMessages, op_errormessage" 
+            immediate="false"/>
+                
+        <apex:actionFunction name="processAutoMatch"
+                            action="{!processAutoMatch}"
+                            oncomplete="checkJobStatus();"
+                            rerender="op_vars, op_JobStatus, glbanktxnDetails, pageMessages"
+                            immediate="false"/>
+        
+        <apex:actionFunction name="reverseSelected" action="{!reverseSelected}" 
+            onComplete="unblockUI();doAfterReverseSelected();" 
+            rerender="glbanktxnDetails, op_UnreconciledTrans, op_pb_reconciled_grid, op_pbsbutton, op_vars,pageMessages"
+            immediate="false">
+            <apex:param name="selectedForReverse" assignTo="{!selectedForReverse}" value=""/>           
+        </apex:actionFunction>
+                                        
+        <apex:actionFunction name="undoAll" action="{!undoAll}" immediate="false"/>
+        <apex:actionFunction name="finalizeStatement"
+                            action="{!finalizeStatement}"
+                            onComplete="checkJobStatus();"
+                            rerender="op_stmtheader, op_JobStatus, op_pbsbutton, op_vars, pageMessages, op_errormessage" 
+                            immediate="false"/>                   
+        
+        <apex:outputpanel id="op_vars">
+            <script>
+                var glbankacctId = '{!glbankacctId}';
+                var gluserId = '{!gluserId}';
+                var glcmpId = '{!customextf.rstkf__custom_glcmp__c}';
+                var finalized = '{!glbankstmth.glbankstmth_finalized__c}';
+                var isReverseSuccess = '{!isReverseSuccess}';
+                var namespaceUU = '{!namespaceUU}';
+                var isRecontxntype = '{!glbankacct.glbankacct_recontxntype__c}';
+            </script>
+        </apex:outputpanel>   
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_errormessage">
+            <apex:outputPanel rendered="{!glbankstmth.rstkf__glbankstmth_status__c == 'Posted with Errors'}">
+                <span style="color: red; font-weight: bold; font-size: 130%;">
+                    {!$Label.StmtPostedWithErrorsMessage}
+                </span>
+            </apex:outputPanel>
+        </apex:outputPanel>    
+        <apex:pageblock id="pb">
+            <apex:pageblocksection id="pbs_message" columns="1" collapsible="true">
+                <div class="grid-container">
+                    <div id="gridMessage" class="grid-message" style="white-space: pre" />
+                </div>
+            </apex:pageblocksection>
+            <apex:pageBlockSection id="pbs_Main" showHeader="true" title="{!$Label.rstkf__pbs_bankaccount}" columns="1" collapsible="false">
+                <apex:pageBlockSectionItem >
+                      <apex:outputLabel value="{!$Label.rstkf__statementheader}" />
+                        <apex:outputPanel id="op_stmtheader" >
+                            <apex:selectList id="glbankacc_stmtheader__c" value="{!customextf.rstkf__glbankacc_stmtheader__c}" size="1" style="width:250px;" tabindex="15" onchange="getGlbankstmtdetail();" >
+                                <apex:selectOptions value="{!glbankstmtHeaders}" /> 
+                            </apex:selectList>
+                            <input type="button" id="Upload_Bank_Statement" value="{!$Label.Button_Upload_New_Bank_Statement}" class="btn" 
+                                onclick="createUploadStatementGrid();showPopup('#popUploadStatement', 1300, 450); return false;"/>
+                        </apex:outputPanel>
+                 </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+             <apex:outputPanel id="op_pbsbutton" > 
+            <apex:pageblocksection id="pbs" columns="1"  rendered="{!IF(glbankstmth.Id !=null,true,false)}" > 
+                 <apex:pageBlockSectionItem >
+                     <apex:outputPanel rendered="{!!glbankstmth.rstkf__glbankstmth_finalized__c}">
+                        <input type="button" id="queryStatementBtn" value="{!$Label.btn_QueryStatement}" class="btn" onclick="queryStatement();"/> 
+                        <input type="button" id="undoAllBtn" value="{!$Label.Btn_UndoAll}" class="btn" onclick="doUndoAll();"/>
+                     </apex:outputPanel>
+                     <apex:outputPanel rendered="{!!glbankstmth.rstkf__glbankstmth_finalized__c || glbankstmth.rstkf__glbankstmth_status__c == 'Posted with Errors'}">
+                        <input type="button" id="finalizeBtn" value="{!$Label.Btn_Finalize}" class="btn" onclick="blockUI();doFinalizeStatement();"/>
+                     </apex:outputPanel>     
+                 </apex:pageBlockSectionItem>
+            </apex:pageblocksection>
+            </apex:outputPanel>
+        </apex:pageblock>
+        
+        
+        <apex:pageBlock id="pb_unreconciled_grids" title="" >
+            <apex:outputPanel id="glbanktxnDetails">
+            <apex:pageBlockSection id="pbs_headerdetail" showHeader="true" title="" columns="3" collapsible="false" rendered="{!glbankstmth != null}">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__custom_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__custom_glcmp__c.label}"/>
+                    <apex:outputField value="{!customextf.rstkf__custom_glcmp__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_key__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_key__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_key__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbankacct.rstkf__glbankacct_name__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankacct.rstkf__glbankacct_name__c.label}" />
+                    <apex:outputField value="{!glbankacct.rstkf__glbankacct_name__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_unclrddeptot__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_unclrddeptot__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_unclrddeptot__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_openingbal__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_openingbal__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_openingbal__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbankacct.rstkf__glbankacct_curr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankacct.rstkf__glbankacct_curr__c.label}" />
+                    <apex:outputField value="{!glbankacct.rstkf__glbankacct_curr__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_unclrdpaytot__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_unclrdpaytot__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_unclrdpaytot__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_currenttxns__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_currenttxns__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_currenttxns__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_fromdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_fromdate__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_fromdate__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_unclrdxfertot__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_unclrdxfertot__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_unclrdxfertot__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_endingbal__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_endingbal__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_endingbal__c}" />
+                </apex:pageBlockSectionItem>
+                                
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_stmtdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_stmtdate__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_stmtdate__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_calcendglhome__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_calcendglhome__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_calcendglhome__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_reconciledhere__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_reconciledhere__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_reconciledhere__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_status__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_status__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_status__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_calcendglbank__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_calcendglbank__c.label}" />
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_calcendglbank__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_glbankstmth.rstkf__glbankstmth_unreconciledhere__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_glbankstmth.rstkf__glbankstmth_unreconciledhere__c.label}"/>
+                    <apex:outputField value="{!glbankstmth.rstkf__glbankstmth_unreconciledhere__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__br2_bankstmtamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__br2_bankstmtamt__c.label}"/>
+                    <apex:inputField id="br2_bankstmtamt__c" value="{!customextf.rstkf__br2_bankstmtamt__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__br2_sysamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__br2_sysamt__c.label}"/>
+                    <apex:inputField id="br2_sysamt__c" value="{!customextf.rstkf__br2_sysamt__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__br2_unmatchedamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__br2_unmatchedamt__c.label}"/>
+                    <apex:inputField id="br2_unmatchedamt__c" value="{!customextf.rstkf__br2_unmatchedamt__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <script>
+                    jQuery("input[id*=br2_bankstmtamt__c]")[0].disabled = true;
+                    jQuery("input[id*=br2_sysamt__c]")[0].disabled = true;
+                    jQuery("input[id*=br2_unmatchedamt__c]")[0].disabled = true;
+                </script>
+            </apex:pageBlockSection>
+            </apex:outputPanel>
+            <apex:outputPanel id="op_UnreconciledTrans" >
+             <apex:pageblocksection id="UnreconciledTrans" columns="1" showHeader="true" title="{!$Label.rstkf__pgtitle_unrectxns}" collapsible="false" rendered="{!glbankstmth != null}" >
+                 <apex:pageBlockSectionItem >
+                    <apex:outputPanel id="unreconciledBtns" rendered="{!!glbankstmth.rstkf__glbankstmth_finalized__c}">
+                         <input type="button" id="autoMatchBtn" value="{!$Label.Btn_AutoMatch}" class="btn" onclick="doProcessAutoMatch();"/>
+                         <input type="button" id="acceptAutoMatchBtn" value="{!$Label.Btn_AcceptAutoMatch}" class="btn" onclick="acceptAutoMatch();"/>
+                         <input type="button" id="clearAutoMatchBtn" value="{!$Label.Btn_ClearAutoMatch}" class="btn" onclick="clearAutoMatch();"/>
+                         <input type="button" id="reconcileBtn" value="{!$Label.Btn_ReconcileSelected}" class="btn" onclick="doReconcile();"/>
+                         <input type="button" id="queryUnreconciledBtn" value="{!$Label.Btn_QueryUnreconciled}" class="btn" onclick="queryUnreconciled();"/> 
+                     </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+             </apex:pageblocksection>
+             
+            <apex:pageblocksection id="pbs_unreconciled_grids" columns="1" >
+                <div class="grid-container">
+                    <div id="unreconciledgrid-message" class="grid-message" style="white-space: pre" />
+                </div>
+                
+                <div style="width:47%;" id="unreconciledGlbankstmtdGrid" class="box2"></div>
+                <div style="width:47%;" id="unreconciledGlbanktxnGrid" class="box2"></div>
+                
+                <div class="grid-container">
+                    <div class="grid-message" style="white-space: pre" />
+                    <div style="width:100%;" id="automatchAcceptBy"></div>
+                    <div style="width:100%;" id="automatchGrid"></div>
+                </div>
+            </apex:pageblocksection>
+            </apex:outputPanel> 
+        </apex:pageBlock>
+            
+            <apex:pageBlock id="pb_reconciled_grid" >
+                <apex:outputPanel id="op_pb_reconciled_grid">
+                <apex:pageblocksection id="pbs" columns="1" title="{!$Label.rstkf__pgtitle_recontxns}" showHeader="true"  collapsible="false" rendered="{!glbankstmth != null}">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel rendered="{!!glbankstmth.rstkf__glbankstmth_finalized__c}">
+                            <input type="button" id="reverseBtn" value="{!$Label.Btn_ReverseSelected}" class="btn" onclick="doReverseSelected();"/>
+                        </apex:outputPanel> 
+                    </apex:pageBlockSectionItem>
+                </apex:pageblocksection>
+                </apex:outputPanel>
+                <apex:pageblocksection id="pbs_reconciled_grid" columns="1" collapsible="true">
+                    <div class="grid-container">
+                        <div class="grid-message" style="white-space: pre" />
+                        <div style="width:100%;" id="reconciledGlbankstmtdGrid"></div>
+                    </div>
+                </apex:pageblocksection>
+            </apex:pageBlock>
+        
+    </apex:form>
+    
+    <apex:outputpanel id="op_uploadStatement">    
+        <div id="popUploadStatement" style="display:none; z-index: 10;">
+            <apex:pageMessages id="uploadPageMessages"/>
+            <apex:form id="fpopup"  >
+                <apex:actionStatus id="statusProcessingUploadStatement" startStyleClass="Processing"/>
+                <apex:actionFunction name="doClosePopup" action="{!closePopup}" immediate="false" status="statusProcessingUploadStatement"/>
+                <apex:actionFunction name="processBratoRequest" action="{!processBratoRequest}" 
+                    oncomplete="checkJobStatus();" immediate="false" 
+                    rerender="uploadPageMessages,stmtheaderList,op_JobStatus" 
+                    status="statusProcessingUploadStatement">
+                    <apex:param name="selectedbratolist" assignTo="{!selectedbratolist}" value=""/>
+                </apex:actionFunction>
+                <apex:outputPanel id="glheaderList">
+                    <apex:pageBlock id="ustatement">
+                        <apex:pageBlockButtons location="top">
+                            <apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="doClosePopup();return false;"/>
+                            <apex:commandButton value="{!$Label.rstkf__pagevalsave}" onclick="processBratos();return false;"/>
+                        </apex:pageBlockButtons>
+                        <apex:pageblocksection id="pbs_uploadstmt_grid" columns="1" collapsible="false">
+                            <div class="grid-container">
+                                <div id="uploadStatementgrid-message" class="grid-message" style="white-space: pre" />
+                            </div>
+                            <div class="grid-container">
+                                <div class="grid-message" style="white-space: pre" />
+                                <div style="width:100%;" id="UploadStatementgrid"></div>
+                            </div>
+                        </apex:pageblocksection>
+                        </apex:pageBlock>
+                </apex:outputPanel>
+            </apex:form>
+            
+            <apex:outputPanel id="stmtheaderList">
+                <apex:pageBlock id="hrstatement" mode="detail">
+                    <apex:relatedList list="glbankstmths__r" /> 
+                </apex:pageBlock>
+            </apex:outputPanel>
+        </div>
+    </apex:outputpanel>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+        function uploadBankStatement () { 
+            window.open('/apex/uploadglbankStmt?id='+glbankacctId);
+            return false;
+        }
+    
+        function getGlbankstmtdetail() {
+            glbankstmthId = jQuery("select[id*=glbankacc_stmtheader__c")[0].value;
+            if(glbankstmthId.length == 0) {
+                alert('Please select a valid Statement Header');
+                return false;
+            }
+            blockUI();
+            getHeaderDetails();
+            jQuery("select[id*=glbankacc_stmtheader__c")[0].blur();
+        }
+    
+        function enableAllButtons() {
+            document.getElementById("Upload_Bank_Statement").disabled = false;
+            document.getElementById("saveBtn").disabled = false;
+            document.getElementById("undoAllBtn").disabled = false;
+            document.getElementById("finalizeBtn").disabled = false;
+            
+            document.getElementById("autoMatchBtn").disabled = false;
+            document.getElementById("acceptAutoMatchBtn").disabled = false;
+            document.getElementById("clearAutoMatchBtn").disabled = false;
+            document.getElementById("reconcileBtn").disabled = false;
+            document.getElementById("queryUnreconciledBtn").disabled = false;
+            document.getElementById("queryStatementBtn").disabled = false;
+            
+            document.getElementById("reverseBtn").disabled = false;
+        }
+        
+        function queryUnreconciled() {
+            cleanupMessageElements();
+            glbankstmthId = jQuery("select[id*=glbankacc_stmtheader__c")[0].value;
+            createUnreconciledGlbanktxnGrid(glbankacctId);
+            createUnreconciledGlbankstmtdGrid(glbankacctId,glbankstmthId);
+            createReconciledGlbankstmtdGrid(glbankacctId,glbankstmthId);
+        }
+    
+        var unreconciledGlbanktxnGrid;
+        var unreconciledGlbankstmtdGrid;
+        function createUnreconciledGlbanktxnGrid(glbankacctId) {
+            
+            // get Glbanktxns for a selected bank account
+            var getUnreconciledGlbanktxns = function(){
+                var deferred = $.Deferred();
+                Visualforce.remoting.Manager.invokeAction(
+                    '{!$RemoteAction.ControllerExtnProcessUploadedStatement.getUnreconciledGlbanktxns}',
+                    glbankacctId,
+                    glbankstmthId,
+                    function (result, event) {
+                        deferred.resolve(result, event);
+                        enableAllButtons();
+                        
+                        console.log('getGlbanktxns returned with results');
+
+                    },
+                    {escape: false}
+                );  
+            return deferred.promise();        
+            };
+            
+            $( "unreconciledGlbanktxnGrid" ).empty();
+             
+             var unReconGlbanktxnFIList = JSON.parse('{!JSENCODE(unReconGlbanktxnFIListJson)}');
+             var unReconGlbanktxnDateFields = RootstockErp.KendoGridOptions.GetDateFields(unReconGlbanktxnFIList);
+             unreconciledGlbanktxnGrid = $('#unreconciledGlbanktxnGrid').kendoGridActionList({
+                fieldList: unReconGlbanktxnFIList,
+                getActionListFunction: getUnreconciledGlbanktxns,
+                modelIdField: 'id', //since we are using a wrapper we need to pass the full path to the id here
+                actionColumnButtons: [],
+                namespace: '{!namespaceUU}',
+                editable: false,
+                filterable: true,
+                sortable: true,
+                scrollable: true,
+                dateFields: unReconGlbanktxnDateFields
+            }).data('kendoGridActionList');
+            
+            $(".k-grid-toolbar", "#unreconciledGlbanktxnGrid")[0].innerHTML = "<h1>System Transactions</h1>";
+            unreconciledGlbanktxnGrid.wrapper.on("click", ".grid-select-one", 
+                        $.proxy(selectGlbanktxnForReconcile, { gridObj: this.unreconciledGlbanktxnGrid}));
+        }
+        
+        
+        function createUnreconciledGlbankstmtdGrid(glbankacctId,glbankstmthId) {
+            // get Glbankstmtds for a selected bank account
+            
+            var getUnreconciledGlbankstmtds = function(){
+                var deferred = $.Deferred();
+                Visualforce.remoting.Manager.invokeAction(
+                    '{!$RemoteAction.ControllerExtnProcessUploadedStatement.getUnreconciledGlbankstmtds}',
+                    glbankacctId,
+                    glbankstmthId,
+                    function (result, event) {
+                        deferred.resolve(result, event);
+                        enableAllButtons();
+                        
+                        console.log('getGlbankstmtds returned with results');
+
+                    },
+                    {escape: false}
+                );  
+            return deferred.promise();        
+            };
+                            
+            $( "unreconciledGlbankstmtdGrid" ).empty();
+            var unReconGlbankstmtdFIList = JSON.parse('{!JSENCODE(unReconGlbankstmtdFIListJson)}');
+            var unReconGlbankstmtdDateFields = RootstockErp.KendoGridOptions.GetDateFields(unReconGlbankstmtdFIList);
+            unreconciledGlbankstmtdGrid = $('#unreconciledGlbankstmtdGrid').kendoGridActionList({
+                fieldList: unReconGlbankstmtdFIList,
+                getActionListFunction: getUnreconciledGlbankstmtds,
+                modelIdField: 'id', //since we are using a wrapper we need to pass the full path to the id here
+                filterable: true,
+                namespace: '{!namespaceUU}',
+                sortable: true,
+                actionColumnButtons: [],
+                dateFields: unReconGlbankstmtdDateFields
+            }).data('kendoGridActionList');
+            
+            $(".k-grid-toolbar", "#unreconciledGlbankstmtdGrid")[0].innerHTML = "<h1>Statement Transactions</h1>";
+            
+            unreconciledGlbankstmtdGrid.wrapper.on("click", ".grid-select-one", 
+                        $.proxy(selectGlbankstmtdForReconcile, { gridObj: this.unreconciledGlbankstmtdGrid}));
+        }
+        
+        function selectGlbanktxnForReconcile(e) {
+            console.log('selectGlbanktxnForReconcile');
+            var row = $(e.currentTarget).closest("tr");
+            var selectedItem = unreconciledGlbanktxnGrid.dataItem(row);
+            selectedItem.IsSelected__custom = selectedItem.IsSelected__custom == undefined ? true 
+                                    : !selectedItem.IsSelected__custom;
+            selectedItem.dirty = true;                      
+            var bankstmtamt = parseLocaleFloat(jQuery("input[id*=br2_bankstmtamt__c]")[0].value);
+            var sysamt = parseLocaleFloat(jQuery("input[id*=br2_sysamt__c]")[0].value);
+            var unmatchedamt = parseLocaleFloat(jQuery("input[id*=br2_unmatchedamt__c]")[0].value);
+            if(selectedItem.IsSelected__custom == true) {
+                sysamt = sysamt + parseLocaleFloat(selectedItem.glbanktxn_viewbankamt__c);
+                unmatchedamt = bankstmtamt - sysamt;
+                jQuery("input[id*=br2_sysamt__c]")[0].value = formatLocaleFloat(Number(sysamt), 2);
+                jQuery("input[id*=br2_unmatchedamt__c]")[0].value = formatLocaleFloat(Number(unmatchedamt), 2);
+            }
+            else {
+                sysamt = sysamt - parseLocaleFloat(selectedItem.glbanktxn_viewbankamt__c);
+                unmatchedamt = bankstmtamt - sysamt;
+                jQuery("input[id*=br2_sysamt__c]")[0].value = formatLocaleFloat(Number(sysamt), 2);
+                jQuery("input[id*=br2_unmatchedamt__c]")[0].value = formatLocaleFloat(Number(unmatchedamt), 2);
+            }
+            
+            kendoFastReDrawRow(unreconciledGlbanktxnGrid, row);
+        }
+        
+        function selectGlbankstmtdForReconcile(e) {
+            console.log('selectGlbankstmtdForReconcile');
+            var row = $(e.currentTarget).closest("tr");
+            var selectedItem = unreconciledGlbankstmtdGrid.dataItem(row);
+            selectedItem.dirty = true;
+            selectedItem.IsSelected__custom = selectedItem.IsSelected__custom == undefined ? true 
+                                    : !selectedItem.IsSelected__custom;
+            var bankstmtamt = parseLocaleFloat(jQuery("input[id*=br2_bankstmtamt__c]")[0].value);
+            var sysamt = parseLocaleFloat(jQuery("input[id*=br2_sysamt__c]")[0].value);
+            var unmatchedamt = parseLocaleFloat(jQuery("input[id*=br2_unmatchedamt__c]")[0].value);
+            if(selectedItem.IsSelected__custom == true) {
+                bankstmtamt = bankstmtamt + parseLocaleFloat(selectedItem.glbankstmtd_bankamt__c);
+                unmatchedamt = bankstmtamt - sysamt;
+                jQuery("input[id*=br2_bankstmtamt__c]")[0].value = formatLocaleFloat(Number(bankstmtamt), 2);
+                jQuery("input[id*=br2_unmatchedamt__c]")[0].value = formatLocaleFloat(Number(unmatchedamt), 2);
+            }
+            else {
+                bankstmtamt = bankstmtamt - parseLocaleFloat(selectedItem.glbankstmtd_bankamt__c);
+                unmatchedamt = bankstmtamt - sysamt;
+                jQuery("input[id*=br2_bankstmtamt__c]")[0].value = formatLocaleFloat(Number(bankstmtamt), 2);
+                jQuery("input[id*=br2_unmatchedamt__c]")[0].value = formatLocaleFloat(Number(unmatchedamt), 2);
+            }
+            
+            kendoFastReDrawRow(unreconciledGlbankstmtdGrid, row);
+        }
+    
+    
+        var reconciledGlbankstmtdGrid;
+        var detailGrid;
+        var detailGridData;
+        function createReconciledGlbankstmtdGrid(glbankacctId,glbankstmthId) {
+            // get Glbankstmtds for a selected bank account
+            var getReconciledGlbankstmtds = function(){
+                var deferred = $.Deferred();
+                Visualforce.remoting.Manager.invokeAction(
+                    '{!$RemoteAction.ControllerExtnProcessUploadedStatement.getReconciledGlbankstmtds}',glbankacctId,glbankstmthId,
+                    function (result, event) {
+                        deferred.resolve(result, event);
+                        enableAllButtons();
+                        
+                        console.log('getReconciledGlbankstmtds returned with results');
+
+                    },
+                    {escape: false}
+                );  
+            return deferred.promise();        
+            };
+            
+            $( "reconciledGlbankstmtdGrid" ).empty();
+            if(reconciledGlbankstmtdGrid) {
+                reconciledGlbankstmtdGrid.destroy();
+            }
+            var reconciledGlbankstmtdFIList = JSON.parse('{!JSENCODE(reconciledGlbankstmtdFIListJson)}');
+            var reconciledGlbankstmtdDateFields = RootstockErp.KendoGridOptions.GetDateFields(reconciledGlbankstmtdFIList);
+            reconciledGlbankstmtdGrid = $('#reconciledGlbankstmtdGrid').kendoGridActionList({
+                fieldList: reconciledGlbankstmtdFIList,
+                dateFields: reconciledGlbankstmtdDateFields,
+                getActionListFunction: getReconciledGlbankstmtds,
+                detailTemplate: kendo.template($('#detailTemplate').html()),
+                modelIdField: 'id', //since we are using a wrapper we need to pass the full path to the id here
+                namespace: '{!namespaceUU}',
+                filterable: true,
+                sortable: true,
+                actionColumnButtons: []
+            }).data('kendoGridActionList');
+            
+            $(".k-grid-toolbar", "#reconciledGlbankstmtdGrid")[0].innerHTML = "<h1>Reconciled Transactions</h1>";
+            
+            if(detailGrid) {
+                detailGrid.destroy();
+            }
+            detailGridData = [];
+            reconciledGlbankstmtdGrid.bind('detailInit', RenderDetailGrid);
+            reconciledGlbankstmtdGrid.bind('dataBound', filterReconciledDataSource);
+        }
+        
+        function filterReconciledDataSource() {
+            var reconciledData = reconciledGlbankstmtdGrid.dataSource.data();
+            for(var i=0; i<reconciledData.length; i++) {
+                var reconciledDataItem = reconciledData[i];
+                if(reconciledDataItem.glbankstmtd_splitofffrom__c) {
+                    detailGridData.push(reconciledDataItem);
+                    reconciledGlbankstmtdGrid.dataSource.remove(reconciledDataItem);
+                }
+            }
+        }
+        
+        //Create second level grid
+        function RenderDetailGrid(e) {
+            var reconciledGlbankstmtdFIList = JSON.parse('{!JSENCODE(reconciledGlbankstmtdFIListJson)}');
+            var reconciledGlbankstmtdDateFields = RootstockErp.KendoGridOptions.GetDateFields(reconciledGlbankstmtdFIList);
+            e.detailRow.css('background-color', '#ccc');
+            var curContainer = e.detailCell.find('.grid-container');
+            var detailColumns = RootstockErp.KendoGridOptions.GetColumns(reconciledGlbankstmtdFIList);
+            var reconciledData = reconciledGlbankstmtdGrid.dataSource.data();
+            var getDetailDataSource = function(e) {
+                return new kendo.data.DataSource({
+                    data: detailGridData,
+                    //pageSize: 10,
+                    batch: true,
+                    serverPaging: false,
+                    schema: {
+                        model: kendo.data.Model.define({ id: "Id", fields: RootstockErp.KendoGridOptions.GetFields(reconciledGlbankstmtdFIList) }),
+                        parse: function(response) {
+                            $.each(response, function(i, item) {
+                                item = Serializer.ConvertToDate(item, RootstockErp.KendoGridOptions.GetDateFields(reconciledGlbankstmtdFIList));
+                            });
+                            return response;
+                        }
+                    }
+                });
+            };
+            
+            detailGrid = curContainer.find('.detail-grid').kendoGrid({
+                    columns: detailColumns,
+                    dataSource: getDetailDataSource(e),
+                    editable: false
+                }).data('kendoGrid');
+            
+            detailGrid.bind('dataBound', detailGridDataBound);
+           
+            detailGrid.dataSource.filter({
+                "field": "glbankstmtd_splitofffrom__c",
+                "operator": "eq",
+                "value": e.data.Id
+            }); 
+           
+           return;
+        }
+        
+        function detailGridDataBound() {
+            var recordCount = detailGrid.dataSource._total;
+            if (recordCount == 0) {
+                var tbody = detailGrid.wrapper.find('.k-grid-content tbody')[0];
+                tbody.append('No Detail records to display');
+            }
+        }
+        
+        var autoMatchGrid;
+        function createAutoMatchGrid() {
+            // get AutoMatchs for a selected bank account
+            var getAutoMatchRecs = function(){
+                var deferred = $.Deferred();
+                Visualforce.remoting.Manager.invokeAction(
+                    '{!$RemoteAction.ControllerExtnProcessUploadedStatement.getAutoMatchRecords}',
+                    glbankacctId,
+                    gluserId,
+                    function (result, event) {
+                        deferred.resolve(result, event);
+                        enableAllButtons();
+                        
+                        console.log('getAutoMatchRecords returned with results');
+
+                    },
+                    {escape: false}
+                );  
+            return deferred.promise();        
+            };
+            
+            $( "automatchGrid" ).empty();
+            var brmatchFIList = JSON.parse('{!JSENCODE(brmatchFInfosJson)}');
+            var brmatchDateFields = RootstockErp.KendoGridOptions.GetDateFields(brmatchFIList);
+            var brmatchReferenceFields = RootstockErp.KendoGridOptions.GetReferenceFields(brmatchFIList);
+            automatchGrid = $('#automatchGrid').kendoGridActionList({
+                fieldList: brmatchFIList,
+                getActionListFunction: getAutoMatchRecs,
+                modelIdField: 'id',
+                //toolbarButtons: getAutomatchToolbarButtons(),
+                namespace: '{!namespaceUU}',
+                editable: false,
+                filterable: false,
+                sortable: false,
+                dateFields: brmatchDateFields,
+                referenceFields: brmatchReferenceFields
+            }).data('kendoGridActionList');
+            
+            $(".k-grid-toolbar", "#automatchGrid")[0].innerHTML = "<h1>Auto Match</h1>";
+            findValidReconstatus = true;
+            hasFullyTrial = false; 
+            hasVarianceTrial = false; 
+            hasAmbiguousNoVarianceTrial = false; 
+            hasAmbiguousVarianceTrial = false;
+            automatchGrid.bind('dataBound', automatchGridDataBound);
+            
+            $("#automatchAcceptBy").html(kendo.template($('#automatchTemplate').html()));        
+            
+            automatchGrid.wrapper.on("click", ".grid-select-one", 
+                        $.proxy(acceptAutoMatchChecked, { gridObj: this.automatchGrid}));
+        }
+        
+        var findValidReconstatus = true;
+        var hasFullyTrial = false, hasVarianceTrial = false, hasAmbiguousNoVarianceTrial = false, hasAmbiguousVarianceTrial = false; 
+        function automatchGridDataBound() {
+            if(findValidReconstatus == false) return;
+            var automatchData = automatchGrid.dataSource.data();
+            $.each (automatchData, function(idx, row) {
+                  row.IsSelected__custom = true;
+                  if(hasFullyTrial == false && row.brmatch_reconstatus__c == 'Fully, trial') {
+                        hasFullyTrial = true;
+                  }
+                  else if(hasVarianceTrial == false && row.brmatch_reconstatus__c == 'Variance, trial') {
+                        hasVarianceTrial = true;
+                  }
+                  if(hasAmbiguousNoVarianceTrial == false && row.brmatch_reconstatus__c == 'Ambiguous, no variance, trial') {
+                        hasAmbiguousNoVarianceTrial = true;
+                  }
+                  if(hasAmbiguousVarianceTrial == false && row.brmatch_reconstatus__c == 'Ambiguous, variance, trial') {
+                        hasAmbiguousVarianceTrial = true;
+                  }
+                  
+                  recalculateRunningTotals(row, true);
+            });
+            
+            jQuery("input[id*=fullytrial]")[0].checked = hasFullyTrial;
+            jQuery("input[id*=fullytrial]")[0].disabled = !hasFullyTrial;
+            jQuery("input[id*=variancetrial]")[0].disabled = !hasVarianceTrial;
+            jQuery("input[id*=ambiguousnovariancetrial]")[0].disabled = !hasAmbiguousNoVarianceTrial;
+            jQuery("input[id*=ambiguousvariancetrial]")[0].disabled = !hasAmbiguousVarianceTrial;
+            findValidReconstatus = false;
+            
+            filterAutomatch();
+            automatchGrid.refresh();
+        }
+        
+        function acceptAutoMatchChecked(e) {
+            var row = $(e.currentTarget).closest("tr");
+            var selectedItem = automatchGrid.dataItem(row);
+            var isSelected = selectedItem.IsSelected__custom == undefined ? true 
+                                    : !selectedItem.IsSelected__custom;
+            recalculateRunningTotals(selectedItem, isSelected);
+        }
+        
+        function recalculateRunningTotals(matchItem, isSelected) {
+            var bankstmtamt = parseLocaleFloat(jQuery("input[id*=br2_bankstmtamt__c]")[0].value);
+            var sysamt = parseLocaleFloat(jQuery("input[id*=br2_sysamt__c]")[0].value);
+            var unmatchedamt = parseLocaleFloat(jQuery("input[id*=br2_unmatchedamt__c]")[0].value);
+            
+            if(isSelected == true) {
+                sysamt = sysamt + parseLocaleFloat(matchItem.brmatch_banktxnamt__c);
+                bankstmtamt = bankstmtamt + parseLocaleFloat(matchItem.brmatch_bankstmtamt__c);
+                unmatchedamt = bankstmtamt - sysamt;
+                jQuery("input[id*=br2_sysamt__c]")[0].value = formatLocaleFloat(Number(sysamt), 2);
+                jQuery("input[id*=br2_bankstmtamt__c]")[0].value = formatLocaleFloat(Number(bankstmtamt), 2);
+                jQuery("input[id*=br2_unmatchedamt__c]")[0].value = formatLocaleFloat(Number(unmatchedamt), 2);
+            }
+            else {
+                sysamt = sysamt - parseLocaleFloat(matchItem.brmatch_banktxnamt__c);
+                bankstmtamt = bankstmtamt - parseLocaleFloat(matchItem.brmatch_bankstmtamt__c);
+                unmatchedamt = bankstmtamt - sysamt;
+                jQuery("input[id*=br2_sysamt__c]")[0].value = formatLocaleFloat(Number(sysamt), 2);
+                jQuery("input[id*=br2_bankstmtamt__c]")[0].value = formatLocaleFloat(Number(bankstmtamt), 2);
+                jQuery("input[id*=br2_unmatchedamt__c]")[0].value = formatLocaleFloat(Number(unmatchedamt), 2);
+            }
+        }
+        
+        function filterAutomatch() {
+            var fullytrialChkd = jQuery("input[id*=fullytrial]")[0].checked;
+            var variancetrialChkd = jQuery("input[id*=variancetrial]")[0].checked;
+            var ambiguousnovariancetrialChkd = jQuery("input[id*=ambiguousnovariancetrial]")[0].checked;
+            var ambiguousvariancetrialChkd = jQuery("input[id*=ambiguousvariancetrial]")[0].checked;
+            
+            var filters = [];
+            if(fullytrialChkd == true) {
+                var new_filter = { "field": "brmatch_reconstatus__c", "operator": "eq", "value": "Fully, trial" };
+                filters.push(new_filter);
+            }
+            
+            if(variancetrialChkd == true) {
+                var new_filter = { "field": "brmatch_reconstatus__c", "operator": "eq", "value": "Variance, trial" };
+                filters.push(new_filter);
+            }
+            
+            if(ambiguousnovariancetrialChkd == true) {
+                var new_filter = { "field": "brmatch_reconstatus__c", "operator": "eq", "value": "Ambiguous, no variance, trial" };
+                filters.push(new_filter);
+            }
+            
+            if(ambiguousvariancetrialChkd == true) {
+                var new_filter = { "field": "brmatch_reconstatus__c", "operator": "eq", "value": "Ambiguous, variance, trial" };
+                filters.push(new_filter);
+            }
+            
+            var filter = { logic: "or", filters: filters };
+            automatchGrid.dataSource.filter(filter);
+        }
+        
+        function doReconcile() {
+            cleanupMessageElements();
+            var glbanktxnItemSelected;
+            var glbanktxnItemSelectedRow;
+            // To get selected records
+            var sel = $("input:checked", unreconciledGlbanktxnGrid.tbody).closest("tr"); 
+            var glbanktxnsSelected = [];
+            var glbanktxnSum = 0;
+            $.each (sel, function(idx, row) {
+                if(!row.cells[0].firstElementChild.hasAttribute("disabled")) {
+                    glbanktxnItemSelected = unreconciledGlbanktxnGrid.dataItem(row);
+                    glbanktxnSum = glbanktxnSum + parseLocaleFloat(glbanktxnItemSelected.glbanktxn_viewbankamt__c);
+                    glbanktxnsSelected.push(glbanktxnItemSelected);
+                }
+            });
+            
+            glbanktxnSum = glbanktxnSum.toFixed(2);
+            var oneItemSelected = false;
+            var glbankstmtdItemSelected;
+            var glbankstmtdItemSelectedRow;
+            var sel = $("input:checked", unreconciledGlbankstmtdGrid.tbody).closest("tr"); 
+            
+            var hasErrors = false;
+            $.each (sel, function(idx, row) {
+                if(!row.cells[0].firstElementChild.hasAttribute("disabled")) {
+                    glbankstmtdItemSelected = unreconciledGlbankstmtdGrid.dataItem(row);
+                    if(!oneItemSelected) {
+                        oneItemSelected = true;
+                    }
+                    else {
+                        alert("{!$Label.PlzSelOnlyOneStmtTxn}");
+                        hasErrors = true;
+                    }
+                    
+                    glbankstmtdItemSelectedRow = row;
+                }
+            });
+            
+            if(hasErrors == true) {
+                return false;
+            }
+            
+            var isAddSysTxnType = isAddSysTxnTranType(glbankstmtdItemSelected);
+            if(isAddSysTxnType == false) {
+                if(glbanktxnsSelected.length == 0) {
+                    alert("{!$Label.PlzSelAtleastOneSysTxn}");
+                    return false;
+                }else{
+                    if(isRecontxntype == 'false') {
+                        for (var i = 0; i< glbanktxnsSelected.length; i++) {
+                            if(glbankstmtdItemSelected.glbankstmtd_banktrantype__c != glbanktxnsSelected[i].glbanktxn_trantype__c){
+                                    alert("{!$Label.Transaction_Type_should_be_same}");
+                                    return false;
+                            }
+                        }   
+                    }
+                    else {
+                        if(glbanktxnsSelected.length > 1) {
+                            var firstGlbanktxnTrantype = glbanktxnsSelected[0].glbanktxn_trantype__c;
+                            for (var i = 1; i< glbanktxnsSelected.length; i++) {
+                                if(glbanktxnsSelected[i].glbanktxn_trantype__c != firstGlbanktxnTrantype) {
+                                    alert("{!$Label.AllSelectedGlbanktxnMustHaveSameTranType}");
+                                    return false;
+                                }
+                            }
+                        }
+                        else if(glbanktxnsSelected.length == 1) {
+                            var glbanktxn_viewbankamt = parseLocaleFloat(glbanktxnsSelected[0].glbanktxn_viewbankamt__c);
+                            var glbankstmtd_bankamt = parseLocaleFloat(glbankstmtdItemSelected.glbankstmtd_bankamt__c);
+                            if( (glbanktxn_viewbankamt < 0 && glbankstmtd_bankamt > 0)
+                                    || (glbanktxn_viewbankamt > 0 && glbankstmtd_bankamt < 0) ) {
+                                alert("{!$Label.TxnsOnBothSideShudBeEitherBothPositiveOrBothNegative}");
+                                return false;
+                            }
+                        }
+                    }
+                }
+                
+                if(parseLocaleFloat(glbankstmtdItemSelected.glbankstmtd_bankamt__c) != glbanktxnSum) {
+                    if(glbanktxnsSelected.length == 1) {
+                        var isOk = confirm("{!$Label.ThereIsVarianceBetweenStmtAmtAndSysAmt_DoYouWishToCont}");
+                        if(isOk == false) {
+                            return false;
+                        }                    
+                    }
+                    else if(glbanktxnsSelected.length > 1) {
+                        alert("{!$Label.SysTxnTotalNotEqToStmtLineTotal}");
+                        return false;
+                    }
+                    
+                }
+                
+                if(glbanktxnsSelected.length > 0) {
+                    for(var i=0; i<glbanktxnsSelected.length; i++) {
+                        var glbanktxnItemSelected = glbanktxnsSelected[i];
+                        unreconciledGlbanktxnGrid.dataSource.remove(glbanktxnItemSelected);    
+                    }
+                }
+                
+                if(glbankstmtdItemSelected) {
+                    unreconciledGlbankstmtdGrid.dataSource.remove(glbankstmtdItemSelected);    
+                }
+                
+                if(glbanktxnsSelected.length > 0 && glbankstmtdItemSelected) {
+                    //addToReconciledList(glbankstmtdItemSelected, glbanktxnsSelected, false);
+                }
+                else {
+                    alert("{!$Label.PlzSelTxnsForRecon}");
+                    return false;
+                }
+            }
+            else {  //isAddSysTxnType == TRUE
+                unreconciledGlbankstmtdGrid.dataSource.remove(glbankstmtdItemSelected);
+                //addToReconciledList(glbankstmtdItemSelected,glbanktxnsSelected,true);
+            }
+            
+            var mode = isAddSysTxnType == true ? 'Add System Txn' : 'Reconciliation';
+            var glbanktxnIdsSelected = '';
+            if(glbanktxnsSelected && glbanktxnsSelected != null) {
+                for(var i=0; i<glbanktxnsSelected.length; i++) {
+                    glbanktxnIdsSelected += glbanktxnsSelected[i].Id + ',';
+                }
+                
+                var lastChar = glbanktxnIdsSelected.slice(-1);
+                if (lastChar == ',') { // check last character is string
+                    strVal = glbanktxnIdsSelected.slice(0, -1); // trim last character
+                }
+            }
+            
+            doSave(mode, glbanktxnIdsSelected, glbankstmtdItemSelected.Id);
+            jQuery("input[id*=br2_bankstmtamt__c]")[0].value = "0";
+            jQuery("input[id*=br2_sysamt__c]")[0].value = "0";
+            jQuery("input[id*=br2_unmatchedamt__c]")[0].value = "0";
+        }
+        
+        function isAddSysTxnTranType(glbankstmtdItemSelected) {
+            if(glbankstmtdItemSelected.glbankstmtd_banktrantype__c == 'AP ACH/EFT Fees'
+                || glbankstmtdItemSelected.glbankstmtd_banktrantype__c == 'AR ACH/EFT Payment Reported by Bank'
+                || glbankstmtdItemSelected.glbankstmtd_banktrantype__c == 'Bank Fees/Service Charges'
+                || glbankstmtdItemSelected.glbankstmtd_banktrantype__c == 'Bank Reports Credit Card Deposit'
+                || glbankstmtdItemSelected.glbankstmtd_banktrantype__c == 'Credit Card Processing Fee'
+                || glbankstmtdItemSelected.glbankstmtd_banktrantype__c == 'Interest Income'
+                || glbankstmtdItemSelected.glbankstmtd_banktrantype__c == 'Interest Expense'
+                || glbankstmtdItemSelected.glbankstmtd_banktrantype__c == 'All Other Adjustments') {
+            
+                return true;    
+            }
+            
+            return false;
+        }
+        
+        
+        var glbankstmthId;
+        function queryStatement() {
+            initvars();
+            cleanupMessageElements();
+            glbankstmthId = jQuery("select[id*=glbankacc_stmtheader__c")[0].value;
+            refreshGrids();
+        }
+        
+        function refreshGrids() {
+            createUnreconciledGlbanktxnGrid(glbankacctId);
+            createUnreconciledGlbankstmtdGrid(glbankacctId,glbankstmthId);
+            createReconciledGlbankstmtdGrid(glbankacctId,glbankstmthId);
+        }
+        
+        function initvars() {
+            jQuery("input[id*=br2_bankstmtamt__c]")[0].value = "0";
+            jQuery("input[id*=br2_sysamt__c]")[0].value = "0";
+            jQuery("input[id*=br2_unmatchedamt__c]")[0].value = "0";
+            $("#automatchAcceptBy").html("");
+        }
+    
+        function doUndoAll() {
+            var confirmDelete = confirm("{!$Label.confirm_UndoAll}");
+            if(confirmDelete == true) {
+                blockUI();
+                undoAll();
+            }
+        }
+    
+        function doSave(mode, glbanktxnIds, glbankstmtdId) {
+            var messageElement = $("#unreconciledgrid-message");
+            RootstockErp.BlockUI(reconciledGlbankstmtdGrid.element);
+            Visualforce.remoting.Manager.invokeAction(
+                '{!$RemoteAction.ControllerExtnProcessUploadedStatement.saveReconciliation}',                              
+                mode,
+                glbanktxnIds,
+                glbankstmtdId,
+                glcmpId,
+                glbankacctId,
+                glbankstmthId,
+                function (result, event) {
+                    RootstockErp.UnBlockUI(reconciledGlbankstmtdGrid.element);
+                    enableAllButtons();
+                     if (event.type == 'exception') {
+                         RootstockErp.Message(event.message, RootstockErp.MessageType.Error, messageElement);
+                     } else {
+                         if (result.success) {
+                              //refresh the grid
+                            reconciledGlbankstmtdGrid.dataSource._destroyed = [];
+                            reconciledGlbankstmtdGrid.dataSource.read();
+                                           
+                              // trigger onsavesuccess
+                            OnSaveReconciliationSuccess();
+                            RootstockErp.Messages(result.messages, messageElement);
+                         }
+                         else {
+                             RootstockErp.Messages(result.messages, messageElement);
+                             OnSaveReconciliationFailure();
+                          }
+                      }
+                 },
+                 {escape: false}
+             );
+        }
+        
+        function OnSaveReconciliationSuccess() {
+            cleanupMessageElements();
+            initvars();
+            createReconciledGlbankstmtdGrid(glbankacctId,glbankstmthId);
+            refreshHeader();
+            unblockUI();
+        }
+        
+        function OnSaveReconciliationFailure() {
+            console.log('Save Failed');
+        }
+        
+        var currentActionInProcess = '';
+        function doProcessAutoMatch() {
+            cleanupMessageElements();
+            blockUI();
+            currentActionInProcess = 'Process Auto Match';
+            processAutoMatch();
+        }
+        
+        function doAfterProcessAutoMatch() {
+            //Hide the Unreconciled grids
+            unreconciledGlbankstmtdGrid.wrapper.hide();
+            unreconciledGlbanktxnGrid.wrapper.hide();
+            
+            //Create the Auto Match grid. and show
+            createAutoMatchGrid(glbankacctId);
+            automatchGrid.wrapper.show();
+            jQuery('input[Id*=autoMatchBtn]')[0].disabled = true;
+            jQuery('input[Id*=queryUnreconciledBtn]')[0].disabled = true;
+            jQuery('input[Id*=reverseBtn]')[0].disabled = true;
+            unblockUI();
+        }
+        
+        function acceptAutoMatch() {
+            currentActionInProcess = 'Accept Auto Match';
+            cleanupMessageElements();
+            var messageElement = $("#automatchGrid").closest("div.grid-container").find("div.grid-message");
+            var automatchGrid = this.automatchGrid;
+            var data = automatchGrid.dataSource.data();
+            
+            var fullytrialChkd = jQuery("input[id*=fullytrial]")[0].checked;
+            var variancetrialChkd = jQuery("input[id*=variancetrial]")[0].checked;
+            var ambiguousnovariancetrialChkd = jQuery("input[id*=ambiguousnovariancetrial]")[0].checked;
+            var ambiguousvariancetrialChkd = jQuery("input[id*=ambiguousvariancetrial]")[0].checked;
+            
+            if(fullytrialChkd == false && variancetrialChkd == false && ambiguousnovariancetrialChkd == false && ambiguousvariancetrialChkd == false) {
+                alert("{!$Label.PlzChkAtleastOneAcceptByStatusCheckBox}");
+                return false;
+            }
+            
+            var acceptedRows = $.map(automatchGrid.dataSource.data(), function(val,key) {
+                if (val.IsSelected__custom == true 
+                    && ((fullytrialChkd == true && val.brmatch_reconstatus__c == 'Fully, trial')
+                        || (variancetrialChkd == true && val.brmatch_reconstatus__c == 'Variance, trial')
+                        || (ambiguousnovariancetrialChkd == true && val.brmatch_reconstatus__c == 'Ambiguous, no variance, trial')
+                        || (ambiguousvariancetrialChkd == true && val.brmatch_reconstatus__c == 'Ambiguous, variance, trial'))) {
+                    return val;
+                }
+            });
+            
+            if (acceptedRows.length > 0) {
+                acceptedRows = Serializer.ParameterMap(JSON.parse(JSON.stringify(acceptedRows)), { isDml: true });
+                //RootstockErp.BlockUI(automatchGrid.element);
+                blockUI();
+                Visualforce.remoting.Manager.invokeAction(
+                    '{!$RemoteAction.ControllerExtnProcessUploadedStatement.acceptAutoMatch}',
+                    acceptedRows,
+                    glcmpId,
+                    glbankacctId,
+                    glbankstmthId,
+                    function(result,event) {
+                        //RootstockErp.UnBlockUI(automatchGrid.element);
+                        if (event.type == 'exception') {
+                            RootstockErp.Message(event.message,RootstockErp.MessageType.Error,messageElement);
+                            unblockUI();
+                        } else if (result.success) {
+                            document.getElementById('processlogId').value = result.processLogId;
+                            checkJobStatus();
+                        } else {
+                            RootstockErp.Messages(result.messages,messageElement);
+                        }
+                    },
+                    { escape: false }
+                );
+            }
+            else {
+                clearAutoMatch();
+            }
+        }
+        
+        function doAfterAcceptAutoMatch() {
+            unreconciledGlbankstmtdGrid.wrapper.show();
+            unreconciledGlbanktxnGrid.wrapper.show();
+            automatchGrid.wrapper.hide();
+            initvars();
+            cleanupMessageElements();
+            refreshHeader();
+            refreshGrids();
+            unblockUI();
+        }
+        
+        function doFinalizeStatement() {
+            currentActionInProcess = 'Finalize'
+            finalizeStatement();
+        }
+        
+        function doAfterJobComplete(pl) {
+            if(currentActionInProcess == 'Finalize') {
+                getHeaderDetails();
+            }
+            
+            if(!pl.iserror__c) {
+                if(currentActionInProcess == 'Process Auto Match') {
+                    doAfterProcessAutoMatch();
+                }
+                else if(currentActionInProcess == 'Accept Auto Match') {
+                    doAfterAcceptAutoMatch();
+                }
+                else if(currentActionInProcess == 'Upload Bratos') {
+                    doAfterProcessBrato();
+                }
+            }
+            else {
+                unblockUI();                
+            }
+        }
+        
+        function clearAutoMatch() {
+            cleanupMessageElements();
+            initvars();
+            unreconciledGlbankstmtdGrid.wrapper.show();
+            unreconciledGlbanktxnGrid.wrapper.show();
+            automatchGrid.wrapper.hide();
+        }
+        
+        function doReverseSelected() {
+            items = [];
+            var sel = $("input:checked", reconciledGlbankstmtdGrid.tbody).closest("tr"); 
+            $.each (sel, function(idx, row) {
+                var item = reconciledGlbankstmtdGrid.dataItem(row);
+                items.push(item.Id);
+            });
+            
+            if(items.length == 0) {
+                alert('Please select atleast one line for reverse');
+                return false;
+            }
+            blockUI();
+            reverseSelected(items.join(","));
+            return false;
+        }
+        
+        function doAfterReverseSelected() {
+            if(isReverseSuccess == 'true') {
+                alert('Selected lines reversed successfully.');
+                refreshGrids();
+            }
+            else {
+                alert('An error occured when trying to reverse selected lines.');
+            }
+            return false;
+        }
+        
+      function cleanupMessageElements() {
+        var automatchGridMessageElement = $("#automatchGrid").closest("div.grid-container").find("div.grid-message");
+        RootstockErp.ClearMessage(automatchGridMessageElement);
+        
+        var reconciledGridMessageElement = $("#reconciledGlbankstmtdGrid").closest("div.grid-container").find("div.grid-message");
+        RootstockErp.ClearMessage(reconciledGridMessageElement);
+      }
+        
+     function processBratos(){
+        currentActionInProcess = 'Upload Bratos'; 
+        items = [];
+        // To get selected journals
+        $.map(uploadStatementgrid.dataSource.data(), function(item, index) {
+            if (item.IsSelected__custom) {
+                items.push(item.Id);
+            }
+        });
+        
+        blockUI();
+        processBratoRequest(items.join(","));
+        return false;
+     }
+     
+     function doAfterProcessBrato() {
+         var messageElement = $("#uploadStatementgrid-message");
+        RootstockErp.Message('Statement created successfully!',RootstockErp.MessageType.Info,messageElement);
+        createUploadStatementGrid();
+        showPopup('#popUploadStatement', 1300, 450);
+     }
+     
+     var uploadStatementgrid;
+     function createUploadStatementGrid() {
+      var glbankacctId = '{!glbankacct.Id}';
+            // get journals for a selected year and period
+            var getBratos = function(){
+                var deferred = $.Deferred();
+                Visualforce.remoting.Manager.invokeAction(
+                    '{!$RemoteAction.ControllerExtnProcessUploadedStatement.getBratos}',glbankacctId,   
+                    function (result, event) {
+                        deferred.resolve(result, event);
+                         enableAllButtons();
+                     },
+                    {escape: false}
+                );  
+            return deferred.promise();        
+            };
+            
+            $( "UploadStatementgrid" ).empty();
+           // creating BRATO kendo grid
+           uploadStatementgrid = $('#UploadStatementgrid').kendoGridActionList({
+                fieldList: [{field: 'brato_key__c',title: 'Key',template: "<a href='/#=Id#'>#= brato_key__c #</a>"},
+                            {fieldtype: 'string', field: 'brato_lntrantype__c', title: 'Transaction Type'},
+                            {fieldtype: 'number', field: 'brato_lnbankamt__c', title: 'Amount Reported by Bank'},
+                            {fieldtype: 'string', field: 'brato_lnreference__c', title: 'Bank\'s reference'},
+                            {fieldtype: 'date', field: 'brato_hdrstmtdate__c', title: 'Statement Date'}
+                            
+                           ],
+                getActionListFunction: getBratos,
+                modelIdField: 'id', //since we are using a wrapper we need to pass the full path to the id here
+                namespace: '{!namespaceUU}',
+                scrollable: true,
+                height: "30em",
+                pageSize: 10
+            }).data('kendoGridActionList');
+            
+            uploadStatementgrid.bind('dataBound', UploadStatementgridDataBound);
+        }
+        
+        function UploadStatementgridDataBound() { }        
+
+        function showPopup(popName, popWidth, popHeight) {
+            var top = ((jQuery(window).height() - popHeight) / 2);
+            var width = jQuery(window).width();
+            var left = (width - popWidth) / 2;
+            if (popWidth > width) {
+                left = 0;
+            } else {
+                width = popWidth;
+            }
+            
+            jQuery.blockUI({
+                message: jQuery(popName),
+                baseZ: 1,
+                css: {
+                    backgroundColor:'#fff',
+                    left: (left + 'px'),
+                    top: (top + 'px'),
+                    width:(width + 'px'),
+                    height:(popHeight + 'px'),
+                    padding:'15px',
+                    textAlign:'left',
+                    fontSize:'1em',
+                    border:'2px solid #333',
+                    
+                    opacity:'1.0',
+                    '-moz-border-radius':'6px',
+                    '-webkit-border-radius':'6px',
+                    '-moz-box-shadow': '0 0 50px #ccc',
+                    '-webkit-box-shadow': '0 0 50x #ccc'
+                }
+            });
+        }
+        
+        function enableAllButtons() {
+            var btns = jQuery('.btn');
+            for(var i = 0; i < btns.length; i++) {
+                var btn = btns[i];
+                btn.removeAttribute('disabled');
+            }
+        }
+        
+        //Need this function for the refocus issue on select of any row after sorting
+        function kendoFastReDrawRow(grid, row) {
+            var dataItem = grid.dataItem(row);
+            var rowChildren = $(row).children('td[role="gridcell"]');
+            for (var i = 0; i < grid.columns.length; i++) {
+                var column = grid.columns[i];
+                var template = column.template;
+                var cell = rowChildren.eq(i);
+                if (template !== undefined) {
+                    var kendoTemplate = kendo.template(template);
+                    // Render using template
+                    cell.html(kendoTemplate(dataItem));
+                } else {
+                    var fieldValue = dataItem[column.field];
+                    var format = column.format;
+                    var values = column.values;
+                    if (values !== undefined && values != null) {
+                        // use the text value mappings (for enums)
+                        for (var j = 0; j < values.length; j++) {
+                            var value = values[j];
+                            if (value.value == fieldValue) {
+                                cell.html(value.text);
+                                break;
+                            }
+                        }
+                    } else if (format !== undefined) {
+                        // use the format
+                        cell.html(kendo.format(format, fieldValue));
+                    } else {
+                        // Just dump the plain old value
+                        cell.html(fieldValue);
+                    }
+                }
+            }
+        }
+        
+        function pageInit(){
+            jQuery("select[id*=glbankacc_stmtheader__c")[0].focus();
+            document.body.scrollTop = document.documentElement.scrollTop = 0;
+        }
+        
+    </script>
+    
+    <script type="text/x-kendo-template" id="detailTemplate">
+        <div class="grid-container">
+            <div class="grid-label"><span style="font-weight: bold;"></span></div>
+            <div class="detail-grid" style="margin-bottom: 10px;"></div>
+        </div>
+    </script>
+    
+    <script type="text/x-kendo-template" id="automatchTemplate">
+        <div class="checkboxes" style="border-width: 5px;">
+        <ul style="list-style:none; margin: 0">
+            <li>
+                <input type="checkbox" id="fullytrial" style="width: 75px" onchange="filterAutomatch();"/>
+                <label class="list-label" for="fullytrial">{!$Label.Accept_perfect_matches}</label>
+            </li>
+            
+            <li>
+                <input type="checkbox" id="variancetrial" style="width: 75px" onchange="filterAutomatch();"/>   
+                <label class="list-label" for="variancetrial">{!$Label.Accept_perfectly_matching_references_with_variances}</label>
+            </li>
+
+            <li>
+                <input type="checkbox" id="ambiguousnovariancetrial" style="width: 75px" onchange="filterAutomatch();"/>    
+                <label class="list-label" for="ambiguousnovariancetrial">{!$Label.Accept_partially_matching_references_with_no_variances}</label>
+            </li>
+
+            <li>
+                <input type="checkbox" id="ambiguousvariancetrial" style="width: 75px" onchange="filterAutomatch();"/>  
+                <label class="list-label" for="ambiguousvariancetrial">{!$Label.Accept_partially_matching_references_with_variances}</label>
+            </li>
+        </ul>
+        </div>
+    </script>
+</apex:page>

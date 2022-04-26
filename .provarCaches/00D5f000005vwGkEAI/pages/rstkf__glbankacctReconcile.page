@@ -1,0 +1,894 @@
+<apex:page id="pg" docType="html-5.0" standardController="rstkf__glbankacct__c" extensions="rstkf.ControllerExtnGlbankacctReconcile,rstkf.ControllerJobStatus" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__glbankacct__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__glbankacct__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="f_glbanktxn" value="{!$ObjectType.rstkf__glbanktxn__c.fields}" />
+    <apex:sectionHeader subtitle="{!$Label.rstkf__title_bankacctreconcile}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__title_bankacctreconcile}" customInclude="{!$Resource.rstkf__glbankacctReconcile_cli}" showHeader="false"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    
+    <style>
+        input:disabled {
+            background: #dddddd;
+        }
+        
+        .sort {display:inline}
+        .numSort {display:inline}
+        
+        .floatingStyle { 
+            background-color:#829DC0 !important;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="getAccountDetails" action="{!getAccountDetails}" onComplete="unblockUI();" rerender="op_BankAcct" immediate="false"/>
+        <apex:actionFunction name="changeBankAccount" action="{!changeBankAccount}" onComplete="unblockUI();" rerender="pageMessages,op_BankAcct,op_queryFilter,op_transScrolling,op_transaction" immediate="false"/>
+        <apex:actionFunction name="maintainBankAcct" action="{!maintainBankAcct}" onComplete="unblockUI();" rerender="op_BankAcct" immediate="false"/>
+        <apex:actionFunction name="saveBankAcct" action="{!saveBankAcct}" onComplete="unblockUI();" rerender="op_BankAcct" immediate="false"/>
+        <apex:actionFunction name="cancelBankAcct" action="{!cancelBankAcct}" onComplete="unblockUI();" rerender="op_BankAcct" immediate="false"/>
+        
+        <apex:actionFunction name="queryBankTrans" action="{!queryBankTrans}" onComplete="resetFields();unblockUI();" rerender="op_BankAcct, op_queryFilter,op_transScrolling,op_transaction" immediate="false"/>
+        <apex:actionFunction name="searchTransactions" action="{!searchTransactions}" onComplete="enableSort();unblockUI();" rerender="pageMessages,op_BankAcct,op_queryFilter,op_transScrolling" immediate="false"/>
+        <apex:actionFunction name="showFilteredTransactions" action="{!showFilteredTransactions}" onComplete="enableSort();unblockUI();" rerender="op_BankAcct,op_queryFilter,op_transScrolling" immediate="false"/>
+        <apex:actionFunction name="showSortedTransactions" action="{!showSortedTransactions}" onComplete="enableSort();unblockUI();" rerender="op_BankAcct,op_queryFilter,op_transScrolling" immediate="false"/>
+        <apex:actionFunction name="showQueriedTransactions" action="{!showQueriedTransactions}" onComplete="enableSort();unblockUI();" rerender="op_BankAcct,op_queryFilter,op_transScrolling" immediate="false"/>
+        <apex:actionFunction name="addTransaction" action="{!addTransaction}" onComplete="unblockUI();" rerender="op_vars,op_queryFilter,op_transScrolling,op_transaction" immediate="false"/>
+        <apex:actionFunction name="addTransactionForType" action="{!addTransactionForType}" onComplete="doAfterAddTransForType();unblockUI();" rerender="pageMessages_transaction,op_vars,op_transaction" immediate="false"/>
+        <apex:actionFunction name="saveTransaction" action="{!saveTransaction}" onComplete="enableSort();unblockUI();" rerender="pageMessages,op_vars,op_BankAcct,op_transScrolling,op_transaction" immediate="false"/>
+        <apex:actionFunction name="cancelTransaction" action="{!cancelTransaction}" onComplete="enableSort();unblockUI();" rerender="op_vars,op_transScrolling,op_transaction" immediate="true"/>
+        <apex:actionFunction name="getTransaction" action="{!getTransaction}" onComplete="doAfterGetTransaction();unblockUI();" rerender="op_vars,op_transScrolling,op_transaction" immediate="false"/>
+        <apex:actionFunction name="deleteTransactions" action="{!deleteTransactions}" onComplete="enableSort();unblockUI();" rerender="pageMessages,op_BankAcct,op_transScrolling,op_transaction" immediate="false"/>
+        
+        <apex:actionFunction name="doUnvoidPayment" action="{!doUnvoidPayment}" onComplete="enableSort();unblockUI();" rerender="op_BankAcct,op_transScrolling" immediate="false"/>
+        <apex:actionFunction name="doVoidPayment" action="{!doVoidPayment}" onComplete="enableSort();unblockUI();" rerender="op_BankAcct,op_transScrolling" immediate="false"/>
+
+        <apex:actionFunction name="doReconciliation" action="{!doReconciliation}" onComplete="enableSort();unblockUI();" rerender="op_BankAcct,op_transScrolling" immediate="false"/>
+        <apex:actionFunction name="doUnReconcile" action="{!doUnReconcile}" onComplete="enableSort();unblockUI();" rerender="op_BankAcct,op_transScrolling" immediate="false"/>
+        
+        <apex:actionFunction name="addUpdateTransactions" action="{!addUpdateTransactions}" onComplete="checkJobStatus();" rerender="op_JobStatus,op_BankAcct,op_queryFilter,op_transScrolling,op_transaction" immediate="false"/>
+        <apex:actionFunction name="addUpdateTransactionsAndRestart" action="{!addUpdateTransactions}" onComplete="restartQuery();" rerender="op_transScrolling" immediate="false"/>
+        
+        <apex:actionFunction name="restartQuery" action="{!restartQuery}" onComplete="resetFields();unblockUI();" rerender="pageMessages,op_BankAcct,op_queryFilter,op_transScrolling,op_transaction" immediate="false"/>
+        
+        
+        <apex:outputpanel id="op_vars">
+            <input type="hidden" id="isMultiCurrency" value="{!currCompany.rstkf__glcmp_multicurrency__c}"/>
+            <input type="hidden" id="isAddTransaction" value="{!isAddTransaction}"/>
+            <input type="hidden" id="bankCurr" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_curr__c}"/>
+        </apex:outputpanel>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+        </apex:outputPanel>
+            
+        <apex:outputpanel id="op_BankAcct">
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons location="bottom">
+                <apex:commandButton value="{!$Label.rstkf__btn_save}" onclick="blockUI(); validateAndSaveBankAcct();return false;" rendered="{!isBankAcctMaint}"/>
+                <apex:commandButton value="{!$Label.rstkf__btn_cancel}" onclick="blockUI(); cancelBankAcct();return false;" rendered="{!isBankAcctMaint}"/>
+            </apex:pageBlockButtons>
+            
+            <input type="button" id="addNewBankAcct" value="{!$Label.btn_addNewBankAcct}" class="btn" onclick="openCreateNewAcc();"/>
+            <apex:pageBlockSection />
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="true" title="{!$Label.rstkf__pbs_bankaccount}" columns="1" collapsible="false">
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstkf__bankaccount}" />
+                        <apex:outputPanel >
+                            <apex:selectList id="glbankacctList__c" value="{!glbankacctReconcile.selectedBankAcct}" size="1" style="width:250px;" tabindex="15" onchange="bankAcctChanged();" disabled="{!displayBankAcct}"> 
+                                <apex:selectOptions value="{!glbankaccts}" /> 
+                            </apex:selectList>
+                            <apex:commandButton value="{!$Label.rstkf__btn_maintainbankacct}" onclick="blockUI(); maintainBankAcct(); return false;" rendered="{!displayBankAcct}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:commandButton value="{!$Label.rstkf__btn_addtrans}" onclick="blockUI(); addTransaction(); return false;" rendered="{!displayBankAcct}" disabled="{!showTransScroll}"/>
+            <apex:commandButton value="{!$Label.rstkf__btn_qrybanktrans}" onclick="blockUI(); queryBankTrans(); return false;"  rendered="{!displayBankAcct}" disabled="{!showTransScroll}"/>
+            <apex:commandButton value="{!$Label.rstkf__btn_changebankacct}" onclick="blockUI(); changeBankAccount(); return false;"  rendered="{!displayBankAcct}" disabled="{!showTransScroll}"/>
+            <apex:pageBlockSection id="pbs_BankAcct" title="{!$Label.rstkf__pbs_bankacctdetails}" showHeader="true" columns="2" collapsible="false" rendered="{!displayBankAcct}">
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_cmpno__c}"/>
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_glacct__c}"/>
+                
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_maskednumber__c}"/>
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_name__c}" rendered="{!!isBankAcctMaint}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_name__c.inlineHelpText}" rendered="{!isBankAcctMaint}">
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_name__c.label}"/>
+                    <apex:inputField id="glbankacct_name__c" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_name__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_institution__c}" rendered="{!!isBankAcctMaint}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_institution__c.inlineHelpText}" rendered="{!isBankAcctMaint}">
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_institution__c.label}"/>
+                    <apex:inputField id="glbankacct_institution__c" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_institution__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.glbankacct_glacct__r.rstkf__glacct_desc__c}"/>
+                
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_amtbank__c}"/>
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_curr__c}"/>
+                
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_amthome__c}" rendered="{!!isQueryBankTrans}"/>
+                <apex:outputField label="{!$Label.rstkf__functionalcurrency}" value="{!glbankacctReconcile.glbankacct.glbankacct_cmpno__r.glcmp_cmpno__r.rstk__sycmp_homecurr__c}" rendered="{!!isQueryBankTrans}"/>
+                
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_lstchecknumb__c}" rendered="{!!isBankAcctMaint && !isQueryBankTrans}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_lstchecknumb__c.inlineHelpText}" rendered="{!isBankAcctMaint && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_lstchecknumb__c.label}"/>
+                    <apex:inputField id="glbankacct_lstchecknumb__c" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_lstchecknumb__c}" onchange="lstchecknumbChanged();"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_cashapplind__c}" rendered="{!!isBankAcctMaint && !isQueryBankTrans}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_cashapplind__c.inlineHelpText}" rendered="{!isBankAcctMaint && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_cashapplind__c.label}"/>
+                    <apex:inputField id="glbankacct_cashapplind__c" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_cashapplind__c}"/>
+                </apex:pageBlockSectionItem>                    
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_ccapplind__c}" rendered="{!!isBankAcctMaint && !isQueryBankTrans}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_ccapplind__c.inlineHelpText}" rendered="{!isBankAcctMaint && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_ccapplind__c.label}"/>
+                    <apex:inputField id="glbankacct_ccapplind__c" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_ccapplind__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_checkapplind__c}" rendered="{!!isBankAcctMaint && !isQueryBankTrans}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_checkapplind__c.inlineHelpText}" rendered="{!isBankAcctMaint && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_checkapplind__c.label}"/>
+                    <apex:inputField id="glbankacct_checkapplind__c" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_checkapplind__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_eftapplind__c.inlineHelpText}" rendered="{!!isBankAcctMaint && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_eftapplind__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_eftapplind__c}" rendered="{!!isBankAcctMaint && !isQueryBankTrans}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_eftapplind__c.inlineHelpText}" rendered="{!isBankAcctMaint && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_eftapplind__c.label}"/>
+                    <apex:inputField id="glbankacct_eftapplind__c" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_eftapplind__c}"/>
+                </apex:pageBlockSectionItem>
+                    
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_startbankcurrquerybal__c.inlineHelpText}"  rendered="{!showBankBalances && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_startbankcurrquerybal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_startbankcurrquerybal__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_starthomecurrquerybal__c.inlineHelpText}"  rendered="{!showBankBalances && currCompany.rstkf__glcmp_multicurrency__c && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_starthomecurrquerybal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_starthomecurrquerybal__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!showBankBalances && !currCompany.rstkf__glcmp_multicurrency__c && !isQueryBankTrans}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_seltransbankcurrquerybal__c.inlineHelpText}"  rendered="{!showBankBalances && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_seltransbankcurrquerybal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_seltransbankcurrquerybal__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_seltranshomecurrquerybal__c.inlineHelpText}"  rendered="{!showBankBalances && currCompany.rstkf__glcmp_multicurrency__c && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_seltranshomecurrquerybal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_seltranshomecurrquerybal__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!showBankBalances && !currCompany.rstkf__glcmp_multicurrency__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_endbankcurrquerybal__c.inlineHelpText}"  rendered="{!showBankBalances && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_endbankcurrquerybal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_endbankcurrquerybal__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_endhomecurrquerybal__c.inlineHelpText}"  rendered="{!showBankBalances && currCompany.rstkf__glcmp_multicurrency__c && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_endhomecurrquerybal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_endhomecurrquerybal__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!showBankBalances && !currCompany.rstkf__glcmp_multicurrency__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_begbankcurrcurrentbal__c.inlineHelpText}"  rendered="{!showBankBalances && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_begbankcurrcurrentbal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_begbankcurrcurrentbal__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_beghomecurrcurrentbal__c.inlineHelpText}"  rendered="{!showBankBalances && currCompany.rstkf__glcmp_multicurrency__c && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_beghomecurrcurrentbal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_beghomecurrcurrentbal__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!showBankBalances && !currCompany.rstkf__glcmp_multicurrency__c}"/>
+                
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_endbankcurrcurrentbal__c.inlineHelpText}"  rendered="{!showBankBalances && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_endbankcurrcurrentbal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_endbankcurrcurrentbal__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_endhomecurrcurrentbal__c.inlineHelpText}"  rendered="{!showBankBalances && currCompany.rstkf__glcmp_multicurrency__c && !isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_endhomecurrcurrentbal__c.label}"/>
+                    <apex:outputField value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_endhomecurrcurrentbal__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!showBankBalances && !currCompany.rstkf__glcmp_multicurrency__c && !isQueryBankTrans}"/>
+                
+                <apex:pageBlockSectionItem rendered="{!!isQueryBankTrans}"/>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_transdate__c.inlineHelpText}" rendered="{!!isQueryBankTrans}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_transdate__c.label}"/>
+                    <apex:inputField id="transactionDate__c" value="{!glbankacctReconcile.customextProcVars.rstkf__glreconcile_transdate__c}"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        </apex:outputpanel>
+        
+        <apex:outputpanel id="op_queryFilter">
+        <apex:pageBlock id="pb_queryFilter" title="{!$Label.rstkf__glbankacct_queryfilter}" rendered="{!isQueryBankTrans}">
+            <apex:pageBlockButtons >
+                <apex:commandButton value="{!$Label.rstkf__btn_search}" onclick="blockUI(); validateAndSearch();return false;"/>
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection id="pbs_queryPurpose" title="{!$Label.rstkf__glbankacct_querypurpose}" showHeader="true" columns="1" collapsible="true">
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_forreconcel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_forreconcel__c.label}"/>
+                    <apex:inputField id="forReconcel__c" value="{!customext.rstkf__glreconcile_forreconcel__c}" onchange="forReconcelChanged();"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_forcheckreconcel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_forcheckreconcel__c.label}"/>
+                    <apex:inputField id="forCheckReconcel__c" value="{!customext.rstkf__glreconcile_forcheckreconcel__c}" onchange="forCheckReconcelChanged();"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_forotherpaymreconcel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_forotherpaymreconcel__c.label}"/>
+                    <apex:inputField id="forOtherPaymReconcel__c" value="{!customext.rstkf__glreconcile_forotherpaymreconcel__c}" onchange="forOtherPaymReconcelChanged();"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_forbankdepreconcelfrmcash__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_forbankdepreconcelfrmcash__c.label}"/>
+                    <apex:inputField id="forBankDepositReconcelFrmCash__c" value="{!customext.rstkf__glreconcile_forbankdepreconcelfrmcash__c}" onchange="forBankDepositReconcelFrmCashChanged();"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_forbankdepreconcelrepbybank__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_forbankdepreconcelrepbybank__c.label}"/>
+                    <apex:inputField id="forBankDepositReconcelRepByBank__c" value="{!customext.rstkf__glreconcile_forbankdepreconcelrepbybank__c}" onchange="forBankDepositReconcelRepByBankChanged();"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_forreconcelrecbyJE__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_forreconcelrecbyJE__c.label}"/>
+                    <apex:inputField id="forReconcelRecByJE__c" value="{!customext.rstkf__glreconcile_forreconcelrecbyJE__c}" onchange="forReconcelRecByJEChanged();"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_dateRange" title="{!$Label.rstkf__glbankacct_daterange}" showHeader="true" columns="2" collapsible="true">
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_fromtransaction__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_fromtransaction__c.label}"/>
+                    <apex:inputField id="fromTransaction__c" value="{!customext.rstkf__glreconcile_fromtransaction__c}" onchange="fromTransactionChanged();"/>
+                </apex:pageBlockSectionItem>
+                        
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_throughtransaction__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_throughtransaction__c.label}"/>
+                    <apex:inputField id="throughTransaction__c" value="{!customext.rstkf__glreconcile_throughtransaction__c}" onchange="throughTransactionChanged();"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_transactionType" title="{!$Label.rstkf__glbankacct_transactiontype}" showHeader="true" columns="2" collapsible="true">
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_alltranstypes__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_alltranstypes__c.label}"/>
+                    <apex:inputField id="allTransTypes__c" value="{!customext.rstkf__glreconcile_alltranstypes__c}" onchange="allTransTypesChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_dispcalcbal__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_dispcalcbal__c.label}"/>
+                    <apex:inputField id="dispCalcBankBal__c" value="{!customext.rstkf__glreconcile_dispcalcbal__c}" onchange="expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_paymtrans__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_paymtrans__c.label}"/>
+                    <apex:inputField id="paymentTrans__c" value="{!customext.rstkf__glreconcile_paymtrans__c}" onchange="paymentTransChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconcilepaymonquery__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconcilepaymonquery__c.label}"/>
+                    <apex:inputField id="reconcilePaymentOnQry__c" value="{!customext.rstkf__glreconcile_reconcilepaymonquery__c}" onchange="reconcilePaymentOnQryChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_deposittrans__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_deposittrans__c.label}"/>
+                    <apex:inputField id="depositTrans__c" value="{!customext.rstkf__glreconcile_deposittrans__c}" onchange="depositTransChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconciledepositonqry__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconciledepositonqry__c.label}"/>
+                    <apex:inputField id="reconcileDepositsOnQry__c" value="{!customext.rstkf__glreconcile_reconciledepositonqry__c}" onchange="reconcileDepositsOnQryChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_bankgentrans__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_bankgentrans__c.label}"/>
+                    <apex:inputField id="bankGenTrans__c" value="{!customext.rstkf__glreconcile_bankgentrans__c}" onchange="bankGenTransChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_companygentrans__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_companygentrans__c.label}"/>
+                    <apex:inputField id="companyGenTrans__c" value="{!customext.rstkf__glreconcile_companygentrans__c}" onchange="companyGenTransChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_individualTransactions" title="{!$Label.rstkf__glbankacct_individualtransactions}" showHeader="true" columns="2" collapsible="true">
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_apcheck__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_apcheck__c.label}"/>
+                    <apex:inputField id="APCheck__c" value="{!customext.rstkf__glreconcile_apcheck__c}" onchange="APCheckChanged();expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconcilechecksonquery__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconcilechecksonquery__c.label}"/>
+                    <apex:inputField id="reconcileChecksOnQry__c" value="{!customext.rstkf__glreconcile_reconcilechecksonquery__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_apcashpayment__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_apcashpayment__c.label}"/>
+                    <apex:inputField id="APCashPayment__c" value="{!customext.rstkf__glreconcile_apcashpayment__c}" onchange="APCashPaymentChanged();expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconcilecashpaymonquery__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconcilecashpaymonquery__c.label}"/>
+                    <apex:inputField id="reconcileCashPaymentOnQry__c" value="{!customext.rstkf__glreconcile_reconcilecashpaymonquery__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_apeftpaym__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_apeftpaym__c.label}"/>
+                    <apex:inputField id="APEFTPayment__c" value="{!customext.rstkf__glreconcile_apeftpaym__c}" onchange="APEFTPaymentChanged();expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconcileeftpaymonquery__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconcileeftpaymonquery__c.label}"/>
+                    <apex:inputField id="reconcileEFTPaymentOnQry__c" value="{!customext.rstkf__glreconcile_reconcileeftpaymonquery__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_apachpaym__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_apachpaym__c.label}"/>
+                    <apex:inputField id="APACHPayment__c" value="{!customext.rstkf__glreconcile_apachpaym__c}" onchange="APACHPaymentChanged();expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconcileachpaymonquery__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconcileachpaymonquery__c.label}"/>
+                    <apex:inputField id="reconcileACHPaymentOnQry__c" value="{!customext.rstkf__glreconcile_reconcileachpaymonquery__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_apcreditcard__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_apcreditcard__c.label}"/>
+                    <apex:inputField id="APCreditCard__c" value="{!customext.rstkf__glreconcile_apcreditcard__c}" onchange="APCreditCardChanged();expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconcilecredcardpaymonquery__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconcilecredcardpaymonquery__c.label}"/>
+                    <apex:inputField id="reconcileCredCardPaymentOnQry__c" value="{!customext.rstkf__glreconcile_reconcilecredcardpaymonquery__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_apacheftfees__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_apacheftfees__c.label}"/>
+                    <apex:inputField id="APACHEFTFees__c" value="{!customext.rstkf__glreconcile_apacheftfees__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_appaymvarianceSC__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_appaymvarianceSC__c.label}"/>
+                    <apex:inputField id="APPaymentVarianceSC__c" value="{!customext.rstkf__glreconcile_appaymvarianceSC__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_appaymvarianceMC__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_appaymvarianceMC__c.label}"/>
+                    <apex:inputField id="APPaymentVarianceMC__c" value="{!customext.rstkf__glreconcile_appaymvarianceMC__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_apvoidedcheck__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_apvoidedcheck__c.label}"/>
+                    <apex:inputField id="APVoidedCheck__c" value="{!customext.rstkf__glreconcile_apvoidedcheck__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_apothervoidedpaym__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_apothervoidedpaym__c.label}"/>
+                    <apex:inputField id="APOtherVoidedPayment__c" value="{!customext.rstkf__glreconcile_apothervoidedpaym__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_arcashdeposit__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_arcashdeposit__c.label}"/>
+                    <apex:inputField id="ARCashDeposit__c" value="{!customext.rstkf__glreconcile_arcashdeposit__c}" onchange="ARCashDepositChanged();expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconcilecashdeponquery__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconcilecashdeponquery__c.label}"/>
+                    <apex:inputField id="reconcileCashDepositsOnQry__c" value="{!customext.rstkf__glreconcile_reconcilecashdeponquery__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_arcredcardpaym__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_arcredcardpaym__c.label}"/>
+                    <apex:inputField id="ARCreditCardPayment__c" value="{!customext.rstkf__glreconcile_arcredcardpaym__c}" onchange="ARCreditCardPaymentChanged();expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconcilearcredcardpaymonqry__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconcilearcredcardpaymonqry__c.label}"/>
+                    <apex:inputField id="reconcileARCreditCardPaymentOnQry__c" value="{!customext.rstkf__glreconcile_reconcilearcredcardpaymonqry__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_arcashdepositvarianceSC__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_arcashdepositvarianceSC__c.label}"/>
+                    <apex:inputField id="ARCashDepositVairanceSC__c" value="{!customext.rstkf__glreconcile_arcashdepositvarianceSC__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_arcashdepositvarianceMC__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_arcashdepositvarianceMC__c.label}"/>
+                    <apex:inputField id="ARCashDepositVairanceMC__c" value="{!customext.rstkf__glreconcile_arcashdepositvarianceMC__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_aracheftpaymbybank__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_aracheftpaymbybank__c.label}"/>
+                    <apex:inputField id="ARACHEFTPaymRepByBank__c" value="{!customext.rstkf__glreconcile_aracheftpaymbybank__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_bankfeesservchrgs__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_bankfeesservchrgs__c.label}"/>
+                    <apex:inputField id="bankFeesServChrgs__c" value="{!customext.rstkf__glreconcile_bankfeesservchrgs__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_bankreportscredcarddeposit__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_bankreportscredcarddeposit__c.label}"/>
+                    <apex:inputField id="bankReportsCreditCardDeposit__c" value="{!customext.rstkf__glreconcile_bankreportscredcarddeposit__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_bankreportscredcardpaym__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_bankreportscredcardpaym__c.label}"/>
+                    <apex:inputField id="bankReportsCreditCardPayment__c" value="{!customext.rstkf__glreconcile_bankreportscredcardpaym__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_transfervariances__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_transfervariances__c.label}"/>
+                    <apex:inputField id="transferVariances__c" value="{!customext.rstkf__glreconcile_transfervariances__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_allotheradjustments__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_allotheradjustments__c.label}"/>
+                    <apex:inputField id="allOtherAdjustments__c" value="{!customext.rstkf__glreconcile_allotheradjustments__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_transferadjustmentsmadebyJE__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_transferadjustmentsmadebyJE__c.label}"/>
+                    <apex:inputField id="transferAdjustmentsMadeByJE__c" value="{!customext.rstkf__glreconcile_transferadjustmentsmadebyJE__c}" onchange="transferAdjustmentsMadeByJEChanged();expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_reconciletransfadjmadeByJE__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_reconciletransfadjmadeByJE__c.label}"/>
+                    <apex:inputField id="reconcileTransfAdjMadeByJEOnQry__c" value="{!customext.rstkf__glreconcile_reconciletransfadjmadeByJE__c}" onchange="expandCollapseTransactionType(false);expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_checkNums" title="{!$Label.rstkf__glbankacct_checknumber}" showHeader="true" columns="2" collapsible="true">
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_singlechecknum__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_singlechecknum__c.label}"/>
+                    <apex:inputField id="singleCheckNum__c" value="{!customext.rstkf__glreconcile_singlechecknum__c}" onchange="singleCheckNumChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_startingchecknum__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_startingchecknum__c.label}"/>
+                    <apex:inputField id="startingCheckNum__c" value="{!customext.rstkf__glreconcile_startingchecknum__c}" onchange="startingCheckNumChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_endingchecknum__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glreconcile_endingchecknum__c.label}"/>
+                    <apex:inputField id="endingCheckNum__c" value="{!customext.rstkf__glreconcile_endingchecknum__c}" onchange="endingCheckNumChanged();expandCollapseQueryPurpose(false);"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        </apex:outputpanel>
+        
+        <apex:outputpanel id="op_transScrolling">
+        <script>
+            var rows = {};  var selectcbxs = []; var matchescbxs = {};
+            var voidIndSelBox = [];var reconciledSelBox = [];
+            var hasModifications = "{!glbankacctReconcile.hasModifications}";
+        </script>
+        <apex:pageBlock id="pb_transScrolling" title="{!$Label.rstkf__pb_transactions}" rendered="{!showTransScroll}">
+            <apex:pageBlockButtons >
+                <apex:outputpanel >
+                    <apex:commandButton value="{!$Label.rstkf__btn_addtrans}" onclick="blockUI(); addTransaction(); return false;"/>&nbsp;
+                    <apex:commandButton value="{!$Label.rstkf__btn_maintaintrans}" onclick="blockUI(); validateAndgetTransaction(); return false;" />&nbsp;
+                    <apex:commandButton value="{!$Label.rstkf__btn_deletetrans}" onclick="blockUI(); deleteAddedTransaction(); return false;" />&nbsp;
+                    <apex:commandButton value="{!$Label.rstkf__btn_recordupdatetrans}" onclick="blockUI(); addUpdateTransactions(); return false;"/>&nbsp;
+                    <apex:commandButton value="{!$Label.rstkf__btn_quit}" onclick="blockUI(); validateAndQuit(); return false;" />&nbsp;
+                </apex:outputpanel>
+                <br/>
+                <apex:outputpanel >
+                    <apex:commandButton value="{!$Label.rstkf__btn_reconcile}" onclick="blockUI(); reconcileClicked(); return false;" />&nbsp;
+                    <apex:commandButton value="{!$Label.rstkf__unreconcile}" onclick="validateUnreconcile(); return false;" />&nbsp;
+                    <apex:commandButton value="{!$Label.rstkf__btn_voidcheckentry}" onclick="blockUI(); voidPayment(); return false;" />&nbsp;
+                </apex:outputpanel>
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection id="pbs_checkNumDetails" showHeader="false" columns="5" collapsible="false">
+                <apex:outputpanel >
+                    <apex:outputpanel rendered="{!checkReconcileMode}">
+                        <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glreconcile_singlechecknumingrid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_customext.rstkf__glreconcile_singlechecknumingrid__c.label}"/>
+                            <apex:inputField id="singleCheckNumInGrid__c" value="{!customext.rstkf__glreconcile_singlechecknumingrid__c}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:commandButton value="{!$Label.rstkf__btn_getnextchecknum}" disabled="{!!checkReconcileMode}" onclick="blockUI(); getNextCheckNum(); return false;"/>&nbsp;&nbsp;&nbsp;
+                        <apex:outputLabel value="{!$Label.rstkf__label_lastcheckprocessed}" />&nbsp;
+                        <apex:outputText label="{!$Label.rstkf__label_lastcheckprocessed}" value="{!lastCheckProcessed}"/>&nbsp;&nbsp;
+                        <apex:commandButton value="{!$Label.rstkf__btn_showallqueriedtrans}" onclick="blockUI(); showQueriedTransactions(); return false;"/>&nbsp;&nbsp;&nbsp;
+                    </apex:outputpanel>
+                    
+                    <apex:outputpanel rendered="{!!checkReconcileMode}">
+                        <apex:outputLabel value="{!$Label.rstkf__label_filtertrans}" />&nbsp;
+                        <apex:selectList id="filteredTransactionTypes__c" value="{!filteredTransType}" size="1" style="width:150px;" required="true" tabindex="15" onchange="blockUI();showFilteredTransactions();" rendered="{!!checkReconcileMode}"> 
+                            <apex:selectOptions value="{!filteredTransTypes}" /> 
+                        </apex:selectList>
+                    </apex:outputpanel>
+                    
+                    &nbsp;&nbsp;&nbsp;
+                    <apex:outputpanel >
+                        <apex:outputLabel value="{!$Label.rstkf__label_sorttxnsby}" />&nbsp;
+                        <apex:selectList id="sortBy" value="{!sortBy}" size="1" style="width:150px;" required="true" tabindex="15" onchange="blockUI();showSortedTransactions();"> 
+                            <apex:selectOptions value="{!sortOptions}" /> 
+                        </apex:selectList>
+                    </apex:outputpanel>
+                </apex:outputpanel>
+            </apex:pageBlockSection>
+            <apex:outputpanel >
+                <input type="checkbox" onclick="selectall(this)" />
+                <apex:outputLabel value="{!$Label.rstkf__label_selectall}" />&nbsp;&nbsp;&nbsp;
+                
+                <input type="checkbox" onclick="reconcileAll(this)" />
+                <apex:outputLabel value="{!$Label.rstkf__label_reconcileall}" />&nbsp;&nbsp;&nbsp;
+            </apex:outputpanel>
+            <div style="overflow: scroll; height: 650px;">
+            <apex:pageBlockTable value="{!glbankacctReconcile.displayList}" var="rec" id="pbt_transactions">
+                <apex:column headerValue="{!$Label.rstkf__pageval_select}">
+                    <apex:inputCheckbox id="selected" value="{!rec.selected}" onchange="selectRecord('{!rec.key}')"/>
+                    <script>
+                        document.getElementById("{!$Component.selected}").checked = false;
+                        selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");
+                    </script>
+                </apex:column>
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_txndate__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_txndate__c}" />
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_trantype__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_trantype__c}" />
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_checknumb__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_checknumb__c}" />
+
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_voidcheckind__c.label}">
+                    <apex:inputCheckbox id="glbanktxn_voidcheckind__c" value="{!rec.glbanktxn.rstkf__glbanktxn_voidcheckind__c}" onchange="voidCheck('{!rec.key}')"/>
+                    <script>
+                        document.getElementById("{!$Component.glbanktxn_voidcheckind__c}").disabled=true;
+                        voidIndSelBox[voidIndSelBox.length] = document.getElementById("{!$Component.glbanktxn_voidcheckind__c}");
+                    </script>
+                </apex:column>
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_reconciled__c.label}" >
+                    <apex:inputCheckbox id="glbanktxn_reconciled__c" value="{!rec.glbanktxn.rstkf__glbanktxn_reconciled__c}"/>
+                </apex:column>
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_bankamt__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_bankamt__c}" />
+                
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_reportedamt__c.label}">
+                    <apex:inputField id="reportedAmt" value="{!rec.glbanktxn.rstkf__glbanktxn_reportedamt__c}" onchange="reportedAmtChanged('{!rec.key}')"/>
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstkf__glbankacct_updateamount}">
+                    <apex:commandButton id="btn_updateAmount" value="{!$Label.rstkf__btn_updateamount}" onclick="updateAmountClicked('{!rec.key}'); return false;" rerender="op_vars"/>
+                    <script>
+                        if({!rec.origReconciledStatus}) {
+                            document.getElementById("{!$Component.selected}").disabled = true;
+                        }
+                        
+                        document.getElementById("{!$Component.glbanktxn_reconciled__c}").disabled = true;   //Always disbled
+                        reconciledSelBox[reconciledSelBox.length] = document.getElementById("{!$Component.glbanktxn_reconciled__c}");
+                        document.getElementById("{!$Component.reportedAmt}").disabled = true; 
+                        
+                        if({!!rec.eligibleForReconcile || rec.glbanktxn.glbanktxn_reconciled__c || rec.glbanktxn.glbanktxn_voidcheckind__c}) 
+                        {
+                            document.getElementById("{!$Component.btn_updateAmount}").style.display = "none";
+                        }
+                        
+                        var reconcileCheckBox = document.getElementById("{!$Component.glbanktxn_reconciled__c}");
+                        if(!reconcileCheckBox.disabled && reconcileCheckBox.checked) {
+                            document.getElementById("{!$Component.btn_updateAmount}").style.display = "block";
+                        }
+                        
+                        rows["{!rec.key}"] = {
+                            selected: document.getElementById("{!$Component.selected}"),
+                            btn_updateAmount: document.getElementById("{!$Component.btn_updateAmount}"),
+                            btn_updateAmount_saveDisplayed: false,
+                            glbanktxn_voidcheckind__c: document.getElementById("{!$Component.glbanktxn_voidcheckind__c}"),
+                            origVoidcheckindStatus : "{!rec.origVoidcheckindStatus}",
+                            voidedInCurrentSession : "{!rec.voidedInCurrentSession}",
+                            glbanktxn_reconciled__c: document.getElementById("{!$Component.glbanktxn_reconciled__c}"),
+                            origReconciledStatus : "{!rec.origReconciledStatus}",
+                            reportedAmt: document.getElementById("{!$Component.reportedAmt}"),
+                            bankTxnAmt: "{!rec.glbanktxn.rstkf__glbanktxn_bankamt__c}",
+                            transactionType : "{!rec.glbanktxn.rstkf__glbanktxn_trantype__c}",
+                            uploadtxnYN : "{!rec.glbanktxn.glbanktxn_uploadtxn__c}",
+                            eligibleForReconcile: "{!rec.eligibleForReconcile}"
+                        };
+                    </script>
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstkf__vendorcustomername}" value="{!rec.vendorOrCustomerName}" />
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_comment__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_comment__c}" />
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_tranid__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_tranid__c}" />
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_xreftranid__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_xreftranid__c}" />
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_bankpayexchrate__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_bankpayexchrate__c}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}"/>
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_payamt__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_payamt__c}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}"/>
+                
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_paycurr__c.label}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}">
+                    <c:hoverDetail recId="{!rec.glbanktxn.rstkf__glbanktxn_paycurr__c}" recName="{!rec.paymCurrName}" target="_blank"/>
+                </apex:column>
+                
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_homeamt__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_homeamt__c}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}"/>
+                <apex:column headerValue="{!f_glbanktxn.rstkf__glbanktxn_homepayexchrate__c.label}" value="{!rec.glbanktxn.rstkf__glbanktxn_homepayexchrate__c}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}"/>
+                
+            </apex:pageBlockTable>
+            </div> 
+        </apex:pageBlock>
+        <script>
+        
+        </script>
+        </apex:outputpanel>
+        
+        <apex:outputpanel id="op_transaction">
+        <apex:pageMessages id="pageMessages_transaction"/>
+        <apex:outputpanel rendered="{!showTransaction}">
+        <apex:pageBlock id="pb_transaction">
+            <apex:pageBlockButtons >
+                <apex:commandButton value="{!$Label.rstkf__btn_save}" onclick="blockUI(); validateAndSaveTransaction(); return false;" disabled="{!!showTransactionDetail}"/>
+                <apex:commandButton value="{!$Label.rstkf__btn_cancel}" onclick="blockUI(); cancelTransaction(); return false;"/>
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection id="pbs_transaction" title="{!$Label.rstkf__pbs_transaction}" showHeader="true" columns="1" collapsible="false">
+                <apex:pageBlockSectionItem rendered="{!isAddTransaction}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glbanktxn_txntype__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:selectList id="addTranstype__c" value="{!transType}" size="1" style="width:250px;" tabindex="15" onchange="transTypeChanged();" rendered="{!!showTransactionDetail}"> 
+                                <apex:selectOptions value="{!transTypes}" /> 
+                            </apex:selectList>
+                            <apex:outputText value="{!transType}" rendered="{!showTransactionDetail}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection id="pbs_transactiondetail" title="Transaction" showHeader="false" columns="1" collapsible="false" rendered="{!showTransactionDetail}">
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_txndate__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_txndate__c.label}" />
+                    <apex:outputPanel >
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_txndate__c}" />       
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_trantype__c.inlineHelpText}" rendered="{!!isAddTransaction}">
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_trantype__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_trantype__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_trantype__c}"  rendered="{!isAddTransaction}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_trantype__c}" rendered="{!!isAddTransaction}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>    
+                 
+                <apex:pageBlockSectionItem rendered="{!!isAddTransaction}">
+                    <apex:outputLabel value="{!$Label.rstkf__label_custorvendorname}" />
+                    <apex:outputPanel >
+                        <apex:outputText label="{!$Label.rstkf__label_custorvendorname}" value="{!glbankacctReconcile.glbanktxnRecord.vendorOrCustomerName}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_checknumb__c.inlineHelpText}"  rendered="{!transType != 'Bank Reports Credit Card Deposit'}">
+                    <apex:outputLabel value="{!$Label.rstkf__label_assocpaymref}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="glbanktxn_checknumb__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_checknumb__c}" onchange="checkNumbChanged();" rendered="{!isTxnEditable}" size="1" style="width:250px;"> 
+                            <apex:selectOptions value="{!assocPaymRef}" /> 
+                        </apex:selectList>
+                    <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_checknumb__c}" rendered="{!!isTxnEditable}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_voidcheckind__c.inlineHelpText}"  rendered="{!transType != 'Bank Reports Credit Card Deposit'}">
+                    <apex:outputLabel value="{!$Label.rstkf__label_paymwasvoided}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_voidcheckind__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_voidcheckind__c}"  rendered="{!isTxnEditable}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_voidcheckind__c}" rendered="{!!isTxnEditable}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_reconciled__c.inlineHelpText}"  rendered="{!transType != 'Bank Reports Credit Card Deposit'}">
+                    <apex:outputLabel value="{!$Label.rstkf__label_paymisreconciled}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_reconciled__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_reconciled__c}"  rendered="{!isTxnEditable}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_reconciled__c}" rendered="{!!isTxnEditable}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glbankacct_curr__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstkf__glbankacct_curr__c.label}" />
+                    <apex:outputPanel >
+                        <apex:outputField Id="glbankacct_curr__c" value="{!glbankacctReconcile.glbankacct.rstkf__glbankacct_curr__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_bankamt__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_bankamt__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_bankamt__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_bankamt__c}" onchange="glbanktxnBankamtChanged();" rendered="{!isTxnEditable}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_bankamt__c}" rendered="{!!isTxnEditable}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_paycurr__c.inlineHelpText}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}">
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_paycurr__c.label}" />
+                    <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_paycurr__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_bankpayexchrate__c.inlineHelpText}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}">
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_bankpayexchrate__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_bankpayexchrate__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_bankpayexchrate__c}" onchange="bankPayExchRateChanged();"  rendered="{!isTxnEditable}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_bankpayexchrate__c}" rendered="{!!isTxnEditable}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_payamt__c.inlineHelpText}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}">
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_payamt__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_payamt__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_payamt__c}"  rendered="{!isTxnEditable}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_payamt__c}" rendered="{!!isTxnEditable}"/>
+                    	<script>jQuery('input[id*=glbanktxn_payamt__c]')[0].disabled = true</script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_homecurr__c.inlineHelpText}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}">
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_homecurr__c.label}" />
+                    <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_homecurr__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_homepayexchrate__c.inlineHelpText}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}">
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_homepayexchrate__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_homepayexchrate__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_homepayexchrate__c}" onchange="homePayExchRateChanged();" rendered="{!isTxnEditable}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_homepayexchrate__c}" rendered="{!!isTxnEditable}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_homeamt__c.inlineHelpText}" rendered="{!currCompany.rstkf__glcmp_multicurrency__c}">
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_homeamt__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_homeamt__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_homeamt__c}"  rendered="{!isTxnEditable}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_homeamt__c}" rendered="{!!isTxnEditable}"/>
+                    	<script>jQuery('input[id*=glbanktxn_homeamt__c]')[0].disabled = true</script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_xreftranid__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_xreftranid__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_xreftranid__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_xreftranid__c}"  rendered="{!isTxnEditable}" taborderhint="39"/>
+                        <apex:outputField value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_xreftranid__c}" rendered="{!!isTxnEditable}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_glbanktxn.rstkf__glbanktxn_comment__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f_glbanktxn.rstkf__glbanktxn_comment__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="glbanktxn_comment__c" value="{!glbankacctReconcile.glbanktxnRecord.glbanktxn.rstkf__glbanktxn_comment__c}" taborderhint="40"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>   
+        </apex:outputpanel>
+        </apex:outputpanel>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+    	var glcmpId = '{!currCompany.Id}';
+    	/*
+        function getExchangeRate(forDate,functionalCurr,foreignCurr,exchgType){
+            console.log('forDate:' + forDate);
+            console.log('functionalCurr:' + functionalCurr);
+            console.log('foreignCurr:' + foreignCurr);
+            var retVal;
+            
+            if(functionalCurr == foreignCurr) {
+                if(exchgType == 'PAY') {
+                    jQuery('input[id*=glbanktxn_bankpayexchrate__c]')[0].value = 1.00;
+                    jQuery('input[id*=glbanktxn_payamt__c]')[0].value = jQuery('input[id*=glbanktxn_bankamt__c]')[0].value;
+                }
+                else if(exchgType == 'HOME'){
+                    jQuery('input[id*=glbanktxn_homepayexchrate__c]')[0].value = 1.00;
+                    jQuery('input[id*=glbanktxn_homeamt__c]')[0].value = jQuery('input[id*=glbanktxn_bankamt__c]')[0].value;
+                }
+                
+                return;
+            }
+            
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnGlbankacctReconcile.getSpotExchangeRate}', //NameSpace  
+                glcmpId,
+                foreignCurr,
+                functionalCurr,
+                forDate, 
+                function(result, event){
+                    if (event.status) {
+                        console.log(result);
+                        if(result != undefined) {
+                            var bankamt = parseLocaleFloat(jQuery('input[id*=glbanktxn_bankamt__c]')[0].value);
+                            if(exchgType == 'PAY') {
+                                jQuery('input[id*=glbanktxn_bankpayexchrate__c]')[0].value = formatLocaleFloat(result);
+                                var payamt = (bankamt * result).toFixed(2);
+                                jQuery('input[id*=glbanktxn_payamt__c]')[0].value = formatLocaleFloat(Number(payamt));
+                            }
+                            else if(exchgType == 'HOME'){
+                                jQuery('input[id*=glbanktxn_homepayexchrate__c]')[0].value = formatLocaleFloat(result);
+                                var homeamt = (result * bankamt).toFixed(2);
+                                jQuery('input[id*=glbanktxn_homeamt__c]')[0].value = formatLocaleFloat(Number(homeamt));
+                            }
+                        }
+                    } else if (event.type === 'exception') {
+                        console.log(event.message);
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+            
+            return retVal;
+        }
+        */
+            
+        function openCreateNewAcc() {
+            window.open("/apex/glbankacct");
+        }
+    </script>
+    
+    <script>
+        var BankTxnType_APCheck = '{!BankTxnType_APCheck}';
+        var BankTxnType_APCashPayment = '{!BankTxnType_APCashPayment}';
+        var BankTxnType_APEFTPayment = '{!BankTxnType_APEFTPayment}';
+        var BankTxnType_APACHPayment = '{!BankTxnType_APACHPayment}';
+        var BankTxnType_APCreditCardPayment = '{!BankTxnType_APCreditCardPayment}';
+        var BankTxnType_APACHEFTFees = '{!BankTxnType_APACHEFTFees}';
+        var BankTxnType_APPaymentVarianceSingleCurrency = '{!BankTxnType_APPaymentVarianceSingleCurrency}';
+        var BankTxnType_APPaymentVarianceMultiCurrency = '{!BankTxnType_APPaymentVarianceMultiCurrency}';
+        var BankTxnType_APVoidedCheck = '{!BankTxnType_APVoidedCheck}';
+        var BankTxnType_APOtherVoidedPayment = '{!BankTxnType_APOtherVoidedPayment}';
+        var BankTxnType_ARCashDeposit = '{!BankTxnType_ARCashDeposit}';
+        var BankTxnType_ARCreditCardPayment = '{!BankTxnType_ARCreditCardPayment}';
+        var BankTxnType_ARCashDepositVarianceSingleCurrency = '{!BankTxnType_ARCashDepositVarianceSingleCurrency}';
+        var BankTxnType_ARCashDepositVarianceMultiCurrency = '{!BankTxnType_ARCashDepositVarianceMultiCurrency}';
+        var BankTxnType_ARACHEFTPaymentReportedByBank = '{!BankTxnType_ARACHEFTPaymentReportedByBank}';
+        var BankTxnType_BankFeesServiceCharges = '{!BankTxnType_BankFeesServiceCharges}';
+        var BankTxnType_ARACHEFTPaymentReportedByBank = '{!BankTxnType_ARACHEFTPaymentReportedByBank}';
+        var BankTxnType_BankReportsCreditCardDeposit = '{!BankTxnType_BankReportsCreditCardDeposit}';
+        var BankTxnType_BankReportsCreditCardPayment = '{!BankTxnType_BankReportsCreditCardPayment}';
+        var BankTxnType_TransferVariances = '{!BankTxnType_TransferVariances}';
+        var BankTxnType_AllOtherAdjustments = '{!BankTxnType_AllOtherAdjustments}';
+        var BankTxnType_TransfersAdjustmentsMadeByJE = '{!BankTxnType_TransfersAdjustmentsMadeByJE}';
+    </script>
+    
+    <script>
+        var LABEL_invalidCheckNumSpecified = "{!$Label.invalidCheckNumSpecified}";
+        var LABEL_HigherNumberedChksAlreadyInUse = "{!$Label.HigherNumberedChksAlreadyInUse}";
+        var LABEL_BankAcctNameAndInstReqd = "{!$Label.BankAcctNameAndInstReqd}";
+        var LABEL_AmtCantBeLessThanZero = "{!$Label.AmtCantBeLessThanZero}";
+        var LABEL_AmtIsReqdAndCantBeLTZero = "{!$Label.AmtIsReqdAndCantBeLTZero}";
+        var LABEL_PlzSelectQueryPurpose = "{!$Label.PlzSelectQueryPurpose}";
+        var LABEL_YouHaveElectedForChkReconcel_PlzSelectAPCheckTransType = "{!$Label.YouHaveElectedForChkReconcel_PlzSelectAPCheckTransType}";
+        var LABEL_OtherPayReconcElected_PlzSelectOneOfAPChk_EFT_ACH_CredCard = "{!$Label.OtherPayReconcElected_PlzSelectOneOfAPChk_EFT_ACH_CredCard}";
+        var LABEL_BankDepositReconcElected_PlzSelectARCashDepositTrans = "{!$Label.BankDepositReconcElected_PlzSelectARCashDepositTrans}";
+        var LABEL_ReconcDepositsRepobyBankSelected_SelectAssociatedTrans = "{!$Label.ReconcDepositsRepobyBankSelected_SelectAssociatedTrans}";
+        var LABEL_ReconcTransfRecByJESelected_PlzSelectTransfAdjMadeByJE = "{!$Label.ReconcTransfRecByJESelected_PlzSelectTransfAdjMadeByJE}";
+        var LABEL_PlzSelectRecForDel = "{!$Label.PlzSelectRecForDel}";
+        var LABEL_InvalidTransTypeSelectedForVoidingNonChkPayment = "{!$Label.InvalidTransTypeSelectedForVoidingNonChkPayment}";
+        var LABEL_PaymentMustBeUnreconciledBeforeVoiding = "{!$Label.PaymentMustBeUnreconciledBeforeVoiding}";
+        var LABEL_PlzSelectOnlyOneRecord = "{!$Label.PlzSelectOnlyOneRecord}";
+        var LABEL_InvalidTransSelectedForVoidingChkEntry_PlzSelectAPCheck = "{!$Label.InvalidTransSelectedForVoidingChkEntry_PlzSelectAPCheck}";
+        var LABEL_ChkIsReconciledAndCantBeVoided = "{!$Label.ChkIsReconciledAndCantBeVoided}";
+        var LABEL_ChkMustBeUnreconciledBeforeVoiding = "{!$Label.ChkMustBeUnreconciledBeforeVoiding}";
+        var LABEL_ChkIsReconciledAndCantBeVoided = "{!$Label.ChkIsReconciledAndCantBeVoided}";
+        var LABEL_PlzSelectRecordForVoiding = "{!$Label.PlzSelectRecordForVoiding}";
+        var LABEL_PlzSelectTransToMaintain = "{!$Label.PlzSelectTransToMaintain}";
+        var LABEL_CantSelectMoreThanOneTransToMaintain = "{!$Label.CantSelectMoreThanOneTransToMaintain}";
+        var LABEL_AmtBankCurrIsReqdAndCantBeZero = "{!$Label.AmtBankCurrIsReqdAndCantBeZero}";
+        var LABEL_AmtPayCurrIsReqdAndCantBeZero = "{!$Label.AmtPayCurrIsReqdAndCantBeZero}";
+        var LABEL_AmtHomeCurrIsReqdAndCantBeZero = "{!$Label.AmtHomeCurrIsReqdAndCantBeZero}";
+        var LABEL_PaymentAlreadyVoided_WishToUnvoid = "{!$Label.PaymentAlreadyVoided_WishToUnvoid}";
+        var LABEL_ChkAlreadyVoided_WishToUnvoid = "{!$Label.ChkAlreadyVoided_WishToUnvoid}";
+        var LABEL_PlzConfirm_EntriesMadeSeFarWillBeWrittenToDB = "{!$Label.PlzConfirm_EntriesMadeSeFarWillBeWrittenToDB}";
+        var LABEL_plzSpecifyCheckNum = "{!$Label.plzSpecifyCheckNum}";
+        var LABEL_checkAlreadyVoided = "{!$Label.checkAlreadyVoided}";
+        var LABEL_paymentAlreadyVoided = "{!$Label.paymentAlreadyVoided}";
+        var LABEL_btn_updateAmount = "{!$Label.rstkf__btn_updateamount}";
+        var LABEL_btn_save = "{!$Label.rstkf__btn_save}";
+        var LABEL_oneOrMoreRowsAreNotEligibleForReconciliation = "{!$Label.oneOrMoreRowsAreNotEligibleForReconciliation}";
+        var LABEL_onlyTxnsReconciledInCurrSessCanBeUnReconciled = "{!$Label.onlyTxnsReconciledInCurrSessCanBeUnReconciled}";
+        var LABEL_Uploaded_Bank_Transactions_are_not_eligible_for_the_Void_Payment_process = "{!$Label.Uploaded_Bank_Transactions_are_not_eligible_for_the_Void_Payment_process}";
+    </script>
+</apex:page>

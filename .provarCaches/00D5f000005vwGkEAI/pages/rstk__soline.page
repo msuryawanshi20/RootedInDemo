@@ -1,0 +1,1895 @@
+<apex:page id="pg" standardController="rstk__soline__c" extensions="rstk.ControllerExtnSoline,rstk.ControllerExtnSalesOrderHelper" 
+    action="{!doBeforePageLoad}" sideBar="false">
+    <apex:variable var="d" value="{!soline}" />
+    <apex:variable var="de" value="{!solineextn}" />
+    <apex:variable var="o" value="{!sohdr}" />
+    <apex:variable var="oe" value="{!sohdrextn}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sohdr__c.fields}" />
+    <apex:variable var="f_extn" value="{!$ObjectType.rstk__sohdrextn__c.fields}" />
+    <apex:variable var="f_sl" value="{!$ObjectType.rstk__soline__c.fields}" />
+    <apex:variable var="f_slextn" value="{!$ObjectType.rstk__solineextn__c.fields}" />
+    <apex:variable var="f_socust" value="{!$ObjectType.rstk__socust__c.fields}" />
+    <apex:variable var="f_soaddr" value="{!$ObjectType.rstk__soaddr__c.fields}" />
+    <apex:variable var="f_socaddr" value="{!$ObjectType.rstk__socaddr__c.fields}" />
+    <apex:variable var="f_issue" value="{!$ObjectType.rstk__woiss__c.fields}" />
+    <apex:variable var="f_dimvals" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <apex:variable var="f_icitemsiteproj" value="{!$ObjectType.rstk__icitemsiteproj__c.fields}" />
+    <apex:variable var="f_soprod" value="{!$ObjectType.rstk__soprod__c.fields}" />
+     
+    <c:sohdr_cli_labels />
+    <style>
+            td.pbTitle { width:0% !important; }
+    </style>
+    <script>var pageOptions = {!pageOptionsJSON};</script>
+    <c:standardHeader cntr="{!controller}" title="{!IF(pageOptions.isQuote,$Label.rstk__quote,$Label.rstk__sales_order)} {!$Label.rstk__controllerextnsalesorder_line}" displayListLink="false" enableAutocomplete="true"/>
+    <apex:outputLink id="solineReturnUrl" value="{!returnUrl}" rendered="{!!ISNULL(sohdr.Id)}" style="font-size:130%;">&lt;&lt; {!$Label.Back_to_Sales_Order_Header} <b>{!sohdr.Name}</b></apex:outputlink>
+    
+    <script>var standalone_soline = true;</script>
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:includeScript value="{!$Resource.rstk__sohdr_cli}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__geoservices_cli}"/>
+    <apex:includeScript value="{!$Resource.rstk__xigniteservices_cli}"/>
+    
+    <style>
+        .modal {
+            background-color:#fff;
+            display:none;
+            width:800px;
+            padding:15px;
+            text-align:left;
+            font-size:1em;
+            border:2px solid #333;
+        
+            opacity:1.0;
+            -moz-border-radius:6px;
+            -webkit-border-radius:6px;
+            -moz-box-shadow: 0 0 50px #ccc;
+            -webkit-box-shadow: 0 0 50px #ccc;
+        }
+        
+        .modal h2 {
+            margin:0px;
+            padding:10px 0 10px 45px;
+            font-size:16px;
+        }
+        
+        .modalComponents {
+            color:#efefef;
+            height:600px;
+            width:900px;
+            z-index:100;
+        }
+        
+        /* container for external content. uses vertical scrollbar, if needed */
+        .contentWrap {
+            height:441px;
+            overflow-y:auto;
+            z-index:100;
+        }
+            
+        div.hideCurrDate span.dateInput span.dateFormat{
+            display:none;
+        }
+        
+        .issueComments {
+            width: 250px;
+            height: 60px;
+            border: 3px solid #cccccc;
+            padding: 5px;
+            font-family: Tahoma, sans-serif;
+        }
+        
+        #datePicker .datePicker
+        {
+            z-index: 10012;
+        }
+        
+        input[readonly="readonly"]
+        {
+            border:none;
+            background-color:transparent;
+            padding:0px;
+            font-size:100%;
+            margin:0px;
+        }
+        
+        .helpText
+        {
+            z-index:11000;
+        }
+
+        .topFrame
+        {
+            z-index:20100;
+        }
+                    
+        .largerLabel td { width:50% !important; }
+            
+        .modalPopup{
+            background-color: white;
+            border-style: solid;
+            border-width: 3px;
+            padding:1px;
+            position: absolute;
+            z-index: 10011;
+            width: 650px;
+            top:100px;
+            overflow:auto;
+        }
+        .topPopup{
+            background-color: transparent;
+            border-style: none;
+            position: absolute;
+            z-index: 20001;
+            width: 50px;
+            top:100px;
+        }
+        .popupBackground{
+            background-color:black;
+            opacity: 0.20;
+            position:absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 10010;
+        }
+        .topPopupBackground{
+            background-color:green;
+            opacity: 0.10;
+            position:absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 20000;
+        }
+ 
+        input.elwarning {
+         }
+
+       span.spwarning {
+           color:#FF6347;
+           font-size:90%;
+           padding-left: 6px; 
+        }
+    </style>
+    
+    <script>
+        var isNew = {!isNew};
+        var solineId = "{!d.Id}";
+        var sohdrId = "{!o.Id}";
+        var socustId = "{!socust.Id}";
+        var divId = "{!o.sohdr_div__c}";
+        var cmpId = "{!currDivision.sydiv_cmpno__c}";
+        var custId = "{!o.rstk__sohdr_custno__c}";
+        var defaultProductType = "{!JSENCODE(socust.socust_dfltprodtype__c)}";
+        var maintenanceCurrencySymbol = '{!maintenanceCurrencySymbol}';
+        var lineAddresses = {!LineAddresses};
+        var editingProductNames = {!editingProductNames};
+        var editingProjectNames = {!editingProjectNames};
+        var addressVerificationEnabled = {!geoStatus.addressVerification};
+        var taxLookupEnabled = {!geoStatus.taxLookup};
+        var taxLookupAuto = {!geoStatus.auto};
+        var lookupExcluded = {!geoStatus.excluded};
+        var taxCodes = {!geoTaxCodesJSON};
+        var xigniteStatus = {!xigniteStatusJSON};
+        var isQuote = {!o.rstk__sohdr_isquote__c};
+        var wasQuote = {!o.rstk__sohdr_isquote__c};
+        var validateAddr = new GeoService();
+        validateAddr.setTax = setValidatedTax;
+        validateAddr.init(divId, 'soaddr');
+        var xignite = new XigniteService();
+        var projOptions = {!projectOptionsJSON};
+        var socntl = {!socntlJSON};
+        var numDims = {!numDims};
+        var projectDimensions = {!projectDimensionsJSON};
+        var anyLinesPackaged = false;
+        var anyLinesPackaged = {!anyLinesPackaged};
+        var complexOpRequired = {!complexOpRequired};
+        var andNewFlag = {!andNewFlag};
+        var readOnlyUser = {!readOnlyUser};
+        var solineMetaData = new MetaData({!solineMetadata});
+        var wbsActive = {!isChargeCodeActive};
+		var minimumProductCharacters = {!ProdMinCharForAutoComplete};
+		var allowDecoupleAccess = {!allowDecoupleAccess};
+        var MaxSOLines = {!MaxSOLines};
+ 
+        function addAfterEvent(func) {
+          var oldafter = window.afterPageLoad;
+          if (typeof window.afterPageLoad != 'function') {
+            window.afterPageLoad = func;
+          } else {
+            window.afterPageLoad = function() {
+              if (oldafter) {
+                oldafter();
+              }
+              func();
+            }
+          }
+        }   
+        sforce.connection.sessionId = __sfdcSessionId;
+        
+        function jqueryOnReady() {
+            if (addressVerificationEnabled) {
+                jQuery("input.addressField").change(addressInputChanged);
+                jQuery("input[isreadonly=readonly]").attr("readonly", "readonly").css("background-color", "transparent").css("border-style", "none");
+            }
+            
+            jQuery("button[rel*=popup]").overlay({
+            
+                top: "10%",
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                fixed:false,
+                
+                closeOnClick: false
+            });
+            
+            jQuery("button[rel*=win]").overlay({
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                fixed:false,
+                closeOnClick: false,
+                
+                onBeforeLoad: function(e) {
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+'Frame');
+                    var blockWin =content.closest('div');
+  
+                    var src = null;
+
+                    if (winId == 'PopupComponents')
+                    {
+                        var componentLine = sfffGetFieldValue('component_lineid__c');
+                        src = "/apex/salesorderComponents?actionType=view&noredirect=1&id=" + componentLine;
+                    }
+                    else if (winId == 'PopupATP')
+                    {
+                        src = "/apex/SupDmdRev?rsparms=H~" + icitemid + "~~MONTHLY~12";
+                    }
+                    else if (winId == 'PopupNotesAttachments')
+                    {
+                        var notesLine = sfffGetFieldValue('notes_lineid__c');
+                        //src = "/apex/solinenotes?id=" + notesLine;
+                        src = "/apex/Notesandattachments?objname=soline__c&id=" + notesLine;
+                    }
+                    else if (winId == 'PopupSerials')
+                    {
+                        var notesLine = sfffGetFieldValue('notes_lineid__c');
+                        src = "/apex/SOLineSers?id=" + notesLine;
+                    }
+                                        
+                    if (src != null)
+                    {
+                        blockWin.block({
+                            message: '',
+                            centerX: true, 
+                            centerY: true,
+                            css: { 
+                                border: 'none', 
+                                padding: '15px', 
+                                cursor: 'wait',
+                                opacity: .5, 
+                                textAlign: 'center'
+                            }
+                        });
+                        content[0].src = src;
+                        
+                        content.load(function() { blockWin.unblock(); });
+                    }
+                }
+            });
+        }
+    </script>
+        
+    <apex:form id="fm" rendered="{!displayPageContent}" style="{!IF(complexOpRequired,'display:none;', '')}">
+        <apex:actionFunction name="doSave" action="{!save}" rerender="pageMessages,statusPanel" oncomplete="unblockUI();checkForReSubmit();"/>
+        <apex:actionFunction name="doNew" action="{!newSOLine}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doClone" action="{!doClone}" immediate="false"/>
+        <apex:actionFunction name="validateDateAgainstCalendar" id="validateDateAgainstCalendar" immediate="true" action="{!validateDateAgainstCalendar}" rerender="pageMessages">
+             <apex:param name="divId" value=""/>
+             <apex:param name="date" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="doAddNewProduct" action="{!addNewProduct}" immediate="false" oncomplete="addProductCompleted();" rerender="pageMessages, addProductPanel"/>
+        <apex:actionFunction name="doDecoupleWorkOrder" id="doDecoupleWorkOrder" immediate="true" action="{!doDecoupleWorkOrder}" rerender="pageMessages" oncomplete="unblockUI();">
+             <apex:param name="lineNum" value="0"/>
+        </apex:actionFunction>
+        <apex:actionFunction name="doDeleteSOL" action="{!doDeleteSOLine}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages, addProductPanel"/>
+ 
+        <apex:outputPanel id="statusPanel" style="display:none;">
+           resubmit=<apex:outputText id="reSubmitRequired" value="{!reSubmitRequired}"/><br/>
+           andNewFlag=<apex:outputText id="andNewFlag" value="{!andNewFlag}"/><br/>
+        </apex:outputPanel>
+ 
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel rendered="{!AND(transactionsInBackground, !readOnlyUser)}">
+                   <apex:image value="/img/msg_icons/warning16.png"/>
+                    <apex:outputLabel value="{!$Label.rstk__transactionsrunninginbackgroundmayaffectthisorder}"/>
+                    <apex:commandbutton value="{!$Label.rstk__pagebtn_poreceipt_refreshpage}" onclick="doView();return false;"/>
+            </apex:outputPanel>
+            <apex:pageBlockButtons >
+                <apex:outputPanel rendered="{!!readOnlyUser}">
+                    <apex:commandButton onclick="doPagePreSave();return false;" value="{!$Label.rstk__pagebtn_save}" rendered="{!isEditable}" style="width:50px"/>
+                    <apex:commandButton onclick="doPagePreSave('true');return false;" value="{!$Label.rstk__pagebtn_soline_saveandnew}" rendered="{!isEditable}"/>
+                    <apex:commandbutton value="{!$Label.rstk__pagebtn_delete}" rendered="{!isEditable}" onclick="deleteLine(); return false;"/>
+                </apex:outputPanel>
+                <c:standardButtons cntr="{!controller}" disableSave="true"/>
+                <apex:outputPanel rendered="{!AND(!isNew, !readOnlyUser)}">
+                    <input type="button" class="btn" onclick="showTopDialog('pleaseWaitPopup'); doClone(); return false;" value="{!$Label.pagebtn_soline_Clone}"/>
+                </apex:outputPanel>
+                <apex:outputpanel rendered="{!d.Id == null}">
+                    <input name="showSearchProductsBtn" type="button" class="btn" onclick="return showSearchProductsDialog();" value="{!$Label.pagebtn_soline_CustomerProductLookup}"/>
+                </apex:outputpanel>
+                <apex:outputpanel id="newProductPanel" rendered="{!AND(pageOptions.addNewProductEnabled, !readOnlyUser)}">
+                        <input type="button" class="btn" value="{!$Label.pagebtn_soline_CreateNewProduct}" onclick="return openCreateProduct();" style="width:125px;"/>
+                </apex:outputpanel>
+                <apex:outputpanel id="productConfigurator" rendered="{!AND(pageOptions.congigSOE, !readOnlyUser)}">
+                        <input type="button" class="btn" value="{!$Label.pagebtn_soline_ProductConfigurator}" onclick="return openProductConfigurator();" style="width:125px;"/>
+                </apex:outputpanel>
+                <apex:outputpanel rendered="{!AND(geoStatus.taxLookup, !readOnlyUser)}">
+                    <input type="button" class="btn"  value="{!$Label.pagebtn_soline_CalculateTax}" onclick="return updateAllTaxLines();" style="width:100px;"/>
+                </apex:outputpanel>
+                <apex:outputpanel rendered="{!d.Id != null}">
+                    <input name="componentsBtn" type="button" class="btn" onclick="return showComponents('{!d.id}');" value="{!$Label.pagebtn_soline_Components}"/>
+                </apex:outputpanel>
+                <apex:outputPanel rendered="{!!readOnlyUser}">
+                    <input name="newBtn" type="button" class="btn" onclick="showTopDialog('pleaseWaitPopup'); doNew(); return false;" value="{!$Label.pagebtn_soline_New}"/>
+                </apex:outputPanel>
+                <apex:commandbutton value="{!$Label.rstk__pagebtn_soline_commissiondetail}" onclick="return orderOvrCommbyLine();" rendered="{!AND(!isNew, !pageOptions.hideCommission)}" />
+                <button id="atpBtn" type="button" class="btn" onclick="return showATP();">{!$Label.pagebtn_soline_ATP}</button>
+                <apex:commandbutton id="btnChangeProductNumber" value="{!$Label.rstk__pagebtn_soline_changeproductnumber}" onclick="return showChangeProductNumber();" 
+                    rendered="{!AND(prodConvertable, !readOnlyUser)}"/>
+                <button id="componentATPBtn" type="button" class="btn" onclick="return showComponentATP();" >{!$Label.pagebtn_soline_ComponentATP}</button>
+            </apex:pageBlockButtons>
+            <apex:outputPanel style="display:none;" html-nonumberformat="true">
+                <apex:inputHidden id="soline_line__c" value="{!d.rstk__soline_line__c}" />
+                <apex:inputHidden id="soline_qtyissue__c" value="{!d.rstk__soline_qtyissue__c}" />
+                <apex:inputHidden id="soline_qtypackage__c" value="{!d.rstk__soline_qtypackage__c}" />
+                <apex:inputHidden id="soline_discamt__c" value="{!d.rstk__soline_discamt__c}" />
+                <apex:inputHidden id="soline_qtyship__c" value="{!d.rstk__soline_qtyship__c}" />
+                <apex:inputHidden id="soline_qtyalloc__c" value="{!d.rstk__soline_qtyalloc__c}" />
+                <apex:inputHidden id="soline_baseprice__c" value="{!d.rstk__soline_baseprice__c}" />
+                <apex:inputHidden id="soline_pricecalcbase__c" value="{!d.rstk__soline_pricecalcbase__c}" />
+                <apex:inputHidden id="soline_pricecalcdisc__c" value="{!d.rstk__soline_pricecalcdisc__c}" />
+                <apex:inputHidden id="soline_dfltdiscsrce__c" value="{!d.rstk__soline_dfltdiscsrce__c}" />
+                <apex:inputHidden id="soline_dfltdiscpct__c" value="{!d.rstk__soline_dfltdiscpct__c}" />
+                <apex:inputHidden id="soline_allshipped__c" value="{!d.rstk__soline_allshipped__c}" />
+                <apex:inputHidden id="soline_allissued__c" value="{!d.rstk__soline_allissued__c}" />
+                <apex:inputHidden id="soline_shipsite__c" value="{!d.rstk__soline_shipsite__c}" />
+                <apex:inputHidden id="soline_shiplocid__c" value="{!d.rstk__soline_shiplocid__c}" />
+                <apex:inputHidden id="soline_verifiedtaxind__c" value="{!d.rstk__soline_verifiedtaxind__c}" />
+                <apex:inputField id="soline_dateadded__c" value="{!d.rstk__soline_dateadded__c}" />
+                <apex:inputHidden id="soline_origqtyord__c" value="{!d.rstk__soline_origqtyord__c}" />
+                <apex:inputHidden id="soline_resp__c" value="{!d.rstk__soline_resp__c}" />
+                <apex:inputHidden id="soline_sysprice__c" value="{!d.rstk__soline_sysprice__c}" />
+                <apex:inputHidden id="soline_pricesrce__c" value="{!d.rstk__soline_pricesrce__c}" />
+                <apex:inputHidden id="soline_compsprice__c" value="{!d.rstk__soline_compsprice__c}" />
+                <apex:inputHidden id="soline_recalculateprice__c" value="{!d.rstk__soline_recalculateprice__c}" />
+                <apex:outputText id="soline_origignorerollup__c" value="{!d.rstk__soline_ignorerollup__c}" />
+                <apex:outputText id="originalLinePrice__c" value="{!d.rstk__soline_price__c}" />
+                <apex:inputField id="triggerdate__c" value="{!d.rstk__triggerdate__c}" />
+                <apex:inputText id="triggercount__c" value="{!d.rstk__triggercount__c}" />
+                <apex:inputField id="soline_savestate__c" value="{!d.rstk__soline_savestate__c}" />
+                <apex:outputText id="taxcode__c" value="{!d.soline_prod__r.rstk__soprod_avataxcodefrm__c}" />
+                <apex:outputText id="prodcode__c" value="{!d.soline_prod__r.rstk__soprod_prod__c}" />
+                <apex:outputText id="isserial__c" value="{!d.soline_prod__r.soprod_icitem__r.icitem_item__r.rstk__peitem_tracksrl_pl__c}" />
+                <apex:outputText id="proddesc__c" value="{!d.soline_prod__r.rstk__soprod_descr__c}" />
+                <apex:inputText id="soline_confsess__c" value="{!d.rstk__soline_confsess__c}"/>
+                <apex:inputHidden id="soline_linecredit__c" value="{!d.rstk__soline_linecredit__c}"/>
+                <apex:inputHidden id="soline_icitem__c" value="{!d.rstk__soline_icitem__c}"/>
+
+                <apex:outputPanel rendered="{!!pageOptions.showAltPricing}" html-nonumberformat="true">
+                    <apex:inputHidden id="soline_altprice1__c" value="{!d.rstk__soline_altprice1__c}" />
+                    <apex:inputHidden id="soline_altprice2__c" value="{!d.rstk__soline_altprice2__c}" />
+                </apex:outputPanel>
+                <apex:inputText id="sohdr_triggercount__c" value="{!o.rstk__triggercount__c}" />
+                <apex:inputHidden id="sohdr_agreement__c" value="{!o.rstk__sohdr_agreement__c}" />
+                <apex:inputHidden id="sohdr_pricebook__c" value="{!o.rstk__sohdr_pricebook__c}" />
+                <apex:inputHidden id="sohdr_proj__c" value="{!o.rstk__sohdr_proj__c}" />
+                <apex:inputHidden id="sohdr_installaddr__c" value="{!o.rstk__sohdr_installaddr__c}" />
+                <apex:inputHidden id="sohdr_otype__c" value="{!o.rstk__sohdr_otype__c}" />
+                <apex:inputHidden id="sohdr_order__c" value="{!o.rstk__sohdr_order__c}" />
+                <apex:inputField id="sohdr_custcurrency__c" value="{!o.rstk__sohdr_custcurrency__c}" />
+                <apex:outputText id="sohdr_currexchrate__c" value="{!o.rstk__sohdr_currexchrate__c}"/>
+                <apex:inputField id="sohdr_sumfrt__c" value="{!o.rstk__sohdr_sumfrt__c}"/>
+                <apex:inputField id="sohdr_sumhand__c" value="{!o.rstk__sohdr_sumhand__c}"/>
+                <apex:inputField id="sohdr_sumpackage__c" value="{!o.rstk__sohdr_sumpackage__c}"/>
+                <apex:inputField id="sohdr_taxfreight__c" value="{!o.rstk__sohdr_taxfreight__c}"/>
+                <apex:inputField id="sohdr_taxhandling__c" value="{!o.rstk__sohdr_taxhandling__c}"/>
+                <apex:inputField id="sohdr_taxpackaging__c" value="{!o.rstk__sohdr_taxpackaging__c}"/>
+                <apex:inputField id="sohdr_freightamt__c" value="{!o.rstk__sohdr_freightamt__c}"/>
+                <apex:inputField id="sohdr_packageamt__c" value="{!o.rstk__sohdr_packageamt__c}"/>
+                <apex:inputField id="sohdr_handlingamt__c" value="{!o.rstk__sohdr_handlingamt__c}"/>
+                <apex:inputText id="sohdr_pricingcust__c" value="{!o.rstk__sohdr_pricingcust__c}" />
+                <apex:inputText id="sohdr_installcust__c" value="{!o.rstk__sohdr_installcust__c}" />
+                <apex:inputText id="sohdr_contract__c" value="{!o.rstk__sohdr_contract__c}" />
+                <apex:inputText id="sohdr_taxexempt__c" value="{!o.rstk__sohdr_taxexempt__c}" />
+                <apex:inputText id="sohdr_discpct__c" value="{!o.rstk__sohdr_discpct__c}" />
+                <apex:inputHidden id="sohdr_ovrship__c" value="{!o.rstk__sohdr_ovrship__c}" />
+
+                <apex:inputHidden id="soline_oshiptoaddr__c" value="{!d.rstk__soline_oshiptoaddr__c}" rendered="{!!ISNULL(d.rstk__soline_oshiptoaddr__c)}"/>
+                <apex:outputText id="line_number_id__c" value="{!d.id}" />
+                <apex:outputText id="sydiv_multisiteind__c" value="{!d.soline_shipdiv__r.rstk__sydiv_multisiteind__c}" />
+                <apex:outputText id="s_soprod_multshipdiv__c" value="{!d.soline_prod__r.rstk__soprod_multshipdiv__c}" />
+                <apex:outputText id="s_soprod_icitem__c" value="{!d.soline_prod__r.rstk__soprod_icitem__c}" />
+            
+                <apex:outputPanel rendered="{!!pageOptions.showEntitlements}" html-nonumberformat="true">
+                    <apex:inputHidden id="solineextn_srvcostcol__c" value="{!de.rstk__solineextn_srvcostcol__c}" />
+                    <apex:inputHidden id="solineextn_srvcostbw__c" value="{!de.rstk__solineextn_srvcostbw__c}" />
+                    <apex:inputHidden id="solineextn_srvcostscan__c" value="{!de.rstk__solineextn_srvcostscan__c}" />
+                    <apex:inputHidden id="solineextn_antvolcol__c" value="{!de.rstk__solineextn_antvolcol__c}" />
+                    <apex:inputHidden id="solineextn_antvolbw__c" value="{!de.rstk__solineextn_antvolbw__c}" />
+                    <apex:inputHidden id="solineextn_antvolscan__c" value="{!de.rstk__solineextn_antvolscan__c}" />
+                </apex:outputPanel>
+
+                <apex:inputHidden id="soline_firm__c" value="{!d.rstk__soline_firm__c}" rendered="{!o.rstk__sohdr_isquote__c}"/>
+                <apex:inputHidden id="soline_taxoverride__c" value="{!d.rstk__soline_taxoverride__c}" rendered="{!geoStatus.taxLookup}"/>
+                <apex:inputHidden id="soline_taxamount__c" value="{!d.rstk__soline_taxamount__c}" rendered="{!geoStatus.taxLookup}"/>
+                <apex:inputHidden id="soline_intersystem__c" value="{!d.rstk__soline_intersystem__c}" rendered="{!!pageOptions.interSystem}"/>
+                <apex:inputHidden id="soline_intracompany__c" value="{!d.rstk__soline_intracompany__c}" rendered="{!!pageOptions.interSystem}"/>
+                <apex:outputText id="initial_soline_shiptoaddr__c" value="{!d.rstk__soline_shiptoaddr__c}"/>
+                <apex:outputText id="initial_soline_installaddr__c" value="{!d.rstk__soline_installaddr__c}"/>
+
+                <apex:inputHidden id="solineextn_xigprice1__c" value="{!de.rstk__solineextn_xigprice1__c}" />
+                <apex:inputHidden id="solineextn_xiguseprice1__c" value="{!de.rstk__solineextn_xiguseprice1__c}" />
+                <apex:inputHidden id="solineextn_xigprice2__c" value="{!de.rstk__solineextn_xigprice2__c}" />
+                <apex:inputHidden id="solineextn_xigstdprem1__c" value="{!de.rstk__solineextn_xigstdprem1__c}" />
+                <apex:inputHidden id="solineextn_xigovrprem1__c" value="{!de.rstk__solineextn_xigovrprem1__c}" />
+                <apex:inputHidden id="solineextn_xigstdprem2__c" value="{!de.rstk__solineextn_xigstdprem2__c}" />
+                <apex:inputHidden id="solineextn_xigovrprem2__c" value="{!de.rstk__solineextn_xigovrprem2__c}" />
+                <apex:inputHidden id="solineextn_sorma__c" value="{!de.rstk__solineextn_sorma__c}"/>
+                <apex:inputText id="soline_socontract__c" value="{!d.rstk__soline_socontract__c}"/>
+                
+                <apex:outputText id="soline_initiallyfirm__c" value="{!d.rstk__soline_firm__c}"/>
+                <apex:outputText id="solineinit_shipdiv__c" value="{!d.rstk__soline_shipdiv__c}"/>
+                <apex:outputText id="soline_pricecc__c" value="{!d.rstk__soline_pricecc__c}"/>
+                <apex:inputHidden id="soline_sozone__c" value="{!d.rstk__soline_sozone__c}"/>
+
+                <apex:inputHidden id="sohdrextn_fob__c" value="{!oe.rstk__sohdrextn_fob__c}" />
+                <apex:inputHidden id="sohdrextn_carrier__c" value="{!oe.rstk__sohdrextn_carrier__c}" />
+                <apex:inputHidden id="sohdrextn_fterms__c" value="{!oe.rstk__sohdrextn_fterms__c}" />
+                <apex:inputHidden id="sohdrextn_shipvia__c" value="{!oe.rstk__sohdrextn_shipvia__c}" />
+                <apex:inputHidden id="sohdrextn_sydivaddr__c" value="{!oe.rstk__sohdrextn_sydivaddr__c}" />
+
+                <apex:outputText id="sycmp_numdims__c"   value="{!d.soline_shipdiv__r.sydiv_cmpno__r.rstk__sycmp_numdims__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_address1__c" value="{!soaddrShip.rstk__soaddr_address1__c}" />
+                <apex:inputText id="shipto_soaddr_name__c" value="{!soaddrShip.rstk__soaddr_name__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_address2__c" value="{!soaddrShip.rstk__soaddr_address2__c}" />
+                <apex:inputText id="shipto_soaddr_phone__c" value="{!soaddrShip.rstk__soaddr_phone__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_address3__c" value="{!soaddrShip.rstk__soaddr_address3__c}" />
+                <apex:inputText id="shipto_soaddr_fax__c" value="{!soaddrShip.rstk__soaddr_fax__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_city__c" value="{!soaddrShip.rstk__soaddr_city__c}" />
+                <apex:inputText id="shipto_soaddr_email__c" value="{!soaddrShip.rstk__soaddr_email__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_state__c" value="{!soaddrShip.rstk__soaddr_state__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_socontact__c" value="{!soaddrShip.rstk__soaddr_socontact__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_country__c" value="{!soaddrShip.rstk__soaddr_country__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_isocountry__c" value="{!soaddrShip.rstk__soaddr_isocountry__c}" />
+                <apex:inputText id="shipto_soaddr_conmethod__c" value="{!soaddrShip.rstk__soaddr_conmethod__c}" />
+                <apex:inputText styleclass="addressField" id="shipto_soaddr_zip__c" value="{!soaddrShip.rstk__soaddr_zip__c}" />
+                <apex:inputText id="shipto_soaddr_taxloc__c" value="{!soaddrShip.rstk__soaddr_taxloc__c}"/>
+                <apex:inputField id="shipto_soaddr_verified__c" value="{!soaddrShip.rstk__soaddr_verified__c}" rendered="{!geoStatus.addressVerification}"/>
+                <apex:inputText id="shipto_soaddr_ovrsocust__c" value="{!soaddrShip.rstk__soaddr_ovrsocust__c}"/>
+                <apex:inputText id="shipto_soaddr_ovrsocaddr__c" value="{!soaddrShip.rstk__soaddr_ovrsocaddr__c}"/>
+
+                <input name="isSubmit" type="hidden"/>
+                <input name="locNums" type="hidden"/>
+                <input name="customerNo" type="hidden"/>
+                <input name="solineaddrstring" type="hidden" />
+                <apex:inputHidden id="editingProductNames" value="{!editingProductNames}"/>
+                <apex:inputHidden id="editingProjectNames" value="{!editingProjectNames}"/>
+                <apex:inputHidden id="projectDimValues" value="{!projectDimValues}"/>
+                <apex:inputHidden id="productUpdates" value="{!productUpdates}"/>
+
+            </apex:outputPanel>
+
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_sohdr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_sohdr__c.label}"/>
+                    <apex:outputField id="soline_sohdr__c" value="{!d.rstk__soline_sohdr__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+            
+                 <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_line__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_line__c.label}"/>
+                    <apex:outputField id="line_number__c" value="{!d.rstk__soline_line__c}" />
+                </apex:pageBlockSectionItem>
+
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sohdr_custno__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sohdr_custno__c}" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_prodtype__c.inlineHelpText}" rendered="{!d.id == null}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_prodtype__c.label}"/>
+                    <apex:selectlist size="1" id="soline_prodtype__c" value="{!d.rstk__soline_prodtype__c}" style="width:250px" tabindex="10">
+                        <apex:selectOptions value="{!soLineProdTypes}"/>
+                    </apex:selectlist>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_prodtype__c.inlineHelpText}" rendered="{!d.id != null}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_prodtype__c.label}"/>
+                   <apex:outputPanel >
+                        <apex:inputText id="soline_producttype__c" value="{!d.rstk__soline_prodtype__c}" style="display:none"/>
+                        <apex:outputField id="dsp_soline_prodtype__c" value="{!d.rstk__soline_prodtype__c}" style="width:250px"/>
+                   </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="The Extended Amount, the price less the discount times the order quantity">
+                    <apex:outputLabel value="{!$Label.rstk__extended}"/>
+                    <input type="text" name="soline_extendedamount" value="" style="width:250px" class="rl-rightalign" disabled="true"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_prod__c.inlineHelpText}" rendered="{!d.id == null}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_prod__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputText id="soline_prod__c" value="{!d.rstk__soline_prod__c}" style="display:none"/>
+                        <apex:inputText id="soline_textproduct__c" styleClass="ac_input" style="width:250px;"  tabindex="19"/>
+                        <script>
+                          var acId    = document.getElementById('{!$Component.soline_prod__c}');
+                          var acInput = jQuery(document.getElementById('{!$Component.soline_textproduct__c}'));
+                          setupAutocompleteFieldData(acInput[0],acId, []);
+                          acInput.val(editingProductNames[acId.value]);
+                        </script>
+                        <a name='invinfo' href="#" onclick="showInventoryItemPopup(); return false;" title="{!$Label.soline_Click_to_modify_the_product_s_Inventory_Item}">
+                          <img height="8" width="8" src="/img/msg_icons/info16.png"/>
+                        </a>
+                        <apex:outputpanel rendered="{!pageOptions.checkSuperItem}">
+                            <apex:inputField id="soline_bypasssupersession__c" value="{!d.rstk__soline_bypasssupersession__c}" taborderhint="2"/>
+                            <apex:outputLabel value="{!f_sl.rstk__soline_bypasssupersession__c.label}"/>
+                        </apex:outputpanel>
+                      </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_prod__c.inlineHelpText}" rendered="{!d.id != null}">
+                  <apex:outputLabel value="{!f_sl.rstk__soline_prod__c.label}"/>
+                  <apex:outputPanel >
+                    <apex:outputpanel rendered="{!AND(geoStatus.taxLookup, d.soline_prod__r.rstk__soprod_avataxcodefrm__c == null)}">
+                      <c:errorimage title="{!$Label.rstk__with_avatax_active_the_product_group_avalara_product_tax_code_must_be_specified}"/>&nbsp;&nbsp;
+                    </apex:outputpanel>
+                    <apex:inputText id="soline_product__c" value="{!d.rstk__soline_prod__c}" style="display:none"/>
+                    <apex:outputField id="dsp_soline_prod__c" value="{!d.rstk__soline_prod__c}" style="width:250px;word-wrap: break-word;"/>
+                    <apex:inputHidden id="hidden_soline_bypasssupersession__c" value="{!d.rstk__soline_bypasssupersession__c}"/>
+                    <apex:outputPanel rendered="{!pageOptions.showInvRevision}">
+                          &nbsp;&nbsp;
+                          <apex:outputLabel value="{!f_sl.rstk__soline_invrev__c.label}"/>
+                          &nbsp;
+                          <apex:outputField value="{!d.rstk__soline_invrev__c}"/>
+                    </apex:outputPanel> 
+                  </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shipdiv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_shipdiv__c.label}"/>
+                    <apex:selectlist id="soline_shipdiv__c" value="{!d.rstk__soline_shipdiv__c}" size="1" style="width:250px" tabindex="120">
+                        <apex:selectOptions value="{!divisions}"/>
+                    </apex:selectlist>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_qtyorder__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_qtyorder__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="soline_qtyorder__c" value="{!d.rstk__soline_qtyorder__c}" onfocus="orderQtyFocused(this, '{!d.id}');" 
+                          style="width:250px" styleClass="rl-rightalign"  taborderhint="3"/>
+                        <apex:outputPanel rendered="{!d.Id != null}">
+                        <script>
+                            document.getElementById('{!$Component.soline_qtyorder__c}').disabled = {!d.rstk__soline_closed__c};
+                            removeTrailingZeros["soline_qtyorder__c"] = false;
+                        </script>
+                        </apex:outputPanel>
+                        <a name='lineinfo' href="#" onclick="showQtyOHPopup(); return false;" title='{!$Label.soline_Click_to_see_the_quantity_currently_available_for_the_product}'>
+                          <img height="8" width="8" src="/img/msg_icons/info16.png"/>
+                        </a>
+                   </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_project__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_project__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputHidden id="soline_project__c" value="{!d.rstk__soline_project__c}"/>
+                        <apex:outputPanel rendered="{!!projOptions.editable}">
+                            <apex:outputField value="{!d.rstk__soline_project__c}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!projOptions.editable}">
+                        <apex:inputText id="soline_textproject__c" styleClass="ac_input" style="width:240px"/>
+                        <script>
+                            var acId    = document.getElementById('{!$Component.soline_project__c}');
+                            var acInput = jQuery(document.getElementById('{!$Component.soline_textproject__c}'));
+                            setupAutocompleteFieldData(acInput[0],acId, []);
+                            acInput.val(editingProjectNames[acId.value]);
+                            acId.onchange=function() { projectChanged(); };
+                        </script>
+                        </apex:outputPanel>
+                        <a href="#" onclick="openProjectPage(); return false" title='{!$Label.Click_to_open_the_Project_Page}'>
+                            <img id="link_project" src="/img/tab/arrow.gif" style="width:10px;"/>
+                        </a>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_price__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_price__c.label}"/>
+                   <apex:outputPanel >
+                        <apex:inputField id="soline_price__c" value="{!d.rstk__soline_price__c}" style="width:250px" styleClass="rl-rightalign"  taborderhint="4"/>
+                        <apex:outputPanel rendered="{!d.Id != null}">
+                        <script>
+                            document.getElementById('{!$Component.soline_price__c}').disabled = {!d.rstk__soline_closed__c};
+                            removeTrailingZeros["soline_price__c"] = false;
+                        </script>
+                        </apex:outputPanel>
+                        <a name='sourceInfo' href="#" onclick="showSourcePopup(); return false;" title='{!$Label.soline_Click_to_see_the_source_of_the_initial_price}'>
+                          <img height="8" width="8" src="/img/msg_icons/info16.png"/>
+                        </a>
+                   </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_wbs__c.inlineHelpText}" rendered="{!isChargeCodeActive}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_wbs__c.label}"/>
+                     <apex:outputPanel >
+                      <apex:outputPanel rendered="{!!projOptions.editable}">
+                         <apex:outputField value="{!d.rstk__soline_wbs__c}"/>
+                      </apex:outputPanel>
+                      <apex:outputPanel rendered="{!projOptions.editable}">
+                         <c:LocalSelect id="modal_soline_wbs__c" value="{!d.rstk__soline_wbs__c}" link="true" />
+                      </apex:outputPanel>
+                     </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem rendered="{!!isChargeCodeActive}"/>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_discpct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_discpct__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="soline_discpct__c" value="{!d.rstk__soline_discpct__c}" style="width:250px" styleClass="rl-rightalign"  taborderhint="5"/>
+                        <apex:outputPanel rendered="{!d.Id != null}">
+                        <script>
+                            document.getElementById('{!$Component.soline_discpct__c}').disabled = {!d.rstk__soline_closed__c};
+                            removeTrailingZeros["soline_discpct__c"] = false;
+                        </script>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_uom__c.inlineHelpText}">
+                 <apex:outputLabel value="{!f_sl.rstk__soline_uom__c.label}"/>
+                 <apex:outputPanel >
+                  <apex:inputText id="s_soline_uom__c" value="{!d.rstk__soline_uom__c}" rendered="{!d.id != null}" style="display:none;"/>
+                  <apex:outputField id="dsp_soline_uom__c" value="{!d.rstk__soline_uom__c}" rendered="{!d.id != null}"/>
+                     <apex:selectlist size="1" id="soline_uom__c" value="{!d.rstk__soline_uom__c}" style="width:250px" rendered="{!d.id = null}" tabindex="140">
+                         <apex:selectOptions value="{!UOMs}"/>
+                     </apex:selectlist>
+                 </apex:outputPanel>
+                </apex:pageBlockSectionItem>   
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_duedate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_duedate__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="soline_duedate__c" value="{!d.rstk__soline_duedate__c}" style="width:250px"  taborderhint="6"/>
+                        <apex:outputPanel rendered="{!d.Id != null}">
+                        <script>document.getElementById('{!$Component.soline_duedate__c}').disabled = {!d.rstk__soline_closed__c};</script>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_schdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_schdate__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="soline_schdate__c" value="{!d.rstk__soline_schdate__c}" style="width:250px" taborderhint="15"/>
+                        <apex:outputPanel rendered="{!d.Id != null}">
+                        <script>document.getElementById('{!$Component.soline_schdate__c}').disabled = {!d.rstk__soline_closed__c || d.rstk__soline_qtyalloc__c > 0 || d.rstk__soline_qtyissue__c > 0};</script>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_firm__c.inlineHelpText}" rendered="{!!o.rstk__sohdr_isquote__c}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_firm__c.label}"/>
+                    <apex:outputPanel >
+                         <apex:inputField id="soline_firm__c" value="{!d.rstk__soline_firm__c}"  taborderhint="7"/>
+                        <apex:outputPanel rendered="{!d.Id != null}">
+                        <script>document.getElementById('{!$Component.soline_firm__c}').disabled = {!o.rstk__sohdr_isquote__c || d.rstk__soline_closed__c || d.rstk__soline_qtyalloc__c > 0 || d.rstk__soline_qtyissue__c > 0};</script>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_reqdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_reqdate__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="soline_reqdate__c" value="{!d.rstk__soline_reqdate__c}" style="width:250px" taborderhint="16"/>
+                        <apex:outputPanel rendered="{!d.Id != null}">
+                        <script>document.getElementById('{!$Component.soline_reqdate__c}').disabled = {!d.rstk__soline_closed__c || d.rstk__soline_qtyalloc__c > 0 || d.rstk__soline_qtyissue__c > 0};</script>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_qtypickpackship__c.inlineHelpText}" rendered="{!!o.rstk__sohdr_isquote__c}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_qtypickpackship__c.label}"/>
+                    <apex:outputPanel >
+                         <apex:outputField id="soline_qtypickpackship__c" value="{!d.rstk__soline_qtypickpackship__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_linestatustext__c.inlineHelpText}" rendered="{!!o.rstk__sohdr_isquote__c}">
+                    <apex:outputLabel value="{!f_sl.rstk__soline_linestatustext__c.label}"/>
+                    <apex:outputPanel >
+                         <apex:outputField id="soline_linestatustext__c" value="{!d.rstk__soline_linestatustext__c}"/>
+                         <apex:outputPanel rendered="{!d.rstk__soline_cancelled__c}"> / {!$Label.rstk__cancelled}</apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+             </apex:pageBlockSection>
+             <span id="beforeAdvancedSection"/>
+            <apex:pageBlockSection showHeader="true" title="{!$Label.rstk__pagetab_soline_additional}" collapsible="true" columns="1" >
+ 
+                <apex:tabPanel tabClass="activeTab" switchType="client" id="inventory">
+                    <apex:tab label="{!$Label.rstk__pagetab_soline_ship_tosettings}" id="tabLineShipping">
+                            <apex:pageBlockSection >
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shiptomethod__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_shiptomethod__c.label}"/>
+                                    <apex:selectlist id="modal_soline_shiptomethod__c" value="{!d.rstk__soline_shiptomethod__c}"  size="1" style="width:200px">
+                                        <apex:selectOptions value="{!ShiptoMethods}"/>
+                                    </apex:selectlist>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem >
+                                <apex:outputPanel >
+                                    <apex:outputLabel id="modal_soline_shiptoaddr_label" value="{!f_sl.rstk__soline_shiptoaddr__c.label}"/>
+                                    <apex:outputLabel id="modal_soline_shiptoaltline_label" value="{!f_sl.rstk__soline_shiptoaltline__c.label}"/>
+                                </apex:outputPanel>
+                                <apex:outputPanel >
+                                    <c:LocalSelect id="modal_soline_shiptoaddr__c" value="{!d.rstk__soline_shiptoaddr__c}" width="200px"/>
+                                    <apex:inputHidden id="soline_shiptoaltline__c" value="{!d.rstk__soline_shiptoaltline__c}"/>
+                                    <select id="modal_soline_shiptoaltline__c" size="1" style="width:250px;">
+                                        <option value=""> </option>
+                                    </select>
+                                 </apex:outputPanel>
+                                </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+
+                            <apex:pageBlockSection >
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_installaddr__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_installaddr__c.label}"/>
+                                    <apex:outputpanel >
+                                        <c:LocalSelect id="modal_soline_installaddr__c" value="{!d.rstk__soline_installaddr__c}" width="200px"/>
+                                        <a name='lineinfo' href="#" onclick="showModalInstallAddress(); return false;" title='{!$Label.soline_Click_to_see_the_Installation_Address_details}'>
+                                          <img height="8" width="8" src="/img/msg_icons/info16.png"/>
+                                        </a>
+                                    </apex:outputpanel>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem />
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_fob__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_fob__c.label}"/>
+                                    <c:LocalSelect id="modal_soline_fob__c" value="{!d.rstk__soline_fob__c}" width="200px"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_carrier__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_carrier__c.label}"/>
+                                    <c:LocalSelect id="modal_soline_carrier__c" value="{!d.rstk__soline_carrier__c}" width="200px"/>
+                                 </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                            <apex:pageBlockSection >
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_fterms__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_fterms__c.label}"/>
+                                    <c:LocalSelect id="modal_soline_fterms__c" value="{!d.rstk__soline_fterms__c}" width="200px"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shipvia__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_shipvia__c.label}"/>
+                                    <c:LocalSelect id="modal_soline_shipvia__c" value="{!d.rstk__soline_shipvia__c}" width="200px"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!f_slextn.rstk__solineextn_sydivaddr__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_slextn.rstk__solineextn_sydivaddr__c.label}"/>
+                                    <c:LocalSelect id="modal_solineextn_sydivaddr__c" value="{!de.rstk__solineextn_sydivaddr__c}"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_syvatclass__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_syvatclass__c.label}"/>
+                                    <apex:selectlist id="modal_soline_syvatclass__c" value="{!soline.rstk__soline_syvatclass__c}" size="1" style="width:200px">
+                                        <apex:selectOptions value="{! SyvatclassSelectOptionList}"/>
+                                    </apex:selectlist>
+                                </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                            
+                            <apex:pageBlock id="lineAddressBlock">
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_name__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_name__c.label}"/>
+                                        <apex:inputField styleclass="addressField" id="soline_soaddr_name__c" value="{!soaddrLine.rstk__soaddr_name__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_phone__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_phone__c.label}"/>
+                                        <apex:inputField id="soline_soaddr_phone__c" value="{!soaddrLine.rstk__soaddr_phone__c}" onchange="validatePhoneField(this)"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_address1__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_address1__c.label}"/>
+                                        <apex:inputField styleclass="addressField" id="soline_soaddr_address1__c" value="{!soaddrLine.rstk__soaddr_address1__c}"  />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_fax__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_fax__c.label}"/>
+                                        <apex:inputField id="soline_soaddr_fax__c" value="{!soaddrLine.rstk__soaddr_fax__c}" onchange="validatePhoneField(this)"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_address2__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_address2__c.label}"/>
+                                        <apex:inputField styleclass="addressField" id="soline_soaddr_address2__c" value="{!soaddrLine.rstk__soaddr_address2__c}"  />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_email__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_email__c.label}"/>
+                                        <apex:inputField id="soline_soaddr_email__c" value="{!soaddrLine.rstk__soaddr_email__c}" onchange="validateEmailField(this)"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_address3__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_address3__c.label}"/>
+                                        <apex:inputField styleclass="addressField" id="soline_soaddr_address3__c" value="{!soaddrLine.rstk__soaddr_address3__c}"  />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_socontact__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_socontact__c.label}"/>
+                                        <c:LocalSelect id="soline_soaddr_socontact__c" value="{!soaddrLine.rstk__soaddr_socontact__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_city__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_city__c.label}"/>
+                                        <apex:inputField styleclass="addressField" id="soline_soaddr_city__c" value="{!soaddrLine.rstk__soaddr_city__c}"  />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_conmethod__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_conmethod__c.label}"/>
+                                        <apex:inputField id="soline_soaddr_conmethod__c" value="{!soaddrLine.rstk__soaddr_conmethod__c}"  />
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_state__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_state__c.label}"/>
+                                        <apex:inputField styleclass="addressField" id="soline_soaddr_state__c" value="{!soaddrLine.rstk__soaddr_state__c}"  />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_taxloc__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_taxloc__c.label}"/>
+                                        <c:LocalSelect id="soline_soaddr_taxloc__c" value="{!soaddrLine.rstk__soaddr_taxloc__c}" width="150px"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_country__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_country__c.label}"/>
+                                        <apex:outputPanel >
+                                        	<apex:inputField styleclass="addressField" id="soline_soaddr_country__c" value="{!soaddrLine.rstk__soaddr_country__c}"  />
+                                        	&nbsp;<apex:inputField styleclass="addressField" id="soline_soaddr_isocountry__c" value="{!soaddrLine.rstk__soaddr_isocountry__c}" onchange="setCounytryField(this)" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_nopartials__c.inlineHelpText}">
+                                        <apex:outputPanel >
+                                          <apex:inputField id="modal_soline_nopartials__c" value="{!d.rstk__soline_nopartials__c}" style="{!IF(anyLinesPackaged,'display:none;','')}"/>
+                                          <apex:outputField value="{!d.rstk__soline_nopartials__c}" rendered="{!anyLinesPackaged}" />
+                                        </apex:outputPanel>
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_nopartials__c.label}"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_zip__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_zip__c.label}"/>
+                                        <apex:inputField styleclass="addressField" id="soline_soaddr_zip__c" value="{!soaddrLine.rstk__soaddr_zip__c}"  />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_nopartialset__c.inlineHelpText}">
+                                        <apex:outputPanel >
+                                          <apex:inputField id="modal_soline_nopartialset__c" value="{!d.rstk__soline_nopartialset__c}" style="{!IF(anyLinesPackaged,'display:none;','')}"/>
+                                          <apex:outputField value="{!d.rstk__soline_nopartialset__c}" rendered="{!anyLinesPackaged}" />
+                                        </apex:outputPanel>
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_nopartialset__c.label}"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem rendered="{!isNew}"/>
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_sozone__c.inlineHelpText}" rendered="{!!isNew}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_sozone__c.label}"/>
+                                        <apex:outputField value="{!d.rstk__soline_sozone__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shipsetid__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_shipsetid__c.label}"/>
+                                        <apex:outputPanel >
+                                          <apex:inputField id="modal_soline_shipsetid__c" value="{!d.rstk__soline_shipsetid__c}" style="{!IF(anyLinesPackaged,'display:none;','')}"/>
+                                          <apex:outputField value="{!d.rstk__soline_shipsetid__c}" rendered="{!anyLinesPackaged}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem />
+                                    <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_vatexempt__c.inlineHelpText}" rendered="{!vatActive}">
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_vatexempt__c.label}"/>
+                                        <apex:inputField styleclass="addressField" id="soline_soaddr_vatexempt__c" value="{!soaddrShip.rstk__soaddr_vatexempt__c}" />
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection rendered="{!geoStatus.addressVerification}">
+                                    <apex:outputpanel id="soline_validation">
+                                    <apex:pageBlockSectionItem helpText="Validate Address">
+                                        <input type="button" id="soline_validate__c" value="{!$Label.pagebtn_soline_Validate}" onclick="validateAddr.doValidateAddress('soline', false, getValidationData(true));"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem >
+                                        <apex:outputPanel layout="none">
+                                            <apex:inputfield id="soline_soaddr_verified__c" value="{!soaddrLine.rstk__soaddr_verified__c}" />
+                                            <script>jQuery(document.getElementById("{!$Component.soline_soaddr_verified__c}")).attr('disabled', 'disabled');</script>
+                                        </apex:outputPanel> 
+                                        <apex:outputLabel value="{!f_soaddr.rstk__soaddr_verified__c.label}"/>
+                                    </apex:pageBlockSectionItem>
+                                    </apex:outputpanel>
+                                </apex:pageBlockSection>
+                                <apex:outputPanel style="display:{!IF(geoStatus.taxLookup, '', 'none')}">
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_ovrtaxrate__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_ovrtaxrate__c.label}" style="width:120px"/>
+                                        <apex:inputField html-isreadonly="readonly" id="soline_ovrtaxrate__c" value="{!d.rstk__soline_ovrtaxrate__c}" />
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_ovrtax__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_ovrtax__c.label}" style="width:120px"/>
+                                        <apex:inputField html-isreadonly="readonly" id="soline_ovrtax__c" value="{!d.rstk__soline_ovrtax__c}" />
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_ovrshippingtax__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_ovrshippingtax__c.label}" style="width:120px"/>
+                                        <apex:inputField html-isreadonly="readonly" id="soline_ovrshippingtax__c" value="{!d.rstk__soline_ovrshippingtax__c}" />
+                                    </apex:pageBlockSectionItem>            
+                                </apex:pageBlockSection>
+                                </apex:outputPanel>
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem >
+                                        <apex:outputPanel style="display:none;">
+                                            <apex:inputText id="soline_soaddr_ovrsocust__c" value="{!soaddrLine.rstk__soaddr_ovrsocust__c}"/>
+                                            <apex:inputText id="soline_soaddr_ovrsocaddr__c" value="{!soaddrLine.rstk__soaddr_ovrsocaddr__c}"/>
+                                        </apex:outputPanel>
+                                        <input type="button" class="btn" name="SelectRelatedCustomerAddress"
+                                           value="{!$Label.pagebutton_SelectRelatedCustomerAddress}" onclick="showRelatedCustomerAddressPopup(addressTypeLine); return false;"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                            </apex:pageBlock>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_soline_charges}" id="tabLineCharges">
+                        <div class="largerLabel" id="chargeBlock1" style="border:1px solid #dddddd;border-radius:5px;width:370px;height:118px;float:left">
+                            <apex:pageBlockSection columns="1">
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_freightamt__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_freightamt__c.label}"/>
+                                        <apex:inputField id="modal_soline_freightamt__c" value="{!d.rstk__soline_freightamt__c}" />
+                                    </apex:pageBlockSectionItem>            
+                                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_packageamt__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_packageamt__c.label}"/>
+                                        <apex:inputField id="modal_soline_packageamt__c" value="{!d.rstk__soline_packageamt__c}" />
+                                    </apex:pageBlockSectionItem>            
+
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_handlingamt__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_handlingamt__c.label}"/>
+                                        <apex:inputField id="modal_soline_handlingamt__c" value="{!d.rstk__soline_handlingamt__c}" />
+                                    </apex:pageBlockSectionItem>            
+
+                            </apex:pageBlockSection>
+                        </div>
+                        <div class="largerLabel" id="chargeBlock2" style="border:1px solid #dddddd;border-radius:5px;width:370px;height:118px;float:left">
+                            <apex:pageBlockSection columns="1">
+                                     <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_freightcost__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_freightcost__c.label}" />
+                                        <apex:outputField value="{!d.rstk__soline_freightcost__c}"/>
+                                    </apex:pageBlockSectionItem>            
+
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_taxexempt__c.inlineHelpText}">
+                                        <apex:inputField id="modal_soline_taxexempt__c" value="{!d.rstk__soline_taxexempt__c}" />
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_taxexempt__c.label}" />
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_taxoverride__c.inlineHelpText}" rendered="{!!geoStatus.taxLookup}">
+                                        <apex:inputField id="modal_soline_taxoverride__c" value="{!d.rstk__soline_taxoverride__c}" />
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_taxoverride__c.label}" style="width:120px"/>
+                                    </apex:pageBlockSectionItem>            
+
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_taxamount__c.inlineHelpText}" rendered="{!!geoStatus.taxLookup}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_taxamount__c.label}" style="width:120px"/>
+                                        <apex:inputField id="modal_soline_taxamount__c" value="{!d.rstk__soline_taxamount__c}" />
+                                    </apex:pageBlockSectionItem>            
+
+                            </apex:pageBlockSection>
+                        </div>
+                        <div class="largerLabel" id="chargeBlock3" style="border:1px solid #dddddd;border-radius:5px;width:370px;height:240px;float:left">
+                            <apex:pageBlockSection columns="1">
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_salesacct__c.inlineHelpText}">
+                                            <apex:outputLabel value="{!f_sl.rstk__soline_salesacct__c.label}" style="width:120px"/>
+                                            <apex:selectlist id="modal_soline_salesacct__c" value="{!d.rstk__soline_salesacct__c}" size="1" style="width:200px">
+                                                <apex:selectOptions value="{!salesAccounts}"/>
+                                            </apex:selectlist>
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_cospendacct__c.inlineHelpText}">
+                                            <apex:outputLabel value="{!f_sl.rstk__soline_cospendacct__c.label}" style="width:120px"/>
+                                            <apex:selectlist id="modal_soline_cospendacct__c" value="{!d.rstk__soline_cospendacct__c}" size="1" style="width:200px">
+                                                <apex:selectOptions value="{!COSPendAccounts}"/>
+                                            </apex:selectlist>
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_cosacct__c.inlineHelpText}">
+                                            <apex:outputLabel value="{!f_sl.rstk__soline_cosacct__c.label}" style="width:120px"/>
+                                            <apex:selectlist id="modal_soline_cosacct__c" value="{!d.rstk__soline_cosacct__c}" size="1" style="width:200px">
+                                                <apex:selectOptions value="{!cosAccounts}"/>
+                                            </apex:selectlist>
+                                    </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel style="{!IF(pageOptions.isQuote,'display:none;','')}">
+                                <apex:pageBlockSection columns="1">
+                                        <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_cospendamt__c.inlineHelpText}">
+                                            <apex:outputLabel value="{!f_sl.rstk__soline_cospendamt__c.label}" style="width:120px;"/>
+                                            <apex:inputField html-isreadonly="readonly" id="modal_soline_cospendamt__c" value="{!d.rstk__soline_cospendamt__c}"/>
+                                        </apex:pageBlockSectionItem>            
+                                        <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_cosamt__c.inlineHelpText}">
+                                            <apex:outputLabel value="{!f_sl.rstk__soline_cosamt__c.label}" style="width:120px;"/>
+                                            <apex:inputField html-isreadonly="readonly"  id="modal_soline_cosamt__c" value="{!d.rstk__soline_cosamt__c}"/>
+                                        </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                        </div>
+                        <div class="largerLabel" id="chargeBlock4" style="border:1px solid #dddddd;border-radius:5px;width:370px;height:240px;float:left">
+                            <apex:pageBlockSection columns="1">
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_price__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_price__c.label}" style="width:120px"/>
+                                        <apex:outputText id="dsp_soline_price__c" />
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_sysprice__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_sysprice__c.label}" style="width:120px"/>
+                                        <apex:inputField html-isreadonly="readonly" id="modal_soline_sysprice__c" value="{!d.rstk__soline_sysprice__c}"/>
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_pricesrce__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_pricesrce__c.label}" style="width:120px"/>
+                                        <input type="text" readonly="readonly" id="modal_soline_pricesrce__c" value="{!d.rstk__soline_pricesrce__c}"/>
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_pricebook__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_pricebook__c.label}" style="width:120px"/>
+                                        <c:LocalSelect id="modal_soline_pricebook__c" value="{!d.rstk__soline_pricebook__c}" style="width:225"/>
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_altprice1__c.inlineHelpText}" rendered="{!pageOptions.showAltPricing}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_altprice1__c.label}"/>
+                                        <apex:outputPanel >
+                                            <apex:inputField id="modal_soline_altprice1__c" value="{!d.rstk__soline_altprice1__c}" />
+                                            {!maintenanceCurrencySymbol}
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>            
+                                    <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_altprice2__c.inlineHelpText}" rendered="{!pageOptions.showAltPricing}">
+                                        <apex:outputLabel value="{!f_sl.rstk__soline_altprice2__c.label}"/>
+                                        <apex:outputPanel >
+                                            <apex:inputField id="modal_soline_altprice2__c" value="{!d.rstk__soline_altprice2__c}" />
+                                            {!maintenanceCurrencySymbol}
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                        </div>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_soline_inventorysettings}" id="tabInventory">
+                        <apex:pageBlockSection columns="2">
+                            <apex:pageBlockSectionItem />
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_weight__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_weight__c.label}"/>
+                                <apex:inputField id="modal_soline_weight__c" value="{!d.rstk__soline_weight__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_uomcf__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_uomcf__c.label}"/>
+                                <apex:inputField html-isreadonly="readonly"  id="modal_soline_uomcf__c" value="{!d.rstk__soline_uomcf__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_height__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_height__c.label}"/>
+                                <apex:inputField id="modal_soline_height__c" value="{!d.rstk__soline_height__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shipsite__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_shipsite__c.label}"/>
+                                <select size="1" id="modal_soline_shipsite__c" style="width:250px;">
+                                    <option value=""> </option>
+                                </select>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_width__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_width__c.label}"/>
+                                <apex:inputField id="modal_soline_width__c" value="{!d.rstk__soline_width__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shiplocid__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_shiplocid__c.label}"/>
+                                <select size="1" id="modal_soline_shiplocid__c" style="width:250px;">
+                                    <option value=""> </option>
+                                </select>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_length__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_length__c.label}"/>
+                                <apex:inputField id="modal_soline_length__c" value="{!d.rstk__soline_length__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shiplocnum__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_shiplocnum__c.label}"/>
+                                <apex:outputPanel >
+                                    <select size="1" id="modal_select_soline_shiplocnum__c" style="width:250px;">
+                                        <option value=""> </option>
+                                    </select>
+                                    <apex:inputField id="modal_free_soline_shiplocnum__c" value="{!d.rstk__soline_shiplocnum__c}" style="width:250px"/>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_intersystem__c.inlineHelpText}" rendered="{!pageOptions.interSystem}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_intersystem__c.label}"/>
+                                <apex:inputField id="modal_soline_intersystem__c" value="{!d.rstk__soline_intersystem__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem rendered="{!!pageOptions.interSystem}"/>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_useconfig__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_useconfig__c.label}"/>
+                                <apex:inputField id="modal_soline_useconfig__c" value="{!d.rstk__soline_useconfig__c}" />
+                            </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_intracompany__c.inlineHelpText}" rendered="{!pageOptions.interSystem}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_intracompany__c.label}"/>
+                                <apex:inputField id="modal_soline_intracompany__c" value="{!d.rstk__soline_intracompany__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem rendered="{!!pageOptions.interSystem}"/>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_usestock__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_usestock__c.label}"/>
+                                <apex:inputField id="modal_soline_usestock__c" value="{!d.rstk__soline_usestock__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_extweight__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_extweight__c.label}"/>
+                                <apex:inputField html-isreadonly="readonly" id="modal_soline_extweight__c" value="{!d.rstk__soline_extweight__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                        <apex:outputPanel >
+                            <apex:pageBlockSection columns="2">
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_wocstordno__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_wocstordno__c.label}"/>
+                                    <apex:outputfield id="modal_soline_wocstordno__c" value="{!d.rstk__soline_wocstordno__c}"/>
+                                </apex:pageBlockSectionItem>
+                               <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_estind__c.inlineHelpText}">
+                                    <apex:outputLabel id="estindlabel" value="{!f_sl.rstk__soline_estind__c.label}"/>
+                                    <apex:inputField id="modal_soline_estind__c" value="{!d.rstk__soline_estind__c}"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_wotype__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_wotype__c.label}"/>
+                                    <apex:inputField id="modal_soline_wotype__c" value="{!d.rstk__soline_wotype__c}" />
+                               </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                            <apex:pageBlockSection columns="1">
+                                <apex:pageBlockSectionItem helpText="{!f_slextn.rstk__solineextn_sorma__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_slextn.rstk__solineextn_sorma__c.label}"/>
+                                    <apex:outputField id="modal_solineextn_sorma__c" value="{!de.rstk__solineextn_sorma__c}"/>
+                                </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                            <apex:pageBlockSection columns="2">
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_icitem__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_icitem__c.label}"/>
+                                    <apex:outputField id="modal_soline_icitem__c" value="{!d.rstk__soline_icitem__c}"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_nopickifnorcpt__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_nopickifnorcpt__c.label}"/>
+                                    <apex:inputField id="modal_soline_nopickifnorcpt__c" value="{!d.rstk__soline_nopickifnorcpt__c}" />
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_nopickifnorcpt__c.inlineHelpText}">
+                                    <apex:outputLabel value=" "/>
+                                    <input type="button" value="{!$Label.Decouple_Work_Order}" id="decoupleWorkOrder" onclick="attemptDecoupleWorkOrder(); return false;"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_nopickifnoalloc__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_nopickifnoalloc__c.label}"/>
+                                    <apex:inputField id="modal_soline_nopickifnoalloc__c" value="{!d.rstk__soline_nopickifnoalloc__c}" />
+                                </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                        </apex:outputPanel>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_soline_configuredorderpricing}" id="tabLaborOrderPricing">
+                        <apex:pageBlockSection columns="2">
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_configlabor__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_configlabor__c.label}"/>
+                                <apex:inputField id="modal_soline_configlabor__c" value="{!d.rstk__soline_configlabor__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_useactuals__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_useactuals__c.label}"/>
+                                <apex:inputField id="modal_soline_useactuals__c" value="{!d.rstk__soline_useactuals__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_mtlmarkuppct__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_mtlmarkuppct__c.label}"/>
+                                <apex:inputField id="modal_soline_mtlmarkuppct__c" value="{!d.rstk__soline_mtlmarkuppct__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_labmarkuppct__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_labmarkuppct__c.label}"/>
+                                <apex:inputField id="modal_soline_labmarkuppct__c" value="{!d.rstk__soline_labmarkuppct__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem />
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_labprice__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_labprice__c.label}"/>
+                                <apex:inputField id="modal_soline_labprice__c" value="{!d.rstk__soline_labprice__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_pricemethmtl__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_pricemethmtl__c.label}"/>
+                                <apex:inputField id="modal_soline_pricemethmtl__c" value="{!d.rstk__soline_pricemethmtl__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_pricemethlab__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_pricemethlab__c.label}"/>
+                                <apex:inputField id="modal_soline_pricemethlab__c" value="{!d.rstk__soline_pricemethlab__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_itemizemtl__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_itemizemtl__c.label}"/>
+                                <apex:inputField id="modal_soline_itemizemtl__c" value="{!d.rstk__soline_itemizemtl__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_itemizelab__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_itemizelab__c.label}"/>
+                                <apex:inputField id="modal_soline_itemizelab__c" value="{!d.rstk__soline_itemizelab__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_ignorerollup__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_ignorerollup__c.label}"/>
+                                <apex:inputField id="soline_ignorerollup__c" value="{!d.rstk__soline_ignorerollup__c}" />
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_soline_references}" id="tabReference">
+                        <apex:pageBlockSection columns="2">
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_orgid__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_orgid__c.label}"/>
+                                <c:LocalSelect id="modal_soline_orgid__c" value="{!d.rstk__soline_orgid__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_custrequestdate__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_custrequestdate__c.label}"/>
+                                <apex:inputField id="modal_soline_custrequestdate__c" value="{!d.rstk__soline_custrequestdate__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_case__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_case__c.label}"/>
+                                <apex:selectlist id="modal_soline_case__c" value="{!d.rstk__soline_case__c}" size="1" style="width:250px">
+                                    <apex:selectOptions value="{!cases}"/>
+                                </apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_agreement__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_agreement__c.label}"/>
+                                <apex:selectlist id="modal_soline_agreement__c" value="{!d.rstk__soline_agreement__c}" size="1" style="width:250px">
+                                    <apex:selectOptions value="{!agreements}"/>
+                                </apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_ustat__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_ustat__c.label}"/>
+                                <c:LocalSelect id="modal_soline_ustat__c" value="{!d.rstk__soline_ustat__c}"/>
+                            </apex:pageBlockSectionItem>
+                           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_confsess__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_confsess__c.label}"/>
+                                <apex:outputField value="{!d.rstk__soline_confsess__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_covereditem__c.inlineHelpText}" rendered="{!!ISNULL(sohdr.rstk__sohdr_contract__c)}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_covereditem__c.label}"/>
+                                <apex:outputpanel >
+                                    <apex:outputpanel rendered="{!OR(isNew, d.rstk__soline_qtyship__c == 0)}">
+                                        <apex:inputText id="modal_soline_covereditem__c" value="{!d.rstk__soline_covereditem__c}" style="display:none"/>
+                                        <apex:inputText id="modal_soline_textcovereditem__c" styleClass="ac_input" style="width:250px;"/>
+                                        <script>
+                                          var acId    = document.getElementById('{!$Component.modal_soline_covereditem__c}');
+                                          var acInput = jQuery(document.getElementById('{!$Component.modal_soline_textcovereditem__c}'));
+                                          setupAutocompleteFieldData(acInput[0],acId, []);
+                                        </script>
+                                    </apex:outputpanel>                  
+                                    <apex:outputField value="{!d.rstk__soline_covereditem__c}" rendered="{!AND(NOT(isNew), d.rstk__soline_qtyship__c != 0)}"/>
+                                </apex:outputpanel>
+                            </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem rendered="{!ISNULL(sohdr.rstk__sohdr_contract__c)}"/>
+
+                           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_povend__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__soline_povend__c.label}"/>
+                                <apex:outputPanel >
+                                    <apex:inputText id="soline_povend__c" value="{!d.rstk__soline_povend__c}" style="display:none"/>
+                                    <input id="soline_povend__c_autocomplete" name="soline_povend__c_autocomplete" styleClass="ac_input" style="width:250px;" value="{!d.soline_povend__r.Name}"/>
+                                    <script>
+                                        manualAutocomplete("soline_povend__c", "select id, name from povend__c where povend_onetimeind__c = false");
+                                    </script>
+                                </apex:outputPanel>
+                           </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+
+                        <apex:outputPanel style="{!IF(pageOptions.isQuote,'display:none;','')}">
+                            <apex:pageBlockSection columns="1">
+                                <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_hold__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_sl.rstk__soline_hold__c.label}"/>
+                                    <apex:inputField id="modal_soline_hold__c" value="{!d.rstk__soline_hold__c}"/>
+                                </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                        </apex:outputPanel>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_soline_comments}" id="tabLineComments">
+                        <div style="width:700px">
+                            <c:HelpLabel label="{!f_sl.rstk__soline_intcomment__c.label}" helpText="{!f_sl.rstk__soline_intcomment__c.inlineHelpText}"/>
+                            <apex:inputTextarea id="modal_soline_intcomment__c" value="{!d.rstk__soline_intcomment__c}" rows="6" richtext="true" disabled="{!readOnlyUser}"/>
+                            <br></br>
+                            <c:HelpLabel label="{!f_sl.rstk__soline_extcomment__c.label}" helpText="{!f_sl.rstk__soline_extcomment__c.inlineHelpText}"/>
+                            <apex:inputTextarea id="modal_soline_extcomment__c" value="{!d.rstk__soline_extcomment__c}" rows="6" richtext="true" disabled="{!readOnlyUser}"/>
+                        </div>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_soline_modelservicecost}" id="tabModelServiceCost" rendered="{!pageOptions.showEntitlements}">
+                        <apex:pageBlockSection id="pbs_ModelServiceCost" showHeader="false" columns="1">
+                             <apex:pageBlockSectionItem helpText="{!f_slextn.rstk__solineextn_srvcostcol__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_slextn.rstk__solineextn_srvcostcol__c.label}"/>
+                                <apex:inputfield id="modal_solineextn_srvcostcol__c" value="{!de.rstk__solineextn_srvcostcol__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_slextn.rstk__solineextn_srvcostbw__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_slextn.rstk__solineextn_srvcostbw__c.label}"/>
+                                <apex:inputfield id="modal_solineextn_srvcostbw__c" value="{!de.rstk__solineextn_srvcostbw__c}"/>
+                            </apex:pageBlockSectionItem>
+    
+                            <apex:pageBlockSectionItem helpText="{!f_slextn.rstk__solineextn_srvcostscan__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_slextn.rstk__solineextn_srvcostscan__c.label}"/>
+                                <apex:inputfield id="modal_solineextn_srvcostscan__c" value="{!de.rstk__solineextn_srvcostscan__c}"/>
+                            </apex:pageBlockSectionItem>
+    
+                            <apex:pageBlockSectionItem helpText="{!f_slextn.rstk__solineextn_antvolcol__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_slextn.rstk__solineextn_antvolcol__c.label}"/>
+                                <apex:inputfield id="modal_solineextn_antvolcol__c" value="{!de.rstk__solineextn_antvolcol__c}"/>
+                            </apex:pageBlockSectionItem>
+    
+                            <apex:pageBlockSectionItem helpText="{!f_slextn.rstk__solineextn_antvolbw__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_slextn.rstk__solineextn_antvolbw__c.label}"/>
+                                <apex:inputfield id="modal_solineextn_antvolbw__c" value="{!de.rstk__solineextn_antvolbw__c}"/>
+                            </apex:pageBlockSectionItem>
+    
+                            <apex:pageBlockSectionItem helpText="{!f_slextn.rstk__solineextn_antvolscan__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_slextn.rstk__solineextn_antvolscan__c.label}"/>
+                                <apex:inputfield id="modal_solineextn_antvolscan__c" value="{!de.rstk__solineextn_antvolscan__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_soline_dimensions}" name="Dimensions" id="Dimensions">
+                        <apex:pageBlockSection id="pbs_Dimensions" showHeader="false" columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f_dimvals.rstk__dimval1__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_dimvals.rstk__dimval1__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval1__c">{!d.soline_dimvals__r.rstk__dimval1__c}</span>
+                                            <c:largeSelectList cntr="{!controller}" useValue="true" options="{!dimValsOptions1}" width="400px" id="modal_dimvals_dimval1__c" value="{!d.soline_dimvals__r.rstk__dimval1__c}"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_dimvals.rstk__dimval2__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_dimvals.rstk__dimval2__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval2__c">{!d.soline_dimvals__r.rstk__dimval2__c}</span>
+                                            <c:largeSelectList cntr="{!controller}" useValue="true" options="{!dimValsOptions2}" width="400px" id="modal_dimvals_dimval2__c" value="{!d.soline_dimvals__r.rstk__dimval2__c}"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_dimvals.rstk__dimval3__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_dimvals.rstk__dimval3__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval3__c">{!d.soline_dimvals__r.rstk__dimval3__c}</span>
+                                            <c:largeSelectList cntr="{!controller}" useValue="true" options="{!dimValsOptions3}" width="400px" id="modal_dimvals_dimval3__c" value="{!d.soline_dimvals__r.rstk__dimval3__c}"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_dimvals.rstk__dimval4__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_dimvals.rstk__dimval4__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval4__c">{!d.soline_dimvals__r.rstk__dimval4__c}</span>
+                                            <c:largeSelectList cntr="{!controller}" useValue="true" options="{!dimValsOptions4}" width="400px" id="modal_dimvals_dimval4__c" value="{!d.soline_dimvals__r.rstk__dimval4__c}"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_dimvals.rstk__dimval5__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_dimvals.rstk__dimval5__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval5__c">{!d.soline_dimvals__r.rstk__dimval5__c}</span>
+                                            <c:largeSelectList cntr="{!controller}" useValue="true" options="{!dimValsOptions5}" width="400px" id="modal_dimvals_dimval5__c" value="{!d.soline_dimvals__r.rstk__dimval5__c}"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_dimvals.rstk__dimval6__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_dimvals.rstk__dimval6__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval6__c">{!d.soline_dimvals__r.rstk__dimval6__c}</span>
+                                            <c:largeSelectList cntr="{!controller}" useValue="true" options="{!dimValsOptions6}" width="400px" id="modal_dimvals_dimval6__c" value="{!d.soline_dimvals__r.rstk__dimval6__c}"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_dimvals.rstk__dimval7__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_dimvals.rstk__dimval7__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval7__c">{!d.soline_dimvals__r.rstk__dimval7__c}</span>
+                                            <c:largeSelectList cntr="{!controller}" useValue="true" options="{!dimValsOptions7}" width="400px" id="modal_dimvals_dimval7__c" value="{!d.soline_dimvals__r.rstk__dimval7__c}"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_dimvals.rstk__dimval8__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_dimvals.rstk__dimval8__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval8__c">{!d.soline_dimvals__r.rstk__dimval8__c}</span>
+                                            <c:largeSelectList cntr="{!controller}" useValue="true" options="{!dimValsOptions8}" width="400px" id="modal_dimvals_dimval8__c" value="{!d.soline_dimvals__r.rstk__dimval8__c}"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>                        
+                        </apex:pageBlockSection>
+                    </apex:tab>
+                    <apex:tab label="{!customFieldTabName}" name="tab_CustomR" id="tab_Custom" rendered="{!hasCustomFields}">
+                        <c:customFields cntr="{!controller}" cols="2"/>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_salesorder_info}" name="Info" id="Info" rendered="{!o.Id != null}">
+                        <c:infoSection cntr="{!controller}" showHeader="false"/>
+                    </apex:tab>
+                </apex:tabPanel>
+
+                    
+            </apex:pageBlockSection>
+
+              <c:GeoDialogs validationObj="validateAddr"/>
+        </apex:pageBlock> 
+ 
+              <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+
+     <c:Popup popupId="qtyOHPopup" title="{!$Label.rstk__pagepopup_soline_quantityavailable}" cancelCaption="{!$Label.rstk__soline_close}" buttonsOnTop="true">
+       <apex:pageBlockSection showHeader="false" columns="1" collapsible="false">
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_icitem__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_sl.rstk__soline_icitem__c.label}"/>
+               <div id="qty_soline_icitem__c" style="width:100%; font-weight:bold;text-align:left;"/>
+           </apex:pageBlockSectionItem>
+       </apex:pageBlockSection>
+       <apex:pageBlockSection showHeader="false" columns="2" collapsible="false">
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyoh__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyoh__c.label}"/>
+               <div id="icitemsiteproj_qtyoh__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_div__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_div__c.label}"/>
+               <div id="icitemsiteproj_div__c" style="width:100px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyalloc__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyalloc__c.label}"/>
+               <div id="icitemsiteproj_qtyalloc__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_proj__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_proj__c.label}"/>
+               <div id="icitemsiteproj_proj__c" style="width:100px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyavail__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyavail__c.label}"/>
+               <div id="icitemsiteproj_qtyavail__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_site__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_site__c.label}"/>
+               <div id="icitemsiteproj_site__c" style="width:100px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+         </apex:pageBlockSection>
+         <apex:pageBlockSection columns="1">
+          <apex:pageBlockSectionItem >
+           <table style="display:none" width="100%" class="list" id="icitemsiteprojs">
+             <thead width="100%" class="rich-table-thead">
+             <tr width="100%" class="headerRow">
+                <th width="40%" class="headerRow" scope="col">{!f_icitemsiteproj.rstk__icitemsiteproj_site__c.label}</th>
+                <th width="20%" class="headerRow" scope="col">{!f_icitemsiteproj.rstk__icitemsiteproj_qtyoh__c.label}</th>
+                <th width="20%" class="headerRow" scope="col">{!f_icitemsiteproj.rstk__icitemsiteproj_qtyalloc__c.label}</th>
+                <th width="20%" class="headerRow" scope="col">{!f_icitemsiteproj.rstk__icitemsiteproj_qtyavail__c.label}</th>
+             </tr>
+             </thead>
+             <tbody id="icitemsiteprojsBody">
+                
+             </tbody>
+           </table>
+           </apex:pageBlockSectionItem>
+         </apex:pageBlockSection>
+     </c:Popup>
+
+     <c:Popup popupId="sourcePopup" title="{!$Label.rstk__pagepopup_soline_pricesource}" cancelCaption="{!$Label.rstk__soline_close}">
+       <apex:pageBlockSection showHeader="false" columns="2" collapsible="false">
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_pricecalcbase__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_sl.rstk__soline_pricecalcbase__c.label}"/>
+               <div id="sp_soline_pricecalcbase__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_pricesrce__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_sl.rstk__soline_pricesrce__c.label}"/>
+               <div id="sp_soline_pricesrce1__c" style="width:300px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+           
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_pricecalcdisc__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_sl.rstk__soline_pricecalcdisc__c.label}"/>
+               <div id="sp_soline_pricecalcdisc__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_pricesrce__c.inlineHelpText}">
+               <apex:outputLabel value="{!$Label.rstk__pricediscountsource}"/>
+               <div id="sp_soline_pricesrce2__c" style="width:300px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+           
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_sysprice__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_sl.rstk__soline_sysprice__c.label}"/>
+               <div id="sp_soline_sysprice__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem />
+
+           <apex:pageBlockSectionItem helpText="{!$Label.rstk__soline_thestandardsalepricefortheproduct}">
+               <apex:outputLabel value="{!$Label.rstk__productsaleprice}"/>
+               <div id="sp_productprice__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem />
+           
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_dfltdiscpct__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_sl.rstk__soline_dfltdiscpct__c.label}"/>
+               <div id="sp_soline_dfltdiscpct__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_dfltdiscsrce__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_sl.rstk__soline_dfltdiscsrce__c.label}"/>
+               <div id="sp_soline_dfltdiscsrce__c" style="width:300px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+         </apex:pageBlockSection>
+         <apex:pageBlockSection id="PriceTrace" columns="1">
+            Price Trace:<br/>
+            <table id="priceTraceTable" class="list">
+            <thead>
+             <tr class="headerRow">
+              <th class="headerRow"><div>{!$Label.soline_Section}</div></th>
+              <th class="headerRow"><div>{!$Label.soline_Description}</div></th>
+             </tr>
+            </thead>
+            <tbody Id='priceTraceBody'>
+            </tbody>
+            </table>
+        </apex:pageBlockSection>
+     </c:Popup>
+
+    <c:Popup popupId="changeProductPopup" title="{!$Label.rstk__pagepopup_soline_changeproduct}">
+    <apex:pageBlockSection columns="1">
+      <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_order__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__sohdr_order__c.label}"/>
+            <apex:outputField value="{!o.rstk__sohdr_order__c}"/>
+      </apex:pageBlockSectionItem>
+      <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_line__c.inlineHelpText}">
+          <apex:outputLabel value="{!f_sl.rstk__soline_line__c.label}"/>
+          <span id="g_soline_line__c"></span>
+      </apex:pageBlockSectionItem>
+      <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_prod__c.inlineHelpText}">
+          <apex:outputLabel value="{!f_sl.rstk__soline_prod__c.label}"/>
+          <span id="g_soline_prod__c"></span>
+      </apex:pageBlockSectionItem>
+      <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_qtyorder__c.inlineHelpText}">
+          <apex:outputLabel value="{!f_sl.rstk__soline_qtyorder__c.label}"/>
+          <span id="g_soline_qtyorder__c"></span>
+      </apex:pageBlockSectionItem>
+      <apex:pageBlockSectionItem helpText="{!$Label.rstk__soline_convertgenericproducttoindividualplates}">
+          <input type="checkbox" id="g_soline_prodconvert__c"/>
+          <apex:outputLabel value="{!$Label.rstk__convertgenericproducttoindividualplates}"/>
+      </apex:pageBlockSectionItem>
+      <apex:pageBlockSectionItem helpText="{!$Label.rstk__soline_convertgenericproducttoindividualplates}">
+          <input type="button" class="btn" value="{!$Label.pagebtn_soline_SelectNewProducts}" onclick="return openInvSelect();"/>
+      </apex:pageBlockSectionItem>
+    </apex:pageBlockSection>
+    </c:Popup>
+
+    <!--  c:Popup popupId="realTimePricingPopup" title="{!$Label.pagepopup_soline_RealTimePricing}"  onOk="saveRealTimePricing();" >
+    <apex:pageBlockSection columns="1">
+      <table class="list" width="100%">
+        <tr class="headerRow" width="100%">
+          <th>PM Weight</th>
+          <th>* (</th>
+          <th>Spot</th>
+          <th>Operator</th>
+          <th>Premium 1</th>
+          <th>) +</th>
+          <th>Premium 2</th>
+          <th>=</th>
+          <th>Unit Price</th>
+          <th>*</th>
+          <th>Quantity</th>
+          <th>=</th>
+          <th>Extended Value</th>
+        </tr>
+        <tr class="dataRow" width="100%">
+          <td class="dataCell"><span id="x_pmweight"/></td>
+          <td class="dataCell">* (</td>
+          <td class="dataCell"><input id="x_spot" onchange="realTimePricingUpdateExt();"/></td>
+          <td class="dataCell"><span id="x_operator"/></td>
+          <td class="dataCell"><input id="x_premium1" onchange="realTimePricingUpdateExt();"/></td>
+          <td class="dataCell">) +</td>
+          <td class="dataCell"><input id="x_premium2" onchange="realTimePricingUpdateExt();"/></td>
+          <td class="dataCell">=</td>
+          <td class="dataCell"><span id="x_unitPrice"/></td>
+          <td class="dataCell">*</td>
+          <td class="dataCell"><input id="x_quantity" onchange="realTimePricingUpdateExt();"/></td>
+          <td class="dataCell">=</td>
+          <td class="dataCell"><span id="x_extValue"/></td>
+        </tr>
+      </table>
+    </apex:pageBlockSection>
+    </c:Popup -->
+    
+    <c:Popup popupId="addressPopup" title="{!$Label.rstk__pagepopup_soline_address}" cancelCaption="{!$Label.rstk__soline_close}">
+        <apex:pageBlockSection >
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_address1__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_address1__c.label}"/>
+                <span id="addr_address1"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_name__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_name__c.label}"/>
+                <span id="addr_name"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:pageBlockSection >
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_address2__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_address2__c.label}"/>
+                <span id="addr_address2"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_phone__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_phone__c.label}"/>
+                <span id="addr_phone"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:pageBlockSection >
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_address3__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_address3__c.label}"/>
+                <span id="addr_address3"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_fax__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_fax__c.label}"/>
+                <span id="addr_fax"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:pageBlockSection >
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_city__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_city__c.label}"/>
+                <span id="addr_city"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_email__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_email__c.label}"/>
+                <span id="addr_email"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:pageBlockSection >
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_state__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_state__c.label}"/>
+                <span id="addr_state"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_socontact__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_socontact__c.label}"/>
+                <span id="addr_socontact"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:pageBlockSection >
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_country__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_country__c.label}"/>
+                <span>
+                	<span id="addr_country"/>
+                	&nbsp;(<span id="addr_isocountry"/>)
+                </span>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_conmethod__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_conmethod__c.label}"/>
+                <span id="addr_conmethod"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:pageBlockSection >
+            <apex:pageBlockSectionItem helpText="{!f_soaddr.rstk__soaddr_zip__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_soaddr.rstk__soaddr_zip__c.label}"/>
+                <span id="oaddr_zip"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+    </c:Popup>
+
+    <apex:actionRegion >
+      <apex:actionStatus onstart="showTopDialog('pleaseWaitPopup');" onstop="closeTopDialog();" id="pleaseWaitStatus"/>
+      <apex:actionFunction name="searchProducts" action="{!searchProducts}" status="pleaseWaitStatus" immediate="true" reRender="searchprod_message, searchprod_tables">
+         <apex:param name="search" value=""/>
+         <apex:param name="mode" value=""/>
+         <apex:param name="customer" value=""/>
+         <apex:param name="productType" value=""/>
+         <apex:param name="spaceSepStrOptions" value=""/>
+         <apex:param name="limitToCustomerProduct" value=""/>
+      </apex:actionFunction>
+    
+    <c:Popup popupId="chooseProductPopup" title="{!$Label.rstk__pagepopup_salesorder_customerproductlookup}">
+    <apex:pageBlockSection columns="2">
+      <apex:pageBlockSectionItem helpText="{!$Label.rstk__soline_entersearchvalueshere}">
+          <apex:outputPanel >
+            <input id="ProductSearchCriteria" style="width:300px;" value=""/>
+            <input type="button" class="btn" id="chooseProductSearchButton" value="{!$Label.salesorder_pagebtn_Search}" onclick="doSearchProducts(); return false;"/><br/><br/>
+            <table>
+              <tr>
+                <td align="right">{!$Label.SpaceSeparatedStringOptions}</td>
+                <td align="left">
+                    <select name="spaceSelectOption">:
+                        <option value="AND">{!$Label.ProductSpaceSearchAll}</option>
+                        <option value="OR">{!$Label.ProductSpaceSearchOR}</option>
+                        <option value="EXACT">{!$Label.ProductSpaceSearchExact}</option>
+                    </select><br/><br/>
+                </td>
+              </tr>
+              <tr>
+                <td align="right">{!$Label.LimitSearchToCustomerProducts}</td>
+                <td align="left"><input type="checkbox" name="limitToCustomerProduct" onchange="limitToCustomerProductChanged()"/></td>
+              </tr>
+            </table>
+          </apex:outputPanel>
+      </apex:pageBlockSectionItem>
+
+      <apex:pageBlockSectionItem helpText="{!$Label.rstk__soline_entry_criteria}">
+          <apex:outputPanel >
+             <input type="radio" name="selectType" value="ProductNumber"/>
+             <apex:outputLabel value="{!$Label.rstk__customerproductnumber}"/><br/>
+             <input type="radio" name="selectType" value="ProductDescription"/>
+             <apex:outputLabel value="{!$Label.rstk__customerproductdescription}"/><br/>
+             <input type="radio" name="selectType" value="RSProductNumber"/>
+             <apex:outputLabel value="{!$Label.rstk__rootstockproductnumber}"/><br/>
+             <input type="radio" name="selectType" value="RSProductDescription"/>
+             <apex:outputLabel value="{!$Label.rstk__rootstockproductdescription}"/><br/>
+             <input type="radio" name="selectType" value="All" checked="true"/>
+             <apex:outputLabel value="{!$Label.rstk__all}"/>
+          <script>
+            if ({!socntl.rstk__socntl_dlftcustprodsrch__c}) {
+              jQuery("input[name=limitToCustomerProduct]").attr("checked", "checked");
+            } else {
+              jQuery("input[value=ProductNumber]").attr("disabled", "disabled");
+              jQuery("input[value=ProductDescription]").attr("disabled", "disabled");
+            }
+          </script>
+          </apex:outputPanel>
+      </apex:pageBlockSectionItem>
+     </apex:pageBlockSection>
+     
+     <apex:pageBlockSection id="searchprod_message" columns="1">
+       <apex:outputPanel rendered="{!!ISNULL(productSearchMessage)}">
+            <apex:image value="/img/msg_icons/warning16.png"/>&nbsp;{!productSearchMessage}
+       </apex:outputPanel>
+     </apex:pageBlockSection>
+     
+     <apex:pageBlockSection id="searchprod_tables" columns="1">
+
+            <apex:pageBlockTable id="searchprod_table" var="s" value="{!productSearchResults}" rendered="{!productSearchResults.size > 0}">
+                    <apex:column headerValue="{!$Label.rstk__customerproductnumber}">
+                        <a href="#" onclick="setProduct('{!s.rstk__sopc_soprod__c}'); return false;">{!s.rstk__sopc_prodname__c}</a>
+                     </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__customerproductdescription}">
+                        <a href="#" onclick="setProduct('{!s.rstk__sopc_soprod__c}'); return false;">{!s.rstk__sopc_proddesc__c}</a>
+                     </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__standardproductnumber}">
+                        <a href="#" onclick="setProduct('{!s.rstk__sopc_soprod__c}'); return false;">{!s.sopc_soprod__r.rstk__soprod_prod__c}</a>
+                     </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__standardproductdescription}">
+                        <a href="#" onclick="setProduct('{!s.rstk__sopc_soprod__c}'); return false;">{!s.sopc_soprod__r.rstk__soprod_descr__c}</a>
+                     </apex:column>
+            </apex:pageBlockTable>
+            <apex:pageBlockTable id="rssearchprod_table" var="s" value="{!rsProductSearchResults}" rendered="{!rsProductSearchResults.size > 0}">
+                    <apex:column headerValue="{!$Label.rstk__customerproductnumber}">
+                        
+                     </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__customerproductdescription}">
+                        
+                     </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__standardproductnumber}">
+                       <a href="#" onclick="setProduct('{!s.Id}'); return false;">{!s.rstk__soprod_prod__c}</a>
+                      </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__standardproductdescription}">
+                        <a href="#" onclick="setProduct('{!s.Id}'); return false;">{!s.rstk__soprod_descr__c}</a>
+                     </apex:column>
+            </apex:pageBlockTable>
+        </apex:pageBlockSection>
+
+     <apex:pageBlockSection id="searchprod_permmessage" columns="1">
+       {!$Label.rstk__dependingoncriteriaproductsearchingmaytakeseveralminutes}
+     </apex:pageBlockSection>
+    </c:Popup>
+    </apex:actionRegion>
+
+    <button style="visibility:hidden" class="btnPopupComponents" rel="#winPComponents"></button>
+    <div class="modal" id="winPComponents" style="height:560px;width:1350px" >
+        <apex:inputHidden id="component_lineid__c" value="{!d.Id}"/>
+        <h2>{!$Label.soline_Sales_Order_Line_Components}</h2>
+        <!-- the external content is loaded inside this tag <div class="contentWrap"> -->
+        <iframe id="PopupComponentsFrame" height="520px" width="100%" frameborder="0" src="about:blank"></iframe>
+        <button id="btnPopupComponentsClose" type="button" class="close" onclick="component_close()">{!$Label.pagebtn_soline_Close}</button>
+    </div>
+
+    <apex:outputPanel id="addProductPanel" style="display:none">
+        <apex:inputHidden id="soprod__c" value="{!soprod.rstk__soprod_shiplocid__c}" />
+    </apex:outputPanel>
+        
+<apex:outputPanel rendered="{!pageOptions.addNewProductEnabled}">    
+    <c:Popup popupId="newProductPopup" title="{!$Label.rstk__pagepopup_soline_createnewproduct}" okCaption="Create Product" 
+            onOk="createNewProduct();" rendered="{!pageOptions.addNewProductEnabled}">
+        <apex:pageBlockSection columns="1">
+            <apex:pageBlockSectionItem >
+                 <apex:outputLabel value="{!f_soprod.rstk__soprod_comcod__c.label}"/>
+                 <c:LocalSelect id="soprod_comcod__c" value="{!soprod.rstk__soprod_comcod__c}"/>
+             </apex:pageBlockSectionItem>
+             <apex:pageBlockSectionItem >
+                 <apex:outputLabel value="{!f_soprod.rstk__soprod_prodtype__c.label}"/>
+                 <apex:outputText id="product_type__c" value="{!soprod.rstk__soprod_prodtype__c}"></apex:outputText>
+             </apex:pageBlockSectionItem>
+             <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__inventorydivision}"/>
+                    <c:LocalSelect id="soprod_shipdiv__c" value="{!soprod.rstk__soprod_shipdiv__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__itemnumber}"/>
+                 <apex:inputText id="soprod_prod__c" value="{!soprod.rstk__soprod_prod__c}" maxlength="50" style="width:250px"/>
+             </apex:pageBlockSectionItem>
+             <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__itemdescription}"/>
+                    <apex:inputText id="soprod_descr__c" value="{!soprod.rstk__soprod_descr__c}" maxlength="100" style="width:250px"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__inventorycommoditycode1}"/>
+                    <c:LocalSelect id="soprod_iccomcod__c" value="{!soprod.rstk__soprod_shiplocid__c}"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+    </c:Popup>
+</apex:outputPanel>
+
+     <c:Popup popupId="autoProjDimsPopup" title="{!$Label.rstk__pagepopup_soline_auto_projectdimensionvalues}" okCaption="Save" onOk="saveProjDims();" onCancel="">
+       <table class="list" id="autoProjDimsTable">
+         <thead class="rich-table-thead">
+         <tr class="headerRow">
+            <th class="headerRow" scope="col">{!$Label.rstk__soline_line_number}</th>
+            <th class="headerRow" scope="col">{!$Label.rstk__soline_product}</th>
+            <th class="headerRow" scope="col">{!$Label.rstk__soline_dimension_values}</th>
+         </tr>
+         </thead>
+         <tbody id="autoProjDimsTableBody">
+            
+         </tbody>
+       </table>
+     </c:Popup>
+
+     <c:Popup popupId="inventoryItemPopup" title="{!f_sl.rstk__soline_icitem__c.label}" onOk="saveInventoryItem();">
+       <apex:pageBlockSection showHeader="false" columns="2" collapsible="false">
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_icitem__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sl.rstk__soline_icitem__c.label}"/>
+               <select id="popup_soline_icitem__c" style="width:200px" onchange="onInvicitemChanged(); return false;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem />
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyoh__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyoh__c.label}"/>
+               <div id="inv_icitemsiteproj_qtyoh__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_div__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_div__c.label}"/>
+               <div id="inv_icitemsiteproj_div__c" style="width:100px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyalloc__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyalloc__c.label}"/>
+               <div id="inv_icitemsiteproj_qtyalloc__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_proj__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_proj__c.label}"/>
+               <div id="inv_icitemsiteproj_proj__c" style="width:100px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyavail__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_qtyavail__c.label}"/>
+               <div id="inv_icitemsiteproj_qtyavail__c" style="width:100px; font-weight:bold;text-align:right;"/>
+           </apex:pageBlockSectionItem>
+           <apex:pageBlockSectionItem helpText="{!f_icitemsiteproj.rstk__icitemsiteproj_site__c.inlineHelpText}">
+               <apex:outputLabel value="{!f_icitemsiteproj.rstk__icitemsiteproj_site__c.label}"/>
+               <div id="inv_icitemsiteproj_site__c" style="width:100px; font-weight:bold;"/>
+           </apex:pageBlockSectionItem>
+         </apex:pageBlockSection>
+     </c:Popup>
+
+     <c:Popup popupId="relatedCustomerAddressPopup" title="{!$Label.rstk__pagepopup_relatedcustomeraddress}" okCaption="Save" onOk="saveRelatedCustomerAddress();">
+        <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_icitem__c.inlineHelpText}">
+           <span style="font-weight:bold;color:blue;">{!$Label.rstk__highlightordoubleclickaddressselection}</span>
+       </apex:pageBlockSectionItem>
+       <table class="list" id="relatedCustomerAddressTable">
+         <thead>
+         <tr class="headerRow">
+            <th class="headerCell" scope="col">{!f_socaddr.rstk__socaddr_custno__c.label}</th>
+            <th class="headerCell" scope="col">{!f_socaddr.rstk__socaddr_name__c.label}</th>
+            <th class="headerCell" scope="col">{!f_socaddr.rstk__socaddr_address1__c.label}</th>
+            <th class="headerCell" scope="col">{!f_socaddr.rstk__socaddr_city__c.label}</th>
+            <th class="headerCell" scope="col">{!f_socaddr.rstk__socaddr_state__c.label}</th>
+            <th class="headerCell" scope="col">{!f_socaddr.rstk__socaddr_zip__c.label}</th>
+         </tr>
+         </thead>
+         <tbody id="relatedCustomerAddressTableBody">
+         </tbody>
+       </table>
+     </c:Popup>
+      
+    </apex:form>
+    <apex:relatedList list="CombinedAttachments" rendered="{!d.id != null}"/>
+    <c:footerInclude cntr="{!controller}" showActivities="{!d.id != null}" showHistory="{!d.id != null}"/>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!d.id != null}"/>
+     
+   <script>
+        var InvalidPageMode = "{!$Label.rstk__invalidpagemodetype}";
+        var PriceChangeFutureOnly = "{!$Label.rstk__priceaffectsfutureshippersonly}";
+        var LABEL_CantAccessXigniteService = "{!$Label.rstk__cantaccessxigniteservice}";
+        var LABEL_All = "{!$Label.rstk__all}";
+        var LABEL_ConfirmDel_AreYouSure = "{!$Label.rstk__confirmdel_areyousure}";
+    </script>
+    
+</apex:page>

@@ -1,0 +1,70 @@
+<apex:page id="pg" standardController="rstk__integritylog__c" extensions="rstk.ControllerExtnIntegrityCheck" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__integritylog__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__integritylog__c.fields}"/>
+   
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_integritycheck}"/>
+
+	<script>
+		function createFieldChangeHandlers() {
+			fieldChangeHandlers['div__c'] = filterChanged;
+		}
+		
+		function filterChanged() {
+			blockUI(); 
+			doReloadPage(); 
+			return false;
+		}
+	</script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    	<apex:actionFunction name="doReloadPage" action="{!doReloadPage}" 
+			oncomplete="unblockUI();" rerender="pageMessages, pbs_Main" immediate="false"/>
+			
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+            	<apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f.rstk__div__c.label}"/>
+                    <apex:selectList id="div__c" value="{!divId}" size="1" style="width:250px">
+                    	<apex:selectOptions value="{!sl.Sydivs}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!$Label.rstk__totaldiscrepancies}" />
+					<apex:outputLabel id="totaldiscrepancies" value="{!totalrec}" />
+				</apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <br /> 
+
+            <apex:pageBlockSection id="pbs_Report" showHeader="false" columns="1" title="" collapsible="false">
+            	<apex:outputPanel rendered="{!totalrec == 0}" >
+            		<apex:outputLabel value="{!$Label.rstk__nodiscrepanciesfound}" />
+            	</apex:outputPanel>
+          		<apex:pageBlockTable id="pbt_Report" value="{!logs}" var="i" rendered="{!totalrec > 0}">
+	           		<apex:column headerValue="{!$Label.rstk__type}">
+	           			<apex:outputText value="{!i.rstk__type__c}"></apex:outputText>
+	           		</apex:column>
+           			<apex:column headerValue="{!$Label.rstk__order}" style="width:150px;">
+           				<apex:outputLink value="/apex/wocst?actionType=view&id={!i.rstk__wocst__c}">{!i.rstk__ordno__c}</apex:outputLink>
+           			</apex:column>
+           			<apex:column headerValue="{!$Label.rstk__item}" style="width:150px;">
+           				<apex:outputLink value="/apex/icitem?actionType=view&id={!i.rstk__item__c}">{!i.rstk__itemno__c}</apex:outputLink>
+           			</apex:column>
+           			<apex:column headerValue="{!$Label.rstk__proj}" style="width:150px;">
+           				<apex:outputLink value="/apex/pjproj?actionType=view&id={!i.rstk__proj__c}">{!i.rstk__projno__c}</apex:outputLink>
+           			</apex:column>
+           			<apex:column headerValue="{!$Label.rstk__component}" style="width:150px;">
+           				<apex:outputLink value="/apex/icitem?actionType=view&id={!i.rstk__compitem__c}">{!i.rstk__compitemno__c}</apex:outputLink>
+           			</apex:column>
+	           		<apex:column headerValue="{!$Label.rstk__discrepancy}">
+	           			<apex:outputText value="{!i.rstk__errormessage__c}"></apex:outputText>
+	           		</apex:column>
+          		</apex:pageBlockTable>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

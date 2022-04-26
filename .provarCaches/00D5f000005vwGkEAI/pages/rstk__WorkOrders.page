@@ -1,0 +1,174 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_workorders}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnWorkOrders,rstk.RemoteQueryController,rstk.ControllerJobStatus" sidebar="true" action="{!doBeforePageLoad}" > 
+	<apex:variable var="o" value="{!rstk__customext__c}" />
+	<apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+	<apex:outputPanel id="custID">
+		<script>
+			var generateWOPL = false;
+			var extnID = '{!customExtnID}';
+		</script>
+	</apex:outputPanel>
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_workorders}" enableAutocomplete="true" customInclude="{!$Resource.rstk__WorkOrder_cli}"  />
+	<script>
+		var divid = "{!currDivision.id}";
+		var rows = {}; var selectcbxs = [];
+		function verifyDate(firstDate,latestDate,fieldID){
+        	Visualforce.remoting.Manager.invokeAction(  
+		        '{!$RemoteAction.ControllerExtnWorkOrders.verifyDate}', //NameSpace  
+		        firstDate,
+		        latestDate,   
+		        function(result, event){
+		        	if (event.status) {
+						checkResult(result);
+					} else if (event.type === 'exception') {
+						alert("{!$Label.Exception}", event.message);
+		            } else {
+						alert("{!$Label.UnexpectedStatus}", event.message);
+		            }
+		        }, {escape:false}
+		    );
+        }
+	</script>
+	<apex:form id="fm">
+		<apex:actionFunction name="processSearchReq" action="{!processSearchReq}" oncomplete="unblockUI();" rerender="wocstList,pageMessages" />
+		<apex:actionFunction name="allocateWocst" action="{!allocateWocst}" oncomplete="checkJobStatus();" rerender="pageMessages,op_JobStatus,wocstList"  />
+		<apex:actionFunction name="deAllocateWocst" action="{!deAllocateWocst}" oncomplete="checkJobStatus();" rerender="pageMessages,op_JobStatus,wocstList"  />
+		<apex:actionFunction name="generatePickList" action="{!generatePickList}" oncomplete="checkJobStatus();" rerender="pageMessages,op_JobStatus,wocstList"  />
+		<apex:actionFunction name="deGeneratePickList" action="{!deGeneratePickList}" oncomplete="checkJobStatus();" rerender="pageMessages,op_JobStatus,wocstList"  />
+		<apex:actionFunction name="generatePickListPDFData" action="{!generatePickListPDFData}" oncomplete="unblockUI();pickListPDF();" rerender="custID,pageMessages,wocstList"  />
+		
+		<apex:pageBlock id="pb" mode="detail">
+	 		<apex:pageBlockButtons >
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_workorders_refreshworkorderlist}" onclick="blockUI();processSearchReq();" style="width:135px;" />
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_workorders_performallocation}" onclick="if(isRecSelected()){blockUI();allocateWocst();}" style="width:115px;" />
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_workorders_performde_allocation}" onclick="if(isRecSelected()){blockUI();deAllocateWocst();}" style="width:122px;" />
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_workorders_generatepicklistrecords}" onclick="if(isRecSelected()){blockUI();setGeneratePLCalled();deGeneratePickList();}" style="width:135px;" />
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_workorders_deletepicklistrecords}" onclick="if(isRecSelected()){blockUI();deGeneratePickList();}" style="width:120px;" />
+       			<c:nosubmitbutton label="{!$Label.rstk__pagebtn_workorders_createconsolidatedpicklist}" onclick="if(isRecSelected()){blockUI();generatePickListPDFData();}" style="width:155px;" />
+        	</apex:pageBlockButtons>
+			
+			<apex:outputPanel id="op_JobStatus">
+	        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+	        </apex:outputPanel>
+	        
+			<c:division id="div__c" cntr="{!controller}" />
+			
+			<apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__searchcriteria}" columns="2">
+				<apex:pageBlockSectionItem helptext="{!f.rstk__site__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__inventorysite}" />
+                    <c:largeSelectList cntr="{!controller}" options="{!sysites}" id="site__c" value="{!o.rstk__site__c}" width="250px"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+	                <apex:outputLabel value="{!$Label.rstk__sequencepicklistbylocation}" />
+	                <apex:inputField id="custom_checkbox__c" value="{!o.rstk__custom_checkbox__c}" />
+				</apex:pageBlockSectionItem>
+				
+                <apex:pageBlockSectionItem helptext="{!f.rstk__fcstentry_icitem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__inventoryitem}" />
+                    <c:autocomplete id="fcstentry_icitem__c" cntr="{!controller}" slDesc="{!itemDesc}"
+                            query="select id, name from icitem__c where icitem_div__c = '{!o.rstk__div__c}'"
+                            queryParms="[]" tabIndex="10" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+	                <apex:outputLabel value="{!$Label.rstk__uselocationpicksequenceonpicklist}" />
+	                <apex:inputField id="custom_checkbox2__c" value="{!o.rstk__custom_checkbox2__c}" />
+				</apex:pageBlockSectionItem>
+                                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__fcstentry_proj__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__project}" />
+                    <c:autocomplete id="fcstentry_proj__c" cntr="{!controller}" slDesc="{!projDesc}"
+                            query="select id, name from pjproj__c where pjproj_div__c = '{!o.rstk__div__c}'"
+                            queryParms="[]" tabIndex="10" />
+                </apex:pageBlockSectionItem>
+<!-- RCB: RSTK-2021 -->
+                <apex:pageBlockSectionItem >
+	                <apex:outputLabel value="{!$Label.rstk__wocst_includebackflushcomponentsinpicklist}" />
+	                <apex:inputField id="custom_checkbox3__c" value="{!o.rstk__custom_checkbox3__c}" />
+				</apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__user_syusr__c.inlineHelpText}">
+                   <apex:outputLabel value="{!$Label.rstk__planner}" />
+                    <apex:selectList id="user_syusr__c" value="{!o.rstk__user_syusr__c}" size="1" style="width:250px;">
+                        <apex:selectOptions value="{!syusers}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__Date__c.inlineHelpText}">
+	                <apex:outputLabel value="{!$Label.rstk__earliestscheduledpickdate}" />
+	                <apex:inputField id="Date__c" value="{!o.rstk__Date__c}" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helptext="{!f.rstk__custom_date2__c.inlineHelpText}">
+	                <apex:outputLabel value="{!$Label.rstk__latestscheduledpickdate}" />
+	                <apex:inputField id="custom_date2__c" value="{!o.rstk__custom_date2__c}" />
+				</apex:pageBlockSectionItem>
+				
+				 <apex:pageBlockSectionItem helptext="{!f.rstk__custom_workorder1__c.inlineHelpText}">
+                   <apex:outputLabel value="{!$Label.rstk__firstworkordernumber}" />
+                    <!--<apex:selectList id="custom_workorder1__c" value="{!o.rstk__custom_workorder1__c}" size="1" style="width:250px;">
+                        <apex:selectOptions value="{!wocst}" />
+                    </apex:selectList>   -->
+                    <c:largeSelectList id="custom_workorder1__c" value="{!o.rstk__custom_workorder1__c}" cntr="{!controller}" options="{!wocst}"/>
+                </apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helptext="{!f.rstk__custom_workorder2__c.inlineHelpText}">
+                   <apex:outputLabel value="{!$Label.rstk__lastworkordernumber}" />
+                    <!--<apex:selectList id="custom_workorder2__c" value="{!o.rstk__custom_workorder2__c}" size="1" style="width:250px;">
+                        <apex:selectOptions value="{!wocst}" />
+                    </apex:selectList>   -->
+                    <c:largeSelectList id="custom_workorder2__c" value="{!o.rstk__custom_workorder2__c}" cntr="{!controller}" options="{!wocst}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__wocst_status__c.inlineHelpText}">
+	                <apex:outputLabel value="{!$Label.rstk__workorderstatus}" />
+	                <apex:inputField id="wocst_status__c" value="{!o.rstk__wocst_status__c}" />
+				</apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+			
+		</apex:pageBlock>
+		
+		 <apex:outputPanel id="wocstList">
+		 
+       		<script>rows = {}; selectcbxs = []; </script>
+           
+           	<apex:pageBlock title="{!$Label.rstk__pagetab_workorders_details}" id="details" mode="detail" rendered="{!displayDetails}">
+           		<input type="checkbox" onclick="selectall(this)" />
+                <apex:outputLabel value="{!$Label.rstk__selectall}" />
+           		<apex:pageBlockTable value="{!wocstRecList}" var="i" id="pb_table2">
+                    <apex:column headerValue="{!$Label.rstk__select}">
+                        <apex:inputCheckbox id="selected" value="{!i.selected}" />
+                        <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__name}">
+	                    <apex:outputLink value="{!URLFOR($Action.rstk__wocst__c.Edit, i.wocst.id)}{!ReturnUrlParms}">{!i.wocst.Name}</apex:outputLink>
+	                </apex:column>  
+                    <apex:column value="{!i.wocst.rstk__wocst_targetsite__c}" />
+                    <apex:column value="{!i.wocst.rstk__wocst_item__c}"/>
+                    <apex:column value="{!i.wocst.rstk__wocst_qtyreq__c}"/>
+                    <apex:column value="{!i.wocst.rstk__wocst_schedpickdte__c}"/> 
+                    <apex:column value="{!i.wocst.rstk__wocst_duedte__c}" />
+                   	<apex:column value="{!i.wocst.rstk__wocst_ordsts_pl__c}"/>
+                    <apex:column headerValue="{!$Label.rstk__project}" >
+                    	<apex:outputField value="{!i.wocst.rstk__wocst_proj__c}"/>
+                    	<script>
+							rows["{!i.key}"] = {
+								selected: document.getElementById("{!$Component.selected}")
+							};   
+						</script>
+                    </apex:column>
+                    <apex:column value="{!i.wocst.rstk__wocst_resp__c}"/>
+                </apex:pageBlockTable>
+           	</apex:pageBlock>
+         </apex:outputPanel>
+	
+	</apex:form>
+	<c:footerInclude cntr="{!controller}" />
+	
+	<script>
+		var LABEL_EarlierPicklistValuesDeletedAndNewGettingGenerated = "{!$Label.EarlierPicklistValuesDeletedAndNewGettingGenerated}";
+		var LABEL_SelAtleastOneRecForFurtherProcessing = "{!$Label.SelAtleastOneRecForFurtherProcessing}";
+		var LABEL_LatestSchedPickDtCantBeLTEarliestSchedPickDt = "{!$Label.LatestSchedPickDtCantBeLTEarliestSchedPickDt}";
+	</script>
+</apex:page>

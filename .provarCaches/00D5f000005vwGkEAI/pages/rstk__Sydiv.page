@@ -1,0 +1,759 @@
+<apex:page id="pg" standardController="rstk__sydiv__c" extensions="rstk.ControllerExtnSydiv,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <apex:variable var="o" value="{!rstk__sydiv__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sydiv__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__titledivision}" customInclude="{!$Resource.rstk__sydiv_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__vf}" />
+
+<script>hasPageInit=true;</script>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="loadAdditionalDetails" action="{!doRenderAdditionalDetails}" oncomplete="sectionLoadComplete('AdditionalDetails');" rerender="op_AdditionalDetails"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+<!-- RCB: RSTK-3060 -->            
+            <apex:commandButton value="{!$Label.rstk__scheduled_jobs}" onclick="scheduledJobs(); return false;" style="width:100px;" rendered="{!OR(isEdit, isView)}"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <c:largeSelectList id="sydiv_intrdivdmdtxfracct__c" cntr="{!controller}" options="{!syaccs}" />
+            <apex:inputHidden id="custpage_can_chg_div"/>
+            <apex:inputHidden id="sycmp_engdivind__c" />
+            <apex:inputHidden id="sydiv_cmpno__c" value="{!o.rstk__sydiv_cmpno__c}" rendered="{!OR(isEdit, isView)}"/>
+            <c:inputCheckbox id="sydiv_intersiteindepdmdind__c" cntr="{!controller}" tabIndex="311" />
+            <c:inputCheckbox id="sydiv_avgcostbylot__c" cntr="{!controller}" tabIndex="313" />
+            <c:inputField id="sydiv_worcptavgcostcalcopt__c" cntr="{!controller}" tabIndex="314" />
+            <c:inputCheckbox id="sydiv_routing_active__c" cntr="{!controller}" tabIndex="25" />
+        </apex:outputPanel>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__titleinformation}" columns="2" >
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_div__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_div__c.label}" />
+                <c:inputField id="sydiv_div__c" cntr="{!controller}" required="true" tabIndex="10"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_revcntlact__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_revcntlact__c.label}" />
+                <c:inputCheckbox id="sydiv_revcntlact__c" cntr="{!controller}" tabIndex="70"  elDisabled="{!!isRevCntlActEnabled}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_descr__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_descr__c.label}" />
+                <c:inputField id="sydiv_descr__c" cntr="{!controller}" required="true" tabIndex="20"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_revformat_pl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_revformat_pl__c.label}"/>
+                <c:inputField id="sydiv_revformat_pl__c" required="true" cntr="{!controller}" tabIndex="80" />
+            </apex:pageBlockSectionItem>
+            
+           <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_cmpno__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_cmpno__c.label}"/>
+                <apex:outputPanel >
+                    <c:selectList id="sydiv_cmpno__c" required="true" cntr="{!controller}" options="{!sl.sycmps}" tabIndex="30" rendered="{!isNew}"/>
+                    <apex:outputfield value="{!o.rstk__sydiv_cmpno__c}" rendered="{!OR(isEdit,isView)}" />
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem> 
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_firstinvrev__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_firstinvrev__c.label}"/>
+                <c:inputField id="sydiv_firstinvrev__c" cntr="{!controller}" tabIndex="85" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_invdivappl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_invdivappl__c.label}" />
+                <c:inputCheckbox id="sydiv_invdivappl__c" cntr="{!controller}" tabIndex="40" elDisabled="{!!isCentralizedEngineering}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_initpeitemrevstatus_pl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_initpeitemrevstatus_pl__c.label}"/>
+                <c:selectList id="sydiv_initpeitemrevstatus_pl__c" required="true" cntr="{!controller}" options="{!InitialEngRevSts}" tabIndex="90"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ecoact__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_ecoact__c.label}" />
+                <c:inputCheckbox id="sydiv_ecoact__c" cntr="{!controller}" tabIndex="60" elDisabled="{!!isEcoActEnabled}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_costtype_pl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_costtype_pl__c.label}" />
+                <c:inputField id="sydiv_costtype_pl__c" required="true" cntr="{!controller}" tabIndex="100" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_itemprojacctsrcind_pl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sydiv_itemprojacctsrcind_pl__c.label}" />
+                <c:inputField id="sydiv_itemprojacctsrcind_pl__c" required="true" cntr="{!controller}" tabIndex="110" />
+            </apex:pageBlockSectionItem>
+            
+        </apex:pageBlockSection>
+        
+        <!-- <apex:pageBlockSection id="pbs_AdditionalDetails" showHeader="true" title="Additional Details" columns="1" onclick="rerenderSection('AdditionalDetails', false);">
+        <apex:outputPanel id="op_AdditionalDetails" > -->
+        <apex:tabPanel switchType="client" selectedTab="tab_SettingsDefaults" id="theTabPanel" rendered="{!true || renderAdditionalDetails}">
+            <apex:tab label="{!$Label.rstk__settings_defaults}" name="tab_SettingsDefaults" id="tab_SettingsDefaults">
+                <apex:pageBlockSection id="pbs_SettingsDefaults" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_projact__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_projact__c.label}" />
+                        <c:inputCheckbox id="sydiv_projact__c" cntr="{!controller}" tabIndex="210" elDisabled="{!!isProjActEnabled}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_iccomcod__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_iccomcod__c.label}" />
+                        <c:selectList id="sydiv_iccomcod__c" cntr="{!controller}" options="{!iccomcods}" tabIndex="260" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_multisiteind__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_multisiteind__c.label}" />
+                        <c:inputCheckbox id="sydiv_multisiteind__c" cntr="{!controller}" tabIndex="230" elDisabled="{!!isMultiSiteEnabled}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_dfltorgid__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_dfltorgid__c.label}" />
+                        <c:selectList id="sydiv_dfltorgid__c" cntr="{!controller}" options="{!syorgs}" tabIndex="270" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_mainsite__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_mainsite__c.label}"/>
+                        <c:selectList id="sydiv_mainsite__c" cntr="{!controller}" options="{!sysites}" tabIndex="240" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_vatclass__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_vatclass__c.label}"/>
+                        <c:selectList id="sydiv_vatclass__c" cntr="{!controller}" options="{!vatClasses}" tabIndex="280" disabled="{!vatDisabled}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+<!-- RCB: 20661 -->                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_sovatclass__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_sovatclass__c.label}"/>
+                        <c:selectList id="sydiv_sovatclass__c" cntr="{!controller}" options="{!vatClasses}" tabIndex="290" disabled="{!vatDisabled}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_plmimportcomm__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_plmimportcomm__c.label}"/>
+                        <c:selectList id="sydiv_plmimportcomm__c" cntr="{!controller}" options="{!iccomcods}" tabIndex="242" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_plmimportaddprod__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_plmimportaddprod__c.label}"/>
+                        <c:inputCheckbox id="sydiv_plmimportaddprod__c" cntr="{!controller}" tabIndex="291" />
+                    </apex:pageBlockSectionItem>
+<!-- RCB: 18996 -->                     
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_apercent__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_apercent__c.label}" />
+                        <c:inputField id="sydiv_apercent__c" cntr="{!controller}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_adays__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_adays__c.label}" />
+                        <c:inputField id="sydiv_adays__c" cntr="{!controller}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_cpercent__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_cpercent__c.label}" />
+                        <c:inputField id="sydiv_cpercent__c" cntr="{!controller}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_bdays__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_bdays__c.label}" />
+                        <c:inputField id="sydiv_bdays__c" cntr="{!controller}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_printrcpttemplate__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_printrcpttemplate__c.label}" />
+                           <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="worcptemailtmpl_select">
+                                    <apex:selectList value="{!o.rstk__sydiv_printrcpttemplate__c}" multiselect="false" size="1" tabIndex="245">
+                                        <apex:selectOptions value="{!EmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!WOReceiptEmailTemplateName}" rendered="{!isView}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_cdays__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_cdays__c.label}" />
+                        <c:inputField id="sydiv_cdays__c" cntr="{!controller}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_autoprintrcpt__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sydiv_autoprintrcpt__c.label}" />
+                        <c:selectList id="sydiv_autoprintrcpt__c" options="{!autoPrintOption}" cntr="{!controller}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_formtmplt_wpk__c.inlineHelpText}" rendered="{!isRootDox}">
+                        <apex:outputLabel value="{!f.rstk__sydiv_formtmplt_wpk__c.label}" />
+                           <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="formtmpltwpk_select">
+                                    <apex:selectList value="{!o.rstk__sydiv_formtmplt_wpk__c}" multiselect="false" size="1" tabIndex="296">
+                                        <apex:selectOptions value="{!WOFormTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!WOPicklistEmailTemplateName}" rendered="{!isView}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!!isRootDox}"/>
+
+                    <apex:pageBlockSectionItem />	
+					<apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_formtmplt_ptpk__c.inlineHelpText}" rendered="{!isRootDox}">
+                        <apex:outputLabel value="{!f.rstk__sydiv_formtmplt_ptpk__c.label}" />
+                           <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="formtmpltptpk_select">
+                                    <apex:selectList value="{!o.rstk__sydiv_formtmplt_ptpk__c}" multiselect="false" size="1" tabIndex="298">
+                                        <apex:selectOptions value="{!PLTFormTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!PLTFormTemplateName}" rendered="{!isView}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!!isRootDox}"/>
+                    
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__misc}" name="tab_Misc" id="tab_Misc">
+                <apex:pageBlockSection id="pbs_Misc" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_dimval__c.inlineHelpText}" >
+                         <apex:outputLabel value="{!f.rstk__sydiv_dimval__c.label}"/>
+                            <apex:outputPanel id="fd_dimval">
+                                <c:autocomplete id="sydiv_dimval__c" cntr="{!controller}" slDesc="{!sydimDesc}" 
+                                    query="" 
+                                    queryParms="[]"  
+                                    useCustomAutocomplete="true" 
+                                    autocompleteController="ControllerExtnSydiv"
+                                    autocompleteMethodParms="fieldId=sydiv_dimval__c;cmpID={!o.rstk__sydiv_cmpno__c}"
+                                    tabIndex="370" />
+                         </apex:outputPanel>
+                    </apex:pageBlockSectionItem>  
+                     
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_primercvaddr__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_primercvaddr__c.label}"/>
+                        <c:selectList id="sydiv_primercvaddr__c" cntr="{!controller}" options="{!rcvaddresses}" tabIndex="450" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_lstrcptno__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_lstrcptno__c.label}" />
+                        <c:inputField id="sydiv_lstrcptno__c" cntr="{!controller}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_primeshipaddr__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_primeshipaddr__c.label}"/>
+                        <c:selectList id="sydiv_primeshipaddr__c" cntr="{!controller}" options="{!shipaddresses}" tabIndex="460" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_reconsrlblank__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_reconsrlblank__c.label}" />
+                        <c:inputField id="sydiv_reconsrlblank__c" cntr="{!controller}"/>
+                    </apex:pageBlockSectionItem>
+					
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_primeremitaddr__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_primeremitaddr__c.label}"/>
+                        <c:selectList id="sydiv_primeremitaddr__c" cntr="{!controller}" options="{!remitaddresses}" tabIndex="470" />
+                    </apex:pageBlockSectionItem>
+					
+					<apex:inputField value="{!o.rstk__sydiv_labbfatstd__c}" rendered="{!OR(isNew, isEdit)}"/>
+					<apex:outputField value="{!o.rstk__sydiv_labbfatstd__c}" rendered="{!isView}"/>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__shop_floor_control}" name="tab_sfc" id="tab_sfc">
+                <apex:pageBlockSection id="pbs_sfc" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_rwkoperaltcode__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_rwkoperaltcode__c.label}" />
+                        <c:inputField id="sydiv_rwkoperaltcode__c" cntr="{!controller}" tabIndex="500" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_backsched__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_backsched__c.label}" />
+                        <c:inputField id="sydiv_backsched__c" cntr="{!controller}" tabIndex="600" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_printtasks__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_printtasks__c.label}" />
+                        <c:inputCheckbox id="sydiv_printtasks__c" cntr="{!controller}" tabIndex="510" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_qtycmpperreq__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_qtycmpperreq__c.label}" />
+                        <c:inputField id="sydiv_qtycmpperreq__c" cntr="{!controller}" tabIndex="610" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_printattach__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_printattach__c.label}" />
+                        <c:inputCheckbox id="sydiv_printattach__c" cntr="{!controller}" tabIndex="520" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_schedusehours__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_schedusehours__c.label}" />
+                        <c:inputField id="sydiv_schedusehours__c" cntr="{!controller}" tabIndex="620" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_rtgextractattch__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_rtgextractattch__c.label}" />
+                        <c:inputField id="sydiv_rtgextractattch__c" cntr="{!controller}" tabIndex="530" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_altcodeopt__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_altcodeopt__c.label}" />
+                        <c:inputField id="sydiv_altcodeopt__c" cntr="{!controller}" tabIndex="630" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_rtgextractnotes__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_rtgextractnotes__c.label}" />
+                        <c:inputField id="sydiv_rtgextractnotes__c" cntr="{!controller}" tabIndex="540" />
+                    </apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_outsideopbook_active__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_outsideopbook_active__c.label}" />
+                        <c:inputField id="sydiv_outsideopbook_active__c" cntr="{!controller}" onchange="validateOutsideOps(this.value,'sydiv_outsideopbook_active__c'); return false;" tabIndex="540" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_manualsched__c.inlineHelpText}" rendered="{!isManualSchedEnabled}">
+                        <apex:outputLabel value="{!f.rstk__sydiv_manualsched__c.label}" />
+                        <c:inputField id="sydiv_manualsched__c" cntr="{!controller}" tabIndex="540" />
+                    </apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_laborbookatfirm__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_laborbookatfirm__c.label}" />
+                        <c:inputField id="sydiv_laborbookatfirm__c" cntr="{!controller}" tabIndex="500" />
+                    </apex:pageBlockSectionItem>
+					
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__accounting}" name="Accounting" id="Accounting">
+                <apex:pageBlockSection id="pbs_Accounting" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_labclracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_labclracct__c.label}" />
+                        <c:largeSelectList id="sydiv_labclracct__c" cntr="{!controller}" options="{!syaccswipclearing}" width="90%" tabIndex="2010"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_divdivstdsvaracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_divdivstdsvaracct__c.label}" />
+                        <c:largeSelectList id="sydiv_divdivstdsvaracct__c" cntr="{!controller}" options="{!syaccsdivtodivvariance}" width="90%" tabIndex="2070"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ohdmtlclracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ohdmtlclracct__c.label}" />
+                        <c:largeSelectList id="sydiv_ohdmtlclracct__c" cntr="{!controller}" options="{!syaccsothclearing}" width="90%" tabIndex="2020"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_gnrlexpenseacct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_gnrlexpenseacct__c.label}" />
+                        <c:largeSelectList id="sydiv_gnrlexpenseacct__c" cntr="{!controller}" options="{!syaccsexpense}" width="90%" tabIndex="2080"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ohdlabclracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ohdlabclracct__c.label}" />
+                        <c:largeSelectList id="sydiv_ohdlabclracct__c" cntr="{!controller}" options="{!syaccswipclearing}" width="90%" tabIndex="2030"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ohdlabrate__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ohdlabrate__c.label}" />
+                        <c:inputField id="sydiv_ohdlabrate__c" cntr="{!controller}" tabIndex="2090" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ohdfrngclracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ohdfrngclracct__c.label}" />
+                        <c:largeSelectList id="sydiv_ohdfrngclracct__c" cntr="{!controller}" options="{!syaccswipclearing}" width="90%" tabIndex="2040"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ohdfrngrate__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ohdfrngrate__c.label}" />
+                        <c:inputField id="sydiv_ohdfrngrate__c" cntr="{!controller}" tabIndex="2100" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ohdmachclracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ohdmachclracct__c.label}" />
+                        <c:largeSelectList id="sydiv_ohdmachclracct__c" cntr="{!controller}" options="{!syaccswipclearing}" width="90%" tabIndex="2050"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ohdmachrate__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ohdmachrate__c.label}" />
+                        <c:inputField id="sydiv_ohdmachrate__c" cntr="{!controller}" tabIndex="2110" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_stdschgvaracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_stdschgvaracct__c.label}" />
+                        <c:largeSelectList id="sydiv_stdschgvaracct__c" cntr="{!controller}" options="{!syaccsstandardschangevariance}" width="90%" tabIndex="2060"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__advanced_options}" name="AdvancedOptions" id="AdvancedOptions">
+                <apex:pageBlockSection id="pbs_AdvancedOptions" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_startupeffdte__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_startupeffdte__c.label}" />
+                        <c:inputField id="sydiv_startupeffdte__c" cntr="{!controller}" tabIndex="3030" />
+                    </apex:pageBlockSectionItem>
+                    
+                     <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_alloc_active__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_alloc_active__c.label}" />
+                        <c:inputCheckbox id="sydiv_alloc_active__c" cntr="{!controller}" tabIndex="3260" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_lastdhrno__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_lastdhrno__c.label}" />
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <c:inputField id="sydiv_lastdhrno__c" cntr="{!controller}" disabled="{!!isEdit}" tabIndex="3050" />
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!isView}">
+                                <apex:outputText value="{0,number,##0}"><apex:param value="{!o.rstk__sydiv_lastdhrno__c}" /></apex:outputText>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_disslotserdflt__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_disslotserdflt__c.label}" />
+                        <c:inputCheckbox id="sydiv_disslotserdflt__c" cntr="{!controller}" tabIndex="3280" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_dfltsumasbudget__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_dfltsumasbudget__c.label}" />
+                        <c:inputField id="sydiv_dfltsumasbudget__c" cntr="{!controller}" tabIndex="3070" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_autocalcdiss__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_autocalcdiss__c.label}" />
+                        <c:inputCheckbox id="sydiv_autocalcdiss__c" cntr="{!controller}" tabIndex="3290" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_labbackflush__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_labbackflush__c.label}" />
+                        <c:inputCheckbox id="sydiv_labbackflush__c" cntr="{!controller}" tabIndex="3090" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_refdegmassadd__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_refdegmassadd__c.label}" />
+                        <c:inputCheckbox id="sydiv_refdegmassadd__c" cntr="{!controller}" tabIndex="3300" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_worefdesig__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_worefdesig__c.label}" />
+                        <c:inputCheckbox id="sydiv_worefdesig__c" cntr="{!controller}" tabIndex="3110" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_drploctoreq__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_drploctoreq__c.label}" />
+                        <c:inputCheckbox id="sydiv_drploctoreq__c" cntr="{!controller}" tabIndex="3320" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ufmethod__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ufmethod__c.label}" />
+                        <c:inputField id="sydiv_ufmethod__c" cntr="{!controller}" tabIndex="3130" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_drpixrdays__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_drpixrdays__c.label}" />
+                        <c:inputField id="sydiv_drpixrdays__c" cntr="{!controller}" tabIndex="3330" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ufpriormonths__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ufpriormonths__c.label}" />
+                        <c:inputField id="sydiv_ufpriormonths__c" cntr="{!controller}" tabIndex="3150" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_reqdateupdate__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_reqdateupdate__c.label}" />
+                        <c:inputField id="sydiv_reqdateupdate__c" cntr="{!controller}" tabIndex="3430" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_ufmonths__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_ufmonths__c.label}" />
+                        <c:inputField id="sydiv_ufmonths__c" cntr="{!controller}" tabIndex="3160" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_worcptavgcostcalcopt__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_worcptavgcostcalcopt__c.label}" />
+                        <c:inputField id="sydiv_worcptavgcostcalcopt__c" cntr="{!controller}" tabIndex="3440" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_wooverrcpt__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_wooverrcpt__c.label}" />
+                        <c:inputField id="sydiv_wooverrcpt__c" cntr="{!controller}" tabIndex="3170" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_disscrapitem__c.inlineHelpText}" rendered="{!showDisScrapFld && !isNew}">
+                        <apex:outputLabel value="{!f.rstk__sydiv_disscrapitem__c.label}"/>
+                        <c:autocomplete id="sydiv_disscrapitem__c" cntr="{!controller}" slDesc="{!scrapItemName}" query="select id, name from icitem__c where icitem_item__r.peitem_inactivests__c != 'I' and icitem_div__c = 'prm'" queryParms="[['id','Division']]"  tabIndex="3320"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!!showDisScrapFld || isNew}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_wostays7__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_wostays7__c.label}" />
+                        <c:inputField id="sydiv_wostays7__c" cntr="{!controller}" tabIndex="3180"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_wosts8to7__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_wosts8to7__c.label}" />
+                        <c:inputField id="sydiv_wosts8to7__c" cntr="{!controller}" tabIndex="3190"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+					
+					<apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_peac__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_peac__c.label}" />
+                        <c:inputCheckbox id="sydiv_peac__c" cntr="{!controller}" tabIndex="3450" />
+                    </apex:pageBlockSectionItem>
+					
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__wo_serial_options}" name="WOSerialOptions" id="WOSerialOptions">
+                <apex:pageBlockSection id="pbs_WOSerialOptions" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_nosrloveriss__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_nosrloveriss__c.label}" />
+                        <c:inputCheckbox id="sydiv_nosrloveriss__c" cntr="{!controller}" tabIndex="3510" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_srlparentfirst__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_srlparentfirst__c.label}" />
+                        <c:inputCheckbox id="sydiv_srlparentfirst__c" cntr="{!controller}" tabIndex="3520" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_autosrllink__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_autosrllink__c.label}" />
+                        <c:inputCheckbox id="sydiv_autosrllink__c" cntr="{!controller}" tabIndex="3530" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_srllinkonissue__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_srllinkonissue__c.label}" />
+                        <c:inputCheckbox id="sydiv_srllinkonissue__c" cntr="{!controller}" tabIndex="3540" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__timeandattendance}" name="timeandattendance" id="timeandattendance" rendered="{!showTimeAndAttend}">
+                <apex:pageBlockSection id="pbs_timeandattendance" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_dfltindirect__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_dfltindirect__c.label}"/>
+                        <c:selectList id="sydiv_dfltindirect__c" cntr="{!controller}" options="{!indirectLaborCode}" tabIndex="3550" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_sodsyncmintop__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_sodsyncmintop__c.label}" />
+                        <c:inputField id="sydiv_sodsyncmintop__c" cntr="{!controller}" onchange="validateAutoSynFields(this.value,'sydiv_sodsyncmintop__c'); return false;" tabIndex="3560" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_sodsyncminhalf__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_sodsyncminhalf__c.label}" />
+                        <c:inputField id="sydiv_sodsyncminhalf__c" cntr="{!controller}" onchange="validateAutoSynFields(this.value,'sydiv_sodsyncminhalf__c'); return false;" tabIndex="3570" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_eodsyncmintop__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_eodsyncmintop__c.label}" />
+                        <c:inputField id="sydiv_eodsyncmintop__c" cntr="{!controller}" onchange="validateAutoSynFields(this.value,'sydiv_eodsyncmintop__c'); return false;" tabIndex="3580" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_eodsyncminhalf__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_eodsyncminhalf__c.label}" />
+                        <c:inputField id="sydiv_eodsyncminhalf__c" cntr="{!controller}" onchange="validateAutoSynFields(this.value,'sydiv_eodsyncminhalf__c'); return false;" tabIndex="3590" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_eodautooffall__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_eodautooffall__c.label}" />
+                        <c:inputCheckbox id="sydiv_eodautooffall__c" cntr="{!controller}" tabIndex="3600" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_autoonejob__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_autoonejob__c.label}" />
+                        <c:inputCheckbox id="sydiv_autoonejob__c" cntr="{!controller}" tabIndex="3610" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="API Credentials" name="apiCredentials" id="apiCredentials" rendered="{!isBoc}">
+                <apex:pageBlockSection id="pbs_apiCredentials" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_lastaskreceipts__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_lastaskreceipts__c.label}" />
+                        <c:inputField id="sydiv_lastaskreceipts__c" cntr="{!controller}" tabIndex="4000" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_lastaskusage__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_lastaskusage__c.label}" />
+                        <c:inputField id="sydiv_lastaskusage__c" cntr="{!controller}" tabIndex="4010" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_lastaskqtyoh__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_lastaskqtyoh__c.label}" />
+                        <c:inputField id="sydiv_lastaskqtyoh__c" cntr="{!controller}" tabIndex="4020" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_wmsuserid__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_wmsuserid__c.label}" />
+                        <c:inputField id="sydiv_wmsuserid__c" cntr="{!controller}" tabIndex="4030" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_wmspassphrase__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_wmspassphrase__c.label}" />
+                        <c:inputField id="sydiv_wmspassphrase__c" cntr="{!controller}" tabIndex="4040" />
+                    </apex:pageBlockSectionItem> 
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__projectoptions}" name="ProjectOptions" id="ProjectOptions" rendered="{!OR(ShowProjectJobCode,ShowProjectChargeCode)}">
+                <apex:pageBlockSection id="pbs_ProjectOptions" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_jobcodeact__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_jobcodeact__c.label}" />
+                        <c:inputCheckbox id="sydiv_jobcodeact__c" cntr="{!controller}" tabIndex="5000" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_dfltjobcodeact__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_dfltjobcodeact__c.label}" />
+                        <c:inputCheckbox id="sydiv_dfltjobcodeact__c" cntr="{!controller}" tabIndex="5010" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_wbsact__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_wbsact__c.label}" />
+                        <c:inputCheckbox id="sydiv_wbsact__c" cntr="{!controller}" tabIndex="5020" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_dfltwbsact__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sydiv_dfltwbsact__c.label}"/>
+                        <c:inputCheckbox id="sydiv_dfltwbsact__c" cntr="{!controller}" tabIndex="5030" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+<!--  RCB: RSTK-1733, RSTK-1787, RSTK-1788 -->
+            <apex:tab label="{!$Label.rstk__auto_numbering}" name="AutoNumbering" id="AutoNumbering" >
+                <apex:pageBlockSection id="pbs_AutoNumbering" showHeader="false" columns="2">
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_autonumbreq__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_autonumbreq__c.label}" />
+                        <c:inputCheckbox id="sydiv_autonumbreq__c" cntr="{!controller}" tabIndex="6010" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_polotautometh__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_polotautometh__c.label}" />
+                        <c:inputField id="sydiv_polotautometh__c" cntr="{!controller}" tabIndex="6015" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_reqprefix__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_reqprefix__c.label}" />
+                        <c:inputField id="sydiv_reqprefix__c" cntr="{!controller}" tabIndex="6020" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_polotprefix__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_polotprefix__c.label}" />
+                        <c:inputField id="sydiv_polotprefix__c" cntr="{!controller}" tabIndex="6025" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_autonumbwo__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_autonumbwo__c.label}" />
+                        <c:inputCheckbox id="sydiv_autonumbwo__c" cntr="{!controller}" tabIndex="6030" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_wolotautometh__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_wolotautometh__c.label}" />
+                        <c:inputField id="sydiv_wolotautometh__c" cntr="{!controller}" tabIndex="6035" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_woprefix__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_woprefix__c.label}" />
+                        <c:inputField id="sydiv_woprefix__c" cntr="{!controller}" tabIndex="6040" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_wolotprefix__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_wolotprefix__c.label}" />
+                        <c:inputField id="sydiv_wolotprefix__c" cntr="{!controller}" tabIndex="6045" />
+                    </apex:pageBlockSectionItem>
+<!--  RCB: RSTK-2443 -->
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_polotcustompfx__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_polotcustompfx__c.label}" />
+                        <c:inputCheckbox id="sydiv_polotcustompfx__c" cntr="{!controller}" tabIndex="6050" />
+                    </apex:pageBlockSectionItem> 
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_lalotautometh__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_lalotautometh__c.label}" />
+                        <c:inputField id="sydiv_lalotautometh__c" cntr="{!controller}" tabIndex="6055" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_lalotprefix__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_lalotprefix__c.label}" />
+                        <c:inputField id="sydiv_lalotprefix__c" cntr="{!controller}" tabIndex="6060" />
+                    </apex:pageBlockSectionItem>
+                    
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__landedcost}" name="LandedCost" id="LandedCost">
+                <apex:pageBlockSection id="pbs_LandedCost" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_frghtlandactive__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_frghtlandactive__c.label}" />
+                        <c:inputCheckbox id="sydiv_frghtlandactive__c" cntr="{!controller}" tabIndex="7000" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_accrued_landedclracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_accrued_landedclracct__c.label}" />
+                        <c:largeSelectList id="sydiv_accrued_landedclracct__c" cntr="{!controller}" options="{!syaccslandedclearing}" tabIndex="7100"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_freightvaracct__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__sydiv_freightvaracct__c.label}" />
+                        <c:largeSelectList id="sydiv_freightvaracct__c" cntr="{!controller}" options="{!syaccsfreightvariance}" tabIndex="7200"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sydiv_othlndvaracct__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sydiv_othlndvaracct__c.label}"/>
+                        <c:largeSelectList id="sydiv_othlndvaracct__c" cntr="{!controller}" options="{!syaccsotherlandedvariance}" tabIndex="7300"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__tab_info}" name="Info" id="Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+        <!-- </apex:outputPanel>
+        </apex:pageBlockSection> -->
+    </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var StandardsVarianceAcctRequired = "{!$Label.StandardsVarianceAcctIsRequired}";        
+        var StandardsVarianceAcctNeedSet = "{!$Label.StandardsVarianceAcctNeedToBeSet}";
+        var DisassemblyNotAllow = "{!$Label.DisassemblyNotAllowed}";
+        var DisassemblyRoutingOperAltCode = "{!$Label.DisassemblyRoutingOperAltCodeSame}";      
+        var AdvancedCostAcntInvNotAllow = "{!$Label.AdvancedCostAcntInvNotAllowed}";
+        var ProjectsMayNotActive = "{!$Label.ProjectsMayNotBeActive}";
+        var SubsidiaryAssociatedSelectedDepart = "{!$Label.SubsidiaryAssociatedWithTheSelectedDepart}";
+        var AvrgCostByLotForLotItemsNotChecked = "{!$Label.AvrgCostByLotForLotItemsCannotChecked}";
+        var AvrgCostByLotForLotItemsMustChecked = "{!$Label.AvrgCostByLotForLotItemsMustBeChecked}";
+        var ActualCostBySerialForSerialItemsNotChecked = "{!$Label.ActualCostBySerialForSerialItemsCannotChecked}";
+        var ActualCostBySerialForSerialItemsMustChecked = "{!$Label.ActualCostBySerialForSerialItemsMustBeChecked}";        
+        var LABEL_InvalidValForLastAssignedDHRNum = "{!$Label.InvalidValForLastAssignedDHRNum}";
+        var LABEL_NumOfPriorMonthsForAvgFieldsReqdAndValShouldBeBetween0to99 = "{!$Label.NumOfPriorMonthsForAvgFieldsReqdAndValShouldBeBetween0to99}";
+        var LABEL_ValForNumOfMonthsToGenerateShouldBeBetween0to100 = "{!$Label.ValForNumOfMonthsToGenerateShouldBeBetween0to100}";
+        var LABEL_A_division_already_exists_with_division_number = "{!$Label.A_division_already_exists_with_division_number}";
+    	var LABEL_FieldReferenceNotFoundFor = "{!$Label.FieldReferenceNotFoundFor}";
+<!--  RCB: RSTK-1733, RSTK-1787, RSTK-1788 -->
+        var Auto_Number_Requisition_Prefix_cannot_be_blank = "{!$Label.Auto_Number_Requisition_Prefix_cannot_be_blank}";
+        var Auto_Number_Work_Order_Prefix_cannot_be_blank = "{!$Label.Auto_Number_Work_Order_Prefix_cannot_be_blank}";
+        var Purchased_Lot_Auto_Number_Prefix_cannot_be_blank = "{!$Label.Purchased_Lot_Auto_Number_Prefix_cannot_be_blank}";
+        var Manufactured_Lot_Auto_Number_Prefix_cannot_be_blank = "{!$Label.Manufactured_Lot_Auto_Number_Prefix_cannot_be_blank}";
+<!-- RCB: RSTK-2443 -->
+        var Location_Add_Lot_Auto_Number_Prefix_cannot_be_blank = "{!$Label.Location_Add_Lot_Auto_Number_Prefix_cannot_be_blank}";
+		var SystemConfigurationdoesnotallowOutsideOperation = "{!$Label.SystemConfigurationdoesnotallowOutsideOperation}";
+    </script>
+    
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

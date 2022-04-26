@@ -1,0 +1,141 @@
+<apex:page id="pg" standardController="rstkf__customextf__c" extensions="rstkf.ControllerExtnMonthlyCheckRegister,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__monthlycheckregister}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__monthlycheckregister}" enableAutoComplete="true" showHeader="false" enableQuickMenu="true" />
+    
+   <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <script>
+        var isMultiCurrency = {!isMultiCurrency};
+        function reconciliationChange(e){
+            var printButton = document.getElementById("{!$Component.pg:fm:pb:pbb:printBtn}");
+            if(printButton){
+                if(e.checked && isMultiCurrency){
+                    printButton.style.display='none';
+                } else{
+                    printButton.style.display='inline';
+                }
+            }
+        }
+        
+        function doCheckRequired(name, messages) {
+            var error = (fieldExists(name) && getValue(name) == '');
+            if (error) {
+                messages.push(getMessage(LABEL_Fieldisrequired,[getFieldLabel(name)]));
+            }
+            return !error;
+        }
+        function arrayToString(arry) {
+            var s = '';
+            if (arry && arry.length > 0) {
+                for (i = 0; i < arry.length; i++) {
+                    s += "\n-" + arry[i];
+                }
+            }
+            return s;
+        }
+        
+        var reportAction = '';
+        function validRequest() {
+            var messages = [];
+            reportAction = '';
+            doCheckRequired('monthlycheckregister_glyear__c', messages);
+            doCheckRequired('monthlycheckregister_glperiod__c', messages);
+            if (messages.length > 0) {
+                alert(LABEL_Please_resolve_the_following_validation_errors + "\n" + arrayToString(messages));
+                return false;
+            }
+            return true;
+        }
+        function validateRequestAndExportReport(){
+            if(validRequest()){
+                reportAction = 'export';
+                processRegisterReport(reportAction);
+            }
+        }
+        function validateRequestAndPrintReport(){
+            if(validRequest()){
+                reportAction = 'print';
+                processRegisterReport(reportAction);
+            }
+        }
+        function postProcessRegisterReport(reportExeAction){
+            //console.log('inside postProcessRegisterReport() : reportExeAction = '+ reportExeAction);
+            if(reportExeAction == 'print'){
+                document.getElementById("{!$Component.pg:fm:generatePDFButtonLink}").click();
+            }else if(reportExeAction == 'export'){
+                document.getElementById("{!$Component.pg:fm:generateCSVButtonLink}").click();
+            }
+        }
+    </script>
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="processRegisterReport" action="{!processRegisterReport}" rerender="pageMessages" oncomplete="postProcessRegisterReport(reportAction); return false;" status="statusProcessing">
+            <apex:param name="reportExecutionAction" assignTo="{!reportExecutionAction}" value=""/>
+        </apex:actionFunction>
+        <apex:commandLink value="{!$Label.rstkf__generatepdf}" id="generatePDFButtonLink" action="{!printReport}" style="display:none" target="_blank"/>
+        <apex:commandLink value="{!$Label.rstkf__exportreport}" id="generateCSVButtonLink" action="{!exportReport}" style="display:none"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons id="pbb" location="top">
+                <apex:commandbutton value="{!$Label.rstkf__exportreport}" onclick="validateRequestAndExportReport(); return false;" id="exportBtn" />
+                <apex:commandbutton value="{!$Label.rstkf__printreport}" onclick="validateRequestAndPrintReport(); return false;" id="printBtn" />
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" columns="1">            
+                
+                <apex:outputField value="{!customext.rstkf__custom_glcmp__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__monthlycheckregister_glyear__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__monthlycheckregister_glyear__c.label}"/>
+                    <apex:selectList id="monthlycheckregister_glyear__c" value="{!customext.rstkf__monthlycheckregister_glyear__c}" size="1" style="width:80px;" tabIndex="10"> 
+                        <apex:selectOptions value="{!glyears}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__monthlycheckregister_glperiod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__monthlycheckregister_glperiod__c.label}"/>
+                     <apex:selectList id="monthlycheckregister_glperiod__c" value="{!customext.rstkf__monthlycheckregister_glperiod__c}" size="1" style="width:80px;" tabIndex="20"> 
+                        <apex:selectOption itemValue="" itemLabel="{!$Label.rstkf__selectoptionnone}"/>
+                        <apex:selectOption itemValue="01" itemLabel="01"/>
+                        <apex:selectOption itemValue="02" itemLabel="02"/>
+                        <apex:selectOption itemValue="03" itemLabel="03"/>
+                        <apex:selectOption itemValue="04" itemLabel="04"/>
+                        <apex:selectOption itemValue="05" itemLabel="05"/>
+                        <apex:selectOption itemValue="06" itemLabel="06"/>
+                        <apex:selectOption itemValue="07" itemLabel="07"/>
+                        <apex:selectOption itemValue="08" itemLabel="08"/>
+                        <apex:selectOption itemValue="09" itemLabel="09"/>
+                        <apex:selectOption itemValue="10" itemLabel="10"/>
+                        <apex:selectOption itemValue="11" itemLabel="11"/>
+                        <apex:selectOption itemValue="12" itemLabel="12"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__includebankreconciliationcolumns__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customext.rstkf__includebankreconciliationcolumns__c.label}"/>
+                    <apex:inputCheckbox value="{!customext.rstkf__includebankreconciliationcolumns__c}" onchange="reconciliationChange(this);"/>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        setSelectListRequired("monthlycheckregister_glyear__c");
+        setSelectListRequired("monthlycheckregister_glperiod__c");
+    </script>
+</apex:page>

@@ -1,0 +1,278 @@
+<apex:page id="pg" standardController="rstk__sohdr__c" extensions="rstk.ControllerExtnOrderQuoteCopy,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}"> 
+    <apex:variable var="f" value="{!$ObjectType.rstk__sohdr__c.fields}" /> 
+    <apex:variable var="f_l" value="{!$ObjectType.rstk__soline__c.fields}" />
+ 
+     <c:standardHeader cntr="{!controller}" title="{!theTitle} {!$Label.rstk__copy}" enableAutocomplete="true"/>
+     
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+
+        <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+        <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+        
+        <style>
+        .tableHdr {
+          font-weight: bold;
+          background-color: white;
+          width:100%;
+        }
+        
+        </style>
+
+        <apex:outputPanel id="statusPanel" style="display:none;">
+           resubmit=<apex:outputText id="reSubmitRequired" value="{!reSubmitRequired}"/><br/>
+        </apex:outputPanel>
+                
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons id="pb_buttons">
+               <apex:commandButton id="createnew" value="{!$Label.rstk__create_new} {!theTitle}" immediate="false" action="{!createNewOrder}" disabled="{!isNew}"
+               			onclick="jQuery('input[id$=sohdrDest_custno]').val(getCustomerIdElement().val()); showTopDialog('pleaseWaitPopup');" 
+                        oncomplete="closeTopDialog(); checkForReSubmit();" rerender="pageMessages,statusPanel"/>
+
+          </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none" />
+        
+        <script>
+        var quotePrefix="{!JSENCODE(quotePrefix)}";
+        
+        function checkForReSubmit() {
+          var doResubmit = jQuery("span[id$=reSubmitRequired]").text() == "true";
+          
+          if (doResubmit) {
+            var createnewBtns = jQuery("input[id$=createnew]");
+            if (createnewBtns.length > 0) {
+                createnewBtns[0].click();
+            }
+          } else {
+            loadContractsToSelect();
+          }
+        }
+        
+        function loadContractsToSelect() {
+            if (jQuery('input[id$=sohdr_contract__c]').length > 0) {
+                var socust = getCustomerIdElement().val();
+                loadRecordsToSelect('sohdr', 'contract__c', 'socontract__c', null, 
+                    'socontract_active__c=true and socontract_cancelled__c=false and socontract_socust__c='+quote(socust),
+                    null, true);
+                updateRecordFromSelect('sohdr', 'contract__c');
+            }
+        }
+        
+        function updateContractId() {
+            updateRecordFromSelect('sohdr', 'contract__c');
+        }
+        
+        function updateCreateButton(e)
+        {
+            var chk = getSourceElement(e);
+            if (chk != null)
+            {
+                jQuery('input[id$=createnew]').val('{!$Label.rstk__create_new} '+(chk.checked?'{!$Label.rstk__quote}':'{!$Label.rstk__sales_order}'));
+                
+                if (quotePrefix != '')
+                {
+                    var orderField = jQuery('input[id$=dest_sohdr_order__c]');
+                    var orderValue = orderField.val();
+                    var startsWithQuotePrefix = (orderValue.indexOf(quotePrefix) == 0);
+                    if (chk.checked)
+                    {
+                        if (!startsWithQuotePrefix)
+                        {
+                            orderField.val(quotePrefix + orderValue);
+                        }
+                    }
+                    else
+                    {
+                        if (startsWithQuotePrefix)
+                        {
+                            orderField.val(orderValue.substring(quotePrefix.length));
+                        }
+                    }
+                }
+            }
+        }
+        
+        addAfterEvent(function() {
+          if ({!readOnlyOrderNum})
+          {
+            var orderField = jQuery('input[id$=dest_sohdr_order__c]');
+            orderField.attr('readonly', 'readonly');
+          }
+          getCustomerNameElement().change(function() { loadContractsToSelect(); });
+          loadContractsToSelect();
+        });
+        
+        function getCustomerIdElement() {
+          return jQuery('input:not(.ac_input)[name*=sohdr_custno__c]');
+        }
+
+        function getCustomerNameElement() {
+          return jQuery('input:.ac_input[name*=sohdr_custno__c]');
+        }
+        
+        </script>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem >
+                <apex:pageBlockSection title="{!$Label.rstk__pagetab_orderquotecopy_sourcedetails}" collapsible="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_div__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_div__c.label}"/>
+                        <apex:outputField value="{!sohdr.rstk__sohdr_div__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_order__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_order__c.label}"/>
+                        <apex:outputField value="{!sohdr.rstk__sohdr_order__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_custno__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_custno__c.label}"/>
+                        <apex:outputField value="{!sohdr.rstk__sohdr_custno__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_custpo__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_custpo__c.label}"/>
+                        <apex:outputField value="{!sohdr.rstk__sohdr_custpo__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_custref__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_custref__c.label}"/>
+                        <apex:outputField value="{!sohdr.rstk__sohdr_custref__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_orderdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_orderdate__c.label}"/>
+                        <apex:outputField value="{!sohdr.rstk__sohdr_orderdate__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_contract__c.inlineHelpText}" rendered="{!pageOptions.showContract}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_contract__c.label}"/>
+                        <apex:outputField value="{!sohdr.rstk__sohdr_contract__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem >
+                <apex:pageBlockSection title="{!$Label.rstk__pagetab_orderquotecopy_copydetails}" collapsible="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_isquote__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_isquote__c.label}"/>
+                        <apex:inputField value="{!sohdrDest.rstk__sohdr_isquote__c}" onchange="updateCreateButton(event);"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_order__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_order__c.label}"/>
+                        <apex:inputField id="dest_sohdr_order__c" value="{!sohdrDest.rstk__sohdr_order__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_custno__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_custno__c.label}"/>
+                        <apex:outputpanel >
+                        <apex:inputText style="display:none;" id="sohdrDest_custno" value="{!sohdrDest_custno}"/>
+                        <c:autocomplete id="sohdr_custno__c" cntr="{!controller}" required="true" slDesc="{!customerName}" objKey="sohdrDest"
+                               query="select id, name from socust__c where socust_inactive__c = false" queryParms="[]"/>
+                        </apex:outputpanel>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_custpo__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_custpo__c.label}"/>
+                        <apex:inputField value="{!sohdrDest.rstk__sohdr_custpo__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_custref__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_custref__c.label}"/>
+                        <apex:inputField value="{!sohdrDest.rstk__sohdr_custref__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_orderdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_orderdate__c.label}"/>
+                        <apex:inputField value="{!sohdrDest.rstk__sohdr_orderdate__c}"/>
+                    </apex:pageBlockSectionItem>
+ 
+                   <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_contract__c.inlineHelpText}" rendered="{!pageOptions.showContract}">
+                        <apex:outputLabel value="{!f.rstk__sohdr_contract__c.label}"/>
+                        <apex:outputPanel >
+                            <select size="1" id="sohdr_textcontract__c" style="width:250px;" onchange="updateContractId(); return false;">
+                                <option value=""> </option>
+                            </select>
+                            <apex:inputHidden id="sohdr_contract__c" value="{!sohdrDest.rstk__sohdr_contract__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                </apex:pageBlockSection>
+                </apex:pageBlockSectionItem>
+
+        </apex:pageBlockSection>
+
+             <apex:pageBlockSection id="pbs_soLineDetails" showHeader="true" collapsible="false" title="{!theTitle} {!$Label.rstk__lines}" columns="1">
+             <apex:outputText value="{!$Label.rstk__selectlinestoaddtoorder}"/>
+
+<!-- ======================================================================
+     <<<<<<< SO LINE TABLE
+     ====================================================================== -->      
+                <apex:pageBlockTable id="soLineDetails" value="{!solines}" var="d">
+                    <apex:column headerValue="">
+                        <apex:facet name="header">
+                           <a href="#" onclick="sd.selectAll(); return false;">Sel</a>
+                        </apex:facet>
+                        <apex:inputCheckbox id="rowSelected" value="{!d.selected}"/>
+                        <input id="state" value="ACTIVE" style="display:none;"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_l.rstk__soline_line__c.label}">
+                        <apex:outputField value="{!d.soline.rstk__soline_line__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_l.rstk__soline_prod__c.label}">
+                        <apex:outputField value="{!d.soline.rstk__soline_prod__c}"/>
+                    </apex:column>
+                    
+                     <apex:column headerValue="{!f_l.rstk__soline_qtyorder__c.label}">
+                        <apex:outputField value="{!d.soline.rstk__soline_qtyorder__c}"/>
+                    </apex:column>
+                    
+                     <apex:column headerValue="{!f_l.rstk__soline_price__c.label}">
+                        <apex:outputField value="{!d.soline.rstk__soline_price__c}"/>
+                    </apex:column>
+ 
+                 </apex:pageBlockTable>
+
+             </apex:pageBlockSection>
+             
+        <script>
+            var sd = new RowHandlerBase(); 
+            sd.init("{!$Component.pbs_soLineDetails.soLineDetails}:tb");
+        </script>
+    <!-- ======================================================================
+     SO LINE TABLE >>>>>>>>>>>>
+     ====================================================================== -->      
+
+
+
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+             
+
+            <apex:tabPanel switchType="client" selectedTab="tab_Info" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_orderquotecopy_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+            
+        <!-- apex:outputPanel id="debug">
+        <textarea rows='20' cols='200'>{!debug}</textarea>
+        </apex:outputPanel -->
+  
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

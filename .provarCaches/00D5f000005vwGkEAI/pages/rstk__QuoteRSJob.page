@@ -1,0 +1,423 @@
+<apex:page id="pg" standardController="Quote" extensions="rstk.ControllerExtnQuoteRSJob,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="sfquote" value="{!sfquote}" />
+    <apex:variable var="f" value="{!$ObjectType.Quote.fields}" /> 
+    <apex:variable var="f_oppt" value="{!$ObjectType.Opportunity.fields}" /> 
+    <apex:variable var="f_acct" value="{!$ObjectType.Account.fields}" /> 
+    
+    <script>
+        var salesdiv = '{!sfquote.rstk__Quote_salesdiv__c}';
+        var soline = '{!sfquote.rstk__Quote_soline__c}';
+        var hasSoline = isEmpty(soline) ? false : true;
+    </script>
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_quotersjob}" customInclude="{!$Resource.rstk__QuoteRSJob_cli}" enableAutocomplete="true"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/> 
+    <apex:includeScript value="{!$Resource.rstk__messageformat}"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="rsjob" action="{!doRSJob}" oncomplete="unblockUI();" rerender="pageMessages" immediate="false"/>
+        <apex:actionFunction name="pricebookChanged" action="{!doPricebookChanged}" oncomplete="unblockUI();" rerender="pageMessages,quoteLineIpopup" immediate="false"/>
+
+        <c:Popup popupId="quoteLineIpopup" title="{!$Label.rstk__pagepopup_quotersjob_quotelineitems}" onOk="quoteLineI_saveAndClose()">
+            <c:EditableGrid jsController="quoteLineI" data="{!quoteLineIDetails}" editable="true" ispopup="true" />
+        </c:Popup>
+        <!--  
+        <c:Popup popupId="seqAssignpopup" title="{!$Label.pagepopup_quotersjob_SequenceAndAssign}" onOk="seqAssign_saveAndClose()">
+            <c:EditableGrid jsController="seqAssign" data="{!SeqAssignDetails}" editable="true" ispopup="true" disableAdd="true" disableDelete="true" />
+        </c:Popup>
+        -->
+        <script>
+            function onquoteLineIClicked()
+            {
+                quoteLineI.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    var pid = quoteLineI.getRowValue(row, 'Quoteline_sfprodid__c');
+                    var ptype = quoteLineI.getRowValue(row, 'Quoteline_rstype__c');
+                    var sql = "select Product2Id, Product2.Name from PricebookEntry where Pricebook2Id = '{!sfquote.Pricebook2Id}' ";
+                    var cfgprodFld = jQuery('select[class$=Quote.Quote_csoproduct__c]')[index];
+                    if (ptype == 'Labor')
+                        populateHtmlSelectList(cfgprodFld, sql + "and Product2.Product_refrtindoper__c = true order by Product2.Name", "Product2Id", "Product2.Name");
+                    else if (ptype == 'Material') {
+                        quoteLineI.getRowObj(row, 'Quoteline_assignedto__c').attr('disabled', true);
+                        quoteLineI.getRowObj(row, 'Quoteline_labseq__c').attr('disabled', true);
+                        populateHtmlSelectList(cfgprodFld, sql + "and Product2.Product_reficitem__c = true order by Product2.Name", "Product2Id", "Product2.Name");
+                    }
+                    else 
+                        populateHtmlSelectList(cfgprodFld, sql + "and (Product2.Product_refrtindoper__c = true or Product2.Product_reficitem__c = true) order by Product2.Name", "Product2Id", "Product2.Name");
+                    quoteLineI.setRowValue(row, 'Quote.Quote_csoproduct__c', pid);
+                    cfgprodFld.disabled = true;
+                });
+            }
+
+            quoteLineI.entryChanged = function(row, rowNum, name, value) 
+            {
+                self=this;
+                var assKey = '.quoteLineI-' + rowNum + '-Quoteline_assignedto__c';
+                var seqKey = '.quoteLineI-' + rowNum + '-Quoteline_labseq__c';
+                if (name == 'Quoteline_rstype__c') {
+                    var type = self.getRowValue(row, "Quoteline_rstype__c");
+                    if (hasSoline || type == 'Material') {
+                        self.getRowObj(row, 'Quoteline_assignedto__c').closest('td').find(assKey).attr('disabled', true);
+                        self.getRowObj(row, 'Quoteline_labseq__c').closest('td').find(seqKey).attr('disabled', true);
+                    } else {
+                        self.getRowObj(row, 'Quoteline_assignedto__c').closest('td').find(assKey).attr('disabled', false);
+                        self.getRowObj(row, 'Quoteline_labseq__c').closest('td').find(seqKey).attr('disabled', false);
+                    }
+                    var cfgprodFld = jQuery('select[class$=Quote.Quote_csoproduct__c]')[rowNum];
+                    var sql = "select Product2Id, Product2.Name from PricebookEntry where Pricebook2Id = '{!sfquote.Pricebook2Id}' ";
+                    if (type != 'Labor') self.setRowValue(row, 'Quoteline_labseq__c', '0');
+                    self.setRowValue(row, 'Quoteline_assignedto__c', '');
+                    if (type == 'Material') {
+                        populateHtmlSelectList(cfgprodFld, sql + "and Product2.Product_reficitem__c = true order by Product2.Name", "Product2Id", "Product2.Name");
+                    } else if (type == 'Labor') {
+                        populateHtmlSelectList(cfgprodFld, sql + "and Product2.Product_refrtindoper__c = true order by Product2.Name", "Product2Id", "Product2.Name");
+                    } else {
+                        populateHtmlSelectList(cfgprodFld, sql + "and (Product2.Product_refrtindoper__c = true or Product2.Product_reficitem__c = true) order by Product2.Name", "Product2Id", "Product2.Name");
+                    }
+                } else  if (name == 'Quote.Quote_csoproduct__c') {
+                    self.setRowValue(row, 'Quoteline_sfprodid__c', value);
+                    var type = self.getRowValue(row, "Quoteline_rstype__c");
+                    var refindoper = false;
+                    if (!isEmpty(value)) {
+                        //var sfprodInfo = execQuery("select Name, Product_refrtindoper__c from Product2 where Id = '" + value + "'");
+                        var pricebkentry = execQuery("select UnitPrice, Product2.Name, Product2.Product_refrtindoper__c from Pricebookentry where Product2Id = '" + value + "'");
+                        if (pricebkentry.length > 0) {
+                            refindoper = pricebkentry[0].Product2.Product_refrtindoper__c == 'true' ? true : false;
+                            self.setRowValue(row, 'Quoteline_sfprodname__c', pricebkentry[0].Product2.Name);
+                            self.setRowValue(row, 'UnitPrice', pricebkentry[0].UnitPrice);
+                        }
+                    } else {
+                        alert("{!$Label.rstk__prodcantbeblank}");
+                        return;
+                    }
+                    if (hasSoline || type == 'Material' || !refindoper) {
+                        self.getRowObj(row, 'Quoteline_assignedto__c').closest('td').find(assKey).attr('disabled', true);
+                        self.getRowObj(row, 'Quoteline_labseq__c').closest('td').find(seqKey).attr('disabled', true);
+                    } else {
+                        self.getRowObj(row, 'Quoteline_assignedto__c').closest('td').find(assKey).attr('disabled', false);
+                        self.getRowObj(row, 'Quoteline_labseq__c').closest('td').find(seqKey).attr('disabled', false);
+                    }
+                } else if (name == 'Quantity') {
+                    var qtyval = Number(self.getRowValue(row, "Quantity"));
+                    if (qtyval <= 0) {
+                        alert("{!$Label.rstk__qtyvalmustgt0}");
+                        return;
+                    }
+                } else if (name == 'UnitPrice') {
+                  var uprice = self.getRowValue(row, "UnitPrice");
+                  if (isNaN(uprice)) {
+                    alert("{!$Label.rstk__invalidprice}");
+                    return;
+                  } else if (Number(uprice) <= 0) {
+                    alert("{!$Label.rstk__pricevalmustbegt0}");
+                    return;
+                  }
+                } else if (name == 'Quoteline_labseq__c') {
+                    var labseq = self.getRowValue(row, "Quoteline_labseq__c");
+                    if (isNaN(labseq)) {
+                        alert("{!$Label.rstk__invalidlaborseqnum}");
+                        return;
+                    }
+                    if (Number(labseq) < 0) {
+                        alert("{!$Label.rstk__laborseqnumcantbelt0}");
+                        return;
+                    }
+                }
+            }
+            
+            quoteLineI.resetRow = function(row) { 
+                self=this;
+                quoteLineIHandler.prototype.resetRow.call(self, row);
+                var lstlabseq = '0';
+                var rowInd = -1;
+                
+                self.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    var type = self.getRowValue(row, "Quoteline_rstype__c");
+                    var sfprod = self.getRowValue(row, 'Quoteline_sfprodid__c');
+                    if (type == 'Labor') {
+                        lstlabseq = self.getRowValue(row, "Quoteline_labseq__c");
+                        lstlabseq = isEmpty(lstlabseq) ? '0' : lstlabseq;
+                    } 
+                    rowInd = index;
+                });
+                self.setRowValue(row, "Quoteline_rstype__c", 'Labor');
+                self.setRowValue(row, "Quoteline_labseq__c", lstlabseq);
+                var cfgprodFld = jQuery('select[class$=Quote.Quote_csoproduct__c]')[++rowInd];
+                populateHtmlSelectList(cfgprodFld, "select Product2Id, Product2.Name from PricebookEntry where Pricebook2Id = '{!sfquote.Pricebook2Id}' and Product2.Product_refrtindoper__c = true order by Product2.Name", "Product2Id", "Product2.Name");
+            }
+            
+            quoteLineI.validate = function() {
+                var self = this;
+                var valid = true;
+                self.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    var type = self.getRowValue(row, "Quoteline_rstype__c");
+                    var rowno = index + 1;
+                    if (isEmpty(self.getRowValue(row, 'Quoteline_sfprodid__c'))) {
+                        alert("{!$Label.rstk__selectproductforline}", rowno);
+                        valid = false; 
+                    }
+                    if (isEmpty(self.getRowValue(row, 'Quantity'))) {
+                        alert("{!$Label.rstk__enterreqdfieldqtyatline}", rowno);
+                        valid = false;
+                    } else if (Number(self.getRowValue(row, 'Quantity')) <= 0) {
+                        alert("{!$Label.rstk__qtyatlinemustbegt0}", rowno);
+                        valid = false;
+                    }
+                    if (type == 'Labor') {
+                        if (isEmpty(self.getRowValue(row, 'Quoteline_labseq__c'))) {
+                            alert("{!$Label.rstk__enterreqdfieldlaborseqatline}", rowno);
+                            valid = false;
+                        } else if (Number(self.getRowValue(row, 'Quoteline_labseq__c')) < 0) {
+                            alert("{!$Label.rstk__laborseqatlinecantbelt0}", rowno);
+                            valid = false;
+                        }
+                    }
+                    if (isEmpty(self.getRowValue(row, 'UnitPrice'))) {
+                        alert("{!$Label.rstk__enterreqdfieldpriceatline}", rowno);
+                        valid = false;
+                    } else if (Number(self.getRowValue(row, 'UnitPrice')) <= 0) {
+                        alert("{!$Label.rstk__priceatlinemustbegt0}", rowno);
+                        valid = false;
+                    }
+                });
+                return valid;
+            }
+            
+            quoteLineI.onSaved = function()
+            {
+                //seqAssign.reset();
+                var rows = 0;
+                quoteLineI.getSelectableRows().each(function (index, el) {
+                    rows++;
+                });
+                if (rows > 0) {
+                    jQuery("select[id$='PriceBook2ID']").attr('disabled', true);
+                } else {
+                    jQuery("select[id$='PriceBook2ID']").attr('disabled', false);
+                }
+            }
+            
+            /*
+            function onSeqAssignClicked()
+            {
+                var qteInfo = execQuery("select Quoteline_sfprodid__c from QuoteLineItem where QuoteId = '{!sfquote.Id}'");
+                var qids = '';
+                seqAssign.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    var pid = seqAssign.getRowValue(row, 'Quoteline_sfprodid__c');
+                    if (index == 0) qids = "'" + pid + "'";
+                    else qids += ", '" + pid + "'";
+                    
+                });
+                
+                var refindoper = [];
+                if (!isEmpty(qids)) {
+                    var sfpInfo = execQuery("select Id, Product_refrtindoper__c from Product2 where Id IN (" + qids + ")");
+                    if (sfpInfo.length > 0) {
+                        for (var j = 0; j < sfpInfo.length; j++) {
+                            refindoper[sfpInfo[j].Id] = sfpInfo[j].Product_refrtindoper__c == 'true' ? true : false;
+                        }
+                    }
+                }
+                
+                seqAssign.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    var pid = seqAssign.getRowValue(row, 'Quoteline_sfprodid__c');
+                    if (!refindoper[pid]) row.remove();
+                 });
+            }
+
+            seqAssign.entryChanged = function(row, rowNum, name, value) 
+            {
+                self = this;
+                if (name == 'Quantity') {
+                    var qtyval = Number(self.getRowValue(row, "Quantity"));
+                    if (qtyval <= 0) {
+                        alert("{!$Label.rstk__qtyvalmustgt0}");
+                        return;
+                    }
+                } else if (name == 'Quoteline_labseq__c') {
+                
+                    var labseq = self.getRowValue(row, "Quoteline_labseq__c");
+                    if (isNaN(labseq)) {
+                        alert("{!$Label.rstk__invalidlaborseqnum}");
+                        return;
+                    }
+                    if (Number(labseq) < 0) {
+                        alert("{!$Label.rstk__laborseqnumcantbelt0}");
+                        return;
+                    }
+                }
+            }
+            
+            seqAssign.onSaved = function()
+            {
+                quoteLineI.reset();
+            }
+            */
+        </script>
+
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            
+            </apex:outputPanel>
+            <apex:pageBlockSection id="pbs_Header" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.QuoteNumber.inlineHelpText}">
+                    <apex:outputLabel value="{!f.QuoteNumber.label}"/>
+                    <apex:outputField id="QuoteNumber" value="{!sfquote.QuoteNumber}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.ExpirationDate.inlineHelpText}">
+                    <apex:outputLabel value="{!f.ExpirationDate.label}"/>
+                    <apex:outputField id="ExpirationDate" value="{!sfquote.ExpirationDate}" />
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.Name.inlineHelpText}">
+                    <apex:outputLabel value="{!f.Name.label}"/>
+                    <apex:outputField id="Name" value="{!sfquote.Name}" />
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem helpText="{!f.IsSyncing.inlineHelpText}">
+                    <apex:outputLabel value="{!f.IsSyncing.label}"/>
+                    <apex:outputField id="IsSyncing" value="{!sfquote.IsSyncing}" />
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem helpText="{!f_oppt.Name.inlineHelpText}">
+                    <apex:outputLabel value="{!f_oppt.Name.label}"/>
+                    <apex:outputField id="OpportunityName" value="{!sfquote.Opportunity.Name}" />
+                </apex:pageBlockSectionItem>
+         
+                <apex:pageBlockSectionItem helpText="{!f.Status.inlineHelpText}">
+                    <apex:outputLabel value="{!f.Status.label}"/>
+                    <apex:outputField id="Status" value="{!sfquote.Status}" />
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem helpText="{!f_acct.Name.inlineHelpText}">
+                    <apex:outputLabel value="{!f_acct.Name.label}"/>
+                    <c:hoverDetail recId="{!sfacctId}" recName="{!sfacctName}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.Description.inlineHelpText}">
+                    <apex:outputLabel value="{!f.Description.label}"/>
+                    <apex:outputField id="Description" value="{!sfquote.Description}"/>
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem helpText="{!f.PriceBook2ID.inlineHelpText}">
+                    <apex:outputLabel value="{!f.PriceBook2ID.label}"/>
+                    <apex:selectList id="PriceBook2ID" value="{!sfquote.PriceBook2ID}" size="1" tabIndex="1" disabled="{!dispPriceBookID}" onChange="blockUI();pricebookChanged(); return false;">
+                        <apex:selectOptions value="{!PriceBooks}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem> 
+            </apex:pageBlockSection>
+            <br />
+  
+            <apex:pageBlockSection id="pbs_RSJob" showHeader="true" title="{!$Label.rstk__pagetitle_quotersjob}" columns="2" collapsible="false">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__Quote_rsjob__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__Quote_rsjob__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!isRSUser && !hasSoline}">
+                            <apex:inputCheckbox id="Quote_rsjob__c" value="{!sfquote.rstk__Quote_rsjob__c}" tabIndex="31"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!!isRSUser || hasSoline}">
+                            <apex:outputField value="{!sfquote.rstk__Quote_rsjob__c}" />
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__Quote_sohdr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__Quote_sohdr__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!isRSUser && !hasSoline}">
+                            <apex:selectList id="Quote_sohdr__c" value="{!sfquote.rstk__Quote_sohdr__c}" size="1" style="width:250px;" tabIndex="41">
+                                <apex:selectOptions value="{!Sohdrs}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!!isRSUser || hasSoline}">
+                            <apex:outputField value="{!sfquote.rstk__Quote_sohdr__c}" />
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__Quote_salesdiv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__Quote_salesdiv__c.label}"/>
+                    <apex:outputField id="Quote_salesdiv__c" value="{!sfquote.rstk__Quote_salesdiv__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__Quote_soline__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__Quote_soline__c.label}"/>
+                    <apex:outputField value="{!sfquote.rstk__Quote_soline__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__Quote_csoproduct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__Quote_csoproduct__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!isRSUser && !hasSoline}">
+                            <apex:selectList id="Quote_csoproduct__c" value="{!sfquote.rstk__Quote_csoproduct__c}" size="1" style="width:250px;" tabIndex="33">
+                                <apex:selectOptions value="{!SFProducts}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!!isRSUser || hasSoline}">
+                            <apex:outputField value="{!sfquote.rstk__Quote_csoproduct__c}" />
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__Quote_price__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__Quote_price__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!isRSUser && !hasSoline}">
+                            <apex:inputText id="Quote_price__c" value="{!sfquote.rstk__Quote_price__c}" tabIndex="43"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!!isRSUser || hasSoline}">
+                            <c:outputFormattedNumber value="{!sfquote.rstk__Quote_price__c}" decimals="2" /> 
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+       
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value=""/>
+                    <apex:commandButton id="rsjobBtn__c" value="{!rsjogBtnTitle}" onclick="blockUI();rsjob();return false;" style="width:150px"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value=""/>
+                    <apex:commandbutton id="quoteLineIBtn__c" value="{!$Label.rstk__quotersjob_pagebtn_quotelineitems}" onclick="_showDialog('quoteLineIpopup',1000);onquoteLineIClicked();return false;" style="width:150px"/>
+                </apex:pageBlockSectionItem>
+                <!--  
+                <apex:pageBlockSectionItem />
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value=""/>
+                    <apex:commandbutton id="seqAssignBtn__c" value="Sequence and Assign" onclick="_showDialog('seqAssignpopup',800); onSeqAssignClicked(); return false;" style="width:200px"/>
+                </apex:pageBlockSectionItem>
+                -->
+            </apex:pageBlockSection>
+        </apex:pageBlock>  
+        
+        <div id="pleaseWaitPopup" style="display:none">
+          <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+          <apex:outputPanel styleClass="topPopup">
+            <apex:image url="{!$Resource.rstk__busy}"/>
+          </apex:outputPanel>
+        </div>  
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_IndividualValForSalesPrice = "{!$Label.rstk__individualvalforsalesprice}";
+    </script>
+</apex:page>

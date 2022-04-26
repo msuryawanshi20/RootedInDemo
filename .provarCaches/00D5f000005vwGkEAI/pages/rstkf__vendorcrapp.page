@@ -1,0 +1,924 @@
+<apex:page id="pg" title="{!$Label.rstkf__labelcreditapplicationreport}" standardController="rstkf__vendorcrapp__c" extensions="rstkf.ControllerExtnCreditAppReport,rstkf.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__vendorcrapp__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__vendorcrapp__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__labelcreditapplicationreport}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" customInclude="{!$Resource.rstkf__vendorcrapp_cli}" showHeader="false"/>
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    <script>
+        function verifyDate(firstDate,secondDate,fieldID){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnCreditAppReport.verifyDate}', //NameSpace  
+                firstDate,
+                secondDate,   
+                function(result, event){
+                    if (event.status) {
+                        checkResult(result,fieldID);
+                    } else if (event.type === 'exception') {
+                        checkException(event.message,fieldID);
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+    </script>
+    
+    <apex:form id="fm" >
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="populateAllDefaultList" action="{!populateAllDefaultList}" reRender="pageMessages,op_queryCriteria,op_afterRender" immediate="false" oncomplete="populateCreditAppMapWithApapplics(); return false;" status="statusProcessing">
+            <apex:param name="startDate" assignTo="{!startDate}" value=""/>
+            <apex:param name="endDate" assignTo="{!endDate}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="processVendorCreditReport" action="{!processVendorCreditReport}" oncomplete="checkJobStatus();" rerender="pageMessages, op_JobStatus" immediate="false">
+        </apex:actionFunction>
+        <apex:actionFunction name="displayVendorCreditReports" action="{!populateAllZoneReportData}" oncomplete="showPopup('#vendorReportPopup', 1200, 600);  return false;" rerender="pageMessages, op_vendorReports, op_afterRender" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="refreshVendorCreditReports" action="{!populateAllZoneReportData}" rerender="pageMessages, op_vendorReports, op_afterRender" immediate="false" status="statusProcessing"/>
+        
+        <apex:actionFunction name="repopulateVendorComponent" action="{!repopulateVendorComponent}" rerender="pageMessages, op_queryCriteria, op_afterRender,op_queryfiltercriteria" immediate="false" oncomplete="postVendorsRepopulate(); return false;" status="statusProcessing"/>
+        <apex:actionFunction name="repopulateApitemComponents" action="{!repopulateApitemComponents}" rerender="pageMessages, op_queryCriteria, op_afterRender,op_queryfiltercriteria" immediate="false" oncomplete="postAPItemsRepopulate(); return false;" status="statusProcessing"/>
+        <apex:actionFunction name="repopulatePurchOrdComponent" action="{!repopulatePurchOrdComponent}" rerender="pageMessages, op_queryCriteria, op_afterRender,op_queryfiltercriteria" immediate="false" oncomplete="postPurchOrdsRepopulate(); return false;" status="statusProcessing"/>
+        <apex:actionFunction name="repopulateMultiCurrComponent" action="{!repopulateMultiCurrComponent}" rerender="pageMessages, op_queryCriteria, op_afterRender,op_queryfiltercriteria" immediate="false" oncomplete="postMultiCurrRepopulate(); return false;" status="statusProcessing"/>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_queryCriteria">
+            <script>
+                var firsrtapappicRecId = "{!firsrtapappicRecId}";
+                var lastapappicRecId = "{!lastapappicRecId}";
+                var acknowledgementMsg = "{!acknowledgementMsg}";
+            </script>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_afterRender">
+            <script>
+                try { formatLocaleOutputFields(); } catch (e) { }
+            </script>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons id="pbbtn_processbtn">
+                <apex:outputPanel id="op_processbtn">
+                    <apex:commandButton id="generateReport" onclick="processRequest(); return false;" value="{!$Label.rstkf__labelgeneratecreditreport}" styleClass="btn" style="width:200px;" /> 
+                    <apex:commandButton id="reset" onclick="resetAllFields(); return false;" value="{!$Label.rstkf__labelreset}" style="width:70px;" styleClass="btn" status="statusProcessing" /> 
+                </apex:outputPanel> 
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_searchquerycriteria" columns="2" collapsible="false">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_startdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__vendorcrapp_startdate__c.label}"/>
+                    <apex:inputField id="vendorcrapp_startdate__c" value="{!o.rstkf__vendorcrapp_startdate__c}" taborderhint="1"/> 
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_enddate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__vendorcrapp_enddate__c.label}"/>
+                    <apex:inputField id="vendorcrapp_enddate__c" value="{!o.rstkf__vendorcrapp_enddate__c}" taborderhint="2"/> 
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:inputHidden value="{!multiCurrEnabled}" id="vendorcrapp_multicurrenable__c"/>
+            
+            <apex:outputPanel id="op_creditreport">
+            
+                <apex:pageBlockSection id="pbs_searchqueryDisclaimer" columns="1" collapsible="false">
+                    <apex:outputPanel id="op_searchqueryDisclaimer">
+                        <apex:outputLabel value="{!$Label.rstkf__advisory_note_for_selecting_query_filter_parameters}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+                
+                <apex:outputPanel id="op_queryfiltercriteria">
+                    <apex:pageBlockSection id="pbs_queryfiltercriteria" columns="2" title="{!$Label.rstkf__labelqueryparameters}" collapsible="false">
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_filteronvendor__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__vendorcrapp_filteronvendor__c.label}"/>
+                            <apex:inputCheckbox id="vendorcrapp_filteronvendor__c" value="{!o.rstkf__vendorcrapp_filteronvendor__c}" onchange="vendorcrappfilteronvendorChanged(); false;" tabindex="21"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstkf__labelvendors}"/>
+                            <apex:selectList id="vendorcrapp_vendors__c" value="{!selVendors}" size="5" multiselect="true" style="width:250px;" onchange="selectVendors(); return false;" tabindex="22">
+                                <apex:selectOptions value="{!allVendors}" />
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_filterapitem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__vendorcrapp_filterapitem__c.label}"/>
+                            <apex:inputCheckbox id="vendorcrapp_filterapitem__c" value="{!o.rstkf__vendorcrapp_filterapitem__c}" onchange="vendorcrappfilterapitemChanged(); return false;" tabindex="23"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstkf__labelpayabletransactionids}"/>
+                            <apex:selectList id="vendorcrapp_apinvtxntranid__c" value="{!selApinvtxnTranIds}" size="5" multiselect="true" style="width:250px;" onchange="selectTranIds(); return false;" tabindex="24">
+                                <apex:selectOptions value="{!allApinvtxnTranIds}" />
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstkf__labelpayabledocumentnumbers}"/>
+                            <apex:selectList id="vendorcrapp_apinvtxndocno__c" value="{!selApinvtxnDocnos}" size="5" multiselect="true" style="width:250px;" onchange="selectDocnos(); return false;" tabindex="25">
+                                <apex:selectOptions value="{!allApinvtxnDocnos}" />
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_filterbypo__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__vendorcrapp_filterbypo__c.label}"/>
+                            <apex:inputCheckbox id="vendorcrapp_filterbypo__c" value="{!o.rstkf__vendorcrapp_filterbypo__c}" onchange="vendorcrappfilterbypoChanged(); return false;" tabindex="26"/>
+                        </apex:pageBlockSectionItem>
+                        <!-- <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.labelAgreements}"/>
+                            <apex:selectList id="vendorcrapp_apinvtxnagreeno__c" value="{!selVendorAgreements}" size="5" multiselect="true" style="width:250px;" onchange="selectAgreements(); return false;" tabindex="28">
+                                <apex:selectOptions value="{!allAgreements}" />
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem> -->
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstkf__labelpurchaseorders}"/>
+                            <apex:selectList id="vendorcrapp_apinvtxnpoord__c" value="{!selVendorPuchOrds}" size="5" multiselect="true" style="width:250px;" onchange="selectPuchOrds(); return false;" tabindex="28">
+                                <apex:selectOptions value="{!allPurchaseOrds}" />
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_filterbynonpo__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__vendorcrapp_filterbynonpo__c.label}"/>
+                            <apex:inputCheckbox id="vendorcrapp_filterbynonpo__c" value="{!o.rstkf__vendorcrapp_filterbynonpo__c}" onchange="" tabindex="27"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstkf__labelpurchaseorderlines}"/>
+                            <apex:selectList id="vendorcrapp_apinvtxnpoline__c" value="{!selVendorPuchOrdLines}" size="5" multiselect="true" style="width:250px;" onchange="selectPuchOrdLines(); return false;" tabindex="29">
+                                <apex:selectOptions value="{!allPurchaseOrdLines}" />
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstkf__labelpurchaseorderreceipts}"/>
+                            <apex:selectList id="vendorcrapp_apinvtxnporcpt__c" value="{!selVendorReceipts}" size="5" multiselect="true" style="width:250px;" onchange="selectPuchOrdRcpts(); return false;" tabindex="30">
+                                <apex:selectOptions value="{!allPurchaseOrdReceipts}" />
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_filterbycurr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__vendorcrapp_filterbycurr__c.label}"/>
+                            <apex:inputCheckbox id="vendorcrapp_filterbycurr__c" value="{!o.rstkf__vendorcrapp_filterbycurr__c}" onchange="vendorcrappfilterbycurrChanged(); return false;" tabindex="33"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstkf__labeldocumentcurrency}"/>
+                            <apex:selectList id="vendorcrapp_apinvtxnmaintcurr__c" value="{!selMaintCurrs}" size="5" multiselect="true" style="width:250px;" onchange="selectMultiCurrs(); return false;" tabindex="34">
+                                <apex:selectOptions value="{!allMultiCurrs}" />
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_filtergainloss__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__vendorcrapp_filtergainloss__c.label}"/>
+                            <apex:inputCheckbox id="vendorcrapp_filtergainloss__c" value="{!o.rstkf__vendorcrapp_filtergainloss__c}" onchange="vendorcrappfiltergainlossChanged(); return false;" tabindex="35"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_filterallgainloss__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__vendorcrapp_filterallgainloss__c.label}"/>
+                            <apex:inputCheckbox id="vendorcrapp_filterallgainloss__c" value="{!o.rstkf__vendorcrapp_filterallgainloss__c}" onchange="vendorcrappfilterallgainlossChanged(); return false;" tabindex="36"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_filterbookedgainloss__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstkf__vendorcrapp_filterbookedgainloss__c.label}"/>
+                            <apex:inputCheckbox id="vendorcrapp_filterbookedgainloss__c" value="{!o.rstkf__vendorcrapp_filterbookedgainloss__c}" onchange="vendorcrappfilterbookedgainlossChanged(); return false;" tabindex="37"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:outputPanel>
+                
+                <apex:pageBlockSection id="pbs_queryrestriction" columns="2" title="{!$Label.rstkf__labeladditionalqueryparameters}" collapsible="false">
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_beyonddtrange__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_beyonddtrange__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_beyonddtrange__c" value="{!o.rstkf__vendorcrapp_beyonddtrange__c}" tabindex="38"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_speccurr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_speccurr__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_speccurr__c" value="{!o.rstkf__vendorcrapp_speccurr__c}" tabindex="42"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_specapitempo__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_specapitempo__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_specapitempo__c" value="{!o.rstkf__vendorcrapp_specapitempo__c}" tabindex="39"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_specpos__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_specpos__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_specpos__c" value="{!o.rstkf__vendorcrapp_specpos__c}" tabindex="43"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_ignorescope__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_ignorescope__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_ignorescope__c" value="{!o.rstkf__vendorcrapp_ignorescope__c}" tabindex="40"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_specpolines__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_specpolines__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_specpolines__c" value="{!o.rstkf__vendorcrapp_specpolines__c}" tabindex="44"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_ignorebookedscope__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_ignorebookedscope__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_ignorebookedscope__c" value="{!o.rstkf__vendorcrapp_ignorebookedscope__c}" tabindex="41"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_specreceipt__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_specreceipt__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_specreceipt__c" value="{!o.rstkf__vendorcrapp_specreceipt__c}" tabindex="45"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                
+                <apex:pageBlockSection id="pbs_reportcriteria" columns="2" title="{!$Label.rstkf__labelreportformatparameters}" collapsible="false">
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_showdrmemo__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_showdrmemo__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_showdrmemo__c" value="{!o.rstkf__vendorcrapp_showdrmemo__c}" tabindex="46"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_showvendorside__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_showvendorside__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_showvendorside__c" value="{!o.rstkf__vendorcrapp_showvendorside__c}" tabindex="51"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_homecurr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_homecurr__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_homecurr__c" value="{!o.rstkf__vendorcrapp_homecurr__c}" tabindex="47"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_allcurr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_allcurr__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_allcurr__c" value="{!o.rstkf__vendorcrapp_allcurr__c}" tabindex="52"/>
+                    </apex:pageBlockSectionItem>
+                    <!-- <apex:pageBlockSectionItem helpText="{!f.vendorcrapp_agreemntdata__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.vendorcrapp_agreemntdata__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_agreemntdata__c" value="{!o.vendorcrapp_agreemntdata__c}" tabindex="48"/>
+                    </apex:pageBlockSectionItem> -->
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_podata__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_podata__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_podata__c" value="{!o.rstkf__vendorcrapp_podata__c}" tabindex="53"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_polinedata__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_polinedata__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_polinedata__c" value="{!o.rstkf__vendorcrapp_polinedata__c}" tabindex="49"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_poreceiptdata__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_poreceiptdata__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_poreceiptdata__c" value="{!o.rstkf__vendorcrapp_poreceiptdata__c}" tabindex="54"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__vendorcrapp_gainlossdata__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__vendorcrapp_gainlossdata__c.label}"/>
+                        <apex:inputCheckbox id="vendorcrapp_gainlossdata__c" value="{!o.rstkf__vendorcrapp_gainlossdata__c}" tabindex="50"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+                </apex:pageBlockSection>
+                
+                <apex:pageBlockSection id="pbs_sortcriteria" columns="1" title="{!$Label.rstkf__labelreportsortoptions}" collapsible="false">
+                    <apex:pageBlockSectionItem id="pbsi_sortcriteria">
+                        <apex:outputLabel value="{!$Label.rstkf__labelselectsortoption}"/>
+                        <apex:selectRadio id="vendorcrapp_apinvtxnsortOpt__c" value="{!sortByOption}" layout="pageDirection" onchange="" tabindex="55">
+                            <apex:selectOptions value="{!sortByOptions}" />
+                        </apex:selectRadio>
+                    </apex:pageBlockSectionItem>                
+                </apex:pageBlockSection>
+                
+            </apex:outputPanel>
+            
+            <apex:outputPanel id="op_creditrepotabs">
+            </apex:outputPanel>
+            
+        </apex:pageBlock>
+    </apex:form>
+    
+    <div id="vendorReportPopup" style="display:none">
+        <apex:form id="fm_report">
+            <apex:outputPanel id="op_vendorReports" layout="block" style="height: 500px;">
+                <apex:pageBlock id="pb_report" rendered="{!showVendorReports}">
+                    <apex:pageBlockButtons id="pbbtn_report">
+                        <apex:commandButton value="{!$Label.rstkf__labelrefresh}" styleClass="btn" onclick="refreshVendorCreditReports(); return false;" style="width:60px;"/>
+                        <apex:commandButton value="{!$Label.rstkf__pagevalclose}" styleClass="btn" onclick="unblockUI(); return false;" style="width:60px;"/>
+                    </apex:pageBlockButtons>
+                    <apex:tabPanel switchType="client" selectedTab="apapplicHeaderZone" id="vendorReportTabPanel">
+                        <apex:tab label="{!$Label.rstkf__labelpayableappzone}" name="apapplicHeaderZone" id="apapplicHeaderZone">
+                            <apex:pageBlockSection id="apapplicHeaderExport" columns="2">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportapapplicZoneRpt}" rerender="pageMessages,apapplicHeaderDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="apapplicHeaderDownload">
+                                    <apex:outputPanel rendered="{!apapplicRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="apapplicDR" href="{!URLFOR($Action.Attachment.Download, apapplicRptId)}" download="{!apapplicRptName}">{!apapplicRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_headerZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 400px;">
+                                <apex:pageBlockTable id="pbt_headerZone" value="{!apapplicZoneReport}" var="headerReport" rendered="{!showHeaderZone}">
+                                    <apex:column headerValue="{!$Label.rstkf__labelvendornumber}" width="100" >
+                                        <apex:outputField value="{!headerReport.apapplic_drapinvtxn__r.apinvtxn_vendno__r.rstk__povend_vendno__c}"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__labelvendorname}" width="200" >
+                                        <apex:outputField value="{!headerReport.apapplic_drapinvtxn__r.apinvtxn_vendno__r.rstk__povend_sf_account_name__c}"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__labelapplicationdate}" width="100" >
+                                        <apex:outputField value="{!headerReport.rstkf__apapplic_dateappl__c}"/>
+                                    </apex:column>
+                                </apex:pageBlockTable>
+                                <apex:panelGrid columns="6" rendered="{!showHeaderZone}">
+                                    <apex:commandButton status="fetchStatus0" reRender="op_headerZone" value="|<" action="{!apapplicZoneCon.first}" disabled="{!!apapplicZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                    <apex:commandButton status="fetchStatus0" reRender="op_headerZone" value="<" action="{!apapplicZoneCon.previous}" disabled="{!!apapplicZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                    <apex:commandButton status="fetchStatus0" reRender="op_headerZone" value=">" action="{!apapplicZoneCon.next}" disabled="{!!apapplicZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                    <apex:commandButton status="fetchStatus0" reRender="op_headerZone" value=">|" action="{!apapplicZoneCon.last}" disabled="{!!apapplicZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                    <apex:outputText >{!(apapplicZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((apapplicZoneCon.pageNumber * recsPerPage)>totRecsForApapplicZone, totRecsForApapplicZone,(apapplicZoneCon.pageNumber * recsPerPage))} of {!totRecsForApapplicZone}</apex:outputText>
+                                    <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                        <apex:actionStatus id="fetchStatus0" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                    </apex:outputPanel>
+                                </apex:panelGrid>
+                            </apex:outputPanel>
+                        </apex:tab>
+                        <!-- 
+                        <apex:tab label="{!$Label.labelAgreementZone}" name="agreementZone" id="agreementZone" rendered="{!showAgreeZone}">
+                            <apex:pageBlockSection id="agreementDRExport" columns="2" rendered="{!showInvoiceSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportagreementDRZoneRpt}" rerender="pageMessages,agreementDRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="agreementDRDownload">
+                                    <apex:outputPanel rendered="{!agreementDRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="agreementDR" href="{!URLFOR($Action.Attachment.Download, agreementDRRptId)}" download="{!agreementDRRptName}">{!agreementDRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_agreementDRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_agreementDRZone" columns="1" title="{!$Label.rstkf__labelinvoicedrmemoside}" collapsible="false" rendered="{!showInvoiceSideRpt}">
+                                    <apex:pageBlockTable id="pbt_agreementDRZone" value="{!agreementDRZoneReport}" var="agreementReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__labeldivision}">
+                                            <apex:outputText value="{!agreementReport.agreementDiv}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.labelAgreementNumber}">
+                                            <apex:outputText value="{!agreementReport.agreementNo}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.labelAgreementDescription}">
+                                            <apex:outputText value="{!agreementReport.agreementDesc}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__homecurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!agreementReport.agreementHomeCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.agreementcurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!agreementReport.agreementCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerate}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!agreementReport.agreementExchrate}"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus1" reRender="op_agreementDRZone" value="|<" action="{!agreementDRZoneCon.first}" disabled="{!!agreementDRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus1" reRender="op_agreementDRZone" value="<" action="{!agreementDRZoneCon.previous}" disabled="{!!agreementDRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus1" reRender="op_agreementDRZone" value=">" action="{!agreementDRZoneCon.next}" disabled="{!!agreementDRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus1" reRender="op_agreementDRZone" value=">|" action="{!agreementDRZoneCon.last}" disabled="{!!agreementDRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(agreementDRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((agreementDRZoneCon.pageNumber * recsPerPage)>totRecsForAgreementDRZone, totRecsForAgreementDRZone,(agreementDRZoneCon.pageNumber * recsPerPage))} of {!totRecsForAgreementDRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus1" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                            <apex:pageBlockSection id="agreementCRExport" columns="2" rendered="{!showVendorSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportagreementCRZoneRpt}" rerender="pageMessages,agreementCRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="agreementCRDownload">
+                                    <apex:outputPanel rendered="{!agreementCRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="agreementCR" href="{!URLFOR($Action.Attachment.Download, agreementCRRptId)}" download="{!agreementCRRptName}">{!agreementCRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_agreementCRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_agreementCRZone" columns="1" title="{!$Label.rstkf__labelvendorcreditside}" collapsible="false" rendered="{!showVendorSideRpt}">
+                                    <apex:pageBlockTable id="pbt_agreementCRZone" value="{!agreementCRZoneReport}" var="agreementReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__labeldivision}">
+                                            <apex:outputText value="{!agreementReport.agreementDiv}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.labelAgreementNumber}">
+                                            <apex:outputText value="{!agreementReport.agreementNo}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.labelAgreementDescription}">
+                                            <apex:outputText value="{!agreementReport.agreementDesc}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__homecurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!agreementReport.agreementHomeCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.agreementcurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!agreementReport.agreementCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerate}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!agreementReport.agreementExchrate}"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus2" reRender="op_agreementCRZone" value="|<" action="{!agreementCRZoneCon.first}" disabled="{!!agreementCRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus2" reRender="op_agreementCRZone" value="<" action="{!agreementCRZoneCon.previous}" disabled="{!!agreementCRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus2" reRender="op_agreementCRZone" value=">" action="{!agreementCRZoneCon.next}" disabled="{!!agreementCRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus2" reRender="op_agreementCRZone" value=">|" action="{!agreementCRZoneCon.last}" disabled="{!!agreementCRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(agreementCRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((agreementCRZoneCon.pageNumber * recsPerPage)>totRecsForAgreementCRZone, totRecsForAgreementCRZone,(agreementCRZoneCon.pageNumber * recsPerPage))} of {!totRecsForAgreementCRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus2" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                        </apex:tab>
+                         -->
+                        <apex:tab label="{!$Label.rstkf__labelpurchaseorderzone}" name="poZone" id="poZone" rendered="{!showPOZone}">
+                            <apex:pageBlockSection id="purchOrdDRExport" columns="2" rendered="{!showInvoiceSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportpurchOrdDRZoneRpt}" rerender="pageMessages,purchOrdDRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="purchOrdDRDownload">
+                                    <apex:outputPanel rendered="{!purchordDRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="purchordDR" href="{!URLFOR($Action.Attachment.Download, purchordDRRptId)}" download="{!purchordDRRptName}">{!purchordDRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_purchOrdDRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_purchOrdDRZone" columns="1" title="{!$Label.rstkf__labelinvoicedrmemoside}" collapsible="false" rendered="{!showInvoiceSideRpt}">
+                                    <apex:pageBlockTable id="pbt_purchOrdDRZone" value="{!purchOrdDRZoneReport}" var="purchOrdReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__labeldivision}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdDiv}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__purchaseorder}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdNo}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__status}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdStatus}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__buyer}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdBuyer}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__homecurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdHomeCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__purchaseordercurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdMaintCurr}"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus3" reRender="op_purchOrdDRZone" value="|<" action="{!purchOrdDRZoneCon.first}" disabled="{!!purchOrdDRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus3" reRender="op_purchOrdDRZone" value="<" action="{!purchOrdDRZoneCon.previous}" disabled="{!!purchOrdDRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus3" reRender="op_purchOrdDRZone" value=">" action="{!purchOrdDRZoneCon.next}" disabled="{!!purchOrdDRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus3" reRender="op_purchOrdDRZone" value=">|" action="{!purchOrdDRZoneCon.last}" disabled="{!!purchOrdDRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(purchOrdDRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((purchOrdDRZoneCon.pageNumber * recsPerPage)>totRecsForPordDRZone, totRecsForPordDRZone,(purchOrdDRZoneCon.pageNumber * recsPerPage))} of {!totRecsForPordDRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus3" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                            <apex:pageBlockSection id="purchOrdCRExport" columns="2" rendered="{!showVendorSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportpurchOrdCRZoneRpt}" rerender="pageMessages,purchOrdCRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="purchOrdCRDownload">
+                                    <apex:outputPanel rendered="{!purchordCRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="purchordCR" href="{!URLFOR($Action.Attachment.Download, purchordCRRptId)}" download="{!purchordCRRptName}">{!purchordCRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_purchOrdCRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_purchOrdCRZone" columns="1" title="{!$Label.rstkf__labelvendorcreditside}" collapsible="false" rendered="{!showVendorSideRpt}">
+                                    <apex:pageBlockTable id="pbt_purchOrdCRZone" value="{!purchOrdCRZoneReport}" var="purchOrdReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__labeldivision}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdDiv}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__purchaseorder}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdNo}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__status}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdStatus}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__buyer}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdBuyer}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__homecurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdHomeCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__purchaseordercurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!purchOrdReport.purchOrdMaintCurr}"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus4" reRender="op_purchOrdCRZone" value="|<" action="{!purchOrdCRZoneCon.first}" disabled="{!!purchOrdCRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus4" reRender="op_purchOrdCRZone" value="<" action="{!purchOrdCRZoneCon.previous}" disabled="{!!purchOrdCRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus4" reRender="op_purchOrdCRZone" value=">" action="{!purchOrdCRZoneCon.next}" disabled="{!!purchOrdCRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus4" reRender="op_purchOrdCRZone" value=">|" action="{!purchOrdCRZoneCon.last}" disabled="{!!purchOrdCRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(purchOrdCRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((purchOrdCRZoneCon.pageNumber * recsPerPage)>totRecsForPordCRZone, totRecsForPordCRZone,(purchOrdCRZoneCon.pageNumber * recsPerPage))} of {!totRecsForPordCRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus4" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                        </apex:tab>
+                        <apex:tab label="{!$Label.rstkf__labelpolinezone}" name="polineZone" id="polineZone" rendered="{!showPOLineZone}">
+                            <apex:pageBlockSection id="polineDRExport" columns="2" rendered="{!showInvoiceSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportpolineDRZoneRpt}" rerender="pageMessages,polineDRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="polineDRDownload">
+                                    <apex:outputPanel rendered="{!polineDRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="polineDR" href="{!URLFOR($Action.Attachment.Download, polineDRRptId)}" download="{!polineDRRptName}">{!polineDRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_polineDRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_polineDRZone" columns="1" title="{!$Label.rstkf__labelinvoicedrmemoside}" collapsible="false" rendered="{!showInvoiceSideRpt}">
+                                    <apex:pageBlockTable id="pbt_polineDRZone" value="{!polineDRZoneReport}" var="polineReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__purchaseorder}">
+                                            <apex:outputText value="{!polineReport.purchOrdNo}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__line}">
+                                            <apex:outputText value="{!polineReport.purchOrdLine}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__item}">
+                                            <apex:outputText value="{!polineReport.purchOrdLineItem}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__itemtype}">
+                                            <apex:outputText value="{!polineReport.purchOrdLineType}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerate}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!polineReport.purchOrdLineExchrate}" html-decimals="2"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus5" reRender="op_polineDRZone" value="|<" action="{!polineDRZoneCon.first}" disabled="{!!polineDRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus5" reRender="op_polineDRZone" value="<" action="{!polineDRZoneCon.previous}" disabled="{!!polineDRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus5" reRender="op_polineDRZone" value=">" action="{!polineDRZoneCon.next}" disabled="{!!polineDRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus5" reRender="op_polineDRZone" value=">|" action="{!polineDRZoneCon.last}" disabled="{!!polineDRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(polineDRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((polineDRZoneCon.pageNumber * recsPerPage)>totRecsForPolineDRZone, totRecsForPolineDRZone,(polineDRZoneCon.pageNumber * recsPerPage))} of {!totRecsForPolineDRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus5" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                            <apex:pageBlockSection id="polineCRExport" columns="2" rendered="{!showVendorSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportpolineCRZoneRpt}" rerender="pageMessages,polineCRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="polineCRDownload">
+                                    <apex:outputPanel rendered="{!polineCRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="polineCR" href="{!URLFOR($Action.Attachment.Download, polineCRRptId)}" download="{!polineCRRptName}">{!polineCRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_polineCRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_polineCRZone" columns="1" title="{!$Label.rstkf__labelvendorcreditside}" collapsible="false" rendered="{!showVendorSideRpt}">
+                                    <apex:pageBlockTable id="pbt_polineCRZone" value="{!polineCRZoneReport}" var="polineReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__purchaseorder}">
+                                            <apex:outputText value="{!polineReport.purchOrdNo}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__line}">
+                                            <apex:outputText value="{!polineReport.purchOrdLine}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__item}">
+                                            <apex:outputText value="{!polineReport.purchOrdLineItem}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__itemtype}">
+                                            <apex:outputText value="{!polineReport.purchOrdLineType}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerate}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!polineReport.purchOrdLineExchrate}" html-decimals="2"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus6" reRender="op_polineCRZone" value="|<" action="{!polineCRZoneCon.first}" disabled="{!!polineCRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus6" reRender="op_polineCRZone" value="<" action="{!polineCRZoneCon.previous}" disabled="{!!polineCRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus6" reRender="op_polineCRZone" value=">" action="{!polineCRZoneCon.next}" disabled="{!!polineCRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus6" reRender="op_polineCRZone" value=">|" action="{!polineCRZoneCon.last}" disabled="{!!polineCRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(polineCRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((polineCRZoneCon.pageNumber * recsPerPage)>totRecsForPolineCRZone, totRecsForPolineCRZone,(polineCRZoneCon.pageNumber * recsPerPage))} of {!totRecsForPolineCRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus6" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                        </apex:tab>
+                        <apex:tab label="{!$Label.rstkf__labelporeceiptzone}" name="poReceiptZone" id="poReceiptZone" rendered="{!showPORcptZone}">
+                            <apex:pageBlockSection id="porcptDRExport" columns="2" rendered="{!showInvoiceSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportporcptDRZoneRpt}" rerender="pageMessages,porcptDRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="porcptDRDownload">
+                                    <apex:outputPanel rendered="{!porcptDRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="porcptDR" href="{!URLFOR($Action.Attachment.Download, porcptDRRptId)}" download="{!porcptDRRptName}">{!porcptDRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_porcptDRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_porcptDRZone" columns="1" title="{!$Label.rstkf__labelinvoicedrmemoside}" collapsible="false" rendered="{!showInvoiceSideRpt}">
+                                    <apex:pageBlockTable id="pbt_porcptDRZone" value="{!porcptDRZoneReport}" var="porcptReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__poreceiptno}">
+                                            <apex:outputText value="{!porcptReport.poRcptNo}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__receiptdate}">
+                                            <apex:outputField value="{!porcptReport.customextf.rstkf__vca_porcptdate__c}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__datematched}">
+                                            <apex:outputField value="{!porcptReport.customextf.rstkf__vca_porcptdatematch__c}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__qtyaccepted}">
+                                            <apex:outputText value="{!porcptReport.poRcptQtyAcpt}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__qtymatched}">
+                                            <apex:outputText value="{!porcptReport.poRcptQtyMatch}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__qtyreturned}">
+                                            <apex:outputText value="{!porcptReport.poRcptQtyReturnNA}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__homecurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptHomeCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__unitprice}">
+                                            <apex:outputText value="{!porcptReport.poRcptUnitprice}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__valuematched}">
+                                            <apex:outputText value="{!porcptReport.poRcptValMatch}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__purchaseordercurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptValPOCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerate}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptExhrate}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__unitpriceinpocurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptUnitPriceInPO}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__valuematchedinpocurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptValMatchInPO}" html-decimals="2"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus7" reRender="op_porcptDRZone" value="|<" action="{!porcptDRZoneCon.first}" disabled="{!!porcptDRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus7" reRender="op_porcptDRZone" value="<" action="{!porcptDRZoneCon.previous}" disabled="{!!porcptDRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus7" reRender="op_porcptDRZone" value=">" action="{!porcptDRZoneCon.next}" disabled="{!!porcptDRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus7" reRender="op_porcptDRZone" value=">|" action="{!porcptDRZoneCon.last}" disabled="{!!porcptDRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(porcptDRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((porcptDRZoneCon.pageNumber * recsPerPage)>totRecsForPorcptDRZone, totRecsForPorcptDRZone,(porcptDRZoneCon.pageNumber * recsPerPage))} of {!totRecsForPorcptDRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus7" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                            <apex:pageBlockSection id="porcptCRExport" columns="2" rendered="{!showVendorSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportporcptCRZoneRpt}" rerender="pageMessages,porcptCRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="porcptCRDownload">
+                                    <apex:outputPanel rendered="{!porcptCRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="porcptCR" href="{!URLFOR($Action.Attachment.Download, porcptCRRptId)}" download="{!porcptCRRptName}">{!porcptCRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_porcptCRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_porcptCRZone" columns="1" title="{!$Label.rstkf__labelvendorcreditside}" collapsible="false" rendered="{!showVendorSideRpt}">
+                                    <apex:pageBlockTable id="pbt_porcptCRZone" value="{!porcptCRZoneReport}" var="porcptReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__poreceiptno}">
+                                            <apex:outputText value="{!porcptReport.poRcptNo}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__receiptdate}">
+                                            <apex:outputField value="{!porcptReport.customextf.rstkf__vca_porcptdate__c}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__datematched}">
+                                            <apex:outputText value="{!porcptReport.poRcptDateMatchNA}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__qtyaccepted}">
+                                            <apex:outputText value="{!porcptReport.poRcptQtyAcpt}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__qtymatched}">
+                                            <apex:outputText value="{!porcptReport.poRcptQtyMatchNA}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__qtyreturned}">
+                                            <apex:outputText value="{!porcptReport.poRcptQtyReturn}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__homecurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptHomeCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__unitprice}">
+                                            <apex:outputText value="{!porcptReport.poRcptUnitprice}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__valuematched}">
+                                            <apex:outputText value="{!porcptReport.poRcptValMatchNA}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__purchaseordercurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptValPOCurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerate}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptExhrate}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__unitpriceinpocurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptUnitPriceInPO}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__valuematchedinpocurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!porcptReport.poRcptValMatchInPONA}"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus8" reRender="op_porcptCRZone" value="|<" action="{!porcptCRZoneCon.first}" disabled="{!!porcptCRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus8" reRender="op_porcptCRZone" value="<" action="{!porcptCRZoneCon.previous}" disabled="{!!porcptCRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus8" reRender="op_porcptCRZone" value=">" action="{!porcptCRZoneCon.next}" disabled="{!!porcptCRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus8" reRender="op_porcptCRZone" value=">|" action="{!porcptCRZoneCon.last}" disabled="{!!porcptCRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(porcptCRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((porcptCRZoneCon.pageNumber * recsPerPage)>totRecsForPorcptCRZone, totRecsForPorcptCRZone,(porcptCRZoneCon.pageNumber * recsPerPage))} of {!totRecsForPorcptCRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus8" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                        </apex:tab>
+                        <apex:tab label="{!$Label.rstkf__labelpayabletranszone}" name="apinvtxnZone" id="apinvtxnZone" rendered="{!showapinvtxnZone}">
+                             <apex:pageBlockSection id="apinvtxnDRExport" columns="2" rendered="{!showInvoiceSideRpt}">
+                                 <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportapinvtxnDRZoneRpt}" rerender="pageMessages,apinvtxnDRDownload" style="width:120px;" status="statusProcessing"/>
+                                 <apex:outputPanel id="apinvtxnDRDownload">
+                                     <apex:outputPanel rendered="{!apinvtxnDRRptId != null}">
+                                         {!$Label.DownloadTheExportFileHere} 
+                                         <a target="_blank" id="attachmentObjDR" href="{!URLFOR($Action.Attachment.Download, apinvtxnDRRptId)}" download="{!apinvtxnDRRptName}">{!apinvtxnDRRptName}</a>
+                                     </apex:outputPanel>
+                                 </apex:outputPanel>
+                             </apex:pageBlockSection>
+                             <apex:outputPanel id="op_apinvtxnDRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_apinvtxnDRZone" columns="1" title="{!$Label.rstkf__labelinvoicedrmemoside}" collapsible="false" rendered="{!showInvoiceSideRpt}">
+                                    <apex:pageBlockTable id="pbt_apinvtxnDRZone" value="{!apinvtxnDRZoneReport}" var="apinvtxnReport" >
+                                        <apex:column headerValue="{!$Label.rstkf__transactionid}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnTranId}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__vendorsreference}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnDocno}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__type}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnTrantype}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__date}">
+                                            <apex:outputField value="{!apinvtxnReport.customextf.rstkf__vca_voucherdate__c}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__homecurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnHomecurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__itemamount}" >
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnHomeamt}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__itemcurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnMaintcurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerate}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnExchgrate}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__itemamountinitemcurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnMaintamt}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__amountapplied}" >
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnAmtApplied}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__currencyapplied}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnCurrApplied}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerateapplied}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnExchrateApplied}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__amtappliedinapplycurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnAmtApplInCurrAppl}" html-decimals="2"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus9" reRender="op_apinvtxnDRZone" value="|<" action="{!apinvtxnDRZoneCon.first}" disabled="{!!apinvtxnDRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus9" reRender="op_apinvtxnDRZone" value="<" action="{!apinvtxnDRZoneCon.previous}" disabled="{!!apinvtxnDRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus9" reRender="op_apinvtxnDRZone" value=">" action="{!apinvtxnDRZoneCon.next}" disabled="{!!apinvtxnDRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus9" reRender="op_apinvtxnDRZone" value=">|" action="{!apinvtxnDRZoneCon.last}" disabled="{!!apinvtxnDRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(apinvtxnDRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((apinvtxnDRZoneCon.pageNumber * recsPerPage)>totRecsForApinvtxnDRZone, totRecsForApinvtxnDRZone,(apinvtxnDRZoneCon.pageNumber * recsPerPage))} of {!totRecsForApinvtxnDRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus9" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                            <apex:pageBlockSection id="apinvtxnCRExport" columns="2" rendered="{!showVendorSideRpt}">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportapinvtxnCRZoneRpt}" rerender="pageMessages,apinvtxnCRDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="apinvtxnCRDownload">
+                                    <apex:outputPanel rendered="{!apinvtxnCRRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="attachmentObjCR" href="{!URLFOR($Action.Attachment.Download, apinvtxnCRRptId)}" download="{!apinvtxnCRRptName}">{!apinvtxnCRRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_apinvtxnCRZone" layout="block" style="overflow-x: hidden;overflow-y: auto; height: 200px;">
+                                <apex:pageBlockSection id="pbs_apinvtxnCRZone" columns="1" title="{!$Label.rstkf__labelvendorcreditside}" collapsible="false" rendered="{!showVendorSideRpt}">
+                                    <apex:pageBlockTable id="pbt_apinvtxnCRZone" value="{!apinvtxnCRZoneReport}" var="apinvtxnReport">
+                                        <apex:column headerValue="{!$Label.rstkf__transactionid}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnTranId}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__vendorsreference}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnDocno}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__type}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnTrantype}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__date}">
+                                            <apex:outputField value="{!apinvtxnReport.customextf.rstkf__vca_voucherdate__c}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__homecurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnHomecurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__itemamount}" >
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnHomeamt}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__itemcurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnMaintcurr}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerate}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnExchgrate}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__itemamountinitemcurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnMaintamt}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__amountapplied}" >
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnAmtApplied}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__currencyapplied}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnCurrApplied}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__exchangerateapplied}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnExchrateApplied}" html-decimals="2"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!$Label.rstkf__amtappliedinapplycurr}" rendered="{!showAllCurrFields}">
+                                            <apex:outputText value="{!apinvtxnReport.apinvtxnAmtApplInCurrAppl}" html-decimals="2"/>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                    <apex:panelGrid columns="6">
+                                        <apex:commandButton status="fetchStatus10" reRender="op_apinvtxnCRZone" value="|<" action="{!apinvtxnCRZoneCon.first}" disabled="{!!apinvtxnCRZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                        <apex:commandButton status="fetchStatus10" reRender="op_apinvtxnCRZone" value="<" action="{!apinvtxnCRZoneCon.previous}" disabled="{!!apinvtxnCRZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                        <apex:commandButton status="fetchStatus10" reRender="op_apinvtxnCRZone" value=">" action="{!apinvtxnCRZoneCon.next}" disabled="{!!apinvtxnCRZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                        <apex:commandButton status="fetchStatus10" reRender="op_apinvtxnCRZone" value=">|" action="{!apinvtxnCRZoneCon.last}" disabled="{!!apinvtxnCRZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                        <apex:outputText >{!(apinvtxnCRZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((apinvtxnCRZoneCon.pageNumber * recsPerPage)>totRecsForApinvtxnCRZone, totRecsForApinvtxnCRZone,(apinvtxnCRZoneCon.pageNumber * recsPerPage))} of {!totRecsForApinvtxnCRZone}</apex:outputText>
+                                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                            <apex:actionStatus id="fetchStatus10" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                        </apex:outputPanel>
+                                    </apex:panelGrid>
+                                </apex:pageBlockSection>
+                            </apex:outputPanel>
+                        </apex:tab>
+                        <apex:tab label="{!$Label.rstkf__labelgainlosszone}" name="gainlossZone" id="gainlossZone" rendered="{!showGainLossZone}">
+                            <apex:pageBlockSection id="gainlossExport" columns="2">
+                                <apex:commandButton value="{!$Label.rstkf__export}" immediate="true" action="{!exportgainlossZoneRpt}" rerender="pageMessages,gainlossDownload" style="width:120px;" status="statusProcessing"/>
+                                <apex:outputPanel id="gainlossDownload">
+                                    <apex:outputPanel rendered="{!gainlossRptId != null}">
+                                        {!$Label.DownloadTheExportFileHere} 
+                                        <a target="_blank" id="gainloss" href="{!URLFOR($Action.Attachment.Download, gainlossRptId)}" download="{!gainlossRptName}">{!gainlossRptName}</a>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                            </apex:pageBlockSection>
+                            <apex:outputPanel id="op_gainlossZone">
+                                <apex:pageBlockTable id="pbt_gainlossZone" value="{!gainLossZoneReport}" var="gainlossReport">
+                                    <apex:column headerValue="{!$Label.rstkf__invoicedrmemocurr}">
+                                        <apex:outputText value="{!gainlossReport.invoiceCurr}"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__invoicedrmemoaprate}">
+                                        <apex:outputText value="{!gainlossReport.invoiceAPrate}" html-decimals="2"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__invoicedrmemospotrate}">
+                                        <apex:outputText value="{!gainlossReport.invoiceSpotrate}" html-decimals="2"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__vendorcrcurr}">
+                                        <apex:outputText value="{!gainlossReport.vendorCurr}"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__vendorcraprate}">
+                                        <apex:outputText value="{!gainlossReport.vendorAPrate}" html-decimals="2"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__vendorcrspotrate}">
+                                        <apex:outputText value="{!gainlossReport.vendorSpotrate}" html-decimals="2"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__gainloss}">
+                                        <apex:outputText value="{!gainlossReport.gainloss}" html-decimals="2"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__glaccount}">
+                                        <apex:outputText value="{!gainlossReport.gainlossAcct}"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!$Label.rstkf__datebooked}">
+                                        <apex:outputField value="{!gainlossReport.customextf.rstkf__vca_datebooked__c}"/>
+                                    </apex:column>
+                                </apex:pageBlockTable>
+                                <apex:panelGrid columns="6">
+                                    <apex:commandButton status="fetchStatus11" reRender="op_gainlossZone" value="|<" action="{!gainlossZoneCon.first}" disabled="{!!gainlossZoneCon.hasPrevious}" title="{!$Label.rstkf__firstpage}"/>
+                                    <apex:commandButton status="fetchStatus11" reRender="op_gainlossZone" value="<" action="{!gainlossZoneCon.previous}" disabled="{!!gainlossZoneCon.hasPrevious}" title="{!$Label.rstkf__previouspage}"/>
+                                    <apex:commandButton status="fetchStatus11" reRender="op_gainlossZone" value=">" action="{!gainlossZoneCon.next}" disabled="{!!gainlossZoneCon.hasNext}" title="{!$Label.rstkf__nextpage}"/>
+                                    <apex:commandButton status="fetchStatus11" reRender="op_gainlossZone" value=">|" action="{!gainlossZoneCon.last}" disabled="{!!gainlossZoneCon.hasNext}" title="{!$Label.rstkf__lastpage}"/>
+                                    <apex:outputText >{!(gainlossZoneCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((gainlossZoneCon.pageNumber * recsPerPage)>totRecsForGainlossZone, totRecsForGainlossZone,(gainlossZoneCon.pageNumber * recsPerPage))} of {!totRecsForGainlossZone}</apex:outputText>
+                                    <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                        <apex:actionStatus id="fetchStatus11" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                                    </apex:outputPanel>
+                                </apex:panelGrid>
+                            </apex:outputPanel>
+                        </apex:tab>
+                    </apex:tabPanel>
+                </apex:pageBlock>
+            </apex:outputPanel>
+        </apex:form>
+    </div>
+    
+    
+    <c:footerInclude cntr="{!controller}"/>
+    <script>
+        var Label_startDate = "{!f.rstkf__vendorcrapp_startdate__c.label}";
+        var Label_endDate = "{!f.rstkf__vendorcrapp_enddate__c.label}";
+        var Label_showInvoiceSide = "{!f.rstkf__vendorcrapp_showdrmemo__c.label}";
+        var Label_showVendorSide = "{!f.rstkf__vendorcrapp_showvendorside__c.label}";
+        var Label_showPOData = "{!f.rstkf__vendorcrapp_podata__c.label}";
+        var Label_showPOLineData = "{!f.rstkf__vendorcrapp_polinedata__c.label}";
+        var Label_value1mustbegreaterthanval2 = "{!$Label.value1mustbegreaterthanval2}";
+        var Label_EnterValuesFor = "{!$Label.EnterValuesFor}";
+        var Label_ErrorMustBeFixed = "{!$Label.thefollowingerrorsexistandmustbefixedbeforeproceeding}";
+        var labelLimitReachedForDisplayingValues = "{!$Label.labelLimitReachedForDisplayingPleaseSelectAdditionalSearchFilters}";
+        var label_atleastvalue1orvalue2mustbeentered = "{!$Label.atleastvalue1orvalue2mustbeentered}";
+        var label_atleastvalue1orvalue2mustbeselected = "{!$Label.atleastvalue1orvalue2mustbeselected}";
+        var label_pleaseselectvalue1alongwithvalue2 = "{!$Label.pleaseselectvalue1alongwithvalue2}";
+        var label_whenfilterbyAPVendorisselectedthenanyvendormustbeselected = "{!$Label.whenfilterbyAPVendorisselectedthenanyvendormustbeselected}";
+        var label_whenFilterbyAPItemisselectedthenanyapitemtransidordocumentnumbermustbeselected = "{!$Label.whenFilterbyAPItemisselectedthenanyapitemtransidordocumentnumbermustbeselected}";
+        var label_whenFilterbyPOisselectedthenanypordorpolineorporcptmustbeselected = "{!$Label.whenFilterbyPOisselectedthenanypordorpolineorporcptmustbeselected}";
+    </script>
+</apex:page>

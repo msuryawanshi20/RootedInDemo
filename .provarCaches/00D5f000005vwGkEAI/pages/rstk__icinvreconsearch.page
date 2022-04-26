@@ -1,0 +1,203 @@
+<apex:page id="pg" standardController="rstk__icinvreconb__c" extensions="rstk.ControllerExtnIcinvreconSearchBatch,rstk.ControllerJobStatus" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__icinvreconb__c}" />
+	<apex:variable var="f" value="{!$ObjectType.rstk__icinvreconb__c.fields}" />
+	<apex:variable var="f_icinvrecon" value="{!$ObjectType.rstk__icinvrecon__c.fields}" />
+
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icinvreconsearch}"  customInclude="{!$Resource.rstk__icinvreconSearch_cli}"/>
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+	<script>
+		var rows = {};  var selectcbxs = []; var matchescbxs = {};
+		var srlInitBlank = {!o.icinvreconb_div__r.sydiv_reconsrlblank__c};
+	</script>
+	<apex:form id="fm">
+		<apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+		<apex:actionFunction name="getBatchDetails" action="{!getBatchDetails}" oncomplete="unblockUI()" reRender="pageMessages, reconItems , pbs_main" />
+		<apex:actionFunction name="reconcileRecords" action="{!reconcileRecords}" oncomplete="checkJobStatus();" reRender="op_JobStatus,pageMessages,reconItems" immediate="false"/>
+		<apex:actionFunction name="saveRecords" action="{!saveRecords}" oncomplete="getBatchDetails();" reRender="pageMessages,reconItems" immediate="false"/>
+		<apex:actionFunction name="refresh" action="{!refresh}" reRender="pageMessages,reconItems" immediate="false" status="statusProcessing"/>
+
+		<apex:pageBlock id="pb1" mode="detail">
+			<apex:outputPanel id="op_JobStatus">
+	        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+	        </apex:outputPanel>
+		
+			<c:division id="icinvreconb_div__c" cntr="{!controller}" />
+
+			<apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__searchinformation}" columns="2">
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!f.rstk__icinvreconb_batchno__c.label}" />
+					<apex:outputField value="{!o.rstk__icinvreconb_batchno__c}" />
+				</apex:pageBlockSectionItem>
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!f.rstk__icinvreconb_resp__c.label}" />
+					<apex:outputField value="{!o.rstk__icinvreconb_resp__c}" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!f.rstk__icinvreconb_site__c.label}" />
+					<apex:outputField value="{!o.rstk__icinvreconb_site__c}" />
+				</apex:pageBlockSectionItem>
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!f.rstk__icinvreconb_fritem__c.label}" />
+					<apex:outputField value="{!o.rstk__icinvreconb_fritem__c}" />
+				</apex:pageBlockSectionItem>
+	
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!f.rstk__icinvreconb_abc__c.label}" />
+					<apex:outputField value="{!o.rstk__icinvreconb_abc__c}" />
+				</apex:pageBlockSectionItem>
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!f.rstk__icinvreconb_toitem__c.label}" />
+					<apex:outputField value="{!o.rstk__icinvreconb_toitem__c}" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!f.rstk__icinvreconb_iccomcod__c.label}" />
+					<apex:outputField value="{!o.rstk__icinvreconb_iccomcod__c}" />
+				</apex:pageBlockSectionItem>
+				<apex:pageBlockSectionItem id="date">
+					<apex:outputLabel value="{!f.CreatedDate.label}" />
+					<apex:outputField value="{!o.CreatedDate}" />
+				</apex:pageBlockSectionItem>
+			</apex:pageBlockSection>
+
+			<apex:pageBlockSection showHeader="false" columns="2">
+				<c:nosubmitbutton label="{!$Label.rstk__get_batch_records}" onclick="doSearch()" style="width:160px;" rendered="{! o.id != null}" />
+			</apex:pageBlockSection>
+
+			<apex:actionStatus id="status" startText="{!$Label.rstk__searching}" />
+			
+		</apex:pageBlock>
+		
+		<apex:outputPanel id="reconItems">
+			<script>rows = {}; selectcbxs = []; matchescbxs = {};</script>
+			<apex:pageBlock id="submit_buttonBlock" rendered="{!displayDetails}">
+				<apex:pageBlockSection showHeader="false" columns="1">
+						<c:nosubmitbutton label="Save Modified Records" onclick="doSave()" style="width:160px;" />
+						<c:nosubmitbutton label="{!$Label.rstk__pagebtn_icinvreconsearch_reconcileselected}" onclick="doReconcile()" style="width:160px;" />
+				</apex:pageBlockSection>
+			</apex:pageBlock>
+			<apex:pageBlock title="{!$Label.rstk__pagetab_icinvreconsearch_details}" id="details" mode="detail" rendered="{!displayDetails}">
+                <apex:actionStatus id="statusProcessing2" startStyleClass="Processing"/>
+                <apex:panelGrid columns="10" rendered="{!noOfRecords > 0}">
+					<apex:inputCheckbox id="selectAll" value="{!selectall}" onchange="selectall(this);"/>
+					<!-- <input id="selectAll" type="checkbox" onclick="selectall(this)" /> -->
+					<apex:outputLabel value="{!$Label.rstk__select_all}" />
+					<apex:inputCheckbox id="selectAllModified" value="{!selectAllModified}" onchange="selectModified(this);"/>
+					<!-- <input id="selectAllModified" type="checkbox" onclick="selectModified(this);" /> -->
+					<apex:outputLabel value="Select All Modified" />
+					<apex:outputText value="{!$Label.rstk__labelxxxxxx}" style="visibility:hidden;"/>
+                    <apex:commandButton reRender="reconItems" value="|<" action="{!first}" immediate="true" disabled="{!!hasPrevious}" title="{!$Label.rstk__firstpage}" status="statusProcessing2"/>
+                    <apex:commandButton reRender="reconItems" value="<" action="{!previous}" immediate="true" disabled="{!!hasPrevious}" title="{!$Label.rstk__previouspage}" status="statusProcessing2"/>
+                    <apex:commandButton reRender="reconItems" value=">" action="{!next}" immediate="true" disabled="{!!hasNext}" title="{!$Label.rstk__nextpage}" status="statusProcessing2"/>
+                    <apex:commandButton reRender="reconItems" value=">|" action="{!last}" immediate="true" disabled="{!!hasNext}" title="{!$Label.rstk__lastpage}" status="statusProcessing2"/>
+                    <apex:outputText >{!(pageNumber * size)+1-size}-{!IF((pageNumber * size)>noOfRecords, noOfRecords,(pageNumber * size))} of {!noOfRecords}</apex:outputText>
+                </apex:panelGrid>
+				<apex:pageBlockTable value="{!iclocs}" var="i" id="pb_table2">
+					<apex:column headerValue="{!$Label.rstk__filtergrid_select}">
+						<apex:inputCheckbox id="selected" value="{!i.selected}" onchange="selectRecord('{!i.key}')"/>
+						<script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+					</apex:column>
+					<apex:column headerValue="{!f_icinvrecon.Name.label}">
+	                    <apex:outputLink value="{!URLFOR($Action.rstk__icinvrecon__c.View, i.icinvrecon.id)}{!ReturnUrlParms}">{!i.icinvrecon.Name}</apex:outputLink>
+	                </apex:column>
+					<apex:column value="{!i.icinvrecon.rstk__icinvrecon_icitem__c}" />
+					<apex:column value="{!i.icinvrecon.rstk__icinvrecon_site__c}" />
+					<apex:column value="{!i.icinvrecon.rstk__icinvrecon_proj__c}" />
+					<apex:column headerValue="{!$Label.rstk__loc_id}" value="{!i.icinvrecon.rstk__icinvrecon_locid__c}" />
+					<apex:column headerValue="{!$Label.rstk__loc_num}" value="{!i.icinvrecon.rstk__icinvrecon_locnum__c}" />
+					<!-- <apex:column value="{!i.icinvrecon.rstk__icinvrecon_lotno__c}" /> -->
+					<apex:column headerValue="{!f_icinvrecon.rstk__icinvrecon_lotno__c.label}" >
+						<apex:inputField id="lotNum" value="{!i.icinvrecon.rstk__icinvrecon_lotno__c}" rendered="{!AND(i.issrl,i.islot)}" />
+						<apex:outputField value="{!i.icinvrecon.rstk__icinvrecon_lotno__c}" rendered="{!!i.issrl}"/>
+					</apex:column>
+					<apex:column headerValue="{!$Label.rstk__zero_qty_confirmed}">
+						<apex:inputField id="zeroconf" value="{!i.icinvrecon.rstk__icinvrecon_zeroconf__c}" onchange="zeroOnHandConfirmed('{!i.key}')" />
+					</apex:column>
+					<apex:column headerValue="{!$Label.rstk__original_qty_serials}" >
+						<!-- {!i.icinvrecon.rstk__icinvrecon_origlocqty__c} --> 
+						<apex:outputField value="{!i.icinvrecon.rstk__icinvrecon_origlocqty__c}" />
+						<br></br>
+						<apex:inputTextarea id="origserials" value="{!i.icinvrecon.rstk__icinvrecon_origserials__c}" rows="3" rendered="{!i.issrl}"/>
+						<script>document.getElementById("{!$Component.origserials}").disabled = true;</script>
+						<apex:outputPanel title="{!$Label.rstk__recordaddedmanually_noinventorybylocationrecordexists}" rendered="{!AND(i.icinvrecon.rstk__icinvrecon_origserials__c == null,i.issrl)}" id="infoMessage"><c:infoimage title="{!$Label.rstk__recordaddedmanually_noinventorybylocationrecordexists}"/></apex:outputPanel>
+						<apex:outputPanel title="{!$Label.rstk__recordaddedmanually_noinventorybylocationrecordexists}" rendered="{!AND(OR(i.icinvrecon.rstk__icinvrecon_origlocqty__c == null,i.icinvrecon.rstk__icinvrecon_origlocqty__c == 0),!i.issrl)}" id="infoMessage2"><c:infoimage title="{!$Label.rstk__recordaddedmanually_noinventorybylocationrecordexists}"/></apex:outputPanel>
+					</apex:column>
+					<apex:column headerValue="{!$Label.rstk__matches_qty_serials}">
+						<apex:inputCheckbox id="matches" value="{!i.icinvrecon.rstk__icinvrecon_matchconf__c}" onchange="matchesChanged('{!i.key}')"/>
+					</apex:column>
+					<apex:column headerValue="{!$Label.rstk__actual_qty_serials}">
+						<apex:inputField id="locqty" value="{!i.icinvrecon.rstk__icinvrecon_locqty__c}" onchange="itemChanged('{!i.key}')" />
+						<apex:inputField id="serials" value="{!i.icinvrecon.rstk__icinvrecon_serials__c}" onchange="itemChanged('{!i.key}')" rendered="{!i.issrl}"/>
+					</apex:column>
+					<apex:column headerValue="{!f_icinvrecon.rstk__icinvrecon_hold__c.label}">
+						<apex:inputField id="hold" value="{!i.icinvrecon.rstk__icinvrecon_hold__c}" />
+					</apex:column>
+					<apex:column headerValue="{!$Label.rstk__processed}" >
+						<apex:outputField value="{!i.icinvrecon.rstk__icinvrecon_processed__c}"/>
+						<script>
+							rows["{!i.key}"] = {
+								issrl: {!i.issrl},
+								islot: {!i.islot},
+								origlocqty: {!IF(ISNULL(i.icinvrecon.icinvrecon_origlocqty__c), 0, i.icinvrecon.icinvrecon_origlocqty__c)},
+								origserials: document.getElementById("{!$Component.origserials}"),
+								selected: document.getElementById("{!$Component.selected}"),
+								matches: document.getElementById("{!$Component.matches}"),
+								locqty:  document.getElementById("{!$Component.locqty}"),
+								serials : document.getElementById("{!$Component.serials}"),
+								hold : document.getElementById("{!$Component.hold}"),
+								zeroconf : document.getElementById("{!$Component.zeroconf}"),
+								lotNum : document.getElementById("{!$Component.lotNum}")
+							}; 
+							if({!i.issrl}) {
+								rows["{!i.key}"]['serials'].disabled = true;
+								var srlInfo = rows["{!i.key}"]['serials'].value;
+								if(srlInfo.trim().length > 0){
+									var srlArry = srlInfo.split("\n").filter(function(el) {return el.length != 0;});
+									rows["{!i.key}"]['locqty'].value = srlArry.length;
+								}else{
+									rows["{!i.key}"]['locqty'].value = 0;
+								}
+								if({!i.islot}){
+									rows["{!i.key}"]['lotNum'].disabled = true;
+								}
+							} 
+							rows["{!i.key}"]['locqty'].disabled = true;
+														
+							rows["{!i.key}"]['matches'].disabled = true;
+							rows["{!i.key}"]['hold'].disabled = true;
+							rows["{!i.key}"]['zeroconf'].disabled = true;
+						</script>
+					</apex:column>
+					<apex:column value="{!i.icinvrecon.rstk__icinvrecon_error__c}" />
+					<apex:column headerValue="Modified" >
+						<apex:outputField value="{!i.icinvrecon.rstk__icinvrecon_modified__c}" />
+					</apex:column>
+				</apex:pageBlockTable>
+			</apex:pageBlock>
+		</apex:outputPanel>
+	</apex:form>
+	<c:footerInclude cntr="{!controller}" />
+
+	<script>
+		var LABEL_SelectionItemForReconciliation = "{!$Label.SelectionItemForReconciliation}";
+		var LABEL_ChkdZeroOnHandConfirmedIfActualQtyOrSrlNotApplicableForSelRecs = "{!$Label.ChkdZeroOnHandConfirmedIfActualQtyOrSrlNotApplicableForSelRecs}";
+		var LABEL_indicativefieldforInventoryReconciliation = "{!$Label.indicativefieldforInventoryReconciliation}";
+		var LABEL_ItemstoSaveModificationNotReconcile = "{!$Label.ItemstoSaveModificationNotReconcile}";
+		var LABEL_lotNumRequiredForNewSerialsLotItem = "{!$Label.lotNumRequiredForNewSerialsLotItem}";
+		
+	</script>
+</apex:page>

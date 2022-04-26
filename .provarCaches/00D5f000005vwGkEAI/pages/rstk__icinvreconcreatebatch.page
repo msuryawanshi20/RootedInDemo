@@ -1,0 +1,104 @@
+<apex:page id="pg" standardController="rstk__icinvreconb__c" extensions="rstk.ControllerExtnIcinvreconCreateBatch,rstk.ControllerJobStatus,rstk.RemoteQueryController" sidebar="true" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__icinvreconb__c}" />
+	<apex:variable var="f" value="{!$ObjectType.rstk__icinvreconb__c.fields}" />
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icinvreconcreatebatch}" customInclude="{!$Resource.rstk__icinvreconcreatebatch_cli}" enableAutocomplete="true"/>
+	
+	<script>
+		function compareItemNum(fromItemNum,toItemNum){
+			Visualforce.remoting.Manager.invokeAction(  
+		        '{!$RemoteAction.ControllerExtnIcinvreconCreateBatch.compareItemNum}', //NameSpace  
+		        fromItemNum,toItemNum,   
+		        function(result, event){
+		        	if (event.status) {
+		        		if(result){
+							alert("{!$Label.ToItemNUMshouldbegreaterthanFromItemNUM}"); 
+							sfffSetFieldValue('icinvreconb_toitem__c','');
+							return true;
+						}
+		            } else if (event.type === 'exception') {
+		                alert("{!$Label.Exception1}" + event.message);
+		            } else {
+						alert("{!$Label.UnexpectedStatus}", event.message);
+		            }
+		        }, {escape:false}
+		    );
+        }
+	</script>
+	
+	<apex:form id="fm">
+		<apex:actionFunction name="createBatch" action="{!createBatch}" oncomplete="checkJobStatus()" reRender="pageMessages, op_JobStatus"/>
+		
+		<apex:pageBlock id="pb" mode="detail">
+			<apex:outputPanel id="op_JobStatus">
+	        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+	        </apex:outputPanel>
+	        <apex:pageBlockButtons >
+            	<c:nosubmitbutton label="{!$Label.rstk__pagebtn_icinvreconcreatebatch_createreconciliationdetail}" onclick="doCreateBatch()" style="width:160px;" />
+                <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableEdit="true"/>
+            </apex:pageBlockButtons>
+	        
+			<c:division id="icinvreconb_div__c" cntr="{!controller}" />
+
+			<apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+				<apex:pageBlockSectionItem id="abcSection" helptext="{!f.rstk__icinvreconb_abc__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__icinvreconb_abc__c.label}" />
+	                <apex:inputField id="icinvreconb_abc__c" value="{!o.rstk__icinvreconb_abc__c}" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helptext="{!f.rstk__icinvreconb_site__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icinvreconb_site__c.label}" />
+ 				    <c:largeSelectList id="icinvreconb_site__c" cntr="{!controller}" options="{!sysites}" width="250px"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__icinvreconb_iccomcod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icinvreconb_iccomcod__c.label}" />
+                    <apex:selectList id="icinvreconb_iccomcod__c" value="{!o.rstk__icinvreconb_iccomcod__c}" size="1" style="width:250px;">
+                        <apex:selectOptions value="{!iccomcods}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icinvreconb_resp__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icinvreconb_resp__c.label}" />
+                    <c:selectList id="icinvreconb_resp__c" cntr="{!controller}" options="{!planners}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icinvreconb_fritem__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icinvreconb_fritem__c.label}" />
+                   	<apex:outputPanel >
+						<c:autocomplete id="icinvreconb_fritem__c" cntr="{!controller}"
+							slDesc=""
+							query="select icitem_item__r.peitem_item__c from icitem__c where icitem_div__c = 'prm'"
+							queryParms="[['icinvreconb_div__c','Division']]"
+							codeColumn="icitem_item__r.peitem_item__c"
+							descColumn="icitem_item__r.peitem_item__c" width="200px"  />
+					</apex:outputPanel>
+               </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icinvreconb_toitem__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icinvreconb_toitem__c.label}" />
+                    <apex:outputPanel >
+						<c:autocomplete id="icinvreconb_toitem__c" cntr="{!controller}"
+							slDesc=""
+							query="select icitem_item__r.peitem_item__c from icitem__c where icitem_div__c = 'prm'"
+							queryParms="[['icinvreconb_div__c','Division']]"
+							codeColumn="icitem_item__r.peitem_item__c"
+							descColumn="icitem_item__r.peitem_item__c" width="200px"/>
+					</apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+			
+			<apex:pageBlockSection showHeader="false"  columns="2">
+				<!-- <c:nosubmitbutton label="{!$Label.rstk__pagebtn_icinvreconcreatebatch_createreconciliationdetail}" onclick="doCreateBatch()" style="width:160px;" />  -->
+			</apex:pageBlockSection>
+		</apex:pageBlock>
+	</apex:form>
+
+	<c:footerInclude cntr="{!controller}" />
+
+	<script>
+		var LABEL_ValueRequiredForBatchNumber = "{!$Label.ValueRequiredForBatchNumber}";
+		var LABEL_ValueRequiredForABCClass = "{!$Label.ValueRequiredForABCClass}";
+		var LABEL_BatchCreatedForGivenRequest = "{!$Label.BatchCreatedForGivenRequest}";
+		var LABEL_NoRecordsfoundtoCreateBatchforgivenRequest = "{!$Label.NoRecordsfoundtoCreateBatchforgivenRequest}";
+	</script>
+</apex:page>

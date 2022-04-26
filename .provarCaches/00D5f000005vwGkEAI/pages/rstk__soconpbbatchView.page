@@ -1,0 +1,351 @@
+<apex:page id="pg" standardController="rstk__soconpbbatch__c" extensions="rstk.ControllerExtnViewSoconpbbatch,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="f_soconpbill" value="{!$ObjectType.rstk__soconpbill__c.fields}" />
+    <script type="text/javascript">var __sfdcSessionId = '{!GETSESSIONID()}';</script>
+    <script type="text/javascript">var __siteUrlPrefix = '{!$Site.Prefix}';</script>
+    <script type="text/javascript">var __busySpinner = "{!$Resource.rstk__busy}";</script>
+    <script type="text/javascript">var __iconpath = "{!URLFOR($Resource.rstk__treeIcons)}";</script>
+    <apex:includeScript value="{!$Resource.rstk__jquery144min}"/>
+
+    <apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:outputLink value="{!URLFOR($Page.rstk__Listview+'?recType=soconpbbatch')}" >&nbsp;«&nbsp;{!$Label.back_to_list}:&nbsp;{!$Label.Billing_Run_Batch_Header} </apex:outputlink>
+    <!--  apex:outputLink value="{!URLFOR($Page.Listview)+'?recType=soconpbbatch'}" >&nbsp;«&nbsp;{!$Label.back_to_list}: Billing Run Batch Header </apex:outputlink-->
+     <br></br>
+     <br></br>
+     <!-- RSTK-8292 -->
+     <div style="text-align: center;">
+         <c:nosubmitbutton label="{!$Label.rstk__create_sales_invoices}" onclick="createSalesInvoices();" style="width:210px;" />
+         <c:nosubmitbutton label="{!$Label.rstk__delete_sales_invoices}" onclick="deleteSalesInvoices();" style="width:210px;" />
+         <c:nosubmitbutton label="{!$Label.rstk__merge_into_another_batch}" onclick="openMergeBatchPopup();" style="width:210px;" />
+         <c:nosubmitbutton label="{!$Label.rstk__change_invoice_date}" onclick="openChangeInvoiceDatePopup();" style="width:210px;" />
+     </div>
+    <apex:detail />
+    <br></br>
+    <c:standardHeader cntr="{!controller}" showHeader="false"/>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="removeBillsFromBatch" action="{!removeBillsFromBatch}" oncomplete="unblockUI();window.location.reload();" reRender="pageMessages,details" immediate="false"/>
+        <apex:actionFunction name="massUpdateBillStatus" action="{!massUpdateBillStatus}" oncomplete="unblockUI();window.location.reload();" reRender="pageMessages,details" immediate="false"/>
+        <apex:actionFunction name="massUpdateBillStatusForReject" action="{!massUpdateBillStatus}" oncomplete="checkJobStatus();" reRender="op_JobStatus,pageMessages,details" immediate="false"/>
+        
+        <apex:pageBlock title="{!$Label.rstk__contract_periodic_billing_detail}" id="details" mode="detail">
+            <script>var rows = {};  var selectcbxs = []; var matchescbxs = {};</script>
+            <apex:outputPanel id="op_JobStatus">
+                <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            </apex:outputPanel>
+                    
+            <c:nosubmitbutton label="{!$Label.rstk__soconpbbatchview_removeselectedbillingsfrombatch}" onclick="validateAndRemoveBills();" style="width:210px;" />
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            
+            <apex:outputLabel value="{!f_soconpbill.rstk__soconpbill_status__c.label}" />
+            &nbsp;
+            <apex:selectList id="soconpbill_status__c" value="{!billstatus}" size="1" >
+                <apex:selectOptions value="{!billStatuses}"/>
+            </apex:selectList>
+            &nbsp;&nbsp;
+            <c:nosubmitbutton label="{!$Label.rstk__soconpbbatchview_pagebtn_massupdatebillingstatus}" onclick="validateAndUpdateBillStatus();" style="width:210px;" />
+             &nbsp;&nbsp;
+            <c:nosubmitbutton label="Recreate Sales Invoice for Selected Row" onclick="validateAndCreateSIs();" style="width:220px;" rendered="{!recreateSI}" />
+            <br></br>
+            
+            <input type="checkbox" onclick="selectall(this)" />
+            <apex:outputLabel value="{!$Label.rstk__selectall}" />
+            <apex:pageBlockTable value="{!soconpbillRecords}" var="s" id="pb_table2">
+            
+                <apex:column headerValue="{!$Label.rstk__select}">
+                    <apex:inputCheckbox id="selected" value="{!s.selected}" onchange="selectRecord('{!s.key}')"/>
+                    <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                </apex:column>
+                <apex:column headerValue="{!f_soconpbill.Name.label}" >
+                    <apex:outputLink value="/{!s.soconpbill.Id}" target="_top">{!s.soconpbill.Name}</apex:outputLink>
+                </apex:column>
+                <apex:column headerValue="{!f_soconpbill.rstk__soconpbill_socontract__c.label}" value="{!s.soconpbill.rstk__soconpbill_socontract__c}" />
+                <apex:column headerValue="{!f_soconpbill.rstk__soconpbill_fromdate__c.label}" value="{!s.soconpbill.rstk__soconpbill_fromdate__c}" />
+                <apex:column headerValue="{!f_soconpbill.rstk__soconpbill_thrudate__c.label}" value="{!s.soconpbill.rstk__soconpbill_thrudate__c}" />
+                <apex:column headerValue="{!f_soconpbill.rstk__soconpbill_totalamt__c.label}" value="{!s.soconpbill.rstk__soconpbill_totalamt__c}" />
+                <apex:column headerValue="{!f_soconpbill.rstk__soconpbill_status__c.label}" value="{!s.soconpbill.rstk__soconpbill_status__c}" />
+                <apex:column headerValue="{!f_soconpbill.rstk__soconpbill_soinv__c.label}">
+                    <apex:outputField id="soconpbill_soinv__c" value="{!s.soconpbill.rstk__soconpbill_soinv__c}" />
+                    <script>
+                        rows["{!s.key}"] = {
+                            selected: document.getElementById("{!$Component.selected}"),
+                            status: "{!JSENCODE(s.soconpbill.rstk__soconpbill_status__c)}",
+                            rowId: "{!JSENCODE(s.soconpbill.Id)}"
+                        };
+                    </script>
+                </apex:column>
+            </apex:pageBlockTable>
+            <!-- Pagination Buttons Start-->
+            <apex:panelGrid columns="7">
+                <apex:commandButton status="fetchStatus2" reRender="details" value="|<" action="{!setCon.first}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__firstpage}"/>
+                <apex:commandButton status="fetchStatus2" reRender="details" value="<" action="{!setCon.previous}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__previouspage}"/>
+                <apex:commandButton status="fetchStatus2" reRender="details" value=">" action="{!setCon.next}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__nextpage}"/>
+                <apex:commandButton status="fetchStatus2" reRender="details" value=">|" action="{!setCon.last}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__lastpage}"/>
+                <apex:outputText >{!(setCon.pageNumber * size)+1-size}-{!IF((setCon.pageNumber * size)>noOfRecords, noOfRecords,(setCon.pageNumber * size))} of {!noOfRecords}</apex:outputText>
+                <apex:commandButton status="fetchStatus2" reRender="details" value="{!$Label.rstk__soconpbbatchview_pagebtn_refresh}" action="{!refresh}" title="{!$Label.rstk__soconpbbatchview_pagebtn_refreshpage}"/>
+                <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                <apex:actionStatus id="fetchStatus2" startText="Fetching..." stopText=""/>
+                </apex:outputPanel>
+            </apex:panelGrid>
+            <!-- Pagination Buttons End-->
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:Popup popupId="mergeBatchPopup" title="{!$Label.rstk__merge_batch}" onCancel="reloadPage();" cancelCaption="{!$Label.rstk__close}" >
+        <c:FrameGrid height="210px" preLoad="false" jsController="mergeBatch" page="/apex/mergeIntoAnotherBatch" rootId="{!rstk__soconpbbatch__c.Id}"/>
+    </c:Popup>
+    
+    <c:Popup popupId="changeInvoiceDatePopup" title="{!$Label.rstk__change_invoice_date}" onCancel="reloadPage();" cancelCaption="{!$Label.rstk__close}" >
+        <c:FrameGrid height="210px" preLoad="false" jsController="changeInvoiceDate" page="/apex/soconpbbatch" rootId="{!rstk__soconpbbatch__c.Id}"/>
+    </c:Popup>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        mergeBatch_isloading = false;
+        changeInvoiceDate_isloading = false;
+        
+        function reloadPage() {
+            window.location.replace(window.location);
+        }
+        
+        function openMergeBatchPopup() {
+            var batchs = execQuery("select Id, soconpbbatch_soibatch__c from soconpbbatch__c where Id ='" + "{!rstk__soconpbbatch__c.Id}" + "'");
+            if(batchs[0].soconpbbatch_soibatch__c != null)
+            {
+                alert('{!$Label.batchCantBeMerged}');
+                return false;
+            }
+            
+            if (!_isDialogOpen()) {
+                _showDialog('mergeBatchPopup',1300);
+                mergeBatch_load();
+            }
+        }
+        
+        function openChangeInvoiceDatePopup() {
+        	var batchs = execQuery("select Id, soconpbbatch_soibatch__c from soconpbbatch__c where Id ='" + "{!rstk__soconpbbatch__c.Id}" + "'");
+        	if(batchs[0].soconpbbatch_soibatch__c == null)
+            {
+                if (!_isDialogOpen()) {
+	                _showDialog('changeInvoiceDatePopup',800);
+	                changeInvoiceDate_load();
+	            } 
+            }else{
+            	alert('{!$Label.SalesInvoiceExistforBatch}');
+                return false;
+            }
+            
+        }
+
+        //RSTK-8292
+        function createSalesInvoices() {
+            blockUI();
+            setTimeout(function() {
+                var batchs = execQuery("select Id, soconpbbatch_soibatch__c from soconpbbatch__c where Id ='" + "{!rstk__soconpbbatch__c.Id}" + "'", true);
+                if(batchs[0].soconpbbatch_soibatch__c != null) {
+                    showError('{!$Label.Sales_Order_Invoice_Batch_Already_Created}');
+                } else {
+                    try {
+                        var sydata = new sforce.SObject("sydata__c");
+                        sydata.set("sydata_txntype__c", "Create SOINV from SOCONPBILL");
+                        sydata.set("sydata_soconpbbatchid__c", "{!rstk__soconpbbatch__c.Id}");
+                        sydata.set("sydata_soconpbillId__c", null);
+                        sydata.set("sydata_backgroundprocessing__c", true);
+                        var records = [sydata];
+                        var errorMsg;
+                        var cr = sforce.connection.create(records);
+                        if (cr[0].getBoolean("success")) {
+                            setTimeout(function() { checkStatus(cr[0].id); }, 2000);
+                        } else {
+                            throw cr[0].errors.message;
+                        }
+                    } catch (error) {
+                        showError(error);
+                    }
+                }
+            }, 500);
+        }
+
+        //RSTK-8292
+        function deleteSalesInvoices() {
+            blockUI();
+            setTimeout(function() {
+                var batchs = execQuery("select Id, soconpbbatch_soibatch__c from soconpbbatch__c where Id ='" + "{!rstk__soconpbbatch__c.Id}" + "'", true);
+                if(batchs[0].soconpbbatch_soibatch__c == null) {
+                    showError('{!$Label.No_Sales_Order_Invoice_Batch}');
+                } else {
+                    try {
+                        var sydata = new sforce.SObject("sydata__c");
+                        sydata.set("sydata_txntype__c", "Delete SOINV for SOCONPBBATCH");
+                        sydata.set("sydata_soconpbbatchid__c", "{!rstk__soconpbbatch__c.Id}");
+                        sydata.set("sydata_soconpbillId__c", null);
+                        sydata.set("sydata_backgroundprocessing__c", true);
+                        var records = [sydata];
+                        var errorMsg;
+                        var cr = sforce.connection.create(records);
+                        if (cr[0].getBoolean("success")) {
+                            setTimeout(function() { checkStatus(cr[0].id); }, 2000);
+                        } else {
+                            throw cr[0].errors.message;
+                        }
+                    } catch (error) {
+                        showError(error);
+                    }
+                }
+            }, 500);
+        }
+
+        //RSTK-8292
+        function checkStatus(transId) {
+            var query = "select Id, sydata_message__c, sydata_process__c from sydata__c where id ='" + transId + "'";
+            var results = execQuery(query, true);
+            if (results[0].sydata_process__c == "Ready") {
+                setTimeout(function() { checkStatus(transId); }, 2000);
+            } else {
+                if (results[0].sydata_message__c != null) {
+                    showError(results[0].sydata_message__c);
+                } else {
+                    reloadPage();
+                }
+            }
+        }
+
+        //RSTK-8292
+        function showError(error) {
+            alert(error);
+            unblockUI();
+        }
+        
+        function validateAndRemoveBills() {
+            var isChecked = false;
+            
+            for(i = 0; i <= selectcbxs.length; i++) {
+                if(selectcbxs[i] != undefined && selectcbxs[i].checked){
+                    var row = rows[Object.keys(rows)[i]];
+                    if(row.status != 'Rejected') {
+                        alert('{!$Label.onlyRejBillCanBeRemovedFromBatch}');
+                        return false;
+                    }       
+                    isChecked = true ;
+                }
+            }
+            if(!isChecked){
+                alert('{!$Label.selFromListBelow}');            
+            } 
+            else {
+                blockUI();
+                removeBillsFromBatch();             
+            }
+        }
+        
+        function validateAndCreateSIs() {
+            var isChecked = false;
+            var soconpbillId = null;
+            
+            for (i = 0; i <= selectcbxs.length; i++) {
+                if (selectcbxs[i] != undefined && selectcbxs[i].checked) {
+                    var row = rows[Object.keys(rows)[i]];
+                    if (row.status != 'Approved') {
+                        alert('{!$Label.Only_Approved_Billings_Can_Have_Invoices_Created}');
+                        return false;
+                    }
+                    if (isChecked) {
+                        alert('{!$Label.Only_One_Row_Can_Be_Selected_to_Create_an_Invoice}');
+                        return false;
+                    } 
+                    isChecked = true ;
+                    soconpbillId = row.rowId;
+                }
+            }
+            if (!isChecked) {
+                alert('{!$Label.selFromListBelow}');            
+            } 
+            else {
+                blockUI();
+                setTimeout(function() {
+                    var batchs = execQuery("select Id, soconpbbatch_soibatch__c from soconpbbatch__c where Id ='" + "{!rstk__soconpbbatch__c.Id}" + "'", true);
+                    if (batchs[0].soconpbbatch_soibatch__c == null) {
+                        showError('{!$Label.No_Sales_Invoice_Batch_Use_Create_Sales_Invoices}');
+                    } else {
+                        try {
+                            var sydata = new sforce.SObject("sydata__c");
+                            sydata.set("sydata_txntype__c", "Create SOINV from SOCONPBILL");
+                            sydata.set("sydata_soconpbbatchid__c", "{!rstk__soconpbbatch__c.Id}");
+                            sydata.set("sydata_soconpbillId__c", soconpbillId);
+                            sydata.set("sydata_backgroundprocessing__c", true);
+                            var records = [sydata];
+                            var errorMsg;
+                            var cr = sforce.connection.create(records);
+                            if (cr[0].getBoolean("success")) {
+                                setTimeout(function() { checkStatus(cr[0].id); }, 2000);
+                            } else {
+                                throw cr[0].errors.message;
+                            }
+                        } catch (error) {
+                            showError(error);
+                        }
+                    }
+                }, 500);
+            }
+        }
+
+        function selectall(el) {
+            for(i = 0; i < selectcbxs.length; i++) {
+                selectcbxs[i].checked = el.checked;         
+            }
+        }
+        
+        function selectRecord(rowid) {
+            var row = rows[rowid];
+        }
+        
+        function validateAndUpdateBillStatus() {
+            var billStatus = document.getElementById('pg:fm:details:soconpbill_status__c').value;
+            var isChecked = false;
+            if(!billStatus || billStatus.length == 0) {
+                alert('{!$Label.specifyNewStatusValue}');
+                return false;
+            }
+            
+            for(i = 0; i <= selectcbxs.length; i++) {
+                if(selectcbxs[i] != undefined && selectcbxs[i].checked){
+                    var row = rows[Object.keys(rows)[i]];
+                    if(billStatus != 'Rejected' && row.status == 'Rejected') {
+                        alert('{!$Label.statusCantBeChangedOnRejectedBillings}');
+                        return false;
+                    }                   
+                    if(billStatus != 'Invoiced' && row.status == 'Invoiced') {
+                        alert('{!$Label.statusCantBeChangedOnInvoicedBillings}');
+                        return false;
+                    }
+
+                    isChecked = true ;
+                }
+            }
+            if(!isChecked){
+                alert('{!$Label.selFromListBelow}');            
+            } 
+            else {
+                blockUI();
+                if(billStatus == 'Rejected') {
+                    massUpdateBillStatusForReject();
+                }
+                else {
+                    massUpdateBillStatus();
+                }
+                                
+            }
+        }
+        
+        function doAfterJobComplete(pl) {
+            if(pl.iserror__c)
+                unblockUI();
+            else {
+                window.location.reload();
+            }
+        }
+    </script>
+</apex:page>

@@ -1,0 +1,394 @@
+<apex:page id="pg" standardController="rstk__ibship__c" extensions="rstk.ControllerExtnIbship,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__ibship__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__ibship__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_ibship}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_autocomplete}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__autocomplete, 'autocomplete/css/jquery.autocomplete.css')}" />
+    
+    <script>
+        var mode = null;
+        var divId = '{!o.rstk__ibship_div__c}';
+        var contentsClicked = false;
+        function pageInit(type) {
+            mode = type;
+        }
+        
+        var autoCompleteRefs = {};
+
+        function createFieldChangeHandlers() {
+            fieldChangeHandlers = {
+                ibship_ibroute__c: ibrouteChanged
+            };
+                
+        }
+        
+        function doRecalcDates() {
+            doRemoteAction({
+                controllerMethod: getController("ControllerExtnIbship").recalculateDatesNeeded,
+                parameters: { ibshipId: pageParms.recordId },
+                callback: function(response) {
+                    if(response && response.success == 'true') {
+                        window.location.reload();
+                    } else {
+                        alert("{!$Label.rstk__an_error_occurred_during_processing}" + "\n\n" + response.error);
+                        unblockUI();
+                    }
+                },
+                blockui: true,
+                waitMessage: "{!$Label.rstk__please_wait}",
+                allowRuninbackground: false,
+                uiBlockedAfterComplete: true
+            });
+        }
+        
+        function doUpdatePODates() {
+            doRemoteAction({
+                controllerMethod: getController("ControllerExtnIbship").updatePODates,
+                parameters: { ibshipId: pageParms.recordId },
+                callback: function(response) {
+                    if(response && response.success == 'true') {
+                        window.location.reload();
+                    } else {
+                        alert("{!$Label.rstk__an_error_occurred_during_processing}" + "\n\n" + response.error);
+                        unblockUI();
+                    }
+                },
+                blockui: true,
+                waitMessage: "{!$Label.rstk__please_wait}",
+                allowRuninbackground: false,
+                uiBlockedAfterComplete: true
+            });
+        }
+        
+        function doSaveAll() {
+            blockUI();
+            window.setTimeout(saveAll,300);
+            return false;
+        }
+
+        // It is necessary to save locally in edit mode to avoid concurrency issues when child records update the ibship_datecalcreqd__c field.
+        function saveAll() {
+            try {
+                var ibships = execQuery("select id, ibship_ibroute__c, ibship_routetype__c, ibship_comments__c from ibship__c where id = '" + pageParms.recordId + "'", true);
+                if (ibships) {
+                    var ibship = ibships[0];
+                    var updateIbship = false;
+                    if (ibship.ibship_ibroute__c != sfffGetFieldValue('ibship_ibroute__c')) {
+                        ibship.ibship_ibroute__c = sfffGetFieldValue('ibship_ibroute__c');
+                        updateIbship = true;
+                    }
+                    if (ibship.ibship_routetype__c != sfffGetFieldValue('ibship_routetype__c')) {
+                        ibship.ibship_routetype__c = sfffGetFieldValue('ibship_routetype__c');
+                        updateIbship = true;
+                    }
+                    if (ibship.ibship_comments__c != sfffGetFieldValue('ibship_comments__c')) {
+                        ibship.ibship_comments__c = sfffGetFieldValue('ibship_comments__c');
+                        updateIbship = true;
+                    }
+
+                    if (updateIbship) {
+                        var result = sforce.connection.update(ibships);
+                        if (!result[0].getBoolean("success")) {
+                            unblockUI();
+                            alert("{!$Label.rstk__failed_to_update_inbound_shipment}" + result[0]);
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                unblockUI();
+                alert("{!$Label.rstk__ibhsiperror}" + e);
+                return;
+            }
+            saveSteps();
+        }
+        
+        function ibrouteChanged() {
+            var ibrouteId = sfffGetFieldValue('ibship_ibroute__c');
+            if (ibrouteId) {
+                ibrouteInfo = sfffLookupField('ibroute__c', ibrouteId,['ibroute_routetype__c']);
+                sfffSetFieldValue('ibship_routetype__c', ibrouteInfo.ibroute_routetype__c);
+            }
+        }
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doRefreshDetails" action="{!setCurrentContainerId}" oncomplete="contdtl_reset();return false;" immediate="true">
+            <apex:param name="firstParam" assignTo="{!ibshipcontId}" value="" />
+        </apex:actionFunction>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSave="true" disableCancel="true"/>
+                <apex:commandButton onclick="doPageSave();return false;" value="{!$Label.rstk__pagebtn_save}" rendered="{!isNew}" style="width:50px"/>
+                <apex:commandButton onclick="doSaveAll();return false;" value="{!$Label.rstk__pagebtn_save}" style="width:50px" rendered="{!isEdit}"/>
+                <apex:commandButton onclick="doView();return false;" value="{!$Label.rstk__pagebtn_cancel}" immediate="true" style="width:50px" rendered="{!isEdit}"/>
+                <apex:commandButton onclick="doCancel();return false;" value="{!$Label.rstk__pagebtn_cancel}" rendered="{!isNew}" immediate="true" style="width:50px"/>
+                <apex:commandButton onclick="doRecalcDates();return false;" value="{!$Label.rstk__ibship_pagebtn_calculatedatesneeded}" style="width:150px" disabled="{!!enableCalculateDates}" rendered="{!isView}"/>
+                <apex:commandButton onclick="doUpdatePODates();return false;" value="{!$Label.rstk__ibship_pagebtn_updateposwithplannedarrivaldate}" style="width:210px" disabled="{!DisableIBUpdateDates}" rendered="{!isView}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+
+            </apex:outputPanel>
+            
+            <c:division id="ibship_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__titleinformation}" columns="1" > 
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ibship_shipmentid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ibship_shipmentid__c.label}"/>
+                    <c:inputField id="ibship_shipmentid__c" required="true" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ibship_ibroute__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ibship_ibroute__c.label}"/>
+                    <c:selectList id="ibship_ibroute__c" required="true" cntr="{!controller}" options="{!ibroutes}" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ibship_routetype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ibship_routetype__c.label}"/>
+                    <c:selectList id="ibship_routetype__c" required="true" cntr="{!controller}" options="{!ibrtetypes}" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ibship_comments__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ibship_comments__c.label}"/>
+                    <c:inputText id="ibship_comments__c" required="false" cntr="{!controller}" maxlength="200" width="350px" tabIndex="6"/>
+                </apex:pageBlockSectionItem>                
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__ibship_ibupdatedate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__ibship_ibupdatedate__c.label}"/>
+                    <apex:outputField value="{!o.rstk__ibship_ibupdatedate__c}"></apex:outputField>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Ibshipsteps" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__steps}" name="tab_Ibshipsteps" id="tab_Ibshipsteps">
+                    <c:EditableGrid width="1150" jsController="ibshipsteps" data="{!ibshipstepGrid}" editable="{!isEdit}" ispopup="false" disableSave="true"/>
+<script>
+    ibshipsteps.onGridLoad = function() {
+        ibshipsteps.getSelectableRows().each(function (index, el) {
+            var row = jQuery(this);
+            var recId = ibshipsteps.getRowValue(row, 'Id');
+            if (!isEmpty(recId)) {
+                ibshipsteps.getRowObj(row, 'ibshipstep_stepid__c').attr('disabled', true);
+            }
+        });
+        ibshipsteps.getRows().each(function (index, el) {
+            var row = jQuery(this);
+            ibshipsteps.getRowObj(row, 'ibshipstep_needdepartdate__c').attr('disabled', true);
+            ibshipsteps.getRowObj(row, 'ibshipstep_needarrivaldate__c').attr('disabled', true);
+        });
+    }
+    
+    ibshipsteps.onSaved = function(row) {
+        saveConts();
+    }
+    
+    ibshipsteps.onSaveFailed = function(row) {
+        unblockUI();
+    }
+    
+    ibshipsteps.resetRow = function(row) {
+        self=this;
+        ibshipstepsHandler.prototype.resetRow.call(self, row);
+        var maxSeq = -1;
+        ibshipsteps.getRows().each(function(){
+            var r=jQuery(this);
+            var v = parseLocaleFloat(ibshipsteps.getRowValue(r, 'ibshipstep_seq__c')) || 0;
+            if (maxSeq < v) {
+                maxSeq = v;
+            }
+        });
+        ibshipsteps.setRowValue(row, "ibshipstep_seq__c", maxSeq + 1);
+    }
+    
+    function saveSteps() {
+        if (ibshipsteps.validate()) {
+            ibshipsteps_save();
+        }
+    }
+    
+</script>
+                    </apex:tab>
+                <apex:tab label="{!$Label.rstk__containers}" name="tab_Ibshipconts" id="tab_Ibshipconts">
+                    <c:EditableGrid width="1150" jsController="ibshipconts" data="{!ibshipcontGrid}" editable="{!isEdit}" ispopup="false" disableSave="true"/>
+<script>
+    ibshipconts.onGridLoad = function() {
+        self=this;
+        this.getRows().each(function (index, el) {
+            var row = jQuery(this);
+            var contId = self.getRowValue(row, 'Id');
+            if (isEmpty(contId)) contId = ibshipconts.rowIds[index];
+            if (!isEmpty(contId)) {
+                self.getRowObj(row, 'ibshipcont_containerid__c').attr('disabled', true);
+                self.getRowObj(row, 'contents__g').html('<button type="button" class="btn" onclick="showContDetails(\'' + contId + '\');">Contents</button>');
+            }
+        });
+    }
+    
+    function showContDetails(contId) {
+        blockUI("{!$Label.rstk__retrieving_contents}");
+        contentsClicked = true;
+        doRefreshDetails(contId);
+        return false;
+    }
+    
+    ibshipconts.onSaveFailed = function(row) {
+        unblockUI();
+    }
+    
+    ibshipconts.onSaved = function(row) {
+        doView();
+    }
+    
+    function saveConts() {
+        if (ibshipconts.validate()) {
+            ibshipconts_save();
+        } else {
+            unblockUI();
+        }
+    }
+    
+</script>
+                    </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>    
+                <apex:tab label="{!$Label.rstk__pagetab_confsel_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+        <apex:outputPanel >
+            <c:Popup popupId="ibshipcontdtlpopup" title="{!$Label.rstk__container_contents}" onOk="contdtl_saveAndClose();">
+                <apex:pageBlockSection id="pbs_Contents" showHeader="false" title="{!$Label.rstk__ibship_contents}" columns="2" > 
+                    <apex:pageBlockSectionItem helpText="{!$Label.rstk__filter_purchase_order_lines_by_item}">
+                        <apex:outputLabel value="{!$Label.rstk__itemfilter}"/>
+                        <apex:outputPanel >
+                            <apex:inputText id="item__c_autocomplete" styleClass="ac_input" size="30"/>
+                            <apex:inputText id="item__c" onchange="itemFilterChanged(this);" style="display:none"/>
+                            <script>autocompleteParms["{!$Component.item__c}"] = {query:"select id, name from poitem__c where poitem_div__c = '{!currDivision.id}'", queryParms:[], codeColumn:"id", descColumn:"Name"};</script>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!$Label.rstk__filter_purchase_order_lines_by_vendor}">
+                        <apex:outputLabel value="{!$Label.rstk__vendorfilter}"/>
+                        <apex:selectlist id="vendor__c" size="1" onchange="vendorFilterChanged(this);" style="width:250px">
+                            <apex:selectOptions value="{!povends}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <apex:outputPanel id="op_DetailsGrid">
+                    <c:EditableGrid jsController="contdtl" data="{!ibshipcontdtlGrid}" editable="true" ispopup="true"/>
+                 </apex:outputPanel>
+            </c:Popup>
+        </apex:outputPanel>
+        
+<script>
+    var vendorFilter;
+    var itemFilter;
+    contdtl.onGridLoad = function() {
+        self=this;
+        var inStr = '';
+        contdtl.getSelectableRows().each(function (index, el) {
+            var row = jQuery(this);
+            inStr += (inStr == "" ? "'" : ",'") + self.getRowValue(row, 'ibshipcontdtl_poline__c') + "'";
+        });
+        if (!isEmpty(inStr)) {
+            var polines = execQuery("select Id, poline_item__r.Name from poline__c where id in ("+inStr+")");
+            var polineMap = {};
+            if (polines != null && polines.length > 0) {
+                for (var i=0;i<polines.length;i++) {
+                    polineMap[polines[i].Id] = polines[i].poline_item__r.Name;
+                }
+            }
+            var rows = contdtl.getSelectableRows();
+            for (var i=0;i<rows.length;i++) {
+                var row = jQuery(rows[i]);
+                this.setRowValue(row, 'item__g', polineMap[self.getRowValue(row, 'ibshipcontdtl_poline__c')]);
+            }
+        }
+    
+        if (contentsClicked) {
+            unblockUI();
+            sfffSetFieldValue('item__c', '');
+            sfffSetFieldValue('vendor__c', '');
+            _showDialog('ibshipcontdtlpopup', 900);
+        }
+        contentsClicked = false;
+    }
+    
+    contdtl.entryChanged = function(row, rowNum, name, value) {
+        if (name == 'ibshipcontdtl_poline__c') {
+            if (!isEmpty(value)) {
+                var polineInfo = sfffLookupField('poline__c', value, ['poline_item__c', 'poline_item__r.Name', 'poline_qtyoutstdg__c']);
+                this.setRowValue(row, 'item__g', polineInfo.poline_item__r.Name);
+                this.setRowValue(row, 'ibshipcontdtl_qty__c', polineInfo.poline_qtyoutstdg__c);
+            }
+        }
+   
+        if (name=='ibshipcontdtl_qty__c') {
+            if (value < 0) {
+                showError("{!$Label.rstk__the_value_must_be_greater_than_zero}");
+                value = 1;
+                this.setRowValue(row, name, value);
+                this.getRowObj(row, name).focus();
+            }
+        }
+    }
+    
+    contdtl.onSaved = function(row) {
+        doView();
+    }
+
+    function itemFilterChanged(el) {
+        itemFilter = el.value;
+        filterChanged();
+    }
+    
+    function vendorFilterChanged(el) {
+        vendorFilter = el.value;
+        filterChanged();
+    }
+    
+    function filterChanged(el) {
+        var polineQuery = "select Id, Name, poline_ordno__r.pohdr_ordno__c from poline__c where poline_qtyoutstdg__c > 0 and poline_div__c = '" + divId + "'";
+        if (!isEmpty(itemFilter)) {
+            polineQuery += " and poline_item__c = '" + itemFilter + "' ";
+        }
+        if (!isEmpty(vendorFilter)) {
+            polineQuery += " and poline_ordno__r.pohdr_vendno__c = '" + vendorFilter + "' ";
+        }
+
+        var rows = contdtl.getRows();
+        for (var i=0;i<rows.length;i++) {
+            var row = jQuery(rows[i]);
+            var acfld = window.autoCompleteRefs[contdtl.getRowObj(row, 'ibshipcontdtl_poline__c')[0].id];
+            acfld.flushCache();
+            acfld.getOptions().extraParams["query"] = polineQuery;
+        }
+    }
+
+    
+</script>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

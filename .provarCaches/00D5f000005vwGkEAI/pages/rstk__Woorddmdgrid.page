@@ -1,0 +1,280 @@
+<apex:page id="pg" standardController="rstk__wocst__c" extensions="rstk.ControllerExtnWoorddmdgrid,rstk.RemoteQueryController" sideBar="false" showHeader="false" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_woorddmdgrid}" enableAutocomplete="true" enableQuickMenu="false" showHeader="false"/>
+ 	<apex:includeScript value="{!$Resource.rstk__sublist}"/>
+  	<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    
+    <apex:form id="fm">
+        <apex:pageBlock id="pb" mode="detail">
+			<c:PageableGrid width="1550" jsController="woorddmds" data="{!woorddmdGrid}" editable="true" pageSize="30" ispopup="false"/>
+<script>
+
+	function gup( name ) {
+		name = name.replace(/[\[]/,"\\\[").replace(/[\]]/,"\\\]");
+		var regexS = "[\\?&]"+name+"=([^&#]*)";
+		var regex = new RegExp( regexS );
+		var results = regex.exec( window.location.href );
+		if( results == null )
+			return '';
+		else
+			return results[1];
+	}
+
+	(function() {
+	    var lastHt = 0;
+	    (function resizeTimer(){
+	        var curHt = document.body.offsetHeight;
+	        if( lastHt != curHt ) {
+	        	if (window.parent) {
+	            	window.parent.postMessage('height:' + curHt + ';cc1:' + gup('cc1'), '*');
+	            }
+	            lastHt = curHt;
+	        }
+	        window.setTimeout( resizeTimer, 500);
+	    })();
+	})();
+
+	var enableAddFromList = {!enableAddFromList};
+	
+	function invokeAddFromList() {
+		window.open('/apex/ComponentAddFromList?type=woorddmd&wocst=' + '{!wocst.Id}' + '&cc=' + '{!comcodId}', 
+			'AddFromListWindow', "width=800,height=480");
+	}
+	
+	function moveRowToTop(rowEl) {
+		var pNode = rowEl.parentNode;
+		var row = pNode.removeChild(rowEl);
+		pNode.insertBefore(row, pNode.firstChild);
+		woorddmds.rowIds.unshift('');
+	}
+	
+	woorddmds.onGridLoad = function() {
+		self=this;
+		
+		if (woorddmds_hasAnyErrors()) { // Need to reset grid
+			if (woorddmds.rowIds.length > 0) {
+				var hasExistingRowIds = false;
+				for (var i=0; i<woorddmds.rowIds.length; i++) {
+					if (woorddmds.rowIds[i] != "") {
+						hasExistingRowIds = true;
+						break;
+					}
+				}
+				if (hasExistingRowIds) {
+					while (woorddmds.rowIds[0] == "") {
+						woorddmds.rowIds.shift();
+					}
+				}
+			}
+		}
+		
+		var rowsToTop = [];
+		var rows = woorddmds.getSelectableRows();
+		for (var i=0;i<rows.length;i++) {
+			var row = jQuery(rows[i]);
+			var woorddmdId = woorddmds.getRowValue(row, 'Id');
+			if (isEmpty(woorddmdId)) woorddmdId = woorddmds.rowIds[i];
+			if (!isEmpty(woorddmdId)) {
+				woorddmds.getRowObj(row, 'woorddmd_compitem__c').closest('td').find('.ac_input').attr('disabled', true);
+				var qtyDec = ensureInt(woorddmds.getRowValue(row, 'temp_decnumber1__c'));
+				var qtyPer = woorddmds.getRowDecimal(row, 'woorddmd_qtyper__c');
+				if (qtyPer) {
+					woorddmds.setRowValue(row, 'woorddmd_qtyper__c', formatLocaleFloat(qtyPer, qtyDec));
+				}
+				if (woorddmds.getRowValue(row, 'woorddmd_fixqtyflag__c') == 'true') {
+					woorddmds.getRowObj(row, 'woorddmd_qtyper__c').attr('disabled', true);
+				}
+				if (woorddmds.getRowValue(row, 'woorddmd_ishomeproj__c') == 'false') {
+					woorddmds.getRowObj(row, 'woorddmd_homeprojind_pl__c').attr('disabled', true);
+				}
+			} else {
+				woorddmds.getRowObj(row, 'woorddmd_compitem__c').closest('td').find('.ac_input').attr('disabled', false);
+				if (woorddmds_hasAnyErrors()) {
+					rowsToTop.push(row);
+				}
+			}
+		}
+		
+		while (rowsToTop.length > 0) {
+			moveRowToTop(rowsToTop.shift()[0]);
+		}
+		
+		if (enableAddFromList) {
+			if (jQuery('input[id*=addFromList]').length == 0) {
+				jQuery('input[id*=woorddmds_add]').after('<input class="btn" id="addFromList" onclick="invokeAddFromList();" type="button" value="Add From List">');
+			}
+		}
+	}
+	
+	woorddmds.validate = function() {
+		self=this;
+		
+		var compitemIds = "";
+		var qtyDecMap = {};
+
+		var rows = woorddmds.getSelectableRows();
+		for (var i=0;i<rows.length;i++) {
+			var row = jQuery(rows[i]);
+			var woorddmdId = woorddmds.getRowValue(row, 'Id');
+			if (isEmpty(woorddmdId)) {
+				var compitemId = woorddmds.getRowValue(row, 'woorddmd_compitem__c');
+				if (isEmpty(compitemId)) {
+					alert("{!$Label.ComponentItemReqd2}");
+					return false;
+				} else {
+					compitemIds += ((compitemIds == "" ? "'" : ",'") + compitemId + "'");
+				}
+			}
+		}
+		
+		if (compitemIds != "") {
+			var icitems = execQuery('select Id, formula_qtydecimal__c from icitem__c where Id IN (' + compitemIds +  ')');
+			if (icitems != null && icitems.length > 0) {
+				for (var i=0;i<icitems.length;i++) {
+					qtyDecMap[icitems[i].Id] = icitems[i].formula_qtydecimal__c;
+				}
+			}
+		}
+		
+		for (var i=0;i<rows.length;i++) {
+			var row = jQuery(rows[i]);
+			var woorddmdId = woorddmds.getRowValue(row, 'Id');
+			var qtyDec = 0;
+			if (isEmpty(woorddmdId)) woorddmdId = woorddmds.rowIds[i];
+			if (!isEmpty(woorddmdId)) {
+				qtyDec = ensureInt(woorddmds.getRowValue(row, 'temp_decnumber1__c'));
+			} else {
+				qtyDec = ensureInt(qtyDecMap[woorddmds.getRowValue(row, 'woorddmd_compitem__c')]);
+			}
+				
+			var qtyPer = woorddmds.getRowValue(row, 'woorddmd_qtyper__c');
+			if (qtyPer) {
+				if (isNaNLocale(qtyPer)) {
+					alert("{!$Label.InvalidQtyPer}");
+					return;
+				}
+				qtyPer = parseLocaleFloat(qtyPer);
+				if (qtyPer <= 0) {
+					alert("{!$Label.QtyPerMustBeGT0}");
+					return;
+				}
+			} else {
+				alert("{!$Label.QtyPerIsReqd}");
+				return;
+			}
+		}
+		return true;
+	}
+	
+	woorddmds.someMethod = function() {
+		if (woorddmds.isDirty()) {
+			woorddmds_saveAndClose();
+		} else {
+			window.top._closeDialog();
+		}
+	}
+	
+	woorddmds.onSaved = function(row) {
+		if (parent) {
+			if (parent.unblockUI) {
+				parent.unblockUI();
+			}
+			if (parent.doRefreshComponents) {
+				parent.doRefreshComponents();
+			}
+		}
+	}
+	
+	woorddmds.entryChanged = function(row, rowNum, name, value) {
+		if (name == 'woorddmd_compitem__c') {
+			if (!isEmpty(value)) {
+				var icitemInfo = sfffLookupField('icitem__c', value, ['icitem_homeprojindind__c', 'icitem_iccomcod__r.iccomcod_dflthomeprojind_pl__c', 'icitem_homeprojind__c', 'icitem_invuom__r.Name', 'icitem_descr__c']);
+				var homeProjInd = (icitemInfo.icitem_homeprojindind__c == 'true' ? icitemInfo.icitem_iccomcod__r.iccomcod_dflthomeprojind_pl__c : icitemInfo.icitem_homeprojind__c);
+				woorddmds.getRowObj(row, 'woorddmd_homeprojind_pl__c').attr('disabled', (homeProjInd != 'Project Home'));
+				if (homeProjInd != 'Project Home') {
+					woorddmds.setRowValue(row, 'woorddmd_homeprojind_pl__c', 'Not Home');
+				} else {
+					woorddmds.setRowValue(row, 'woorddmd_homeprojind_pl__c', 'Project Home');
+				}
+				woorddmds.setRowValue(row, 'woorddmd_desc__c', icitemInfo.icitem_descr__c);
+				woorddmds.getRowObj(row, 'woorddmd_invuom__c')[0].nextSibling.innerHTML = icitemInfo.icitem_invuom__r.Name;
+			} else {
+				woorddmds.setRowValue(row, 'woorddmd_desc__c', '');
+				woorddmds.getRowObj(row, 'woorddmd_invuom__c')[0].nextSibling.innerHTML = '';
+			}
+		} else if (name == 'woorddmd_homeprojind_pl__c') {
+			if (!isEmpty(value)) {
+				var woorddmdId = woorddmds.getRowValue(row, 'Id');
+				if (!isEmpty(woorddmdId)) {
+					var projInfo = sfffLookupField('woorddmd__c', woorddmdId, ['woorddmd_div__r.sydiv_dflthomeproj__c', 'woorddmd_proj__c']);
+					var homeProjInd = woorddmds.getRowValue(row, 'woorddmd_homeprojind_pl__c');
+					if (homeProjInd == Enums.StaticList.HomeProjectInd.ProjectHome) {
+						woorddmds.setRowValue(row, 'woorddmd_issproj__c', projInfo.woorddmd_div__r.sydiv_dflthomeproj__c);
+					} else if (homeProjInd == Enums.StaticList.HomeProjectInd.NotHome) {
+						woorddmds.setRowValue(row, 'woorddmd_issproj__c', projInfo.woorddmd_proj__c);
+					}
+				}
+			}
+		}
+	}
+	
+	woorddmdsHandler.prototype.resetRow = function(row) { 
+		RowHandlerBase.prototype.resetRow.call(this, row);
+          this.setRowValue(row, "woorddmd_issproj__c", "");
+          this.setRowValue(row, "woorddmd_fixqtyflag__c", "");
+          this.setRowValue(row, "woorddmd_ishomeproj__c", "");
+          this.setRowValue(row, "temp_decnumber1__c", "0");
+          this.setRowValue(row, "woorddmd_compitem__c", "");
+          this.setRowValue(row, "woorddmd_desc__c", "");
+          this.setRowValue(row, "woorddmd_invuom__c", "");
+          this.setRowValue(row, "woorddmd_qtyper__c", "0");
+          this.setRowValue(row, "woorddmd_qtyreq__c", "");
+          this.setRowValue(row, "woorddmd_qtyiss__c", "");
+          this.setRowValue(row, "woorddmd_qtyoutstdg__c", "");
+          this.setRowValue(row, "woorddmd_homeprojind_pl__c", "Not Home");
+          this.setRowValue(row, "temp_number1__c", "");
+          this.setRowValue(row, "notesAttach", "");
+          
+          moveRowToTop(row[0]);
+   };
+	
+	woorddmds.initRow = function(row) {
+		if (isEmpty(woorddmds.getRowValue(row, 'Id'))) {
+			woorddmds.getRowObj(row, 'woorddmd_compitem__c').attr('disabled', false);
+			woorddmds.getRowObj(row, 'woorddmd_homeprojind_pl__c').attr('disabled', true);
+			woorddmds.setRowValue(row, "woorddmd_issproj__c", "");
+			woorddmds.setRowValue(row, "woorddmd_fixqtyflag__c", "");
+			woorddmds.setRowValue(row, "woorddmd_ishomeproj__c", "");
+			woorddmds.setRowValue(row, "temp_decnumber1__c", "0");
+			woorddmds.setRowValue(row, "woorddmd_compitem__c", "");
+			woorddmds.setRowValue(row, "woorddmd_desc__c", "");
+			woorddmds.setRowValue(row, "woorddmd_invuom__c", "");
+			woorddmds.setRowValue(row, "woorddmd_qtyper__c", "0");
+			woorddmds.setRowValue(row, "woorddmd_qtyreq__c", "");
+			woorddmds.setRowValue(row, "woorddmd_qtyiss__c", "");
+			woorddmds.setRowValue(row, "woorddmd_qtyoutstdg__c", "");
+			woorddmds.setRowValue(row, "woorddmd_homeprojind_pl__c", "Not Home");
+			woorddmds.setRowValue(row, "temp_number1__c", "");
+			woorddmds.setRowValue(row, "notesAttach", "");
+		}
+	};
+
+</script>
+
+        </apex:pageBlock>
+		     <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+             
+            <c:Popup popupId="notesAttach" title="{!$Label.rstk__pagepopup_woorddmdgrid_notesandattachments}" cancelCaption="Close">
+                <iframe id="NotesAndAttachments" height="320px" width="100%" frameborder="0" src="about:blank"></iframe>
+            </c:Popup>     
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+</apex:page>

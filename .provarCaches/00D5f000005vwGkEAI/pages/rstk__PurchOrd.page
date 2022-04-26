@@ -1,0 +1,2047 @@
+<apex:page id="pg" standardController="rstk__pohdr__c" extensions="rstk.ControllerExtnPurchOrd,rstk.ControllerExtnPurchOrdHelper,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <style>
+            .modal {
+                background-color:#fff;
+                display:none;
+                width:740px;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+                z-index: 3636;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px; 
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50px #ccc;
+            }
+            
+            .modal h2 {
+                margin:0px;
+                padding:10px 0 10px 45px;
+                border-bottom:1px solid #333;
+                font-size:20px;
+            }
+            
+            .modalPopupX{
+                 z-index: 30011;
+             }
+            .popupBackgroundX{
+                 z-index: 30010;
+            }
+            
+            .helpText {
+                z-index: 99996;
+            }
+                
+            div.hideCurrDate span.dateInput span.dateFormat{
+                display:none;
+            }
+                
+            td.cellBorder{ border: solid #000 0px;}
+            
+            .stdLabel {font-family: Arial, Helvetica, sans-serif; font-size: 91%; font-weight: bold; color: #4A4A56;}
+            .stdLabelHeadline {font-family: Arial, Helvetica, sans-serif; font-size: 100%; font-weight: bold; color: #4A4A56;}
+            
+            #datePicker {
+                z-index: 10001;
+            }
+
+            .autoCompleteBoxScrolling {
+                z-index: 11000;
+            }
+            
+
+            
+    </style>
+    
+    <outputPanel rendered="{!useLightningStyleSheets && !isClassic}">
+	    <style>
+			@media (min-width: 30em) {
+			    body input[type="text"],.slds-scope input[type="text"] {
+			        min-width:4rem;
+			    }
+			}
+			
+			@media (min-width: 30em) {
+			    body select,body select[size='0'],body select[size='1'],.slds-scope select,.slds-scope select[size='0'],.slds-scope select[size='1'] {
+			        min-width:6rem
+			    }
+			}
+			
+	    </style>
+    </outputPanel>
+
+    <apex:stylesheet value="/sCSS/21.0/sprites/1297816277000/Theme3/default/gc/versioning.css"/>
+    <apex:variable var="o" value="{!pohdr}" />
+    <apex:variable var="hr" value="{!pohdrrev}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__pohdr__c.fields}" />
+    <apex:variable var="f_sl" value="{!$ObjectType.rstk__poline__c.fields}" />
+    <apex:variable var="f_cst" value="{!$ObjectType.rstk__pocst__c.fields}" />
+    <apex:variable var="f_poaddr" value="{!$ObjectType.rstk__pohdraddr__c.fields}" />
+    <apex:variable var="f_porcptap" value="{!$ObjectType.rstk__porcptap__c.fields}" />
+    <apex:variable var="f_hr" value="{!$ObjectType.rstk__pohdrrev__c.fields}" />
+    <apex:variable var="f_lr" value="{!$ObjectType.rstk__polinerev__c.fields}" />
+    <apex:variable var="hrlineMod" value="{!$ObjectType.rstk__polinerev__c.fields}" />
+    <apex:variable var="af" value="{!$ObjectType.rstk__pohdraddr__c.fields}" />
+    <apex:variable var="fdim" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <apex:variable var="odiv" value="{!o.pohdr_div__r.rstk__sydiv_descr__c}" />
+    <apex:variable var="f_c" value="{!$ObjectType.rstk__sycurr__c.fields}" />
+    <apex:variable var="f_poitem" value="{!$ObjectType.rstk__poitem__c.fields}" />
+    <apex:variable var="pocntl" value="{!pocntl}" />
+    
+    
+    <apex:variable var="f_syusr" value="{!$ObjectType.rstk__syusr__c.fields}" />
+    <apex:variable var="f_poapproval" value="{!$ObjectType.rstk__poapproval__c.fields}" />
+    <apex:variable var="f_polineaddr" value="{!$ObjectType.rstk__polineaddr__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstk__customext__c.fields}" />
+    
+    <apex:variable var="debugMode" value="false" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_purchord}" displayListLink="true" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}" />
+    <apex:includeScript value="{!$Resource.rstk__purchOrd_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+
+    <script>
+        var pohdrId = '{!o.id}';
+        var divId = '{!o.rstk__pohdr_div__c}';
+        var cmpId = '{!sycmp.Id}';
+        var siteId = '{!o.rstk__pohdr_site__c}';
+        var currentVendor = '{!o.rstk__pohdr_vendno__c}';
+        var divAddresses = {!divaddresses};
+        var allowSave = '{!allowSave}';
+        var existingLines;
+        var fileSelection = '{!fileSelection}';
+        var currDiv = '{!currDiv}';
+        var newLines = new Object();
+        var linesMod = new Object();
+        var linesRevMod = new Object();
+        var linesAddrMod = new Object();
+        var linesAddrRevMod = new Object();
+        var pocstMod = new Object();
+        var dimvalsMod = new Object();
+        var linesUpdated = new Object();
+        var linesToRemove = new Array();
+        var selectedLines = new Array();
+        var lineTemplate;
+        var lineRevTemplate;
+        var printPO = {!printPO};
+        var recoverSave = {!recoverSave};
+        var modalTypeRevisions = 'revisions';
+        var modalTypeDetails = 'details';
+        var modalTypeNewItem = 'newItem';
+        var accruedAcctNotSet = {!accruedAcctNotSet};
+        var showProject = {!showProject};
+        var hdrCustomFields = new Object();
+        var lineCustomFields = new Object();
+        var disableGroupA = '{!disableGroupA}';
+        var isInvDiv = {!showInvDivision};
+        var isCSG = {!isCSG};
+        var isWBSActive = {!isWBSActive};
+        var isVATActive = {!isVATActive};
+        var isDrawloop = {!isDrawloop};
+        var isRootDox = {!isRootDox};
+        var varumcfEnabled = {!varumcfEnabled};
+        var orderClosed = 'CLOSED' == '{!status}';
+        var printRecordExists = {!printRecordExists};
+        var primaryShipAddressSet = '{!primaryShipAddressSet}';
+        var linesNot8 = {!IF(ISNULL(o.rstk__pohdr_linesnot8__c), 0, o.rstk__pohdr_linesnot8__c)};
+        //RSTk-4042 - Assigning total number of PO line records for a PO
+        //Modified by: Parthiban c
+        var numOfLines = {!lastPoLineNumber};
+        var poTotal = {!poTotal}
+        //
+        var maxLines = {!maxPOLines};
+        var execBuyer = {!executiveBuyer};
+        var dfltindComcod = "{!IF(ISNULL(currDivision.pocntls__r), '', currDivision.pocntls__r[0].pocntl_dfltindcomcod__c)}";
+        var isInterSystem = {!AND(NOT(ISNULL(currDivision.pocntls__r)), currDivision.pocntls__r[0].pocntl_intersystem__c)};
+        var priceDecimals = "{!IF(ISNULL(currDivision.pocntls__r), '', currDivision.pocntls__r[0].pocntl_pricedecimal__c)}";
+        var pocntlTemplate = "{!IF(ISNULL(currDivision.pocntls__r), '', currDivision.pocntls__r[0].pocntl_poprintemailtmpl__c)}";
+        var templateOverride = {!templateOverride};
+        var isZipCodeRequired = {!isZipCodeRequired};
+        
+        jQuery(document).ready(function() {
+            jQuery("button[rel]").overlay({
+            
+                top: 0,
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                fixed:false,
+                closeOnClick: false
+            });
+            
+            existingLines = {!lineItemsString};
+            lineTemplate = {!newLineItemsString};
+            
+            try {
+                lineCustomFields = {!linecustomfieldString}; 
+            } catch(Exception) {}
+        });
+    </script>
+
+     <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doSave" action="{!save}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="doNew" action="{!newEntity}" immediate="true"/>
+        <apex:actionFunction name="doSubmitToVendorSave" action="{!submitToVendor}" immediate="true"/>
+        <apex:actionFunction name="doClosePO" action="{!closeOrder}" immediate="true"/>
+        <apex:actionFunction name="doCloseReversal" action="{!closeReversal}" immediate="true"/>
+        <apex:actionFunction name="doDeletePO" action="{!deleteOrder}" immediate="true"/>
+        <apex:actionFunction name="doOrderReview" action="{!addPrintRecords}" immediate="true" oncomplete="unblockUI(); printOptions();" />
+        <apex:actionFunction name="loadHdrRevision" action="{!doloadHdrRevision}" oncomplete="unblockUI();" rerender="hdrRevisionDetail" immediate="true"/>
+        <apex:actionFunction name="doAddNewItem" action="{!addNewItem}" immediate="true" oncomplete="addItemCompleted();unblockUI();" rerender="addItemPanel"/>
+        <apex:actionFunction name="doMassUpdateLineItems" action="{!massUpdateLineItems}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="doCloseAllLinesShort" action="{!closeAllLinesShort}" immediate="true" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="doExchangeRate" action="{!getExchangeRate}" immediate="true" rerender="exchangeratePanel" oncomplete="unblockUI();">
+            <apex:param id="mc" name="mcParam" value="" />
+             <apex:param id="hc" name="hcParam" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="doxPrint" action="{!doxPrint}" immediate="false" oncomplete="doxPrintPo();"/>
+        <apex:actionFunction name="setExchangeRateValue" action="{!setExchangeRateValue}" immediate="true" oncomplete="openpopup();" rerender="pageMessages,op_var,op_rate_schedule"  status="statusProcessing">
+         <apex:param id="polineId" name="currPolineId" value="" />
+         <apex:param id="maintCurr" name="maintCurr" value="" />
+	 	 <apex:param id="homeCurr" name="homeCurr" value="" />
+        </apex:actionFunction>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputHidden value="{!o.rstk__pohdr_div__c}" id="pohdr_div__c" rendered="{!!showDivision}" />
+            <apex:inputHidden value="{!o.rstk__pohdr_tempordno__c}" id="pohdr_tempordno__c"/>
+            <apex:inputHidden value="{!o.rstk__pohdr_closed__c}" id="pohdr_closed__c"/>
+            <apex:inputHidden value="{!o.rstk__pohdr_totamt__c}" id="pohdr_totamt__c"/>
+            <apex:inputHidden value="{!o.rstk__pohdr_ordsts__c}" id="pohdr_ordsts__c"/>
+            <apex:inputField value="{!o.rstk__pohdr_apprvrev__c}" id="pohdr_apprvrev__c"/>
+            <apex:inputField value="{!o.rstk__pohdr_lstapprvrevtovend__c}" id="pohdr_lstapprvrevtovend__c"/> 
+            <apex:inputField value="{!o.rstk__pohdr_vendrev__c}" id="pohdr_vendrev__c"/>
+            <apex:inputHidden value="{!o.rstk__pohdr_vendagreeno__c}" id="pohdr_vendagreeno__c" />
+            <apex:inputHidden value="{!lineItemsString}" id="linesdata__c"/> 
+            <apex:inputHidden value="{!lineItemsModString}" id="linesdatamod__c" />
+            <apex:inputHidden value="{!dimValsModString}" id="dimvalsmod__c" />
+            <apex:inputHidden id="linesdataremove__c" />
+            <apex:inputHidden id="lineTemplate__c" />
+            <apex:inputHidden id="linesrevmod__c" />
+            <apex:inputHidden id="linesaddrmod__c" />
+            <apex:inputHidden id="pocstmod__c" />
+            <apex:inputHidden id="submitvendor__c" />
+            <apex:inputHidden id="pohdr_ordno__c" value="{!o.rstk__pohdr_ordno__c}" rendered="{!!isNew}"/>
+            <input name="isSubmit" type="hidden"/>
+            <input name="linecustomfieldstring" type="hidden" />
+            <input name="hdrcustomfieldstring" type="hidden" />
+        </apex:outputPanel>
+         <apex:outputPanel id="op_var">
+	       <script>
+	        	var showpoupYN = "{!showpoupYN}";
+	        	var scheduletype = "{!isOverRide}";
+	        	var isRootstockFinancials = "{!isRootstockFinancials}";
+	        	var exchangerate = "{!customext.rstk__exchange_rate__c}";
+	        	var syforexschdno ="{!syforexschdno}";
+	        	var ovrsyforexsched ="{!ovrsyforexsched}";
+	       </script>
+	  	</apex:outputPanel>
+        
+        <button style="visibility:hidden" class="modalbtn" rel="#revision"></button>
+        <div class="modal" id="revision">
+            <apex:pageBlock id="ovr_pb">
+                <apex:pageBlockSection >
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__linerevision}"/>
+                        <apex:selectList id="linerevision__c" size="1" onchange="lineRevisionChanged(this.value);">
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <apex:pageBlockSection >
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__currentinternalrev}" style="white-space:nowrap;"/>
+                        <apex:outputText value="{0, number, 0}">
+                            <apex:param value="{!o.rstk__pohdr_curintrev__c}" />
+                        </apex:outputText>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__currentvendorrev}" style="white-space:nowrap;"/>
+                        <apex:outputText value="{0, number, 0}">
+                            <apex:param value="{!o.rstk__pohdr_vendrev__c}" />
+                        </apex:outputText>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <apex:tabPanel tabClass="activeTab" switchType="client" id="ovr_tp">
+                    <apex:tab label="{!$Label.rstk__pagetab_purchord_quantity}" name="groupa" id="groupa" labelWidth="160">
+                        <table>
+                        <tr>
+                                <td style="width:300x"><apex:outputText ></apex:outputText></td>
+                                <td align="center" style="width:150x"><apex:outputLabel value="{!$Label.rstk__currentpoline}" styleclass="stdLabelHeadline"/></td>
+                                <td align="center" style="width:300x"><apex:outputLabel value="{!$Label.rstk__linerevision}" styleclass="stdLabelHeadline"/></td>
+                                <td align="center"><apex:outputLabel value="{!$Label.rstk__newvalue}" styleclass="stdLabelHeadline"/></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__status}" styleclass="stdLabel" />
+                                </td>
+                                <td></td>
+                                <td align="left">
+                                    <apex:selectlist size="1" id="modal_dsp_polinerev_sts__c" value="{!tempLineRev.rstk__polinerev_sts__c}"  style="width:135px" disabled="true">
+                                        <apex:selectOptions value="{!revStatuses}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td align="left">
+                                    <apex:selectlist size="1" id="modal_polinerev_sts__c" value="{!tempLineRev.rstk__polinerev_sts__c}"  style="width:135px;visibility:hidden" disabled="{!disableGroupA}">
+                                        <apex:selectOptions value="{!revStatuses}" />
+                                    </apex:selectlist>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__quantity}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_qtyreq__c" style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputText id="modal_dsp_polinerev_qty__c" style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputField id="modal_polinerev_qty__c" value="{!tempLineRev.rstk__polinerev_qty__c}" 
+                                    onchange="if (lineRevQtychange(this)) recalcLineUpdate();" 
+                                    onkeypress="return filterNonNumeric(event, this)" 
+                                    style="width:135px" /></td>
+                                <script>document.getElementById('{!$Component.modal_polinerev_qty__c}').disabled = {!disableGroupA}; </script>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__uom}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left">
+                                    <apex:selectlist size="1" id="modal_dsp_poline_puruom__c" value="{!tempLine.rstk__poline_puruom__c}"  style="width:135px" disabled="true">
+                                        <apex:selectOptions value="{!uoms}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td align="left">
+                                    <apex:selectlist size="1" id="modal_dsp_polinerev_puruom__c" value="{!tempLineRev.rstk__polinerev_puruom__c}"  style="width:135px" disabled="true">
+                                        <apex:selectOptions value="{!uoms}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td align="left">
+                                    <apex:selectlist size="1" id="modal_polinerev_puruom__c" value="{!tempLineRev.rstk__polinerev_puruom__c}"  style="width:135px" disabled="{!disableGroupA}">
+                                        <apex:selectOptions value="{!null}"/>
+                                    </apex:selectlist>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__uomconversionfactor}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="right"><apex:inputText id="modal_dsp_poline_poumcf__c"  style="width:135px" disabled="true" /></td>
+                                <td align="center"><apex:inputText id="modal_dsp_polinerev_poumcf__c" style="width:135px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polinerev_poumcf__c" 
+                                    value="{!tempLineRev.rstk__polinerev_poumcf__c}" 
+                                    onkeypress="return filterNonNumeric(event, this);" 
+                                    style="width:135px" /></td>
+                                <script>document.getElementById('{!$Component.modal_polinerev_poumcf__c}').disabled = {!disableGroupA}; </script>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__inventoryqtyordered}" styleclass="stdLabel"/>
+                                    <span id="enableInvQty" style="display:none"></span>
+                                </td>
+                                <td align="right"><apex:inputText id="modal_dsp_poline_invqtyreq__c"  style="width:135px" disabled="true" /></td>
+                                <td align="center"><apex:inputText id="modal_dsp_polinerev_invqtyreq__c" style="width:135px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polinerev_invqtyreq__c" 
+                                    onkeypress="return filterNonNumeric(event, this)" 
+                                    value="{!tempLineRev.rstk__polinerev_invqtyreq__c}" style="width:135px" /></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__unitprice}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_unitpricemcurr__c"  style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputText id="modal_dsp_polinerev_unitpricemcurr__c" style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputField id="modal_polinerev_unitpricemcurr__c" value="{!tempLineRev.rstk__polinerev_unitpricemcurr__c}" 
+                                    onchange="if (lineRevQtychange(this)) recalcLineUpdate();" 
+                                    onkeypress="return filterNonNumeric(event, this)" 
+                                    style="width:135px" /></td>
+                                <script>document.getElementById('{!$Component.modal_polinerev_unitpricemcurr__c}').disabled = {!disableGroupA}; </script>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__amount}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_amtreqmcurr__c"  style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputText id="modal_dsp_polinerev_lineamt__c" style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputText id="modal_polinerev_lineamt__c" 
+                                    onkeypress="return filterNonNumeric(event, this)"
+                                    style="width:135px" disabled="true" /></td>
+                            </tr>
+                            <tr id="alt_curr1" style="{!otherCurrencyDisplay}">
+                                <td align="right"><apex:outputLabel value="{!$Label.rstk__unitpricehomecurrency}" styleclass="stdLabel"/></td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_unitprice__c"  style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputText id="modal_dsp_polinerev_unitprice__c" style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputField id="modal_polinerev_unitprice__c" value="{!tempLineRev.rstk__polinerev_unitprice__c}"
+                                    onkeypress="return filterNonNumeric(event, this)"  
+                                    onchange="if (lineRevQtychange(this)) recalcLineUpdate();" 
+                                    style="width:135px" /></td>
+                                <script>document.getElementById('{!$Component.modal_polinerev_unitprice__c}').disabled = {!disableGroupA}; </script>
+                            </tr>
+                            <tr id="alt_curr2" style="{!otherCurrencyDisplay}">
+                                <td align="right"><apex:outputLabel value="{!$Label.rstk__amounthomecurrency}" styleclass="stdLabel"/></td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_amtreq__c"  style="width:135px" disabled="true" /></td>
+                                <td align="left"></td>
+                                <td align="left"></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__exchangerate}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_exchangerate__c" style="width:135px" disabled="true" /></td>
+                                <td align="left"><apex:inputText id="modal_dsp_polinerev_exchangerate__c" style="width:135px" disabled="true" /></td>
+                                <td align="left"></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__originalorderquantity}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_origqtyreq__c"  style="width:135px" disabled="true" /></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!f_sl.rstk__poline_qtyoutstdg__c.label}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_qtyoutstdg__c"  style="width:135px" disabled="true" /></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!f_sl.rstk__poline_qtyoutstdginv__c.label}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_qtyoutstdginv__c"  style="width:135px" disabled="true" /></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!f_sl.rstk__poline_qtyrtv__c.label}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="left"><apex:inputText id="modal_dsp_poline_qtyrtv__c"  style="width:135px" disabled="true" /></td>
+                            </tr>
+                        </table>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_purchord_datesandindicators}" name="groupa2" id="groupa2" labelWidth="160">
+                        <table>
+                            <tr>
+                                <td style="width:300x"><apex:outputText ></apex:outputText></td>
+                                <td align="center" style="width:150x"><apex:outputLabel value="{!$Label.rstk__currentpoline}" styleclass="stdLabelHeadline"/></td>
+                                <td align="center" style="width:300x"><apex:outputLabel value="{!$Label.rstk__linerevision}" styleclass="stdLabelHeadline"/></td>
+                                <td align="center"><apex:outputLabel value="{!$Label.rstk__newvalue}" styleclass="stdLabelHeadline"/></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__vendorrequestedreceiptdate}" styleclass="stdLabel"/>
+                                </td>
+                                <td></td>
+                                <td align="center"><apex:inputText id="modal_dsp_polinerev_vendrcptdte__c" style="width:100px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polinerev_vendrcptdte__c" value="{!tempLineRev.rstk__polinerev_vendrcptdte__c}" style="width:100px" /></td>
+                                <script>document.getElementById('{!$Component.modal_polinerev_vendrcptdte__c}').disabled = {!disableGroupA}; </script>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__buyerreceiptdate}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="right"><apex:inputText id="modal_dsp2_poline_schedrcptdte__c"  style="width:100px" disabled="true" /></td>
+                                <td align="center"><apex:inputText id="modal_dsp_polinerev_buyerrcptdte__c" style="width:100px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polinerev_buyerrcptdte__c" value="{!tempLineRev.rstk__polinerev_buyerrcptdte__c}" style="width:100px" /></td>
+                                <script>document.getElementById('{!$Component.modal_polinerev_buyerrcptdte__c}').disabled = {!disableGroupA}; </script>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__duedate1}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="right"><apex:inputText id="modal_dsp2_poline_duedte__c"  style="width:100px" disabled="true" /></td>
+                                <td align="center"><apex:inputText id="modal_dsp_polinerev_duedte__c" style="width:100px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polinerev_duedte__c" value="{!tempLineRev.rstk__polinerev_duedte__c}" style="width:100px" /></td>
+                                <script>document.getElementById('{!$Component.modal_polinerev_duedte__c}').disabled = {!disableGroupA}; </script>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__closeshortindicator}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="right"><apex:inputCheckbox id="modal_dsp_poline_closeshortind__c"  style="width:100px" disabled="true" /></td>
+                                <td align="center"><apex:inputCheckbox id="modal_dsp_polinerev_closeshortind__c" style="width:100px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polinerev_closeshortind__c" 
+                                    value="{!tempLineRev.rstk__polinerev_closeshortind__c}" onchange="closeShortChanged();" style="width:100px" />
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstk__pagetab_purchord_shippingterms}" name="groupb" id="groupb" labelWidth="160">
+                        <table>
+                            <tr>
+                                <td><apex:outputText ></apex:outputText></td>
+                                <td align="center"><apex:outputLabel value="{!$Label.rstk__currentpoline}" styleclass="stdLabelHeadline"/></td>
+                                <td align="center"><apex:outputLabel value="{!$Label.rstk__linerevision}" styleclass="stdLabelHeadline"/></td>
+                                <td align="center"><apex:outputLabel value="{!$Label.rstk__newvalue}" styleclass="stdLabelHeadline"/></td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__shipvia}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="right">
+                                    <apex:selectlist size="1" id="modal_dsp_poline_shipviatype__c" value="{!tempLine.rstk__poline_shipviatype__c}"  style="width:165px" disabled="true">
+                                        <apex:selectOptions value="{!ShipViaTypes}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td align="right">
+                                    <apex:selectlist size="1" id="modal_dsp_polinerev_shipviatype__c" value="{!tempLineRev.rstk__polinerev_shipviatype__c}"  style="width:165px" disabled="true">
+                                        <apex:selectOptions value="{!ShipViaTypes}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td>
+                                    <apex:selectlist size="1" id="modal_polinerev_shipviatype__c" value="{!tempLineRev.rstk__polinerev_shipviatype__c}"  style="width:165px">
+                                        <apex:selectOptions value="{!ShipViaTypes}"/>
+                                    </apex:selectlist>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__carrier12}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="right">
+                                    <apex:selectlist size="1" id="modal_dsp_poline_carrier__c" value="{!tempLine.rstk__poline_carrier__c}" style="width:165px" disabled="true">
+                                        <apex:selectOptions value="{!Carriers}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td align="right">
+                                    <apex:selectlist size="1" id="modal_dsp_polinerev_carrier__c" value="{!tempLineRev.rstk__polinerev_carrier__c}" style="width:165px" disabled="true">
+                                        <apex:selectOptions value="{!Carriers}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td>
+                                    <apex:selectlist size="1" id="modal_polinerev_carrier__c" value="{!tempLineRev.rstk__polinerev_carrier__c}"  style="width:165px">
+                                        <apex:selectOptions value="{!Carriers}"/>
+                                    </apex:selectlist>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__fob}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="right">
+                                    <apex:selectlist size="1" id="modal_dsp_poline_fob__c" value="{!tempLine.rstk__poline_fob__c}" style="width:165px" disabled="true">
+                                        <apex:selectOptions value="{!Fobs}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td align="right">
+                                    <apex:selectlist size="1" id="modal_dsp_polinerev_fob__c" value="{!tempLineRev.rstk__polinerev_fob__c}" style="width:165px" disabled="true">
+                                        <apex:selectOptions value="{!Fobs}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td>
+                                    <apex:selectlist size="1" id="modal_polinerev_fob__c" value="{!tempLineRev.rstk__polinerev_fob__c}"  style="width:165px">
+                                        <apex:selectOptions value="{!Fobs}"/>
+                                    </apex:selectlist>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td align="right">
+                                    <apex:outputLabel value="{!$Label.rstk__freightterms}" styleclass="stdLabel"/>
+                                </td>
+                                <td align="right">
+                                    <apex:selectlist size="1" id="modal_dsp_poline_frghtrm__c" value="{!tempLine.rstk__poline_frghtrm__c}" style="width:165px" disabled="true">
+                                        <apex:selectOptions value="{!Frghtrms}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td align="right">
+                                    <apex:selectlist size="1" id="modal_dsp_polinerev_frghtrm__c" value="{!tempLineRev.rstk__polinerev_frghtrm__c}" style="width:165px" disabled="true">
+                                        <apex:selectOptions value="{!Frghtrms}"/>
+                                    </apex:selectlist>
+                                </td>
+                                <td>
+                                    <apex:selectlist size="1" id="modal_polinerev_frghtrm__c" value="{!tempLineRev.rstk__polinerev_frghtrm__c}"  style="width:165px">
+                                        <apex:selectOptions value="{!Frghtrms}"/>
+                                    </apex:selectlist>
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_purchord_shippingaddress}" name="groupb2" id="groupb2" labelWidth="160">
+                        <table>
+                            <tr>
+                                <td style="width:300x"><apex:outputText ></apex:outputText></td>
+                                <td align="center" style="width:150x"><apex:outputLabel value="{!$Label.rstk__currentpoline}" styleclass="stdLabelHeadline"/></td>
+                                <td align="center" style="width:300x"><apex:outputLabel value="{!$Label.rstk__linerevision}" styleclass="stdLabelHeadline"/></td>
+                                <td align="center"><apex:outputLabel value="{!$Label.rstk__newvalue}" styleclass="stdLabelHeadline"/></td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_street__c.label}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_street__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_street__c" style="width:150px" disabled="true" /></td>
+                                <td><apex:inputText id="modal_polineaddr_street__c" value="{!tempLineAddr.rstk__polineaddr_street__c}" style="width:150px"  /></td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_city__c.label}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_city__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_city__c" style="width:150px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polineaddr_city__c" value="{!tempLineAddr.rstk__polineaddr_city__c}" style="width:150px"  /></td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_stateprov__c.label}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_stateprov__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_stateprov__c" style="width:150px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polineaddr_stateprov__c" value="{!tempLineAddr.rstk__polineaddr_stateprov__c}" style="width:150px" /></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_country__c.label}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_country__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_country__c" style="width:150px" disabled="true" /></td>
+                                <td>
+                                	<apex:inputField id="modal_polineaddr_country__c" value="{!tempLineAddr.rstk__polineaddr_country__c}" style="width:150px" />
+                                	<apex:inputField id="modal_polineaddr_isocountry__c" value="{!tempLineAddr.rstk__polineaddr_isocountry__c}" style="width:100px" onchange="sfffSetFieldValue('modal_polineaddr_country__c', this.value);"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_zippostalcode__c.label}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_zippostalcode__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_zippostalcode__c" style="width:150px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polineaddr_zippostalcode__c" value="{!tempLineAddr.rstk__polineaddr_zippostalcode__c}" style="width:150px" /></td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_phone__c.label}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_phone__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_phone__c" style="width:150px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polineaddr_phone__c" value="{!tempLineAddr.rstk__polineaddr_phone__c}" style="width:150px"  /></td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_fax__c.label}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_fax__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_fax__c" style="width:150px" disabled="true" /></td>
+                                <td><apex:inputField id="modal_polineaddr_fax__c" value="{!tempLineAddr.rstk__polineaddr_fax__c}" style="width:150px"  /></td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_website__c.label}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_website__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_website__c" style="width:150px" disabled="true" /></td>
+                                <td><apex:inputText id="modal_polineaddr_website__c" value="{!tempLineAddr.rstk__polineaddr_website__c}" style="width:150px" /></td>
+                            </tr>
+                            <tr>
+                                <td align="right"><apex:outputLabel value="{!$Label.rstk__email}" styleclass="stdLabel"/></td>
+                                <td align="right"><apex:inputText id="modal_dspline_polineaddr_contactemail__c"  style="width:150px" disabled="true" /></td>
+                                <td align="right"><apex:inputText id="modal_dsprev_polineaddr_contactemail__c" style="width:150px" disabled="true" /></td>
+                                <td>
+                                    <apex:inputText id="modal_polineaddr_contactemail__c" value="{!tempLineAddr.rstk__polineaddr_contactemail__c}" 
+                                        onchange="validateEmailField(this)" style="width:150px" />
+                                </td>
+                            </tr>
+                        </table>
+                    </apex:tab>
+                </apex:tabPanel>
+                
+                <apex:pageBlockSection title="{!$Label.rstk__pagetab_purchord_comments}" collapsible="true" columns="1">
+                <apex:outputPanel >
+                    <table cellpadding="2" cellspacing="2">
+                        <tr>
+                            <td align="right" style="width:120px"><apex:outputLabel value="{!$Label.rstk__vendorcommentslinerevision}" styleclass="stdLabel"/></td>
+                            <td align="left">
+                                <textarea id="pg:fm:ovr_pb:modal_dsp_polinerev_vendcomments__c" name="pg:fm:ovr_pb:modal_dsp_polinerev_vendcomments__c" disabled="true" rows="3" style="width:150px" type="text" wrap="soft"></textarea>
+                            </td>
+                            <td align="right" style="width:120px"><apex:outputLabel value="{!$Label.rstk__vendorcommentsupdate}" styleclass="stdLabel"/></td>
+                            <td align="left">
+                                <apex:inputField id="modal_polinerev_vendcomments__c" value="{!tempLineRev.rstk__polinerev_vendcomments__c}" style="width:150px" />
+                            </td>
+                            <script>document.getElementById('{!$Component.modal_polinerev_vendcomments__c}').disabled = {!disableGroupA}; </script>
+                        </tr>
+                        <tr>
+                            <td align="right" style="width:120px"><apex:outputLabel value="{!$Label.rstk__buyercommentslinerevision}" styleclass="stdLabel"/></td>
+                            <td align="left">
+                                <textarea  id="pg:fm:ovr_pb:modal_dsp_polinerev_buyercomments__c" name="pg:fm:ovr_pb:modal_dsp_polinerev_buyercomments__c" disabled="true" rows="3" style="width:150px" type="text" wrap="soft"></textarea>
+                            </td>
+                            <td align="right" style="width:120px"><apex:outputLabel value="{!$Label.rstk__buyercommentsupdate}" styleclass="stdLabel"/></td>
+                            <td align="left">   
+                                <apex:inputField id="modal_polinerev_buyercomments__c" value="{!tempLineRev.rstk__polinerev_buyercomments__c}" style="width:150px" />
+                            </td>
+                            <script>document.getElementById('{!$Component.modal_polinerev_buyercomments__c}').disabled = {!disableGroupA}; </script>
+                        </tr>
+                    </table>
+                </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:pageBlock>   
+
+            <button type="button" class="close" onclick="optionsmodal_ok()">{!$Label.purchord_pagebtn_OK}</button>
+            <button type="button" class="close" onclick="optionsmodal_cancel()">{!$Label.purchord_pagebtn_Cancel}</button>
+        </div>
+                    
+        <button style="visibility:hidden" class="modalbtn2" rel="#linedetail"></button>
+        <div class="modal" id="linedetail" style="width:1024px;z-index:3638;">
+            <apex:pageBlock id="ovr_pb2">
+            <button type="button" class="btn close" onclick="detailsmodal_ok()">{!$Label.purchord_pagebtn_OK}</button>
+            <button type="button" class="btn close" onclick="detailsmodal_cancel()">{!$Label.purchord_pagebtn_Cancel}</button>
+            
+                <apex:tabPanel tabClass="activeTab" switchType="client" id="ovr_tp2">                   
+                    <apex:tab id="groupc" label="{!$Label.rstk__pagetab_purchord_accounting}" name="ovr_tab_acct" labelWidth="160">
+                        <apex:pageBlockSection id="ovr_pbs_acct_main">
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_proj__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_proj__c.label}"/>
+                                <apex:selectlist style="width:175px" id="modal_poline_proj__c" value="{!tempLine.rstk__poline_proj__c}" multiselect="false" size="1">
+                                    <apex:selectOptions value="{!Projects}"/>
+                                </apex:selectlist>
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_orgid__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_orgid__c.label}"/>
+                                <apex:selectlist style="width:175px" id="modal_poline_orgid__c" value="{!tempLine.rstk__poline_orgid__c}" multiselect="false" size="1">
+                                    <apex:selectOptions value="{!Orgs}"/>
+                                </apex:selectlist>
+                             </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_expenseacct__c.inlineHelpText}" id="expenseacct_bsi">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_expenseacct__c.label}"/>
+                                <apex:selectlist style="width:175px" id="modal_poline_expenseacct__c" value="{!tempLine.rstk__poline_expenseacct__c}" multiselect="false" size="1">
+                                    <apex:selectOptions value="{!accountsExpense}"/>
+                                </apex:selectlist>
+                             </apex:pageBlockSectionItem>
+
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_apclracct__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_apclracct__c.label}"/>
+                                <span id="modal_poline_apclracct"></span>   
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem id="povaracct_bsi" rendered="{!o.id != null && o.pohdr_div__r.rstk__sydiv_costtype_pl__c == 'Standard Cost'}" helpText="{!f_cst.rstk__pocst_povaracct__c.inlineHelpText}">            
+                                <apex:outputLabel value="{!f_cst.rstk__pocst_povaracct__c.label}"/>
+                                <apex:selectlist style="width:175px" id="modal_pocst_povaracct__c" value="{!tempPocst.rstk__pocst_povaracct__c}" multiselect="false" size="1">
+                                    <apex:selectOptions value="{!accountsPPV}"/>
+                                </apex:selectlist>                                      
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem id="subwip_bsi" helpText="{!f_cst.rstk__pocst_subwipacct__c.inlineHelpText}">            
+                                <apex:outputLabel value="{!f_cst.rstk__pocst_subwipacct__c.label}"/>
+                                <apex:selectlist style="width:175px" id="modal_pocst_subwipacct__c" value="{!tempPocst.rstk__pocst_subwipacct__c}" multiselect="false" size="1">
+                                    <apex:selectOptions value="{!accounts}"/>
+                                </apex:selectlist>                                      
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem id="subvar_bsi" helpText="{!f_cst.rstk__pocst_subvaracct__c.inlineHelpText}">            
+                                <apex:outputLabel value="{!f_cst.rstk__pocst_subvaracct__c.label}"/>
+                                <apex:selectlist style="width:175px" id="modal_pocst_subvaracct__c" value="{!tempPocst.rstk__pocst_subvaracct__c}" multiselect="false" size="1">
+                                    <apex:selectOptions value="{!accounts}"/>
+                                </apex:selectlist>
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem id="indreqno_bsi" helpText="{!f_sl.rstk__poline_indreqno__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_indreqno__c.label}"/>
+                                <apex:inputField id="modal_poline_indreqno__c" value="{!tempLine.rstk__poline_indreqno__c}" />
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_taxableind__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_taxableind__c.label}"/>
+                                <apex:inputField id="modal_poline_taxableind__c" value="{!tempLine.rstk__poline_taxableind__c}" onclick="taxableChanged();" />
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_authid__c.inlineHelpText}" id="authid_bsi">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_authid__c.label}"/>
+                                <apex:selectlist style="width:175px" id="modal_poline_authid__c" value="{!tempLine.rstk__poline_authid__c}" multiselect="false" size="1">
+                                    <apex:selectOptions value="{!syauths}"/>
+                                </apex:selectlist>                                      
+                             </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="pjprojwbs_bsi" rendered="{!isWBSActive}" helpText="{!f_sl.rstk__poline_pjprojwbs__c.inlineHelpText}">                                                                                                          
+                                <apex:outputLabel value="{!f_sl.rstk__poline_pjprojwbs__c.label}"/>
+                                <apex:selectlist size="1" id="modal_poline_pjprojwbs__c" value="{!tempLine.rstk__poline_pjprojwbs__c}" style="width:180px" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+		                    	<apex:commandButton id="overrideRate" value="{!$Label.rstk__button_select_override_rate}" onclick="doSetExchangeRateValue(); return false;"  />   
+	                        </apex:pageBlockSectionItem>
+	                        <apex:pageBlockSectionItem >
+		                    	<apex:inputHidden value="{!tempLine.rstk__poline_exchangerate__c}" id="modal_poline_exchangerate__c"/>   
+	                        </apex:pageBlockSectionItem>
+	                        <apex:pageBlockSectionItem >
+		                    	<apex:inputHidden value="{!tempLine.rstk__poline_syforexschedno__c}" id="modal_poline_syforexschedno__c"/>
+	                        </apex:pageBlockSectionItem>
+	                        <apex:pageBlockSectionItem >
+		                    	<apex:inputHidden value="{!tempLine.rstk__poline_ovrsyforexsched__c}" id="modal_poline_ovrsyforexsched__c"/>
+	                        </apex:pageBlockSectionItem>
+                             
+                        </apex:pageBlockSection>
+                    </apex:tab>
+                    
+                    <apex:tab id="groupd" label="{!$Label.rstk__pagetab_purchord_receiving_inventory}">
+                        <apex:pageBlockSection >
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_schedrcptdte__c.inlineHelpText}">                                                                                                                    
+                                <apex:outputLabel value="{!f_sl.rstk__poline_schedrcptdte__c.label}"/>
+                                <c:inputField id="modal_dsp_poline_schedrcptdte__c" cntr="{!controller}" objKey="customExtension" ref="custom_date__c" width="80px" disabled="true" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_duedte__c.inlineHelpText}">                                                                                                                    
+                                <apex:outputLabel value="{!f_sl.rstk__poline_duedte__c.label}"/>
+                                <c:inputField id="modal_dsp_poline_duedte__c" cntr="{!controller}" objKey="customExtension" ref="custom_date__c" width="80px" disabled="true" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_effrev__c.inlineHelpText}" rendered="{!!isRevinvActive}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_effrev__c.label}"/>
+                                <apex:selectlist size="1" id="modal_poline_effrev__c" value="{!tempLine.rstk__poline_effrev__c}"  style="width:136px;" >
+                                    <apex:selectOptions value="{!null}"/>
+                                </apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem rendered="{!isRevinvActive}"> <!-- Note: This block added to prevent help bubble from appearing when setting visibility to hidden -->
+                            	<apex:outputLabel value="{!f_sl.rstk__poline_effrev__c.label}" style="visibility:hidden"/>
+                                <apex:selectlist size="1" id="modal_poline_effrev__c" value="{!tempLine.rstk__poline_effrev__c}" style="visibility:hidden" ><apex:selectOptions value="{!null}"/></apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_vendshipdte__c.inlineHelpText}">                                                                                                    
+                                <apex:outputLabel value="{!f_sl.rstk__poline_vendshipdte__c.label}"/>
+                                <apex:inputField id="modal_poline_vendshipdte__c" value="{!tempLine.rstk__poline_vendshipdte__c}" style="width:80px" />                                                                                                                   
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="respinv_bsi" helpText="{!f_sl.rstk__poline_respinv__c.inlineHelpText}">                                                                                                                    
+                                <apex:outputLabel value="{!f_sl.rstk__poline_respinv__c.label}"/>
+                                <apex:selectlist size="1" id="modal_poline_respinv__c" value="{!tempLine.rstk__poline_respinv__c}"  style="width:180px" >
+                                    <apex:selectOptions value="{!planners}"/>
+                                </apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_potype__c.inlineHelpText}">                                                                            
+                                <apex:outputLabel value="{!f_sl.rstk__poline_potype__c.label}"/>
+                                <apex:inputField id="modal_poline_potype__c" value="{!tempLine.rstk__poline_potype__c}" />    
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_poumcf__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_poumcf__c.label}"/>
+                                <apex:inputText id="modal_dsp2_poline_poumcf__c" value="{!tempLine.rstk__poline_poumcf__c}" style="width:80px" disabled="true"  />                                                                                                                    
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="rcptsite_bsi" helpText="{!f_sl.rstk__poline_receiptsite__c.inlineHelpText}">                                                                                                          
+                                <apex:outputLabel value="{!f_sl.rstk__poline_receiptsite__c.label}"/>
+                                <apex:selectlist size="1" id="modal_poline_receiptsite__c" value="{!tempLine.rstk__poline_receiptsite__c}"  style="width:180px" >
+                                    <apex:selectOptions value="{!null}"/>
+                                </apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="rcptlocnum_bsi" helpText="{!f_sl.rstk__poline_rcptlocnum__c.inlineHelpText}">                                                                                                                 
+                                <apex:outputLabel value="{!f_sl.rstk__poline_rcptlocnum__c.label}"/>
+                                <apex:inputField id="modal_poline_rcptlocnum__c" value="{!tempLine.rstk__poline_rcptlocnum__c}" />                                                                                                                    
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="rcptlocid_bsi" helpText="{!f_sl.rstk__poline_rcptlocid__c.inlineHelpText}">                                                                                                         
+                                <apex:outputLabel value="{!f_sl.rstk__poline_rcptlocid__c.label}"/>
+                                <apex:selectlist size="1" id="modal_poline_rcptlocid__c" value="{!tempLine.rstk__poline_rcptlocid__c}"  style="width:180px" />
+                            </apex:pageBlockSectionItem> 
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_soorddmd__c.inlineHelpText}">                                                                                                                    
+                                <apex:outputLabel value="{!f_sl.rstk__poline_soorddmd__c.label}"/>
+                                <a target="_blank" id="line_soorddmdlink" href="#" ></a>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="overrcptind_bsi" helpText="{!f_sl.rstk__poline_overrcptind__c.inlineHelpText}">                                                                                                           
+                                <apex:outputLabel value="{!f_sl.rstk__poline_overrcptind__c.label}"/>
+                                <apex:inputField id="modal_poline_overrcptind__c" value="{!tempLine.rstk__poline_overrcptind__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="insptempl_bsi" helpText="{!f_sl.rstk__poline_insptempl__c.inlineHelpText}">                                                                                                          
+                                <apex:outputLabel value="{!f_sl.rstk__poline_insptempl__c.label}"/>
+                                <apex:selectlist size="1" id="modal_poline_insptempl__c" value="{!tempLine.rstk__poline_insptempl__c}"  style="width:180px" >
+                                    <apex:selectOptions value="{!Insptemls}"/>
+                                </apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem rendered="{!AND(NOT(ISNULL(currDivision.pocntls__r)), currDivision.pocntls__r[0].pocntl_intersystem__c)}" helpText="{!f_sl.rstk__poline_intersystem__c.inlineHelpText}">                                                                                                                   
+                                <apex:outputLabel value="{!f_sl.rstk__poline_intersystem__c.label}"/>
+                                <apex:inputField id="modal_poline_intersystem__c" value="{!tempLine.rstk__poline_intersystem__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem rendered="{!AND(NOT(ISNULL(currDivision.pocntls__r)), currDivision.pocntls__r[0].pocntl_intersystem__c)}" helpText="{!f_sl.rstk__poline_intracompany__c.inlineHelpText}">                                                                                                                   
+                                <apex:outputLabel value="{!f_sl.rstk__poline_intracompany__c.label}"/>
+                                <apex:inputField id="modal_poline_intracompany__c" value="{!tempLine.rstk__poline_intracompany__c}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_soline__c.inlineHelpText}">                                                                                                                   
+                                <apex:outputLabel value="{!f_sl.rstk__poline_soline__c.label}"/>
+                                <apex:outputLink id="line_solinelink" value=""></apex:outputLink>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="wocst_bsi" helpText="{!f_sl.rstk__poline_wocst__c.inlineHelpText}">                                                                                                          
+                                <apex:outputLabel value="{!f_sl.rstk__poline_wocst__c.label}"/>
+                                <apex:selectlist size="1" id="modal_poline_wocst__c" value="{!tempLine.rstk__poline_wocst__c}"  style="width:180px" >
+                                    <apex:selectOptions value="{!wocsts}"/>
+                                </apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem id="woordop_bsi" helpText="{!f_sl.rstk__poline_woordop__c.inlineHelpText}">                                                                                                          
+                                <apex:outputLabel value="{!f_sl.rstk__poline_woordop__c.label}"/>
+                                <apex:selectlist size="1" id="modal_poline_woordop__c" value="{!tempLine.rstk__poline_woordop__c}"  style="width:180px" >
+                                    <apex:selectOptions value="{!null}"/>
+                                </apex:selectlist>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>                        
+                    </apex:tab>
+
+                    <apex:tab label="{!$Label.rstk__purchord_approved_manufacturers}" name="tab_aprmfrs" id="tab_aprmfrs">
+                        <apex:pageblocksection columns="1">
+                            <iframe id="aprmfrFrame" src="" width="100%" height="300px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                        </apex:pageblocksection>
+                    </apex:tab>
+
+                    <apex:tab id="vat" label="{!$Label.rstk__pagetab_vat}">
+                        <apex:pageBlockSection >
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_vatclass__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_vatclass__c.label}"/>
+                                <apex:selectlist style="width:175px" id="modal_poline_vatclass__c" value="{!tempLine.rstk__poline_vatclass__c}" multiselect="false" size="1" >
+                                    <apex:selectOptions value="{!VATClasses}"/>
+                                </apex:selectlist>
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_vatnotinpoprice__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_vatnotinpoprice__c.label}"/>
+                                <apex:inputField id="modal_poline_vatnotinpoprice__c" value="{!tempLine.rstk__poline_vatnotinpoprice__c}" />
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_vatpct__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_vatpct__c.label}"/>
+                                <apex:inputField id="modal_poline_vatpct__c" value="{!tempLine.rstk__poline_vatpct__c}" />
+                             </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_vatrecoveryrate__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_vatrecoveryrate__c.label}"/>
+                                <apex:inputField id="modal_poline_vatrecoveryrate__c" value="{!tempLine.rstk__poline_vatrecoveryrate__c}" />
+                             </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>                        
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstk__pagetab_purchord_dimensions}" name="Dimensions" id="Dimensions" labelWidth="140">
+                        <apex:pageBlockSection id="pbs_Dimensions_large" showHeader="false" columns="1">
+                            <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval1__c.inlineHelpText}" rendered="{!VALUE(BLANKVALUE(currDivision.sydiv_cmpno__r.rstk__sycmp_numdims__c, '0')) > 0}">
+                                    <apex:outputLabel value="{!fdim.rstk__dimval1__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval1__c"></span>
+                                            <select size="1" id="modal_dimvals_dimval1__c" style="width:400px;"/> 
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval2__c.inlineHelpText}" rendered="{!VALUE(BLANKVALUE(currDivision.sydiv_cmpno__r.rstk__sycmp_numdims__c, '0')) > 1}">
+                                    <apex:outputLabel value="{!fdim.rstk__dimval2__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval2__c"></span>
+                                            <select size="1" id="modal_dimvals_dimval2__c" style="width:400px;"/> 
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval3__c.inlineHelpText}" rendered="{!VALUE(BLANKVALUE(currDivision.sydiv_cmpno__r.rstk__sycmp_numdims__c, '0')) > 2}">
+                                    <apex:outputLabel value="{!fdim.rstk__dimval3__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval3__c"></span>
+                                            <select size="1" id="modal_dimvals_dimval3__c" style="width:400px;"/> 
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval4__c.inlineHelpText}" rendered="{!VALUE(BLANKVALUE(currDivision.sydiv_cmpno__r.rstk__sycmp_numdims__c, '0')) > 3}">
+                                    <apex:outputLabel value="{!fdim.rstk__dimval4__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval4__c"></span>
+                                            <select size="1" id="modal_dimvals_dimval4__c" style="width:400px;"/> 
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval5__c.inlineHelpText}" rendered="{!VALUE(BLANKVALUE(currDivision.sydiv_cmpno__r.rstk__sycmp_numdims__c, '0')) > 4}">
+                                    <apex:outputLabel value="{!fdim.rstk__dimval5__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval5__c"></span>
+                                            <select size="1" id="modal_dimvals_dimval5__c" style="width:400px;"/> 
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval6__c.inlineHelpText}" rendered="{!VALUE(BLANKVALUE(currDivision.sydiv_cmpno__r.rstk__sycmp_numdims__c, '0')) > 5}">
+                                    <apex:outputLabel value="{!fdim.rstk__dimval6__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval6__c"></span>
+                                            <select size="1" id="modal_dimvals_dimval6__c" style="width:400px;"/> 
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval7__c.inlineHelpText}" rendered="{!VALUE(BLANKVALUE(currDivision.sydiv_cmpno__r.rstk__sycmp_numdims__c, '0')) > 6}">
+                                    <apex:outputLabel value="{!fdim.rstk__dimval7__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval7__c"></span>
+                                            <select size="1" id="modal_dimvals_dimval7__c" style="width:400px;"/> 
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval8__c.inlineHelpText}" rendered="{!VALUE(BLANKVALUE(currDivision.sydiv_cmpno__r.rstk__sycmp_numdims__c, '0')) > 7}">
+                                    <apex:outputLabel value="{!fdim.rstk__dimval8__c.label}"/>
+                                    <apex:outputPanel >
+                                            <span id="modalstatic_dimvals_dimval8__c"></span>
+                                            <select size="1" id="modal_dimvals_dimval8__c" style="width:400px;"/>
+                                    </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstk__pagetab_purchord_notes}" name="Notes" id="Notes" labelWidth="100">
+                        <apex:pageBlockSection id="pbs_Notes" showHeader="false" columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_printnotes__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_printnotes__c.label}" />
+                                <apex:inputField id="modal_poline_printnotes__c" value="{!tempLine.rstk__poline_printnotes__c}" />
+                            </apex:pageBlockSectionItem>                
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_notes__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sl.rstk__poline_notes__c.label}" />
+                                <apex:inputTextArea id="modal_poline_notes__c" value="{!tempLine.rstk__poline_notes__c}" style="width:400px;height:60px"
+                                        onkeyup="return checkMaxLength(event, {!f_sl.rstk__poline_notes__c.length}, true)" 
+                                        onchange="return checkMaxLength(event, {!f_sl.rstk__poline_notes__c.length}, true)"/>    
+                            </apex:pageBlockSectionItem>                
+                        </apex:pageBlockSection>
+                    </apex:tab>
+                    
+                    <!--  
+                    <apex:tab id="groupe" label="{!$Label.pagetab_purchord_Disassembly}">
+                        <apex:pageBlockSection >
+                            <apex:pageBlockSectionItem >                                                                                                                    
+                                <apex:outputLabel value="{!f_sl.rstk__poline_duedte__c.label}"/>
+                                <c:inputField id="modal_dsp3_poline_duedte__c" cntr="{!controller}" objKey="customExtension" ref="custom_date__c" width="80px" disabled="true" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!f_sl.poline_icdreqcreatedte__c.label}"/>
+                                <c:inputField id="modal_poline_icdreqcreatedte__c" cntr="{!controller}" objKey="customExtension" ref="custom_date__c" width="80px" disabled="true" />
+                            </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!f_sl.poline_corewipduedte__c.label}"/>
+                                <apex:inputField id="modal_poline_corewipduedte__c" value="{!tempLine.poline_corewipduedte__c}" style="width:80px" />
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>                        
+                    </apex:tab>
+                    -->
+                        
+                    <apex:tab id="groupf" label="{!$Label.rstk__pagetab_purchord_subcontract}">
+                        <apex:pageBlockSection >
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_effrev__c.inlineHelpText}">                                                                                                
+                                <apex:outputLabel value="{!f_sl.rstk__poline_effrev__c.label}"/>
+                                <span id="modal_poline_effrev"></span>
+                            </apex:pageBlockSectionItem>
+                             <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_effdte__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_effdte__c.label}"/>
+                                <apex:inputField id="modal_poline_effdte__c" value="{!tempLine.rstk__poline_effdte__c}" style="width:80px" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_schedpickdte__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_schedpickdte__c.label}"/>
+                                <apex:inputField id="modal_poline_schedpickdte__c" value="{!tempLine.rstk__poline_schedpickdte__c}" style="width:80px" />                                                                                                                 
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_vendshipdte__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_vendshipdte__c.label}"/>
+                                <c:inputField id="modal_dsp_poline_vendshipdte__c" cntr="{!controller}" objKey="customExtension" ref="custom_date__c" width="80px" disabled="true" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_schedrcptdte__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_schedrcptdte__c.label}"/>
+                                <c:inputField id="modal_dsp3_poline_schedrcptdte__c" cntr="{!controller}" objKey="customExtension" ref="custom_date__c" width="80px" disabled="true" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_duedte__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_duedte__c.label}"/>
+                                <c:inputField id="modal_dsp4_poline_duedte__c" cntr="{!controller}" objKey="customExtension" ref="custom_date__c" width="80px" disabled="true" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_firstrcptdate__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_firstrcptdate__c.label}"/>
+                                <c:inputField id="modal_dsp_poline_firstrcptdate__c" cntr="{!controller}" objKey="customExtension" ref="custom_date__c" width="80px" disabled="true" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_subcntcompactshipdate__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_subcntcompactshipdate__c.label}"/>
+                                <apex:inputField id="modal_poline_subcntcompactshipdate__c" value="{!tempLine.rstk__poline_subcntcompactshipdate__c}" style="width:80px" />                                                                                                                   
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_subcntcompactrcptdate__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_subcntcompactrcptdate__c.label}"/>
+                                <apex:inputField id="modal_poline_subcntcompactrcptdate__c" value="{!tempLine.rstk__poline_subcntcompactrcptdate__c}" style="width:80px" />                                                                                                                   
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_actvendshipdate__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_sl.rstk__poline_actvendshipdate__c.label}"/>
+                                <apex:inputField id="modal_poline_actvendshipdate__c" value="{!tempLine.rstk__poline_actvendshipdate__c}" style="width:80px" />                                                                                                                   
+                            </apex:pageBlockSectionItem>
+                          
+                            <apex:pageBlockSectionItem >
+                                <button  type="button" class="close" onclick="generatePicklist();">{!$Label.GeneratePickList}</button> 
+                                <button  type="button" class="close" id="subcomponent"  onclick="getcomponentlist();"> {!$Label.pagebtn_Subcontract_Components}</button>
+                            </apex:pageBlockSectionItem>
+
+                        </apex:pageBlockSection>
+                    </apex:tab> 
+                    <apex:tab label="{!customFieldTabName}" name="tab_cfline" id="tab_cfline" rendered="{!hasLineCustomFields}">
+                        <apex:pageblocksection columns="2" id="pbsLineRSF">
+                            <apex:repeat value="{!lineCustomFieldsList}" var="lcf">  
+                                <apex:inputfield value="{!tempLine[lcf.fsm.fieldPath]}" required="{!OR(lcf.fsm.required, lcf.fsm.dbrequired)}" 
+                                    onchange="customFieldChanged('{!lcf.fsm.fieldPath}', this);" html-pfx="{!lcf.pfx}"/>  
+                            </apex:repeat>  
+                        </apex:pageblocksection>
+                    </apex:tab>
+                </apex:tabPanel>
+            </apex:pageBlock>   
+
+            <button type="button" class="close"  onclick="detailsmodal_ok()">{!$Label.purchord_pagebtn_OK}</button>
+            <button type="button" class="close" onclick="detailsmodal_cancel()">{!$Label.purchord_pagebtn_Cancel}</button>
+        </div>
+        
+        <button style="visibility:hidden" class="modalbtngeneratePicklist" rel="#generatePicklist"></button>"
+        <div class="modal" id="generatePicklist" style="width:600px; height:60px; text-align:center; display:none"> 
+            <p><b><label>{!$Label.wocst_IncludeBackflushComponentsinPicklist}</label>
+                 <input type="checkbox" id="incBackflush2" /></b></p>
+            <p><button type="button" class="close" onclick="taskParms['incBackflush'] = jQuery('#incBackflush2').is(':checked')?'T':'F'; genPicklist();">{!$Label.pagebtn_wocst_GeneratePicklist}</button>
+                <button type="button" class="close" onclick="unblockUI();">{!$Label.pagebtn_wocst_Cancel}</button>
+            </p>
+        </div>
+        
+        <button style="visibility:hidden" class="modalbtnNewItem" rel="#addNewItem"></button>
+        <div class="modal" id="addNewItem">
+            <h1>{!$Label.Add_New_Item}</h1>
+            <apex:pageBlock id="ovr_pb3">
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f_poitem.rstk__poitem_type__c.label}"/>
+                        <apex:selectlist id="poitem_type__c" value="{!poitem.rstk__poitem_type__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!poItemTypes}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f_poitem.rstk__poitem_comcod__c.label}"/>
+                        <c:largeSelectList id="poitem_comcod__c" useValue="true" cntr="{!controller}" options="{!POCommodityCodes}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f_poitem.rstk__poitem_item__c.label}"/>
+                        <apex:inputField id="poitem_itemno__c" value="{!poitem.rstk__poitem_itemno__c}"  />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f_poitem.rstk__poitem_desc__c.label}"/>
+                        <apex:inputField id="poitem_desc__c" value="{!poitem.rstk__poitem_desc__c}" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f_poitem.rstk__poitem_puruom__c.label}"/>
+                        <apex:selectlist id="poitem_puruom__c" value="{!poitem.rstk__poitem_puruom__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!uoms}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f_poitem.rstk__poitem_odcid__c.label}"/>
+                        <apex:selectlist id="poitem_odcid__c" value="{!poitem.rstk__poitem_odcid__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!syodcs}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+
+            <button type="button" class="close" onclick="newItem_ok()">{!$Label.purchord_pagebtn_Add}</button>
+            <button type="button" class="close" onclick="newItem_cancel()">{!$Label.purchord_pagebtn_Cancel}</button>
+        </div>
+        
+        <button style="visibility:hidden" class="modalbtnPrintOptions" rel="#printOptions"></button>
+        <div class="modal" id="printOptions">
+            <h1>{!$Label.purchOrd_Print_Options}</h1>
+            <apex:pageBlock mode="edit">
+                <apex:pageBlockSection columns="2">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__excludefullyreceivedlines}"/>
+                        <apex:inputCheckbox id="exclude_fullyreceived__c" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__printnotesastrailer}"/>
+                        <apex:inputCheckbox id="print_notes_trailer__c" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__printrevision}"/>
+                        <apex:selectList id="printrevision__c" size="1" >
+                            <apex:selectOptions value="{!vendorRevisions}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__suppresslinesclosedshort}"/>
+                        <apex:inputCheckbox id="suppress_closeshort__c" value="{!pocntl.rstk__pocntl_supprintcl__c}" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!templateOverride}">
+                        <apex:outputLabel value="{!f.rstk__pohdr_poemailtmpl__c.label}"/>
+                        <apex:selectList id="override_template__c" multiselect="false" size="1">
+                            <apex:selectOptions value="{!POPrintEmailTemplates}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>    
+                </apex:pageBlockSection>
+            </apex:pageBlock>   
+
+            <button type="button" class="close" onclick="printOptions_ok();">{!$Label.purchord_pagebtn_Print}</button>
+            <button type="button" class="close" onclick="printOptions_cancel();window.location.reload();">{!$Label.purchord_pagebtn_Cancel}</button>
+        </div>
+        
+        <c:Popup popupId="sourcePopup" title="{!$Label.rstk__pagepopup_confsess_pricesource}" cancelCaption="Close">
+           <apex:pageBlockSection showHeader="false" columns="1" collapsible="false">
+               <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_sysprice__c.inlineHelpText}" dataStyle="width:75%" labelStyle="width:25%">
+                   <apex:outputLabel value="{!f_sl.rstk__poline_sysprice__c.label}"/>
+                   <div id="sp_poline_sysprice__c" style="width:100px; font-weight:bold;text-align:right;"/>
+               </apex:pageBlockSectionItem>
+               <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_pricesrce__c.inlineHelpText}" dataStyle="width:75%" labelStyle="width:25%">
+                   <apex:outputLabel value="{!f_sl.rstk__poline_pricesrce__c.label}"/>
+                   <div id="sp_poline_pricesrce__c1__c" style="width:300px; font-weight:bold;"/>
+               </apex:pageBlockSectionItem>
+               <apex:pageBlockSectionItem helpText="{!f_sl.rstk__poline_pricesrce__c.inlineHelpText}" dataStyle="width:75%" labelStyle="width:25%">
+                   <apex:outputLabel value="{!$Label.rstk__pricediscountsource}"/>
+                   <div id="sp_poline_pricesrce__c2__c" style="width:300px; font-weight:bold;"/>
+               </apex:pageBlockSectionItem>
+             </apex:pageBlockSection>
+        </c:Popup>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            
+            <apex:pageBlockButtons id="pbb" rendered="{!allowSave && !accruedAcctNotSet}"> 
+                <c:standardButtons cntr="{!controller}"/>
+                <apex:commandbutton value="{!$Label.rstk__purchord_pagebtn_addneworder}" onclick="if (!checkModifiedOK()) return false; blockUI(); return doNew();"/>
+                <apex:commandbutton value="{!$Label.rstk__purchord_pagebtn_orderreview}" rendered="{!o.id != null}" immediate="true" onclick="if (!checkModifiedOK()) return false; return orderReview();"/>
+                <apex:commandbutton value="{!$Label.rstk__purchord_pagebtn_submitpotovendor}" rendered="{!showSubmitToVendorBtn}" disabled="{!disableSubmitToVendorBtn}" immediate="true" onclick="return submitToVendor();" id="stv__c"/>
+                <apex:commandbutton value="{!$Label.rstk__purchord_pagebtn_submitchangetovendor}" style="color:red" rendered="{!ShowChangeToVendorBtn}" immediate="true" onclick="return submitToVendor();" id="sctv__c" />
+                <apex:commandbutton value="{!$Label.rstk__purchord_pagebtn_revisions}" rendered="{!showRevsBtn}"/>
+                <apex:commandbutton value="{!$Label.rstk__purchord_pagebtn_closepo}" rendered="{!showCloseBtn}" onclick="return closePO();" />
+                <apex:commandbutton value="{!$Label.rstk__purchord_pagebtn_reversepoclose}" rendered="{!showCloseReversalBtn}" onclick="return closeReversal();"/>
+                <apex:commandbutton value="{!$Label.rstk__purchord_pagebtn_deletepo}" rendered="{!showDeleteBtn}" onclick="return deletePO();"/>
+            </apex:pageBlockButtons>
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_div__c.inlineHelpText}" rendered="{!showDivision}">
+                    <apex:outputLabel value="{!f.rstk__pohdr_div__c.label}"/>
+                    <apex:outputField id="pohdr_div__c"  value="{!o.rstk__pohdr_div__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!showDivision}"><apex:outputtext value=""/></apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_ordno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pohdr_ordno__c.label}"/>
+                    <apex:outputPanel >
+	                    <c:inputField id="pohdr_ordno__c" cntr="{!controller}" required="true" tabIndex="20" rendered="{!isNew}"/>
+	                    <apex:outputField value="{!o.rstk__pohdr_ordno__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_ordsts__c.inlineHelpText}">
+                    <apex:outputlabel value="{!f.rstk__pohdr_ordsts__c.label}" />
+                    <apex:outputtext value="{!Status}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_buyusrno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pohdr_buyusrno__c.label}"/>
+                    <c:selectList id="pohdr_buyusrno__c"  cntr="{!controller}" options="{!buyers}" required="true" tabIndex="30"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_approvalsts__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pohdr_approvalsts__c.label}"/>
+                    <apex:outputtext value="{!approvalStatus}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >   
+                    <apex:outputLabel value="{!$Label.rstk__selectallvendors}" />
+                    <apex:inputCheckbox id="select_all_vendors__c" value="{!selectAllVendors}" onchange="selectAllVendors(this.checked);" tabIndex="40"/>
+                </apex:pageBlockSectionItem> 
+                <apex:pageBlockSectionItem />   
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_vendno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pohdr_vendno__c.label}"/>
+                    <apex:outputPanel > 
+                        <c:largeSelectList id="pohdr_vendno__c" cntr="{!controller}" options="{!vendors}" 
+                            required="true" rendered="{!linesize == 0}" tabIndex="50"/>
+                        <apex:outputField value="{!o.rstk__pohdr_vendno__c}" rendered="{!linesize > 0}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_requestorg__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pohdr_requestorg__c.label}"/>
+                    <apex:outputPanel > 
+                        <c:selectList id="pohdr_requestorg__c"  cntr="{!controller}" options="{!orgs}" 
+                            required="true" rendered="{!linesize == 0}" tabIndex="60"/>
+                        <apex:outputField value="{!o.rstk__pohdr_requestorg__c}" rendered="{!linesize > 0}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection title="{!$Label.rstk__pagetab_purchord_advanced}" showHeader="true" collapsible="true" columns="1">
+            <apex:tabPanel switchType="client" selectedTab="venGen" id="pbs_tp">
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_vendor}" name="venGen" id="pbs_tp_gen">
+                    <apex:pageBlockSection columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_vendslsordno__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_vendslsordno__c.label}"/>
+                            <c:inputText id="pohdr_vendslsordno__c" cntr="{!controller}" disabled="false" tabIndex="70"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_vendcontact__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_vendcontact__c.label}"/>
+                            <c:inputText id="pohdr_vendcontact__c" cntr="{!controller}" disabled="false" tabIndex="90"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_printappmfr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_printappmfr__c.label}"/>
+                            <apex:inputField id="pohdr_printappmfr__c" value="{!o.rstk__pohdr_printappmfr__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_poemailtmpl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_poemailtmpl__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputPanel rendered="{!!isView}">
+                                    <apex:outputPanel id="poprintemailtmpl_select">
+                                        <apex:selectList id="pohdr_poemailtmpl__c" value="{!o.rstk__pohdr_poemailtmpl__c}" multiselect="false" rendered="{!!isView}" size="1">
+                                            <apex:selectOptions value="{!POPrintEmailTemplates}"/>
+                                        </apex:selectList>
+                                    </apex:outputPanel>
+                                </apex:outputPanel>
+                                <apex:outputText value="{!POPrintEmailTemplateName}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_poagh__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_poagh__c.label}"/>
+                            <apex:selectlist id="pohdr_poagh__c" value="{!o.rstk__pohdr_poagh__c}" size="1" style="width:250px">
+                                <apex:selectOptions value="{!agreements}"/>
+                            </apex:selectlist>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_doclanguage__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_doclanguage__c.label}"/>
+                            <apex:inputField id="pohdr_doclanguage__c" value="{!o.rstk__pohdr_doclanguage__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_buyerpaysbc__c.inlineHelpText}" rendered="{!AND(!isNew, isPayBankCharge)}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_buyerpaysbc__c.label}"/>
+                            <apex:inputField id="pohdr_buyerpaysbc__c" value="{!o.rstk__pohdr_buyerpaysbc__c}" />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_billto}" name="remitTo" id="pbs_tp_remitTo">
+                    <table>
+                        <tr>
+                            <td width="80%">
+                            <apex:pageBlockSection columns="1" >
+                                <apex:pageBlockSectionItem >
+                                    <apex:outputLabel value="{!$Label.rstk__vendoraddresses}"/>
+                                    <apex:selectlist id="remit_addresses__c" size="1" style="width:250px">
+                                        <apex:selectOptions value="{!null}"/>
+                                    </apex:selectlist>
+                                </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                            <apex:pageBlockSection id="remit_addressdiv">
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_street__c.inlineHelpText}">
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_street__c.label}"/>
+                                    <c:inputField id="pohdr_addrtmp_remit_street__c" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_street__c" tabIndex="100"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_phone__c.inlineHelpText}">
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_phone__c.label}"/>
+                                    <c:inputField id="pohdr_addrtmp_remit_phone__c" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_phone__c" tabIndex="150"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_city__c.inlineHelpText}">                    
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_city__c.label}"/>
+                                    <c:inputField id="pohdr_addrtmp_remit_city__c" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_city__c" tabIndex="110"/>                    
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_fax__c.inlineHelpText}">
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_fax__c.label}"/>
+                                    <c:inputField id="pohdr_addrtmp_remit_fax__c" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_fax__c" tabIndex="160"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_stateprov__c.inlineHelpText}">
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_stateprov__c.label}"/>
+                                    <c:inputField id="pohdr_addrtmp_remit_stateprov__c" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_stateprov__c" tabIndex="120"/>                          
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_contactemail__c.inlineHelpText}">
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_contactemail__c.label}"/>
+                                    <c:inputField id="pohdr_addrtmp_remit_contactemail__c" cntr="{!controller}" onchange="validateEmailField(this)"
+                                        objKey="hdrBillingAddr" ref="pohdraddr_contactemail__c" tabIndex="170"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_zippostalcode__c.inlineHelpText}">
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_zippostalcode__c.label}"/>
+                                    <c:inputField id="pohdr_addrtmp_remit_zippostalcode__c" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_zippostalcode__c" tabIndex="130"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_website__c.inlineHelpText}">
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_website__c.label}"/>
+                                    <c:inputField id="pohdr_addrtmp_remit_website__c" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_website__c" tabIndex="180"/>
+                                </apex:pageBlockSectionItem>
+                                <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_country__c.inlineHelpText}">
+                                    <apex:outputlabel value="{!af.rstk__pohdraddr_country__c.label}"/>
+                                    <apex:panelGrid columns="2">
+                                    	<c:inputField id="pohdr_addrtmp_remit_country__c" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_country__c" tabIndex="140"/>
+                                        <!--c:inputField id="pohdr_addrtmp_remit_isocountry__c" onchange="sfffSetFieldValue('pohdr_addrtmp_remit_country__c', this.value);" cntr="{!controller}" objKey="hdrBillingAddr" ref="pohdraddr_isocountry__c"/-->
+                                        <apex:inputField id="pohdr_addrtmp_remit_isocountry__c" value="{!hdrBillingAddr.rstk__pohdraddr_isocountry__c}" rendered="{!!isView}" onchange="sfffSetFieldValue('pohdr_addrtmp_remit_country__c', this.value);"/>    
+                                    </apex:panelGrid>   
+                                </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                            </td>
+                        </tr>
+                    </table>                
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_mailto}" name="poMailTo" id="pbs_tp_poMailTo">
+                    <table>
+                        <tr>
+                            <td width="60%">
+                                <apex:pageBlockSection columns="1" >
+                                    <apex:pageBlockSectionItem >
+                                        <apex:outputLabel value="{!$Label.rstk__vendoraddresses}"/>
+                                        <apex:selectlist id="pomail_addresses__c" size="1" style="width:250px">
+                                            <apex:selectOptions value="{!null}"/>
+                                        </apex:selectlist>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection id="pomail_addressdiv" columns="2">
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_street__c.inlineHelpText}">
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_street__c.label}"/>
+                                        <c:inputField id="pohdr_addrtmp_pomail_street__c" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_street__c" tabIndex="190" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_phone__c.inlineHelpText}">
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_phone__c.label}"/>
+                                        <c:inputField id="pohdr_addrtmp_pomail_phone__c" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_phone__c" tabIndex="240"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_city__c.inlineHelpText}">                    
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_city__c.label}"/>
+                                        <c:inputField id="pohdr_addrtmp_pomail_city__c" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_city__c" tabIndex="200"/>                   
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_fax__c.inlineHelpText}">
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_fax__c.label}"/>
+                                        <c:inputField id="pohdr_addrtmp_pomail_fax__c" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_fax__c" tabIndex="250"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_stateprov__c.inlineHelpText}">
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_stateprov__c.label}"/>
+                                        <c:inputField id="pohdr_addrtmp_pomail_stateprov__c" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_stateprov__c" tabIndex="210"/>                         
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_contactemail__c.inlineHelpText}">
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_contactemail__c.label}"/>
+                                        <c:inputField id="pohdr_addrtmp_pomail_contactemail__c" cntr="{!controller}" onchange="validateEmailField(this)"
+                                            objKey="hdrMailingAddr" ref="pohdraddr_contactemail__c" tabIndex="260"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_zippostalcode__c.inlineHelpText}">
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_zippostalcode__c.label}"/>
+                                        <c:inputField id="pohdr_addrtmp_pomail_zippostalcode__c" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_zippostalcode__c" tabIndex="220"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_website__c.inlineHelpText}">
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_website__c.label}"/>
+                                        <c:inputField id="pohdr_addrtmp_pomail_website__c" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_website__c" tabIndex="270"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_country__c.inlineHelpText}">
+                                        <apex:outputlabel value="{!af.rstk__pohdraddr_country__c.label}"/>
+	                                    <apex:panelGrid columns="2">
+	                                    	<c:inputField id="pohdr_addrtmp_pomail_country__c" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_country__c" tabIndex="230"/>
+	                                        <!--c:inputField id="pohdr_addrtmp_pomail_isocountry__c" onchange="sfffSetFieldValue('pohdr_addrtmp_pomail_country__c', this.value);" cntr="{!controller}" objKey="hdrMailingAddr" ref="pohdraddr_isocountry__c"/-->
+                                            <apex:inputField id="pohdr_addrtmp_pomail_isocountry__c" value="{!hdrMailingAddr.rstk__pohdraddr_isocountry__c}" rendered="{!!isView}" onchange="sfffSetFieldValue('pohdr_addrtmp_pomail_country__c', this.value);"/>        
+	                                    </apex:panelGrid>  
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                            </td>
+                        </tr>
+                    </table>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_shipto}" name="shipping" id="pbs_tp_shipping">
+                    <table>
+                    <tr>
+                    <td width="60%">
+                    <apex:pageBlockSection columns="1" >
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstk__divisionreceivingaddresses}"/>
+                            <apex:selectlist id="ship_addresses__c" size="1" style="width:250px">
+                                <apex:selectOptions value="{!null}"/>
+                            </apex:selectlist>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection id="ship_addressdiv" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!af.Name.inlineHelpText}">
+                            <apex:outputlabel value="{!af.Name.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_name__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="name" required="true" tabIndex="290" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_street__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_street__c.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_street__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_street__c" tabIndex="300" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_phone__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_phone__c.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_phone__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_phone__c" tabIndex="350"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_city__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_city__c.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_city__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_city__c" tabIndex="310" />                   
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_fax__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_fax__c.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_fax__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_fax__c" tabIndex="360"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_stateprov__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_stateprov__c.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_stateprov__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_stateprov__c" tabIndex="320" />                         
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_contactemail__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_contactemail__c.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_contactemail__c" cntr="{!controller}" onchange="validateEmailField(this)"
+                                objKey="hdrShippingAddr" ref="pohdraddr_contactemail__c" tabIndex="370"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_zippostalcode__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_zippostalcode__c.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_zippostalcode__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_zippostalcode__c" tabIndex="330"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_website__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_website__c.label}"/>
+                            <c:inputField id="pohdr_addrtmp_ship_website__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_website__c" tabIndex="380"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!af.rstk__pohdraddr_country__c.inlineHelpText}">
+                            <apex:outputlabel value="{!af.rstk__pohdraddr_country__c.label}"/>
+                            <apex:panelGrid columns="2">
+                            	<c:inputField id="pohdr_addrtmp_ship_country__c" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_country__c" tabIndex="340"/>
+                                <!--c:inputField id="pohdr_addrtmp_ship_isocountry__c" onchange="sfffSetFieldValue('pohdr_addrtmp_ship_country__c', this.value);" cntr="{!controller}" objKey="hdrShippingAddr" ref="pohdraddr_isocountry__c"/-->
+                                <apex:inputField id="pohdr_addrtmp_ship_isocountry__c" value="{!hdrShippingAddr.rstk__pohdraddr_isocountry__c}" rendered="{!!isView}" onchange="sfffSetFieldValue('pohdr_addrtmp_ship_country__c', this.value);"/>            
+                            </apex:panelGrid>  
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    </td>
+                    </tr>
+                    </table>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_terms}" name="terms" id="pbs_tp_terms">
+                    <apex:pageBlockSection columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_shipviatype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_shipviatype__c.label}"/>
+                            <c:selectList id="pohdr_shipviatype__c" cntr="{!controller}" options="{!shipviatypes}" disabled="false" tabIndex="400"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_carrier__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_carrier__c.label}"/>
+                            <c:selectList id="pohdr_carrier__c" cntr="{!controller}" options="{!carriers}" tabIndex="430"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_fob__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_fob__c.label}"/>
+                            <c:selectList id="pohdr_fob__c" cntr="{!controller}" options="{!fobs}" disabled="false" tabIndex="410"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_frghtrm__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_frghtrm__c.label}"/>
+                            <c:selectList id="pohdr_frghtrm__c" cntr="{!controller}" options="{!frghtrms}" disabled="false" tabIndex="435"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_terms__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_terms__c.label}"/>
+                            <c:selectList id="pohdr_terms__c" cntr="{!controller}" options="{!terms}" tabIndex="420"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_currency}" name="currency" id="pbs_tp_currency">
+                    <apex:pageBlockSection columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_homecurr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_homecurr__c.label}"/>
+                            <c:selectList id="pohdr_homecurr__c" cntr="{!controller}" options="{!Currencies}" required="true" disabled="true" tabIndex="440"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_vendcurr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_vendcurr__c.label}"/>
+                            <c:selectList id="pohdr_vendcurr__c" cntr="{!controller}" options="{!Currencies}" required="true" disabled="true" tabIndex="450"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_maintcurr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_maintcurr__c.label}"/>
+                            <c:selectList id="pohdr_maintcurr__c" cntr="{!controller}" options="{!MaintCurrencies}" required="true" disabled="true" tabIndex="460"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem id="exchangeRate" helpText="{!f_c.rstk__sycurr_exchrate__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_c.rstk__sycurr_exchrate__c.label}"/>
+                            <apex:outputPanel id="exchangeratePanel">
+                                {!exchangeString}
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_additional}" name="statusDates" id="pbs_tp_statusDates">
+                    <apex:pageBlockSection columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_poadddte__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_poadddte__c.label}"/>
+                            <c:inputField id="pohdr_poadddte__c" cntr="{!controller}" disabled="false" tabIndex="470"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_schdplacedate__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_schdplacedate__c.label}"/>
+                            <c:inputField id="pohdr_schdplacedate__c" cntr="{!controller}" disabled="false" tabIndex="480"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_actplacedate__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_actplacedate__c.label}"/>
+                            <c:inputField id="pohdr_actplacedate__c" cntr="{!controller}" disabled="false" tabIndex="490"/> 
+                        </apex:pageBlockSectionItem>
+                        <!-- 
+                        <apex:pageBlockSectionItem helpText="{!f.pohdr_site__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.pohdr_site__c.label}"/>
+                            <c:selectList id="pohdr_site__c" cntr="{!controller}" required="true" options="{!sites}" tabIndex="500" />
+                        </apex:pageBlockSectionItem>
+                        -->
+                    </apex:pageBlockSection>         
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_approvals}" name="approvals" id="pbs_tp_approvals" rendered="{!showPOApprovals}">
+                    <apex:pageBlockSection >
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_poapprvlimit__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_poapprvlimit__c.label}"/>
+                            <apex:inputField id="pohdr_poapprvlimit__c" value="{!o.rstk__pohdr_poapprvlimit__c}"  />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    <apex:pageBlockTable id="pbt_approvals_grid" value="{!approvals}" var="ap">
+                        <apex:column headerValue="{!$Label.rstk__approver}" value="{!ap.poapproval_approver__r.Name}" style="width:400px;"/>
+                        <apex:column headerValue="{!$Label.rstk__approved}" value="{!ap.rstk__poapproval_yn__c}" style="width:50x;"/>
+                        <apex:column headerValue="{!$Label.rstk__approvaldate}" value="{!ap.rstk__poapproval_dte__c}" style="width:75px;"/>
+                        <apex:column headerValue="{!f_syusr.rstk__syusr_usrno__c.label}" value="{!ap.poapproval_usrno__r.rstk__syusr_usrno__c}" style="width:75px;"/>
+                        <apex:column headerValue="{!f_poapproval.rstk__poapproval_comments__c.label}" value="{!ap.rstk__poapproval_comments__c}" style="width:400px;"/>
+                    </apex:pageBlockTable>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_notes}" name="notes_tab" id="pbs_tp_notes">
+                <apex:outputPanel >
+                <apex:pageBlockSection columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_printnotes__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_printnotes__c.label}" />
+                            <c:inputField id="pohdr_printnotes__c" cntr="{!controller}"/>    
+                        </apex:pageBlockSectionItem>                
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_notes__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__pohdr_notes__c.label}" />
+                            <apex:inputTextarea id="pohdr_notes__c" value="{!o.rstk__pohdr_notes__c}" style="width:600px;height:60px"
+                              onkeyup="return checkMaxLength(event, {!f.rstk__pohdr_notes__c.length})" 
+                             onchange="return checkMaxLength(event, {!f.rstk__pohdr_notes__c.length})"/>    
+                        </apex:pageBlockSectionItem>                
+                </apex:pageBlockSection> 
+                </apex:outputPanel>
+                </apex:tab>
+                                
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_revisions}" name="revisions_tab" id="pbs_tp_revisions" rendered="{!showHdrRevisionTab}">
+                <apex:outputPanel >
+                    <apex:pageBlockSection columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_curintrev__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_curintrev__c.label}" />
+                            <apex:outputField value="{!o.rstk__pohdr_curintrev__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_numbcurhdrrev__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_numbcurhdrrev__c.label}" />
+                            <apex:outputField value="{!o.rstk__pohdr_numbcurhdrrev__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_numbcurlnerev__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_numbcurlnerev__c.label}" />
+                            <apex:outputField value="{!o.rstk__pohdr_numbcurlnerev__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_apprvrev__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_apprvrev__c.label}" />
+                            <apex:outputField value="{!o.rstk__pohdr_apprvrev__c}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_vendrev__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_vendrev__c.label}" />
+                            <apex:outputField value="{!o.rstk__pohdr_vendrev__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_lstapprvrevtovend__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_lstapprvrevtovend__c.label}" />
+                            <apex:outputField value="{!o.rstk__pohdr_lstapprvrevtovend__c}" />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:outputPanel>
+                <apex:outputPanel >
+                    <apex:pageBlockSection >
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstk__revision1}"/>
+                            <apex:selectList id="hdrrevision__c" size="1" onchange="hdrRevisionChanged();" value="{!pohdrrev.Id}">
+                                <apex:selectOptions value="{!headerRevisions}"/>
+                                <!-- 
+                                    <apex:actionSupport event="onchange" rerender="hdrRevisionChanged"/> 
+                                -->
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:outputPanel>
+                <apex:outputPanel id="hdrRevisionDetail">
+                    <apex:outputPanel layout="block" style="border:2px solid red">
+                        <apex:pageBlockSection >
+                            <apex:pageBlockSectionItem helpText="{!f_hr.rstk__pohdrrev_shipviatype__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_hr.rstk__pohdrrev_shipviatype__c.label}"/>
+                                <apex:outputField value="{!hr.rstk__pohdrrev_shipviatype__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_hr.rstk__pohdrrev_carrier__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_hr.rstk__pohdrrev_carrier__c.label}"/>
+                                <apex:outputField value="{!hr.rstk__pohdrrev_carrier__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_hr.rstk__pohdrrev_terms__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_hr.rstk__pohdrrev_terms__c.label}"/>
+                                <apex:outputField value="{!hr.rstk__pohdrrev_terms__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_hr.rstk__pohdrrev_frghtrm__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_hr.rstk__pohdrrev_frghtrm__c.label}"/>
+                                <apex:outputField value="{!hr.rstk__pohdrrev_frghtrm__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_hr.rstk__pohdrrev_fob__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_hr.rstk__pohdrrev_fob__c.label}"/>
+                                <apex:outputField value="{!hr.rstk__pohdrrev_fob__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f_hr.rstk__pohdrrev_vendslsordno__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_hr.rstk__pohdrrev_vendslsordno__c.label}"/>
+                                <apex:outputField value="{!hr.rstk__pohdrrev_vendslsordno__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_lineupdatevalues}" name="lineUpdates" id="pbs_tp_lineUpdates">
+                    <apex:pageBlockSection columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_dfltrcvsite__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_dfltrcvsite__c.label}"/>
+                            <c:selectList id="pohdr_dfltrcvsite__c" cntr="{!controller}" options="{!sites}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:commandButton onclick="if (confirm('{!$Label.rstk__confirmcloseshortalllines}')) {blockUI(); doCloseAllLinesShort();} return false;" value="{!$Label.rstk__pagebtn_purchord_closealllinesshort}" rendered="{!o.rstk__pohdr_linesnot8__c != null && o.rstk__pohdr_linesnot8__c > 0 && o.rstk__pohdr_ordsts__c = '5-Vendor Notified'}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_rcptlocid__c.inlineHelpText}">                                                                                                           
+                            <apex:outputLabel value="{!f.rstk__pohdr_rcptlocid__c.label}"/>
+                            <c:largeSelectList id="pohdr_rcptlocid__c"  cntr="{!controller}" options="{!ReceiptLocations}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_rcptlocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_rcptlocnum__c.label}"/>
+                            <c:inputField id="pohdr_rcptlocnum__c" cntr="{!controller}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_proj__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_proj__c.label}"/>
+                            <c:autocomplete id="pohdr_proj__c" cntr="{!controller}"
+                                query="select id, name from pjproj__c where pjproj_completed__c = false and pjproj_div__c = '{!o.rstk__pohdr_div__c}'" 
+                                slDesc="{!projectDesc}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_duedte__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_duedte__c.label}"/>
+                            <c:inputField id="pohdr_duedte__c" cntr="{!controller}"/> 
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_schedrcptdte__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_schedrcptdte__c.label}"/>
+                            <c:inputField id="pohdr_schedrcptdte__c" cntr="{!controller}"/> 
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pohdr_dfltorgid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pohdr_dfltorgid__c.label}"/>
+                            <c:selectList id="pohdr_dfltorgid__c" cntr="{!controller}" options="{!orgs}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value=""/>
+                            <apex:commandButton onclick="if (!checkLineUpdateOK()) return false; if (validateStockLocation()) {blockUI(); doMassUpdateLineItems();} return false;" value="{!$Label.rstk__pagebtn_purchord_updatelinevalues}"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_CustomR" id="tab_Custom" rendered="{!hasCustomFields}">
+                        <apex:pageblocksection columns="2" id="pbsRSF">
+                            <apex:repeat value="{!customFields}" var="hcf">
+                                <apex:inputfield value="{!o[hcf.fieldPath]}" html-isCustom="{!hcf.fieldPath}" required="{!OR(hcf.required, hcf.dbrequired)}" onchange="customHdrFieldChanged('{!hcf.fieldPath}', this);" />
+                            </apex:repeat>
+                            <script>
+                            jQuery('[isCustom*="__c"]').each(function (index, node) {
+								customHdrFieldChanged(node.getAttribute('isCustom'), node);
+							});
+                            </script>
+                        </apex:pageblocksection>
+                    </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_purchord_info}" name="Info" id="Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+
+            </apex:tabPanel>     
+            </apex:pageBlockSection>
+            
+            <apex:outputPanel id="addItemPanel">
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_lineItems" showHeader="true" columns="1" title="{!$Label.rstk__pagetab_purchord_lineitems}" collapsible="false">
+                <apex:outputPanel >
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_purchord_add}" onclick="return insertLine(false);" style="width:75px;" rendered="{!showLineAddRemoveBtn}" disabled="{!disableAddBtn || accruedAcctNotSet}" immediate="true"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_purchord_remove}" onclick="return removeLines();" style="width:75px;" rendered="{!showLineAddRemoveBtn}" disabled="{!disableAddBtn || accruedAcctNotSet}" immediate="true"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_clone}" onclick="return cloneLines();" style="width:75px;" rendered="{!showLineAddRemoveBtn}" disabled="{!disableAddBtn || accruedAcctNotSet}" immediate="true"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_purchord_addnewitem}" onclick="return addNewItem();" style="width:120px;" rendered="{!showAddItemBtn}" immediate="true"/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;
+                    <apex:pageblocksectionitem id="pbsi_lineFileSel">
+                        <apex:outputlabel value="{!$Label.rstk__line_file_selection}"/>
+                        <apex:selectlist id="lineFileSel__c" value="{!templine.rstk__poline_filesel__c}" size="1" onchange="filesel_change();">
+                            <apex:selectoptions value="{!sl.PoLineFileSelections}"/>
+                        </apex:selectlist>
+                    </apex:pageblocksectionitem>
+                    &nbsp;&nbsp;&nbsp;&nbsp;
+                    <apex:pageblocksectionitem >
+                        <apex:outputlabel value="{!f_sl.rstk__poline_typesel__c.label}"/>
+                        <apex:selectlist id="poline_typesel__c" value="{!templine.rstk__poline_typesel__c}" size="1">
+                            <apex:selectOptions value="{!PoLineItemTypes}"/>
+                        </apex:selectlist>
+                    </apex:pageblocksectionitem>
+                </apex:outputPanel>
+            
+                <apex:variable var="headerIdNotNull" value="{!o.Id != null}" />
+
+                <apex:pageBlockTable id="pbt_lineItems" onclick="rowclicked()" value="{!lineItems}" var="d">
+                    <apex:column headerValue="{!$Label.rstk__select}" style="width:25px;">
+                        <apex:inputCheckbox id="poline_selected__c"  tabIndex="-1" />
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__line}" style="width:25px;" rendered="{!linesize > 0}">
+                        <span name="poline_lnedsp__c">{!Round(d.rstk__poline_lne__c, 0)}</span>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_invdiv__c.label}" style="width:110px" rendered="{!showInvDivision}">
+                        <apex:selectlist size="1" id="poline_invdiv__c" value="{!d.rstk__poline_invdiv__c}" disabled="{!d.Id != null}" style="width:110px" tabIndex="175">
+                            <apex:selectOptions value="{!divisions}"/>
+                        </apex:selectlist>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_item__c.label}" style="width:200px">
+                        <apex:outputPanel style="display:{!IF(d.Id == null,'','none')};">
+                            <apex:inputText id="poline_item_autocomplete__c" value="{!d.poline_item__r.rstk__poitem_itemno__c}" style="width:200px;"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.id != null}">
+                            <apex:outputField id="poitemno__c" value="{!d.rstk__poline_item__c}" style="width:200px;"/>
+                        </apex:outputPanel>
+                        <apex:inputText id="poline_item__c" value="{!d.rstk__poline_item__c}" style="display:none;"/>
+                    </apex:column>                  
+                    <apex:column headerValue="{!f_sl.rstk__poline_longdescr__c.label}" style="width:225px">
+                        <apex:outputText id="poline_longdescr__c" value="{!d.rstk__poline_longdescr__c}" style="width:225px" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_qtyreq__c.label}" style="width:50px">
+                        <apex:outputPanel style="display:{!IF(d.Id == null,'','none')};">
+                            <apex:inputText id="poline_qtyreq__c" value="{!d.rstk__poline_qtyreq__c}" 
+                                onkeypress="return filterNonNumeric(event, this)" html-oninput="setLastFieldChanged(this)"
+                                style="width:50px" styleClass="rl-rightalign"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.id != null}">
+                            <apex:outputText id="qtyrev" value="{!d.POLINEREVs__r[0].polinerev_qty__c}" style="width:50px" styleClass="rl-rightalign" html-decimals="{!d.poline_item__r.rstk__formula_qtydecimal__c}"/>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_qtyacc__c.label}" style="width:50px" rendered="{!headerIdNotNull}">
+                        <apex:outputText id="qtyrcvd" value="{!d.rstk__poline_qtyacc__c}" styleClass="rl-rightalign" html-decimals="{!d.poline_item__r.rstk__formula_qtydecimal__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_qtyrtv__c.label}" style="width:50px" rendered="{!headerIdNotNull}">
+                        <apex:outputText id="qtyrtv" value="{!d.rstk__poline_qtyrtv__c}" styleClass="rl-rightalign" html-decimals="1"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__unitprice}" style="width:75px;text-align:right">
+                        <apex:outputPanel style="display:{!IF(d.Id == null,'','none')};white-space: nowrap;">
+                            <apex:inputText id="poline_unitpricemcurr__c" value="{!d.rstk__poline_unitpricemcurr__c}" 
+                                onkeypress="return filterNonNumeric(event, this)" html-oninput="setLastFieldChanged(this)"
+                                style="width:50px" styleClass="rl-rightalign"/>
+                                <a name='sourceInfo' href="#" 
+                                    onclick="showSourcePopup('NEW'); return false;"
+                                     title="{!$Label.ClickToSeeTheSourceOfTheInitialPrice}">
+                                  <img height="8" width="8" src="/img/msg_icons/info16.png"/>
+                                </a>
+                        </apex:outputPanel>
+                        <apex:outputPanel id="pricePanel" rendered="{!d.id != null}">
+                            <apex:outputText value="{!d.POLINEREVs__r[0].polinerev_unitpricemcurr__c}" 
+                                html-decimals="{!IF(OR(ISNULL(currDivision.pocntls__r[0].pocntl_pricedecimal__c), currDivision.pocntls__r[0].pocntl_pricedecimal__c < 2), 2, currDivision.pocntls__r[0].pocntl_pricedecimal__c)}"/>
+                                <a name='sourceInfo' href="#" 
+                                    onclick="showSourcePopup('{!d.rstk__poline_sysprice__c}','{!JSENCODE(d.poline_pricesrce__c)}'); return false;"
+                                     title="{!$Label.ClickToSeeTheSourceOfTheInitialPrice}">
+                                  <img height="8" width="8" src="/img/msg_icons/info16.png"/>
+                                </a>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_puruom__c.label}" style="width:50px">
+                        <apex:selectlist size="1" id="poline_puruom__c" value="{!d.rstk__poline_puruom__c}" disabled="{!d.Id != null}" style="width:110px" tabIndex="540">
+                            <apex:selectOptions value="{!UOMs}"/>
+                        </apex:selectlist>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_amtreq__c.label}" style="width:75px;text-align:right" >
+                        <apex:outputPanel style="display:{!IF(d.Id == null,'','none')};">
+                            <apex:inputText id="poline_amtreqmcurr__c" value="{!d.rstk__poline_amtreqmcurr__c}" style="width:75px" disabled="true"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel id="revamtPanel" rendered="{!d.id != null}">
+                            <apex:outputText id="polinetotal" value="{!d.POLINEREVs__r[0].polinerev_lineamt__c}" html-decimals="2"/>
+                            <span id="linecalcamt__c" style="display:none">{!d.POLINEREVs__r[0].polinerev_lineamt__c}</span>
+                        </apex:outputPanel>
+                    </apex:column>              
+                    <apex:column headerValue="{!f_sl.rstk__poline_schedrcptdte__c.label}" style="width:75px">
+                        <apex:outputPanel style="display:{!IF(d.Id == null,'','none')};">
+                            <c:inputDateNoLink >
+                                <apex:inputField id="poline_schedrcptdte__c" value="{!d.rstk__poline_schedrcptdte__c}" style="width:75px" />
+                            </c:inputDateNoLink>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.id != null}">
+                            <apex:outputField value="{!d.POLINEREVs__r[0].polinerev_buyerrcptdte__c}" style="width:50px" styleClass="rl-rightalign" />
+                        </apex:outputPanel>
+                    </apex:column>  
+                    <apex:column headerValue="{!f_sl.rstk__poline_proj__c.label}" style="width:50px" rendered="{!showProject}">
+                        <apex:outputPanel style="display:{!IF(d.Id == null,'','none')};">
+                            <apex:inputText id="poline_proj_autocomplete__c" value="{!d.rstk__poline_proj_autocomplete__c}" style="width:200px;"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.id != null}">
+                            <apex:outputField id="lineproj__c" value="{!d.rstk__poline_proj__c}" style="width:200px;"/>
+                        </apex:outputPanel>
+                        <apex:inputText id="poline_proj__c" value="{!d.rstk__poline_proj__c}" style="display:none;"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_ordsts__c.label}" style="width:75px">
+                        <apex:inputField id="poline_ordsts__c" value="{!d.rstk__poline_ordsts__c}" style="width:175px" />
+                        <script>document.getElementById('{!$Component.poline_ordsts__c}').disabled = true; </script>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__poline_duedte__c.label}" style="width:75px">
+                        <apex:outputPanel style="display:{!IF(d.Id == null,'','none')};">
+                            <c:inputDateNoLink >
+                                <apex:inputField id="poline_duedte__c" value="{!d.rstk__poline_duedte__c}" style="width:75px" />
+                            </c:inputDateNoLink>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.id != null}">
+                            <apex:outputField value="{!d.POLINEREVs__r[0].polinerev_duedte__c}" style="width:50px" styleClass="rl-rightalign" />
+                        </apex:outputPanel>
+                        
+                        <apex:outputPanel style="display:none">
+	                        <apex:inputHidden id="poline_qtyacc__c" value="{!d.rstk__poline_qtyacc__c}" />
+	                        <apex:inputHidden id="poline_qtyrtv__c" value="{!d.rstk__poline_qtyrtv__c}" />
+                            <apex:inputHidden id="poline_lne__c" value="{!d.rstk__poline_lne__c}" />
+                            <apex:inputHidden id="poline_tempid__c" value="{!d.rstk__poline_tempid__c}" />
+                            <apex:inputHidden id="poline_sysprice__c" value="{!d.rstk__poline_sysprice__c}" />
+                            <apex:inputHidden id="poline_pricesrce__c" value="{!d.rstk__poline_pricesrce__c}" />
+                            <apex:outputText id="linecloseshort" value="{!d.rstk__poline_closeshortind__c}" />
+                            <span id="poitem_qtydecimal__c">{!d.poline_item__r.rstk__formula_qtydecimal__c}</span>
+                            <span id="poline_proj__c">{!d.rstk__poline_proj__c}</span>
+                            <span id="poline_potype__c">{!d.poline_potype__c}</span>
+                            <span id="poline_servicetype__c">{!d.poline_servicetype__c}</span>
+                            <span id="isSerial">{!d.poline_item__r.poitem_item__r.icitem_item__r.peitem_tracksrl_pl__c}</span>
+                            <span id="cloned"></span>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column style="width:150px" rendered="{!showLineRevisionBtn}">
+                        <apex:outputPanel rendered="{!d.id != null}">
+                            <button id="revBtn" type="button" style="width:70px" 
+                                onClick="optionsmodal_show(this, modalTypeRevisions);">{!$Label.rstk__purchord_pagebtn_revisions}</button>
+                            <button id="detailBtn" type="button" style="width:65px" 
+                                onClick="optionsmodal_show(this, modalTypeDetails);">{!$Label.purchord_pagebtn_Details }</button>
+                            <br/>
+                            <a id="lineLink" name="lineLink" 
+                                href="{!URLFOR($Page.POLine, d.id, ['id'=d.id,'fromRecordId'=o.id])}">{!$Label.pagepopup_poasn_NotesAndAttachments}</a>
+                        </apex:outputPanel>
+                    </apex:column>
+                </apex:pageBlockTable>
+                
+               <!--RSTK-4042 Pagination Buttons Start-->
+               <apex:panelGrid columns="7" >
+                    <apex:commandButton status="fetchStatus" immediate="true"  value="|<" action="{!first}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__firstpage}"/>
+                    <apex:commandButton status="fetchStatus" immediate="true"  value="<" action="{!previous}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__previouspage}"/>
+                    <apex:commandButton status="fetchStatus" immediate="true"  value=">" action="{!next}"  disabled="{!!setCon.hasNext}" title="{!$Label.rstk__nextpage}"/>
+                    <apex:commandButton status="fetchStatus" immediate="true" value=">|" action="{!last}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__lastpage}"/>
+                    <apex:outputText >{!(setCon.pageNumber * size)+1-size}-{!IF((setCon.pageNumber * size)>noOfRecords, noOfRecords,(setCon.pageNumber * size))} of {!noOfRecords}</apex:outputText>
+                    <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                    <apex:actionStatus id="fetchStatus" startText="Fetching..." stopText=""/>
+                    </apex:outputPanel>
+                </apex:panelGrid>
+            <!-- Pagination Buttons End-->
+            </apex:pageBlockSection>
+            <apex:pageBlockSection >
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem labelstyle="font-size:1.5em" datastyle="font-size:1.5em;border-bottom:8px double;text-align:right">
+                    <apex:outputLabel value="{!f.rstk__pohdr_totamt__c.label}"/>
+                    <span id="pohdr_totamt__c"></span>
+                </apex:pageBlockSectionItem>
+                <apex:outputPanel >
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_purchord_add}" onclick="return insertLine(false);" style="width:75px;" rendered="{!showLineAddRemoveBtn}" disabled="{!disableAddBtn || accruedAcctNotSet}" immediate="true"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_purchord_remove}" onclick="return removeLines();" style="width:75px;" rendered="{!showLineAddRemoveBtn}" disabled="{!disableAddBtn || accruedAcctNotSet}" immediate="true"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_clone}" onclick="return cloneLines();" style="width:75px;" rendered="{!showLineAddRemoveBtn}" disabled="{!disableAddBtn || accruedAcctNotSet}" immediate="true"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_purchord_addnewitem}" onclick="return addNewItem();" style="width:120px;" rendered="{!showAddItemBtn}" immediate="true"/>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    <apex:pageBlock id="pb_rcpts" rendered="{!!isNew}">
+        <apex:pageBlockSection id="pbs_rcpts" title="{!$Label.rstk__po_receipt_transaction}" showHeader="false" columns="1">
+            <apex:pageBlockTable id="pbt_rcpts" value="{!Porcptaps}" var="porcptap">
+                <apex:column headerValue="{!f_porcptap.rstk__porcptap_rcptno__c.label}" >
+                    <apex:outputField value="{!porcptap.rstk__porcptap_rcptno__c}" /> 
+                </apex:column>
+                <apex:column headerValue="{!f_porcptap.rstk__porcptap_rcptdate__c.label}">
+                    <apex:outputField value="{!porcptap.rstk__porcptap_rcptdate__c}" />
+                </apex:column>
+                <apex:column headerValue="{!f_porcptap.rstk__porcptap_lne__c.label}">
+                    <apex:outputField value="{!porcptap.rstk__porcptap_lne__c}" />
+                </apex:column>
+                <apex:column headerValue="{!f_porcptap.rstk__porcptap_qtycomp__c.label}">
+                    <apex:outputField value="{!porcptap.rstk__porcptap_qtycomp__c}" />
+                </apex:column>
+                <apex:column headerValue="{!f_porcptap.rstk__porcptap_packslipno__c.label}">
+                    <apex:outputField value="{!porcptap.rstk__porcptap_packslipno__c}" />
+                </apex:column>
+                <apex:column headerValue="{!f_porcptap.rstk__porcptap_authdte__c.label}" rendered="{!allowReceiptReversal}">
+                    <apex:outputLink value="{!IF(ISNULL(porcptap.rstk__porcptap_authdte__c),'/apex/POReceiptr?porcptap=' + porcptap.Id + '&porcptr_hdrordno__c=' + porcptap.rstk__porcptap_ordno__c + '&porcptr_poline__c=' + porcptap.rstk__porcptap_poline__c + '&rcptno=' + TEXT(porcptap.rstk__porcptap_rcptno__c),'/apex/PurchOrdAuth?pohdrId=' + o.id)}"
+                        target="_blank" rendered="{!porcptap.rstk__porcptap_qtycomp__c > 0}">{!$Label.rstk__reverse_receipt}</apex:outputLink>
+                </apex:column>
+            </apex:pageBlockTable>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    <c:Popup popupId="OverrideExchangeRatePopup" title="{!$Label.rstk__pagepopup_overrideexchangeratepopup}" onOk="unblockUI();_closeDialog();"  okCaption="Ok" buttonsOnTop="false">
+    	<apex:form id="exchRatePopup"  >
+    	<apex:pageMessages id="ordPageMessages"/>
+    		<apex:actionFunction name="overRideSchedule" action="{!overRideSchedule}" oncomplete="updateLineDetail();unblockUI();_closeDialog();" immediate="false" rerender="op_var,PageMessages"/>
+    		<apex:actionFunction name="revertSpotRate" action="{!revertSpotRate}" oncomplete="updateLineDetail();unblockUI();_closeDialog();" immediate="false" rerender="op_var,PageMessages" >
+	    		 <apex:param id="maintCurr" name="maintCurr" value="" />
+	             <apex:param id="homeCurr" name="homeCurr" value="" />
+	        </apex:actionFunction> 
+    		<apex:actionFunction name="exchangeScheduleChanged" action="{!exchangeScheduleChanged}" oncomplete="unblockUI();" immediate="false" rerender="pageMessages,op_exchange_rate,op_exchange_rate_a,set_exchange_rate" /> 
+    		<apex:actionFunction name="getOverRideExchangeRate" action="{!getOverRideExchangeRate}" oncomplete="unblockUI();" immediate="false" rerender="pageMessages,set_exchange_rate" />
+  				<apex:pageBlockSection id="pbs_exchangepopup" showHeader="false" columns="1">
+	           		<apex:pageBlockSectionItem helpText="{!f_customext.rstk__exchange_rate_schedule__c.inlineHelpText}" >
+	                	<apex:outputLabel value="{!f_customext.rstk__exchange_rate_schedule__c.label}" />
+	                	<apex:outputPanel id="op_rate_schedule">
+	                	<apex:inputField id="exchange_rate_schedule__c" value="{!customext.rstk__exchange_rate_schedule__c}" onchange="exchangeScheduleChanged();blockUI(); return false;"  />
+	                	</apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                <apex:pageBlockSectionItem >
+	                	<apex:outputLabel value="{!$Label.rstk__override_rate_schedule}" />
+	                	<apex:outputPanel id="op_exchange_rate">
+		                	<apex:selectList id="scheduleIdLockedIn" size="1"  
+			                		multiselect="false" 
+			                		value="{!customext.rstk__purchord_overriderate__c}" 
+			                		onchange="doGetOverRideExchangeRate({!customext.rstk__purchord_overriderate__c});blockUI(); return false;" 
+			                		rendered="{!isOverRide == 'LockedIn'}" >
+	                            <apex:selectOptions value="{!LockedInRates}"/>
+	                        </apex:selectList>
+	                        
+	                        <apex:selectList id="scheduleIdOverride" size="1"  
+		                       		multiselect="false" 
+		                       		value="{!customext.rstk__purchord_overriderate__c}" 
+		                       		onchange="doGetOverRideExchangeRate({!customext.rstk__purchord_overriderate__c});blockUI(); return false;" 
+		                       		rendered="{!isOverRide == 'Override'}" >
+	                            <apex:selectOptions value="{!OverRideRates}"/>
+	                        </apex:selectList>
+	                       </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+	                    <apex:outputLabel value="{!f_customext.rstk__exchange_rate__c.label}" />
+	                	<apex:outputPanel id="set_exchange_rate">
+		                	<apex:outputField value="{!customext.rstk__exchange_rate__c}" />
+		                </apex:outputPanel>
+		            </apex:pageBlockSectionItem>
+	                
+		       </apex:pageBlockSection>
+		       <apex:pageBlockSection id="pbs_jobpopup_but" showHeader="false" columns="3">
+		            <apex:commandButton id="selectOverride" onclick="overRideSchedule(); blockUI(); return false;" value="{!$Label.rstk__button_use_selected_override_schedule}" />
+	                <apex:commandButton id="revertspotrate" onclick="doRevertSpotRate(); blockUI(); return false;" value="{!$Label.rstk__button_revert_to_current_spot_rate}" />
+	           </apex:pageBlockSection>
+	    </apex:form>  
+    </c:Popup>
+    <apex:relatedList list="CombinedAttachments" rendered="{!o.id != null}" subject="{!o.id}" />
+    <c:footerInclude cntr="{!controller}" showActivities="{!o.id != null}"/>
+     <script>
+        var SyconfigTable = "{!$Label.MoreThanOnConfigInSyconfigTable}";     
+        var Config = "{!$Label.NoConfigRecordInSyconfigTable}"; 
+        var POLine = "{!$Label.POLineNotFound}";           
+        var PAGE = "{!$Label.INVALIDPAGE_MODE}";
+        var MustUseAlphabetical = "{!$Label.MustUseAlphabeticalCharacter}";
+        
+        if (allowSave == 'false') {
+            alert("{!$Label.CurrentUserNotBuyerAndNoChangesCanBeMade}");
+        } 
+        
+        if (accruedAcctNotSet) {
+            alert("{!$Label.CompanyAccrueAPAccNotSetCantAddPOLine}");
+        }
+    </script>
+    
+    <script>
+        var LABEL_InvalidAddrFound_Street_City_Zipcode_Reqd = "{!$Label.InvalidAddrFound_Street_City_Zipcode_Reqd}";
+        var LABEL_InvalidAddrFound_Street_City_Reqd = "{!$Label.InvalidAddrFound_Street_City_Reqd}";
+        var LABEL_PriceCantBeChangedWithoutReversingPOReceipts = "{!$Label.PriceCantBeChangedWithoutReversingPOReceipts}";
+        var LABEL_POLineAddrNotValid = "{!$Label.POLineAddrNotValid}";
+        var LABEL_POLineAddrNotValid2 = "{!$Label.POLineAddrNotValid2}";
+        var LABEL_ItemType_ItemNum_CommodGrp_ItemDescAndUOMReqd = "{!$Label.ItemType_ItemNum_CommodGrp_ItemDescAndUOMReqd}";
+        var LABEL_ODCIdReqdForIndirectAndServiceItems = "{!$Label.ODCIdReqdForIndirectAndServiceItems}";
+        var LABEL_TotCharsOfItemNum = "{!$Label.TotCharsOfItemNum}";
+        var LABEL_NoMoreLinesCanBeAddedToPO = "{!$Label.NoMoreLinesCanBeAddedToPO}";
+        var LABEL_LineAlreadyClosedShort_DelNotAllowed = "{!$Label.LineAlreadyClosedShort_DelNotAllowed}";
+        var LABEL_OrdStatusDoesntAllowLinesToBeDel_MustCloseLinesShort = "{!$Label.OrdStatusDoesntAllowLinesToBeDel_MustCloseLinesShort}";
+        var LABEL_ReenterValidQty = "{!$Label.ReenterValidQty}";
+        var LABEL_DefDivAddrNotFound = "{!$Label.DefDivAddrNotFound}";
+        var LABEL_NoDefaultAddrFoundForSelPOLineInventoryDiv = "{!$Label.NoDefaultAddrFoundForSelPOLineInventoryDiv}";
+        var LABEL_EnteredOrdNumDuplicateOfExistingPO_EnterDiffNum = "{!$Label.EnteredOrdNumDuplicateOfExistingPO_EnterDiffNum}";
+        var LABEL_SchedPlaceDateCantBeEarlierThanToday = "{!$Label.SchedPlaceDateCantBeEarlierThanToday}";
+        var LABEL_DirectMaterialPOLineIsBeingSetToTaxable = "{!$Label.DirectMaterialPOLineIsBeingSetToTaxable}";
+        var LABEL_MissingUOMConversionFactorBetweenPurchasingUOMAndInventoryUOM = "{!$Label.MissingUOMConversionFactorBetweenPurchasingUOMAndInventoryUOM}";
+        var LABEL_UOMConversionFactorMustBe1ForOutsideOperns = "{!$Label.UOMConversionFactorMustBe1ForOutsideOperns}";
+        var LABEL_UOMConversionFactorMustBeGrtrThan0 = "{!$Label.UOMConversionFactorMustBeGrtrThan0}";
+        var LABEL_EnterLineQtyToReverseCloseShort = "{!$Label.EnterLineQtyToReverseCloseShort}";
+        var LABEL_DateThatCoreIsDueInWIPCantBeSetEarlierThanDateItIsInStock = "{!$Label.DateThatCoreIsDueInWIPCantBeSetEarlierThanDateItIsInStock}";
+        var LABEL_SchedPickDtCantBeSetToDtThatsEarlierThanPOSchedPlaceDate = "{!$Label.SchedPickDtCantBeSetToDtThatsEarlierThanPOSchedPlaceDate}";
+        var LABEL_SchedPickDateCantBSetTODateLaterThanSchedVendorShipDate = "{!$Label.SchedPickDateCantBSetTODateLaterThanSchedVendorShipDate}";
+        var LABEL_SubcontractCompActualShipDtCantBeSetToDtLaterThanActualCompVendorRecptDt = "{!$Label.SubcontractCompActualShipDtCantBeSetToDtLaterThanActualCompVendorRecptDt}";
+        var LABEL_SubcontractCompActualVendorRecptDtCantBeSetToDtEarlierThanActualCompShipDt = "{!$Label.SubcontractCompActualVendorRecptDtCantBeSetToDtEarlierThanActualCompShipDt}";
+        var LABEL_EnterValidDueDt = "{!$Label.EnterValidDueDt}";
+        var LABEL_UpdatedDueDtCantBeEarlierThanToday = "{!$Label.UpdatedDueDtCantBeEarlierThanToday}";
+        var LABEL_SchedVendorShipDtCantBeLaterThanDockDt = "{!$Label.SchedVendorShipDtCantBeLaterThanDockDt}";
+        var LABEL_StockRecptLocNumMustBeSpecIfLocIsSet = "{!$Label.StockRecptLocNumMustBeSpecIfLocIsSet}";
+        var LABEL_LocId_LocNumNotValidLocNumValue = "{!$Label.LocId_LocNumNotValidLocNumValue}";
+        var LABEL_StockRecptLocMustBeSpecIfLocNumSet = "{!$Label.StockRecptLocMustBeSpecIfLocNumSet}";
+        var LABEL_ExpenseAccHasToBeSetForServiceAndIndirectMaterialPO = "{!$Label.ExpenseAccHasToBeSetForServiceAndIndirectMaterialPO}";
+        var LABEL_CantChangeQtyOnCompleteLine_AddNewLine = "{!$Label.CantChangeQtyOnCompleteLine_AddNewLine}";
+        var LABEL_CantSetLineQtyTo0_MayChooseToCloseShortInstead = "{!$Label.CantSetLineQtyTo0_MayChooseToCloseShortInstead}";
+        var LABEL_WhenReversingCloseShortOnLineWithNoReceiptsYouMustAlsoResetQty2Non0 = "{!$Label.WhenReversingCloseShortOnLineWithNoReceiptsYouMustAlsoResetQty2Non0}";
+        var LABEL_CantSetLineQtyTo0_MayChooseToDelLineInstead = "{!$Label.CantSetLineQtyTo0_MayChooseToDelLineInstead}";
+        var LABEL_EnterValidInventoryQty = "{!$Label.EnterValidInventoryQty}";
+        var LABEL_CantLeaveLinePriceOrAmtAsBlank = "{!$Label.CantLeaveLinePriceOrAmtAsBlank}";
+        var LABEL_PriceAndAmtCantBeLessThan0 = "{!$Label.PriceAndAmtCantBeLessThan0}";
+        var LABEL_ReenterValidUnitPrice = "{!$Label.ReenterValidUnitPrice}";
+        var LABEL_LineQtyDecimalLimitExceeded = "{!$Label.LineQtyDecimalLimitExceeded}";
+        var LABEL_LineUnotPriceUpdatedTo = "{!$Label.LineUnotPriceUpdatedTo}";
+        var LABEL_PriceDecimalLimitExceeded = "{!$Label.PriceDecimalLimitExceeded}";
+        var LABEL_WishToSubmitPOForApproval = "{!$Label.WishToSubmitPOForApproval}";
+        var LABEL_WishToHaltPOApprovalProcess = "{!$Label.WishToHaltPOApprovalProcess}";
+        var LABEL_WishToSubmitPOToVendor = "{!$Label.WishToSubmitPOToVendor}";
+        var LABEL_POLineMaxLinesExceeded = "{!$Label.POLineMaxLinesExceeded}";
+        var LABEL_WishToResubmitPOForApproval = "{!$Label.WishToResubmitPOForApproval}";
+        var LABEL_ChangingVendorReqRemovingOfExistingIncompatibleLines_WishToCont = "{!$Label.ChangingVendorReqRemovingOfExistingIncompatibleLines_WishToCont}";
+        var LABEL_DimensionValueNotValid = "{!$Label.DimensionValueNotValid}";
+        var LABEL_ExistingLinesWereAddedUnderTheOldAgreementValue = "{!$Label.ExistingLinesWereAddedUnderTheOldAgreementValue}";
+// RCB: RSTK-3538
+        var LABEL_PO_vendor_billing_address_not_found = "{!$Label.PO_vendor_billing_address_not_found}";
+        var LABEL_PickListGenerated = "{!$Label.Pick_List_Generated}";
+        var LABEL_ChangesHaveBeenMadeToThisOrder = "{!$Label.ChangesHaveBeenMadeToThisOrder}";
+        var LABEL_AnyUnsavedChangesCouldBeLost = "{!$Label.AnyUnsavedChangesCouldBeLost}";
+        var LABEL_Specified_VAT_Class_has_been_marked_as_inactive_and_must_be_changed = "{!$Label.Specified_VAT_Class_has_been_marked_as_inactive_and_must_be_changed}"
+        var codeToBasePriceSource = {
+            "ADQ" : "{!$Label.AgreementItemPriceByDateQty}",
+            "AID" : "{!$Label.AgreementItemPriceByDate}",
+            "AIQ" : "{!$Label.AgreementItemPriceByQty}",
+            "AIT" : "{!$Label.AgreementItemPrice}",
+            "ACQ" : "{!$Label.AgreementCommodityCodePriceByQty}",
+            "ACC" : "{!$Label.AgreementCommodityCodePrice}",
+            "IPJ" : "{!$Label.ItemProject}",
+            "PIV" : "{!$Label.ItemVendorPrice}",
+            "PVL" : "{!$Label.ItemVendorLastPOPrice}"
+        }
+        var codeToDiscountSource = {
+            "AIQ" : "{!$Label.AgreementItemPriceByQty}",
+            "AIT" : "{!$Label.AgreementItemPrice}",
+            "ACQ" : "{!$Label.AgreementCommodityCodePriceByQty}",
+            "ACC" : "{!$Label.AgreementCommodityCodePrice}"
+        }
+        /*
+	    JIRAS: RSTK-4484
+	    */
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}"/>
+</apex:page>

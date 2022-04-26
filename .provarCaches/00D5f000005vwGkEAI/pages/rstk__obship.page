@@ -1,0 +1,455 @@
+<apex:page id="pg" standardController="rstk__obship__c" extensions="rstk.ControllerExtnObship,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__obship__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__obship__c.fields}" /> 
+     <apex:variable var="f_obshipcont" value="{!$ObjectType.rstk__obshipcont__c.fields}" /> 
+     
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__outbound_shipment}" enableAutocomplete="true" customInclude="{!$Resource.rstk__obship_cli}" />
+    <c:jquery_client_labels />
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_autocomplete}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__autocomplete, 'autocomplete/css/jquery.autocomplete.css')}" />
+    
+    <script>
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+        var isView = {!isView};
+        var mode = null;
+        var obshipId;
+        var divId = '{!o.rstk__obship_div__c}';
+        var rows = {};
+        var selectcbxs = [];
+        if(isEdit){
+            obshipId = '{!o.id}';
+        }
+        
+        function uploadBookCnf() {
+            var recId = '{!o.id}';
+            if(checkUploadFlag(recId , 'obship_havebookcon__c')){
+                try {
+                    window.open('/apex/NotesAndAttachments?id={!o.id}&objname=obship__c&parms=set_obship_havebookcon');
+                } finally {
+                    return false;
+                }
+            }
+        }
+        
+        function checkUploadFlag(recId,field){
+            var obshipRecord = execQuery("select obship_havebookcon__c from obship__c where id = '" + recId + "'",true);
+            if(obshipRecord.length > 0){
+                if(field == 'obship_havebookcon__c' && obshipRecord[0].obship_havebookcon__c == 'true'){
+                    alert("{!$Label.rstk__bookingconfirmationdocalreadyattached}");
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        function porouteChanged() {
+            var porouteId = sfffGetFieldValue('obship_poroute__c');
+            if (porouteId) {
+                porouteInfo = sfffLookupField('poroute__c', porouteId,['poroute_routetype__c']);
+                sfffSetFieldValue('obship_routetype__c', porouteInfo.poroute_routetype__c);
+            }
+        }
+        /*
+        function loadDockReport() {
+            if({!displayDockReport}){
+                try {
+                    window.open('/apex/dockReceiptPDF?id={!o.id}');
+                } finally {
+                    return false;
+                }
+            }else{
+                alert('Not all required data has been specified on the Shipment necessary to create the Dock Receipt report.  These fields are required: Vessel Name, Port Routing, Carrier, Terminal Address, Booking Number, Shipping Instruction Closing Date, and Original Due Date.');
+            }
+        } */
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <!-- <apex:actionFunction name="doSave" action="{!save}" oncomplete="saveSteps();" rerender="pageMessages"/> -->
+        <apex:actionFunction name="doSave" action="{!save}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <!-- <apex:actionFunction name="doRefreshDetails" action="{!setCurrentContainerId}" oncomplete="contdtl_reset();return false;" immediate="true" >
+            <apex:param name="firstParam" assignTo="{!obshipcontId}" value="" />
+        </apex:actionFunction>  -->
+        <apex:actionFunction name="shipperDetails" action="{!shipperDetails}" immediate="true" oncomplete="unblockUI();" rerender="pb_table2"/>
+        <apex:actionFunction name="processShipperDetails" action="{!processShipperDetails}" immediate="false" rerender="pageMessages"/> 
+        <apex:actionFunction name="addContainer" action="{!addContainer}"/>
+        
+        
+        <script>rows = {}; selectcbxs = []; </script>
+        <c:Popup popupId="chdShipper" okCaption="{!$Label.rstk__save}" buttonsOnTop="true" title="{!$Label.rstk__child_shipper_detail}" onOk="blockUI();processShipperDetails();">
+             <input type="checkbox" onclick="selectall(this)" />
+             <apex:outputLabel value="{!$Label.rstk__selectall}" />
+             <apex:pageBlockTable value="{!childShipperDetails}" var="i" id="pb_table2">
+                 <apex:column headerValue="{!$Label.rstk__select}">
+                    <apex:inputCheckbox id="selected" value="{!i.selected}" />
+                    <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                 </apex:column>
+                 <apex:column value="{!i.obship.Name}"/> 
+                 <apex:column headerValue="{!f.rstk__obship_comments2__c.label}" >
+                    <apex:outputField value="{!i.obship.rstk__obship_comments2__c}"/>
+                    <script>
+                        rows["{!i.key}"] = {
+                            selected: document.getElementById("{!$Component.selected}")
+                        };   
+                    </script>
+                   </apex:column>
+             </apex:pageBlockTable>
+        </c:Popup>
+        
+        <apex:outputPanel id="op_mainpb">
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel id="op_hidden" style="display:none">
+               <apex:inputHidden id="isDirty__c" value="{!dirtySteps}" rendered="{!isEdit}"/>
+            </apex:outputPanel> 
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" />
+                <apex:commandbutton value="{!$Label.rstk__child_shipper_detail}" onclick="blockUI();shipperDetails();_showDialog('chdShipper', '720');return false;" style="width:170px;" rendered="{!isView && o.rstk__obship_master__c}" />
+                <apex:commandbutton value="New Outbound Shipment Container" onclick="addContainer();return false;" style="width:200px;" rendered="{!isView}" />
+                <!-- <c:nosubmitbutton label="Dock Receipt Report" onclick="loadDockReport();" style="width:150px" rendered="{!isView}"/>  -->
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!!isView}">
+                 <apex:outputField value="{!o.rstk__obship_div__c}"/>
+                 
+                 <apex:pageBlockSectionItem />
+                 
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__obship_shipmentid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__obship_shipmentid__c.label}"/>
+                    <c:inputField id="obship_shipmentid__c" required="true" cntr="{!controller}" tabIndex="10"/>
+                 </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__obship_poroute__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__obship_poroute__c.label}"/>
+                    <c:selectList id="obship_poroute__c" required="true" cntr="{!controller}" options="{!poroutes}" tabIndex="11"/>
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__obship_routetype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__obship_routetype__c.label}"/>
+                    <c:selectList id="obship_routetype__c" required="true" cntr="{!controller}" options="{!portetypes}" tabIndex="12"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="obship_destaddress__c" value="{!o.rstk__obship_destaddress__c}"  taborderhint="14"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__obship_comments2__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__obship_comments2__c.label}"/>
+                    <apex:inputField id="obship_comments2__c" value="{!o.rstk__obship_comments2__c}"  taborderhint="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="obship_wmsdirectrqst__c" value="{!o.rstk__obship_wmsdirectrqst__c}"  taborderhint="15"/>
+                
+                <apex:inputField id="obship_priority__c" value="{!o.rstk__obship_priority__c}"  taborderhint="3" />
+                
+                <apex:pageBlockSectionItem />  
+               
+                <apex:inputField id="obship_routelock__c" value="{!o.rstk__obship_routelock__c}"  taborderhint="4" />  
+               
+                <apex:inputField id="obship_siclosedate__c" value="{!o.rstk__obship_siclosedate__c}"  taborderhint="16" />
+                 
+                <apex:inputField id="obship_vessels__c" value="{!o.rstk__obship_vessels__c}"  taborderhint="5" />
+               
+                <apex:inputField id="obship_dgbookclosedate__c" value="{!o.rstk__obship_dgbookclosedate__c}"  taborderhint="17" />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__obship_portrouting2__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__obship_portrouting2__c.label}"/>
+                    <c:inputField id="obship_portrouting2__c" cntr="{!controller}" tabIndex="60"/>
+                 </apex:pageBlockSectionItem>
+                <apex:inputField id="obship_portcutdate__c" value="{!o.rstk__obship_portcutdate__c}"  taborderhint="18" />
+                
+                
+                <apex:inputField id="obship_termaddress__c" value="{!o.rstk__obship_termaddress__c}"  taborderhint="7" />
+                <apex:inputField id="obship_customscleared__c" value="{!o.rstk__obship_customscleared__c}"  taborderhint="19" />
+                
+                <apex:inputField id="obship_bookingno__c" value="{!o.rstk__obship_bookingno__c}"  taborderhint="8" />
+                <apex:inputField id="obship_actlocwhdate__c" value="{!o.rstk__obship_actlocwhdate__c}"  taborderhint="20" />
+                
+                <apex:inputField id="obship_serialno__c" value="{!o.rstk__obship_serialno__c}"  taborderhint="9" />
+                <apex:outputField value="{!o.rstk__obship_origduedate__c}" />
+                
+                <apex:inputField id="obship_docclosedate__c" value="{!o.rstk__obship_docclosedate__c}"  taborderhint="10" />
+                <apex:outputField value="{!o.rstk__obship_currduedate__c}" />
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__obship_frtplanner__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__obship_frtplanner__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="obship_frtplanner__c" value="{!o.rstk__obship_frtplanner__c}" size="1" style="width:250px;" tabIndex="110">
+                            <apex:selectOptions value="{!freightPlanner}" />
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:outputField value="{!o.rstk__obship_actduedate__c}" />
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__obship_carrier__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__obship_carrier__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="obship_carrier__c" value="{!o.rstk__obship_carrier__c}" size="1" style="width:250px;" tabIndex="120">
+                            <apex:selectOptions value="{!carriers}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="obship_readyforpu__c" value="{!o.rstk__obship_readyforpu__c}"  taborderhint="21" />
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__obship_master__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__obship_master__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="obship_master__c" value="{!o.rstk__obship_master__c}"  taborderhint="13" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstk__obship_master__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="obship_received__c" value="{!o.rstk__obship_received__c}"  taborderhint="22" />
+                
+                <apex:outputField value="{!o.rstk__obship_masterobship__c}"/>
+                <apex:inputField id="obship_haulage__c" value="{!o.rstk__obship_haulage__c}"  taborderhint="23" />
+                
+                <apex:pageBlockSectionItem />
+                <apex:inputField id="obship_haulier__c" value="{!o.rstk__obship_haulier__c}"  taborderhint="24" />
+                
+                <apex:pageBlockSectionItem />
+                <apex:inputField id="obship_hauliercomment__c" value="{!o.rstk__obship_hauliercomment__c}"  taborderhint="25" />
+                
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_Main_view" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!isView}">
+                 <apex:outputField value="{!o.rstk__obship_div__c}"/>
+                 
+                <apex:pageBlockSectionItem />
+                 
+                <apex:outputField value="{!o.rstk__obship_shipmentid__c}" />
+                
+                <apex:pageBlockSectionItem />
+               
+                <apex:outputField value="{!o.rstk__obship_poroute__c}" />
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputField value="{!o.rstk__obship_routetype__c}" />
+                
+                <apex:outputField value="{!o.rstk__obship_destaddress__c}" />
+                
+                <apex:outputField value="{!o.rstk__obship_comments2__c}" />
+                                
+                <apex:outputField value="{!o.rstk__obship_wmsdirectrqst__c}" />
+                
+                <apex:outputField value="{!o.rstk__obship_priority__c}"   />  
+                <apex:pageBlockSectionItem />  
+               
+                <apex:outputField value="{!o.rstk__obship_routelock__c}"  />  
+               
+                <apex:outputField value="{!o.rstk__obship_siclosedate__c}"   />
+                
+                <apex:outputField value="{!o.rstk__obship_vessels__c}"   />
+               
+                <apex:outputField value="{!o.rstk__obship_dgbookclosedate__c}"   />
+                
+                <apex:outputField value="{!o.rstk__obship_portrouting2__c}"   />
+               
+                <apex:outputField value="{!o.rstk__obship_portcutdate__c}"  />
+                
+                <apex:outputField value="{!o.rstk__obship_termaddress__c}"   />
+                
+                <apex:outputField value="{!o.rstk__obship_customscleared__c}"   />
+                
+                <apex:outputField value="{!o.rstk__obship_bookingno__c}"   />
+                
+                <apex:outputField value="{!o.rstk__obship_actlocwhdate__c}"  />
+                
+                <apex:outputField value="{!o.rstk__obship_serialno__c}"  />
+                
+                <apex:outputField value="{!o.rstk__obship_origduedate__c}" />
+               
+                <apex:outputField value="{!o.rstk__obship_docclosedate__c}"  />
+                
+                <apex:outputField value="{!o.rstk__obship_currduedate__c}" />
+                
+                <apex:outputField value="{!o.rstk__obship_frtplanner__c}"   />
+                
+                <apex:outputField value="{!o.rstk__obship_actduedate__c}" />
+                
+                <apex:outputField value="{!o.rstk__obship_carrier__c}"   />
+                
+                <apex:outputField value="{!o.rstk__obship_readyforpu__c}"/> 
+                
+                <apex:outputField value="{!o.rstk__obship_master__c}"/>
+                
+                <apex:outputField value="{!o.rstk__obship_received__c}"/>
+                
+                <apex:outputField value="{!o.rstk__obship_masterobship__c}"/>
+					
+				<apex:outputField value="{!o.rstk__obship_haulage__c}"  />
+                
+                <apex:pageBlockSectionItem >
+                   <apex:commandButton value="{!$Label.rstk__booking_confirmation_attached}" onclick="return uploadBookCnf();" disabled="{!o.rstk__obship_havebookcon__c}"/>
+                   <apex:outputPanel ></apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__obship_haulier__c}" />
+                
+                <apex:pageBlockSectionItem />
+                <apex:outputField value="{!o.rstk__obship_hauliercomment__c}" />	                
+                
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="Obship Steps" id="theTabPanel" rendered="{!!isNew}">
+                <apex:tab label="{!$Label.rstk__obship_steps}" name="tab_obshipsteps" id="tab_obshipsteps">
+                         <apex:pageBlockSection id="obshipstepsGridDisplay" showHeader="false" columns="4" rendered="{!isView}">
+                            <apex:outputLabel value=""/>
+                            <apex:outputLabel value="{!$Label.rstk__original}"/>
+                            <apex:outputLabel value="{!$Label.rstk__current}"/>
+                            <apex:outputLabel value="{!$Label.rstk__actual}"/>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__loading_date}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_needdepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_plandepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_actdepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__dublin_port_etd}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_needusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_planusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_actusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__transit_port_eta}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_needporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_planporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_actporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                                                        
+                            <apex:outputLabel value="{!$Label.rstk__destination_port_eta}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_needarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_planarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__obshipstep_actarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem> 
+                         </apex:pageBlockSection>  
+                                
+                        <apex:pageBlockSection id="obshipstepsGrid" showHeader="false" columns="4" rendered="{!isEdit}">
+                            <apex:outputLabel value=""/>
+                            <apex:outputLabel value="{!$Label.rstk__original}"/>
+                            <apex:outputLabel value="{!$Label.rstk__current}"/>
+                            <apex:outputLabel value="{!$Label.rstk__actual}"/>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__loading_date}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_needdepartdate__c" value="{!step.rstk__obshipstep_needdepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_plandepartdate__c" value="{!step.rstk__obshipstep_plandepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_actdepartdate__c" value="{!step.rstk__obshipstep_actdepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__dublin_port_etd}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_needusportetd__c" value="{!step.rstk__obshipstep_needusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_planusportetd__c" value="{!step.rstk__obshipstep_planusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_actusportetd__c" value="{!step.rstk__obshipstep_actusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__transit_port_eta}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_needporteta__c" value="{!step.rstk__obshipstep_needporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_planporteta__c" value="{!step.rstk__obshipstep_planporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_actporteta__c" value="{!step.rstk__obshipstep_actporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                                                        
+                            <apex:outputLabel value="{!$Label.rstk__destination_port_eta}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_needarrivaldate__c" value="{!step.rstk__obshipstep_needarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_planarrivaldate__c" value="{!step.rstk__obshipstep_planarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="obshipstep_actarrivaldate__c" value="{!step.rstk__obshipstep_actarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem> 
+                         </apex:pageBlockSection>
+                        
+                    </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__obship_containers}" name="tab_obshipconts_Boc" id="tab_obshipconts_Boc" rendered="{!!o.rstk__obship_master__c}">
+                    <apex:pageBlockSection id="pbs_obshipcont_Boc" showHeader="false" title="{!$Label.rstk__containers}" columns="1" >
+                        <apex:pageBlockTable value="{!obshipconts}" var="c">
+                            <apex:column headerValue="{!$Label.rstk__action}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__obshipcont__c.Edit, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__obshipcont__c.View, c.id)}{!ReturnUrlParms}">{!$Label.rstk__obship_del}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__containername}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__obshipcont__c.View, c.id)}{!ReturnUrlParms}">{!c.Name}</apex:outputLink>
+                            </apex:column>
+                            <apex:column value="{!c.rstk__obshipcont_serialno__c}" />
+                            <apex:column value="{!c.rstk__obshipcont_hotshipment__c}" />
+                            <apex:column value="{!c.rstk__obshipcont_contutilization__c}" />
+                            <apex:column value="{!c.rstk__obshipcont_bookreqstdate__c}" />
+                            <apex:column value="{!c.rstk__obshipcont_collectiondate__c}" />
+                            <apex:column value="{!c.rstk__obshipcont_comment__c}" />
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                 
+                 <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_poship_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+        </apex:outputPanel>
+    </apex:form>
+    
+    <apex:outputPanel id="op_footer">
+        <c:footerInclude cntr="{!controller}"/>
+    </apex:outputPanel>
+    
+    <script>
+        var LABEL_CantReerseSipmentRcpAsRequisitionsAlreadyProcessedAtCnsolidationCenter = "{!$Label.rstk__cantreersesipmentrcpasrequisitionsalreadyprocessedatcnsolidationcenter}";
+        var LABEL_InboundShipmentDestinationReqd = "{!$Label.rstk__inboundshipmentdestinationreqd}";
+        var LABEL_CommentFieldisRequired = "{!$Label.rstk__commentfieldisrequired}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

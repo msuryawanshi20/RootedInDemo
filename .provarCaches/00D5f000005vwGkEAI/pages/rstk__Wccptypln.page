@@ -1,0 +1,438 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_wccptypln}" standardController="rstk__wccptypln__c" extensions="rstk.ControllerExtnWccptypln" sideBar="false" action="{!doBeforePageLoad}">
+    <script>function setFocusOnLoad() {}</script>
+    <apex:variable var="o" value="{!rstk__wccptypln__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__wccptypln__c.fields}" />
+    <apex:variable var="wcf" value="{!$ObjectType.rstk__rtwctr__c.fields}" />
+
+    <script>
+        var loadingText = "{!$Label.rstk__pagetab_wccptypln_loading}";
+        var usingLss = sforce.one && {!useLightningStyleSheets};
+        var MAX_DAYS = {!maxDays};
+        var CPStandardFields = [];
+        var CPStandardLabels = [];
+        var CPDetailFields = [];
+        var CPDetailLabels = [];
+    </script>
+
+    <apex:outputPanel rendered="{!hasCPStandardFields}">
+        <script>
+            CPStandardFields = [
+            <apex:repeat value="{!CPStandardFields}" var="hcf">
+                '{!hcf.fieldPath}',
+            </apex:repeat>  
+            ];
+
+            CPStandardLabels = [
+            <apex:repeat value="{!CPStandardFields}" var="hcf">
+                '{!hcf.label}',
+            </apex:repeat>  
+            ];
+        </script>
+    </apex:outputPanel>
+
+    <apex:outputPanel rendered="{!hasCPDetailFields}">
+        <script>
+            CPDetailFields = [
+            <apex:repeat value="{!CPDetailFields}" var="hcf">
+                '{!hcf.fieldPath}',
+            </apex:repeat>  
+            ];
+
+            CPDetailLabels = [
+            <apex:repeat value="{!CPDetailFields}" var="hcf">
+                '{!hcf.label}',
+            </apex:repeat>  
+            ];
+        </script>
+    </apex:outputPanel>
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_wccptypln}" customInclude="{!$Resource.rstk__wccptypln_sl_cli}" customInclude2="{!$Resource.rstk__wocst_lib}"/>
+
+    <style>
+            .modal {
+                background-color:#fff;
+                display:none;
+                width:400px;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+			.bPageBlock .pbTitle {
+			    vertical-align: middle;
+			    color: #222;
+			    font-size: 91%;
+			    width: 500px;
+			    margin: 0
+			}
+            
+            progress {
+                width: 100px;
+                height: 7px;
+                display: block;
+                -webkit-appearance: none;
+                border: none;
+            }
+            
+            progress::-webkit-progress-bar {
+                background: #fff;
+                border-radius: 20px;
+            }
+            
+            progress::-webkit-progress-value {
+                background: #4d90fe;
+                border-radius: 20px;
+                box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.4);
+            }
+            
+			#rsColHeader {
+			    color: #333;
+			    margin: 1px;
+			    padding: 2px 3px;
+			    border: 1px solid #b5b5b5;
+			    border-bottom-color: #7f7f7f;
+			    background: #e8e8e9 url(/img/alohaSkin/btn_sprite.png) repeat-x right top;
+			    font-weight: bold;
+			    font-size: .9em;
+			    -moz-border-radius: 3px;
+			    -webkit-border-radius: 3px;
+			    border-radius: 3px
+			}
+
+			@media (min-width: 30em) {
+			    body input[type="text"],.slds-scope input[type="text"] {
+			        min-width:4rem;
+			    }
+			}
+			
+			@media (min-width: 30em) {
+			    body select,body select[size='0'],body select[size='1'],.slds-scope select,.slds-scope select[size='0'],.slds-scope select[size='1'] {
+			        min-width:6rem
+			    }
+			}
+			
+			
+    </style>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons id="pbb" location="top" html-align="left">
+            <apex:commandButton id="btnSubmit" value="{!$Label.rstk__pagebtn_wccptypln_submit}" onclick="blockUI();saveChanges(); return false;"/>
+            <apex:commandButton id="btnCancel" value="{!$Label.rstk__pagebtn_wccptypln_reset}" onclick="resetAll(); return false;"/>
+            <apex:commandButton id="btnSchedule" value="{!$Label.rstk__pagebtn_wccptypln_levelload}" onclick="{!IF(allowLevelLoad, 'schedule();','')} return false;" disabled="{!!allowLevelLoad}"/>
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableCancel="true"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <c:division id="wccptypln_div__c" cntr="{!controller}" />
+        </apex:outputPanel>
+        <table width="100%" border="0" cellspacing="0" cellpadding="0"><TR><TD>
+        <div id="detailBlock1" style="width:700px;float:left">
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="3" >            
+                <apex:pageBlockSectionItem helpText="{!f.rstk__wccptypln_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__wccptypln_div__c.label}" />
+                    <apex:outputField value="{!o.rstk__wccptypln_div__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__wccptypln_date__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__startdate}" />
+                    <c:inputField id="wccptypln_date__c" required="true" cntr="{!controller}" tabIndex="2" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__wccptypln_days__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__wccptypln_days__c.label}" />
+                    <c:inputText id="wccptypln_days__c" required="true" cntr="{!controller}" width="80px" tabIndex="102" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </div>
+        
+        <div id="detailBlock2" style="width:50px;float:left">
+            <div class="pbSubsection">&nbsp;</div>
+        </div>
+        
+        <div id="detailBlock3" style="border:1px solid #dddddd;border-radius:5px;width:460px;float:left">
+            <div class="pbSubsection">
+                <table class="detailList" border="0" cellpadding="1" cellspacing="0">
+                    <tr style="vertical-align:bottom">
+                        <td style="vertical-align:middle">
+                            <div style='height:12px;width:26px;background-color:#93EEAA;border: 1px solid #888888;border-top: 1px solid #DDDDDD;border-left: 1px solid #DDDDDD;border-radius:2px; -moz-border-radius:2px; -webkit-border-radius:2px;'></div>
+                        </td>
+                        <td class="data2Col" style="vertical-align:middle;width:140px;"><label>{!$Label.WithinCapacity}</label></td>
+
+                        <td style="vertical-align:middle">
+                            <div style='height:12px;width:26px;background-color:#FF9797;border: 1px solid #888888;border-top: 1px solid #DDDDDD;border-left: 1px solid #DDDDDD;border-radius:2px; -moz-border-radius:2px; -webkit-border-radius:2px;'></div>
+                        </td>
+                        <td class="data2Col"  style="vertical-align:middle;width:140px;"><label>{!$Label.ExceedsCapacity}</label></td>
+
+                        <td style="vertical-align:middle">
+                            <div style='height:12px;width:26px;background:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAG0lEQVQIW2NkYGBIA+JZQAwGjDAGNgGwSgwVAFIeAgUiP03aAAAAAElFTkSuQmCC) repeat;border: 1px solid #888888;border-top: 1px solid #DDDDDD;border-left: 1px solid #DDDDDD;border-radius:2px; -moz-border-radius:2px; -webkit-border-radius:2px;'></div>
+                        </td>
+                        <td class="data2Col"  style="vertical-align:middle;width:140px;"><label>{!$Label.ActivityStarted}</label></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <BR></BR>
+        </TD></TR>
+        <TR><TD>
+        <div id="maincontent">
+            <apex:tabPanel switchType="client" id="tabpanel">
+                <apex:tab label="{!$Label.rstk__pagetab_wccptypln_overview}" name="ovt" id="ovt">
+                    <div id="ov_tabcontainer" style="width:100%; overflow:auto;display:inline">
+                    </div>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_wccptypln_workcenters}" name="wct" id="wct">
+                    <div id="wc_tabcontainer" style="width:100%; height:100%; overflow:auto;display:inline">
+                        <apex:tabPanel switchType="client" id="wc_tabpanel" width="100%">
+                            <apex:tab label="{!$Label.rstk__pagetab_wccptypln_loading}" name="wc_tabref" id="wc_tabref">
+                                <apex:outputPanel id="wc_opref">
+                                </apex:outputPanel>
+                            </apex:tab>
+                        </apex:tabPanel>
+                    </div>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_wccptypln_workorders}" name="wot" id="wot">
+                    <div id="wo_tabcontainer" style="width:100%; overflow:auto;display:inline">
+                        <apex:tabPanel switchType="client" id="wo_tabpanel">
+                            <apex:tab label="{!$Label.rstk__pagetab_wccptypln_loading}" name="wo_tabref" id="wo_tabref">
+                                <apex:outputPanel id="wo_opref">
+                                </apex:outputPanel>
+                            </apex:tab>
+                        </apex:tabPanel>
+                    </div>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_wccptypln_estimates}" name="est" id="est">
+                    <div id="es_tabcontainer" style="width:100%; overflow:auto;display:inline">
+                        <apex:tabPanel switchType="client" id="es_tabpanel">
+                            <apex:tab label="{!$Label.rstk__pagetab_wccptypln_loading}" name="es_tabref" id="es_tabref">
+                                <apex:outputPanel id="es_opref">
+                                </apex:outputPanel>
+                            </apex:tab>
+                        </apex:tabPanel>
+                    </div>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_wccptypln_projects}" name="pjt" id="pjt">
+                    <div id="pj_tabcontainer" style="width:100%; overflow:auto;display:inline">
+                        <apex:tabPanel switchType="client" id="pj_tabpanel">
+                            <apex:tab label="{!$Label.rstk__pagetab_wccptypln_loading}" name="pj_tabref" id="pj_tabref">
+                                <apex:outputPanel id="pj_opref">
+                                </apex:outputPanel>
+                            </apex:tab>
+                        </apex:tabPanel>
+                    </div>
+                </apex:tab>
+            </apex:tabPanel>
+        </div>
+        </TD></TR>
+        </table>
+        <div id="materialAvailability" style="display:none">
+            <h2>{!$Label.ComponentAvailability}</h2>
+            <hr></hr>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:200px;overflow-y:scroll;display:block">
+            <apex:pageBlockSection id="pbs_Components" showHeader="true" columns="1" >
+                <apex:pageBlockTable id="pbt_Components" value="{!components}" var="rec">       
+                    <apex:column headerValue="{!$Label.rstk__component}" width="140px" value="{!rec.component}"/>
+                    <apex:column headerValue="{!$Label.rstk__description}" width="220px" value="{!rec.component}"/>
+                    <apex:column headerValue="{!$Label.rstk__qtyrequired}" width="80px" value="{!rec.qtyRequired}"/>
+                    <apex:column headerValue="{!$Label.rstk__qtyissued}" width="80px" value="{!rec.qtyRequired}"/>
+                    <apex:column headerValue="{!$Label.rstk__qtyoutstanding}" width="80px" value="{!rec.qtyShort}"/>
+                    <apex:column headerValue="{!$Label.rstk__qtyavailable}" width="80px" value="{!rec.qtyShort}"/>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+            </div>
+            <div id="mtlAvailBtns" style="clear:both">
+                <p><button type="button" onclick="unblockUI();">{!$Label.pagebtn_wccptyin_OK}</button></p>
+            </div>
+        </div>
+        <div id="calendarDetails" style="display:none">
+            <h2>{!$Label.WorkCenterCalendarDayDetails}  (<span id="wcd_date"></span>)</h2>
+            <hr></hr>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette">
+            <input type="text" id="wcd_key" style="display:none"/>
+            <table class="detailList" border="0" cellpadding="0" cellspacing="0">
+                <tbody>
+                    <tr>
+                        <td><label class="labelCol">&nbsp;{!$Label.active}  </label><input type="checkbox" id="wcd_activeind" onchange="enableWCDateOverrides();"/></td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette">
+            <table class="detailList" border="0" cellpadding="0" cellspacing="0">
+                <thead><tr style="width: 100%"><th><h2>&nbsp;{!$Label.labor}</h2></th><th style="text-align:right"><label class="labelCol">{!$Label.UseDefault}</label><input type="checkbox" id="wcd_labovrind" onchange="labovrindChanged();"/>&nbsp;&nbsp;</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td class="labelCol  first" nowrap="true"><label>{!wcf.rtwctr_hrsperdaylab__c.label}</label></td>
+                        <td class="data2Col  first"><input type="text" id="wcd_hrsperdaylab" /></td>
+                    </tr>
+                    <tr>
+                        <td class="labelCol  first" nowrap="true"><label>{!wcf.rtwctr_labhrsdaysconv__c.label}</label></td>
+                        <td class="data2Col  first"><input type="text" id="wcd_labhrsdayconv" /></td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette">
+            <table class="detailList" border="0" cellpadding="0" cellspacing="0">
+                <thead><tr style="width: 100%"><th><h2>&nbsp;{!$Label.pagetab_rtindoper_Machine}</h2></th><th style="text-align:right"><label class="labelCol">{!$Label.UseDefault}</label><input type="checkbox" id="wcd_machovrind" onchange="machovrindChanged();"/>&nbsp;&nbsp;</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td class="labelCol  first" nowrap="true"><label>&nbsp;{!wcf.rtwctr_hrsperdaymach__c.label}</label></td>
+                        <td class="data2Col  first"><input type="text" id="wcd_hrsperdaymach" /></td>
+                    </tr>
+                    <tr>
+                        <td class="labelCol  first" nowrap="true"><label>&nbsp;{!wcf.rtwctr_machhrsdaysconv__c.label}</label></td>
+                        <td class="data2Col  first"><input type="text" id="wcd_machhrsdayconv" /></td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+            <div id="issueBtns" style="clear:both">
+                <button type="button" onclick="if (setCalendarDetails()) {unblockUI();}">{!$Label.pagebtn_wccptyin_Set}</button>
+                <button type="button" onclick="unblockUI();" class="close">{!$Label.pagebtn_wccptyin_Cancel}</button>
+            </div>
+        </div>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+
+    <div id="popupDetails" style="display:none">
+        <h2>{!$Label.WorkOrderOperationOverrides}</h2>
+        <hr></hr>
+        <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette">
+        <table class="detailList" border="0" cellpadding="0" cellspacing="0">
+            <tbody>
+                <tr>
+                    <td class="labelCol  first last " style="width:30%"><label>{!$Label.wccptypln_Start_Date}</label></td>
+                    <td class="data2Col  first last "><input type="text" id="usersetstartdate" /></td>
+                </tr>
+                <tr>
+                    <td class="labelCol  first last " style="width:30%"><label>{!$Label.wccptypln_Locktopreventautoscheduling}</label></td>
+                    <td class="data2Col  first last "><input type="checkbox" id="schedlocked" /></td>
+                </tr>
+                <tr>
+                    <td class="labelCol  last " style="width:30%"><label>{!$Label.wccptypln_Priority}</label></td>
+                    <td class="data2Col  last "><input type="text" id="usersetpriority" /></td>
+                </tr>
+                <tr>
+                    <td class="labelCol  last " style="width:30%"><label>{!$Label.wccptypln_WorkCenter}</label></td>
+                    <td class="data2Col  last "><select id="usersetworkcenter" /></td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        <div id="issueBtns" style="clear:both">
+            <button type="button" onclick="setOperDetails();unblockUI();">{!$Label.pagebtn_wccptyin_Set}</button>
+            <button type="button" onclick="unblockUI();" class="close">{!$Label.pagebtn_wccptyin_Cancel}</button>
+        </div>
+
+    </div>
+    <div id="popupWODateOptions" style="display:none">
+        <h2>{!$Label.WorkOrderDateOptions}</h2>
+        <hr></hr>
+        <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette">
+        <table class="detailList" border="0" cellpadding="0" cellspacing="0">
+            <tbody>
+                <tr align="left" id="dueDateOptRow">
+                    <td align="left">
+                        <input type="checkbox" id="dueDateOpt" /><b><label> {!$Label.UpdateWODueDateToMatchLastOperationCompleteDate} </label></b>
+                    </td>
+                </tr>
+                <tr align="left" id="pickDateOptRow">
+                    <td align="left">
+                        <input type="checkbox" id="pickDateOpt" /><b><label> {!$Label.UpdateWOPickDateToMatchFirstOperationStartDateLessPickLeadTime} </label></b>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        <div id="issueBtns" style="clear:both">
+            <button type="button" onclick="setWODateOptions();unblockUI();">{!$Label.pagebtn_wccptyin_OK}</button>
+            <button type="button" onclick="unblockUI();" class="close">{!$Label.pagebtn_wccptyin_Cancel}</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" id="doNotAskAgain" /><label>{!$Label.donotaskagainforthisoperation}</label>
+        </div>
+
+    </div>
+    <script>
+        var SelectDivision = "{!$Label.PleaseSelectADivision}";     
+        var ChangesFound = "{!$Label.NoChangesFound}";
+        var ChangesCommit = "{!$Label.ChangesCommited}";
+        var CannotMoveConflict = "{!$Label.CannotMoveConflicts}";
+        var SchedStartDate = "{!$Label.SchedStartDate}";
+        var DaysMustGreater = "{!$Label.DaysMustBeGreater}";
+        var DaysCannotGreater = "{!$Label.DaysCannotBeGreater}";
+        var hpdlabLabel = "{!wcf.rtwctr_hrsperdaylab__c.label}";
+        var hpdlabconvLabel = "{!wcf.rtwctr_labhrsdaysconv__c.label}";
+        var hpdmachLabel = "{!wcf.rtwctr_hrsperdaymach__c.label}";
+        var hpdmachconvLabel = "{!wcf.rtwctr_machhrsdaysconv__c.label}";
+        var LABEL_CantMoveToEarlierDtIfOpernStarted = "{!$Label.CantMoveToEarlierDtIfOpernStarted}";
+        var LABEL_ExceededWCCalDays_UsingDivShopCal = "{!$Label.ExceededWCCalDays_UsingDivShopCal}";
+        var LABEL_EstimatedCompletionDtBasedOnPriorityIs = "{!$Label.EstimatedCompletionDtBasedOnPriorityIs}";
+        var LABEL_EstimatedStartDtBasedOnPriorityIs = "{!$Label.EstimatedStartDtBasedOnPriorityIs}";
+        var LABEL_Nocomponentsfound = "{!$Label.Nocomponentsfound}";
+        var LABEL_Warn_MissingSchedStartDtFor = "{!$Label.Warn_MissingSchedStartDtFor}";
+        var LABEL_InvalidVal = "{!$Label.InvalidVal}";
+        var LABEL_OkToLoseChanges = "{!$Label.OkToLoseChanges}";
+        var LABEL_Warn_AtleastOneSchedCompletionDtIsPASTDueDt_UpdWODueDtsToNewSchedCompletedDts = "{!$Label.Warn_AtleastOneSchedCompletionDtIsPASTDueDt_UpdWODueDtsToNewSchedCompletedDts}";
+        var LABEL_Item = "{!$Label.item}";
+        var LABEL_qtyAvailable = "{!$Label.rstk__qtyavailable}";
+        var LABEL_Project = "{!$Label.Project}";
+        var LABEL_colhdrOperation = "{!$Label.colhdrOperation}";
+        var LABEL_priority = "{!$Label.priority}";
+        var LABEL_workCenter = "{!$Label.workCenter}";
+        var LABEL_pagetab_rtindoper_Machine = "{!$Label.pagetab_rtindoper_Machine}";
+        var LABEL_dueDate1 = "{!$Label.dueDate1}";
+        var LABEL_colhdrStartDate = "{!$Label.colhdrStartDate}";
+        var LABEL_colhdrCompDate = "{!$Label.colhdrCompDate}";
+        var LABEL_status = "{!$Label.status}";
+        var LABEL_setupHrs = "{!$Label.setupHrs}";
+        var LABEL_HoursToday = "{!$Label.HoursToday}";
+        var LABEL_HoursFutureTotal = "{!$Label.HoursFutureTotal}";
+        var LABEL_ESTIMATE = "{!$Label.ESTIMATE}";
+        var LABEL_IncludeForPlanning = "{!$Label.IncludeForPlanning}";
+        var LABEL_PlanType = "{!$Label.PlanType}";
+        var LABEL_AutoLevelLoad = "{!$Label.AutoLevelLoad}";
+        var LABEL_ComputePlan = "{!$Label.ComputePlan}";
+        var LABEL_ComponentMaterial = "{!$Label.ComponentMaterial}";
+        var LABEL_ShowAvailability = "{!$Label.ShowAvailability}";
+        var LABEL_desc = "{!$Label.desc}";
+        var LABEL_WorkOrder = "{!$Label.pagetitle_wocst}";
+        var LABEL_Day = "{!$Label.Day}";
+        var LABEL_Week = "{!$Label.Week}";
+        var LABEL_ScheduledStartDate = "{!$Label.ScheduledStartDate}";
+        var LABEL_ScheduledCompDate = "{!$Label.ScheduledCompDate}";
+        var LABEL_ItemDesc = "{!$Label.ItemDesc}";
+        var LABEL_ShowDetails = "{!$Label.ShowDetails}";
+        var LABEL_ShowCompleted = "{!$Label.ShowCompleted}";
+        var LABEL_ViewType = "{!$Label.ViewType}";
+        var LABEL_labor = "{!$Label.labor}";
+        var LABEL_machine = "{!$Label.pagetab_rtindoper_Machine}";
+        var LABEL_OpenWorkCenter = "{!$Label.OpenWorkCenter}";
+        var LABEL_order = "{!$Label.order}";
+        var LABEL_proj = "{!$Label.proj}";
+        var LABEL_Due = "{!$Label.Due}";
+        var LABEL_LOCKED = "{!$Label.LOCKED}";
+        var LABEL_Wccptypln_Warning = "{!$Label.wccptypln_Warning}";
+        var LABEL_Soagh_Error = "{!$Label.soagh_Error}";
+        var LABEL_AllGroups = "{!$Label.AllGroups}";
+        var LABEL_Submit = "{!$Label.rstk__pagebtn_wccptypln_submit}";
+        var LABEL_Save = "{!$Label.pagebtn_Save}";
+        var dayNames = ["{!$Label.dayAbbrSun}", "{!$Label.dayAbbrMon}", "{!$Label.dayAbbrTue}", "{!$Label.dayAbbrWed}", "{!$Label.dayAbbrThu}", "{!$Label.dayAbbrFri}", "{!$Label.dayAbbrSat}"];
+
+    </script>
+</apex:page>

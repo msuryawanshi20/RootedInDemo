@@ -1,0 +1,365 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_woissue}" standardController="rstk__woiss__c" extensions="rstk.ControllerExtnWoissue,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__woiss__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__woiss__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_woissue}" customInclude="{!$Resource.rstk__woiss_sl_cli}" enableAutocomplete="true"/>
+    <script>
+    	var displayAutoSrlLinking = false;
+    	var srllinkonissue = {!sydiv.sydiv_srllinkonissue__c};
+    	var autosrllink = {!sydiv.sydiv_autosrllink__c};
+    	var elAutosrllinking;
+    </script>
+    <apex:form id="fm">
+    	<apex:actionStatus id="submitStatus" onstart="blockUI();" onstop="unblockUI()"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" immediate="true"/>
+        <apex:actionFunction name="refreshPageMessage" action="{!refreshPageMessage}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="searchComponents" action="{!searchComponents}" oncomplete="unblockUI();" rerender="pageMessages, op_components, op_components2, op_issueselected"/>
+        <apex:actionFunction name="issueSelectedComponents" action="{!issueSelectedComponents}" oncomplete="checkJobStatus();" rerender="pageMessages, op_JobStatus"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:pageBlock id="pb_search" mode="detail">
+        <apex:outputPanel style="display:none">
+        	<apex:inputHidden id="woiss_status__c" />
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_JobStatus">
+        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+        	<input type="hidden" id="returnId" value="{!returnId}"/>
+        </apex:outputPanel>
+        
+		<apex:pageBlockSection id="pbs_search" showHeader="false" columns="3">
+			<apex:pageBlockSectionItem >
+				<apex:outputPanel >
+					<c:division id="woiss_div__c" cntr="{!controller}" disabled="false"/>
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem helpText="{!f.rstk__woiss_hdrordno__c.inlineHelpText}">
+			                <apex:outputLabel value="{!f.rstk__woiss_hdrordno__c.label}"/>
+			                <apex:outputPanel >
+							<c:selectList id="woiss_hdrordno__c" cntr="{!controller}" options="{!workOrders}" value="{!o.rstk__woiss_hdrordno__c}" tabIndex="2" width="400px" rendered="{!!isWOAutoComplete}"/>
+							<c:autocomplete id="hdrordno__c" ref="woiss_hdrordno__c" cntr="{!controller}" slDesc="{!workOrderDesc}" required="false" codeColumn="id" descColumn="formula_altname__c"
+                        	query="{!autoCompleteQuery}" queryParms="[]"  tabIndex="2" width="400px" rendered="{!isWOAutoComplete}"/>
+							</apex:outputPanel>
+			            </apex:pageBlockSectionItem>
+			            
+			            <apex:inputField id="woiss_txndate__c" value="{!o.rstk__woiss_txndate__c}" rendered="{!displayTxnDate}"/>
+			            
+						<apex:pageBlockSectionItem dataStyle="height:80px">
+							<apex:outputPanel style="height:80px"/>
+			            </apex:pageBlockSectionItem>
+			            <apex:pageBlockSectionItem helpText="{!f.rstk__woiss_alt_qty_dflt_opt__c.inlineHelpText}" rendered="true">
+			                <c:inputField id="woiss_alt_qty_dflt_opt__c" cntr="{!controller}"  tabIndex="6"/>
+			            	<apex:outputLabel value="{!f.rstk__woiss_alt_qty_dflt_opt__c.label}"/>
+			            </apex:pageBlockSectionItem>
+			            <apex:pageBlockSectionItem helpText="{!f.rstk__woiss_seq_dmds_by_wctr__c.inlineHelpText}" rendered="true">
+			                <c:inputField id="woiss_seq_dmds_by_wctr__c" cntr="{!controller}"  tabIndex="7"/>
+			            	<apex:outputLabel value="{!f.rstk__woiss_seq_dmds_by_wctr__c.label}"/>
+			            </apex:pageBlockSectionItem>
+					</apex:pageBlockSection>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+			<apex:pageBlockSectionItem id="pbsi_displayopt">
+				<apex:outputPanel id="op_displayopt">
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem helpText="{!f.rstk__woiss_displayoptions__c.inlineHelpText}">
+							<apex:outputLabel value="{!f.rstk__woiss_displayoptions__c.label}" />
+							<apex:outputText value=""/>
+						</apex:pageBlockSectionItem>
+						<apex:pageBlockSectionItem helpText="{!f.rstk__woiss_displayoptions__c.inlineHelpText}" rendered="true">
+			                <c:inputField id="woiss_displayoptions__c" cntr="{!controller}"  tabIndex="3"/>
+			            </apex:pageBlockSectionItem>
+			            <apex:pageBlockSectionItem >
+			            	<apex:outputPanel id="op_autosrllinking" style="display:none;">
+			            		<apex:pageBlockSection showHeader="false" columns="1">
+						            <apex:pageBlockSectionItem helpText="{!f.rstk__woiss_woordsrl__c.inlineHelpText}">
+						            	<apex:outputLabel value="{!f.rstk__woiss_woordsrl__c.label}"/>
+						            	<apex:outputText value=""/>
+						            </apex:pageBlockSectionItem>
+						            <apex:pageBlockSectionItem >
+						            	<apex:selectlist id="woiss_woordsrl__c" value="{!o.rstk__woiss_woordsrl__c}" size="1" style="width:175px">
+											<apex:selectOptions value="{!woordsrls}" />
+										</apex:selectlist>
+						            </apex:pageBlockSectionItem>
+			                        <apex:pageBlockSectionItem >
+						            	<apex:outputLabel value="{!$Label.rstk__automatic_linking_to_the_selected_parent_item_serial_number_will_not_be_done_for}"/>
+						            </apex:pageBlockSectionItem>
+						        </apex:pageBlockSection>
+						        <script>elAutosrllinking = document.getElementById("{!$Component.op_autosrllinking}");</script>
+				        	</apex:outputPanel>
+				    	</apex:pageBlockSectionItem>
+					</apex:pageBlockSection>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+			<apex:pageBlockSectionItem >
+				<apex:outputPanel >
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem helpText="{!f.rstk__woiss_serialcompicitem__c.inlineHelpText}">
+							<apex:outputLabel value="{!f.rstk__woiss_serialcompicitem__c.label}"/>
+							<apex:outputText value=""/>
+						</apex:pageBlockSectionItem>
+						<apex:pageBlockSectionItem >
+							<c:selectList id="woiss_serialcompicitem__c" cntr="{!controller}" options="{!serialcomps}" tabIndex="4"/>
+						</apex:pageBlockSectionItem>
+						<apex:pageBlockSectionItem helpText="{!f.rstk__woiss_issueserials__c.inlineHelpText}">
+							<apex:outputLabel value="{!f.rstk__woiss_issueserials__c.label}" />
+							<apex:outputText value=""/>
+						</apex:pageBlockSectionItem>
+						<apex:pageBlockSectionItem helpText="{!f.rstk__woiss_issueserials__c.inlineHelpText}" rendered="true">
+			                <apex:inputTextarea id="woiss_issueserials__c" value="{!o.rstk__woiss_issueserials__c}" cols="50" rows="6" tabIndex="5"/>
+			            </apex:pageBlockSectionItem>
+			            <apex:pageBlockSectionItem helpText="{!$Label.rstk__serialcount}">
+							<apex:outputLabel value="{!$Label.rstk__serialcount}" />
+							<apex:inputText id="serialcount__c" disabled="true" size="4"/>
+						</apex:pageBlockSectionItem>
+					</apex:pageBlockSection>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+		</apex:pageBlockSection>
+		
+		<apex:commandButton value="{!$Label.rstk__pagebtn_woissue_displaycomponents}" onclick="blockUI(); searchComponents(); return false;" style="width:150px;"/>&nbsp;
+		<apex:outputPanel id="op_issueselected">
+			<c:nosubmitbutton label="{!$Label.rstk__pagebtn_woissue_issueselectedcomponents}" onclick="doSetFFCompanyAndProcess(doIssue);" rendered="{!displayComponents}" style="width:200px;"/>
+		</apex:outputPanel>
+	</apex:pageBlock>
+	
+    <apex:outputPanel id="op_components2">
+	<apex:pageBlock id="pb_components2" mode="detail" rendered="{!displayComponents}">
+        <apex:pageBlockSection id="pbs_Components" showHeader="false" title="{!$Label.rstk__components}" columns="1" collapsible="false">
+        	<apex:outputPanel >
+        		&nbsp;<apex:inputCheckbox id="selectAll" onclick="markAll(this.checked)"/>&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}"/>&nbsp;&nbsp;
+        		<script>var allComps = []; var manualRows = {}; document.getElementById("{!$Component.selectAll}").checked = false;</script>
+        		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<apex:outputText value="{!$Label.rstk__woiss_displaying} {!componentCount} {!$Label.rstk__woiss_componentsfrom} [{!firstComponent}] {!$Label.rstk__woiss_thru} [{!lastComponent}]"/>
+        		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<apex:commandButton value="{!$Label.rstk__pagebtn_woissue_displaynextset}" action="{!searchNextComponents}" style="width:150px;" rendered="{!showDisplayNext}"/>
+			</apex:outputPanel>
+			
+			<apex:repeat value="{!components}" var="d">
+			<apex:pageBlock mode="edit">
+				<apex:pageBlockSection showHeader="false" columns="7">
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.name.label}" />
+								<apex:outputField value="{!d.woiss.rstk__woiss_compitem2__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="Issue Site" />
+								<apex:outputField value="{!d.woiss.rstk__woiss_site__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.rstk__woiss_proj__c.label}" />
+								<apex:outputField value="{!d.woiss.rstk__woiss_proj__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.rstk__woiss_decqtyreq__c.label}" />
+		                        <c:outputFormattedNumber decimals="{!d.quantityDecPlaces}" value="{!d.woiss.rstk__woiss_decqtyreq__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.rstk__poiss_decqtyalloc__c.label}" />
+		                        <apex:outputPanel >
+									<apex:outputText value="NA" rendered="{!!d.woiss.rstk__poiss_allocpol__c}"/>
+		                        	<c:outputFormattedNumber decimals="{!d.quantityDecPlaces}" value="{!d.woiss.rstk__poiss_decqtyalloc__c}" rendered="{!d.woiss.rstk__poiss_allocpol__c}"/>
+		                        </apex:outputPanel>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.rstk__woiss_decqtyiss__c.label}" />
+		                        <c:outputFormattedNumber decimals="{!d.quantityDecPlaces}" value="{!d.woiss.rstk__woiss_decqtyiss__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f.rstk__woiss_decqtyoutstdg__c.label}" />
+		                        <c:outputFormattedNumber decimals="{!d.quantityDecPlaces}" value="{!d.woiss.rstk__woiss_decqtyoutstdg__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+				</apex:pageBlockSection>
+				
+				<apex:pageBlockSection columns="1" rendered="{!d.issueSerialsIndividually}">
+					<apex:pageBlockSectionItem >
+						<apex:outputLabel value="***" />
+                        <apex:outputLabel value="{!$Label.rstk__issue_this_serial_component_individually}" />
+					</apex:pageBlockSectionItem>
+				</apex:pageBlockSection>
+				
+				<apex:outputPanel id="op_compLocs">
+				<apex:pageBlockTable value="{!d.locs}" var="l" columnsWidth="50px,200px,100px,150px,150px,50px,250px,100px,100px,100px,100px" rendered="{!AND(d.locCount > 0, !d.manualLocationSelection)}">
+					<apex:column headerValue="{!f.rstk__woiss_selected__c.label}" style="vertical-align:top;">
+		        		<apex:inputCheckbox id="compSelected" value="{!l.woiss.rstk__woiss_selected__c}"/>
+		        		<script>allComps.push(document.getElementById("{!$Component.compSelected}"));</script>
+		        	</apex:column>
+		        	<apex:column headerValue="{!f.rstk__woiss_locid__c.label}" style="vertical-align:top;">
+		        		<apex:outputField value="{!l.woiss.rstk__woiss_locid__c}"/>
+		        	</apex:column>
+		        	<apex:column headerValue="{!f.rstk__woiss_locnum__c.label}" style="vertical-align:top;">
+		        		<apex:outputField value="{!l.woiss.rstk__woiss_locnum__c}"/>
+		        	</apex:column>
+		        	<apex:column headerValue="{!f.rstk__woiss_lotno__c.label}" style="vertical-align:top;">
+		        		<apex:outputField value="{!l.woiss.rstk__woiss_lotno__c}" rendered="{!d.isLot}"/>
+		        	</apex:column>
+		        	<!--RSTK-240-->
+		        	<apex:column headerValue="{!f.rstk__woiss_iclotitemexpires__c.label}" value="{!l.woiss.rstk__woiss_iclotitemexpires__c}" style="vertical-align:top;"/>
+		        	<!--RSTK-240-->
+					<apex:column headerValue="{!f.rstk__woiss_decqtyavail__c.label}" style="vertical-align:top;">
+                        <c:outputFormattedNumber decimals="{!d.quantityDecPlaces}" value="{!l.woiss.rstk__woiss_decqtyavail__c}"/>
+					</apex:column>
+					<apex:column headerValue="{!IF(d.isSerial, f.rstk__woiss_selectedserials__c.label, f.rstk__woiss_issue_decqty__c.label)}" style="vertical-align:top;">
+						<apex:outputPanel rendered="{!!d.isSerial}">
+							<apex:inputField id="issueQty__c" value="{!l.woiss.rstk__woiss_issue_decqty__c}" style="width:100px;"/>
+							<script>setTrailingZeros(parseLocaleFloat("{!$Component.issueQty__c}"), {!d.quantityDecPlaces});</script>
+						</apex:outputPanel>	
+	                    <apex:outputPanel rendered="{!d.isSerial}">
+	                    	<apex:inputHidden id="selectedserialsstring__c" value="{!l.selectedserialsstring}"/>
+	                    	<select id="{!l.uniqueid}" multiple="multiple" size="5" style="width:240px;" hiddenfieldid="{!$Component.selectedserialsstring__c}" onchange="setMultiselectValueToHiddenField(this);"/>
+	                    	<script>
+		                    	var srlelem = document.getElementById('{!l.uniqueid}');
+		                    	var availsrls = {!l.AvailableSerialsString};
+		                    	var selecsrls = {!l.SelectedSerialsMapString};
+		                    	for(var i = 0; i < availsrls.length; i++) {
+		                    		srlelem.options[srlelem.length] = new Option(availsrls[i], availsrls[i], false, (typeof selecsrls[availsrls[i]] != 'undefined'));
+		                    	}
+							</script>
+	                    </apex:outputPanel>
+					</apex:column>
+					<!-- <apex:column headerValue="{!f.woiss_qtyalloc__c.label}" style="vertical-align:top;">
+                        <c:outputFormattedNumber decimals="{!d.quantityDecPlaces}" value="{!l.woiss.woiss_qtyalloc__c}"/>
+					</apex:column> -->
+					<apex:column headerValue="{!f.rstk__woiss_txn_comments__c.label}" style="vertical-align:top;">
+						<apex:inputTextArea value="{!l.woiss.rstk__woiss_txn_comments__c}" cols="20" rows="1" />
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__woiss_docno__c.label}" style="vertical-align:top;" rendered="{!displayDocument}">
+						<apex:inputText value="{!l.woiss.rstk__woiss_docno__c}" style="width:100px;" />
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__woiss_loc_comments__c.label}" style="vertical-align:top;" rendered="{!displayLocComments}">
+						<apex:inputTextArea value="{!l.woiss.rstk__woiss_loc_comments__c}" cols="20" rows="1"/>
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__woiss_dmd_comments__c.label}" style="vertical-align:top;" rendered="{!displayDmdComments}">
+						<apex:inputTextArea value="{!l.woiss.rstk__woiss_dmd_comments__c}" cols="20" rows="1" />
+					</apex:column>
+				</apex:pageBlockTable>
+				
+				<apex:actionRegion >
+				<apex:pageBlockTable value="{!d.locs}" var="l" columnsWidth="50px,200px,100px,150px,150px,50px,250px,100px,100px,100px,100px" rendered="{!AND(d.locCount > 0, d.manualLocationSelection)}">
+					<apex:column headerValue="{!f.rstk__woiss_selected__c.label}" style="vertical-align:top;">
+		        		<apex:inputCheckbox id="compSelected" value="{!l.woiss.rstk__woiss_selected__c}"/>
+		        		<script>allComps.push(document.getElementById("{!$Component.compSelected}"));</script>
+		        	</apex:column>
+		        	<apex:column headerValue="{!f.rstk__woiss_locid__c.label}" style="vertical-align:top;">
+		        		<apex:selectlist id="woiss_locid__c" value="{!l.woiss.rstk__woiss_locid__c}" size="1" style="width:175px">
+							<apex:selectOptions value="{!d.LocationIds}" />
+							<apex:actionSupport event="onchange" action="{!l.locidSelected}" rerender="compSelected,op_locnum,op_lotno,op_locqty,op_issueqty,op_serials" status="submitStatus"/>
+						</apex:selectlist>
+		        	</apex:column>
+		        	<apex:column headerValue="{!f.rstk__woiss_locnum__c.label}" style="vertical-align:top;">
+		        		<apex:outputPanel id="op_locnum">
+		        		<apex:selectlist id="woiss_locnum__c" value="{!l.woiss.rstk__woiss_locnum__c}" size="1" style="width:90px">
+							<apex:selectOptions value="{!l.LocationNums}" />
+							<apex:actionSupport event="onchange" action="{!l.locnumSelected}" rerender="op_lotno,op_locqty,op_issueqty,op_serials" status="submitStatus"/>
+						</apex:selectlist>
+						</apex:outputPanel>
+		        	</apex:column>
+		        	<apex:column headerValue="{!f.rstk__woiss_lotno__c.label}" style="vertical-align:top;">
+                        <apex:outputPanel id="op_lotno">
+		        		<apex:selectlist id="woiss_lotno__c" value="{!l.woiss.rstk__woiss_lotno__c}" size="1" style="width:140px" rendered="{!d.isLot}">
+							<apex:selectOptions value="{!l.Lotnos}" />
+							<apex:actionSupport event="onchange" action="{!l.lotnoSelected}" rerender="op_locqty,op_issueqty" status="submitStatus"/>
+						</apex:selectlist>
+						</apex:outputPanel>
+					</apex:column>
+					<!--RSTK-240-->
+					<apex:column headerValue="{!f.rstk__woiss_iclotitemexpires__c.label}" value="{!l.woiss.rstk__woiss_iclotitemexpires__c}" style="vertical-align:top;"/>
+					<!--RSTK-240-->
+					<apex:column headerValue="{!f.rstk__woiss_decqtyavail__c.label}" style="vertical-align:top;">
+						<apex:outputPanel id="op_locqty">
+                        <c:outputFormattedNumber decimals="{!d.quantityDecPlaces}" value="{!l.woiss.rstk__woiss_decqtyavail__c}"/>
+                        </apex:outputPanel>
+					</apex:column>
+					<apex:column headerValue="{!IF(d.isSerial, f.rstk__woiss_selectedserials__c.label, f.rstk__woiss_issue_decqty__c.label)}" style="vertical-align:top;">
+						<apex:outputPanel id="op_issueqty" rendered="{!!d.isSerial}" style="{!IF(l.showIssueQtySerials,'display:inline;','display:none;')}">
+							<apex:inputField id="issueQty__c" value="{!l.woiss.rstk__woiss_issue_decqty__c}" style="width:100px;"/>
+							<script>setTrailingZeros(parseLocaleFloat("{!$Component.issueQty__c}"), {!d.quantityDecPlaces});</script>
+						</apex:outputPanel>	
+	                    <apex:outputPanel id="op_serials" rendered="{!d.isSerial}" style="{!IF(l.showIssueQtySerials,'display:inline;','display:none;')}">
+	                    	<apex:inputHidden id="selectedserialsstring__c" value="{!l.selectedserialsstring}"/>
+	                    	<select id="{!l.uniqueid}" multiple="multiple" size="5" style="width:240px;" hiddenfieldid="{!$Component.selectedserialsstring__c}" onchange="setMultiselectValueToHiddenField(this);"/>
+	                    	<script>
+		                    	var srlelem = document.getElementById('{!l.uniqueid}');
+		                    	var availsrls = {!l.AvailableSerialsString};
+		                    	var selecsrls = {!l.SelectedSerialsMapString};
+		                    	for(var i = 0; i < availsrls.length; i++) {
+		                    		srlelem.options[srlelem.length] = new Option(availsrls[i], availsrls[i], false, (typeof selecsrls[availsrls[i]] != 'undefined'));
+		                    	}
+							</script>
+	                    </apex:outputPanel>
+					</apex:column>
+					<!-- <apex:column headerValue="{!f.woiss_qtyalloc__c.label}" style="vertical-align:top;">
+                        <c:outputFormattedNumber decimals="{!d.quantityDecPlaces}" value="{!l.woiss.woiss_qtyalloc__c}"/>
+					</apex:column> -->
+					<apex:column headerValue="{!f.rstk__woiss_txn_comments__c.label}" style="vertical-align:top;">
+						<apex:inputTextArea value="{!l.woiss.rstk__woiss_txn_comments__c}" cols="20" rows="1" />
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__woiss_docno__c.label}" style="vertical-align:top;" rendered="{!displayDocument}">
+						<apex:inputText value="{!l.woiss.rstk__woiss_docno__c}" style="width:100px;" />
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__woiss_loc_comments__c.label}" style="vertical-align:top;" rendered="{!displayLocComments}">
+						<apex:inputTextArea value="{!l.woiss.rstk__woiss_loc_comments__c}" cols="20" rows="1"/>
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__woiss_dmd_comments__c.label}" style="vertical-align:top;" rendered="{!displayDmdComments}">
+						<apex:inputTextArea value="{!l.woiss.rstk__woiss_dmd_comments__c}" cols="20" rows="1" />
+					</apex:column>
+				</apex:pageBlockTable>
+				</apex:actionRegion>
+				</apex:outputPanel>
+			</apex:pageBlock>
+			</apex:repeat>
+		</apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:outputPanel>
+    
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    
+    <script>
+    	var CannotAddComponents = "{!$Label.CannotAddComponents}";
+    	var CannotSelectSameComponent = "{!$Label.CannotSelectSameComponent}";
+    	var WOChargesNotAllowed = "{!$Label.WOChargesNotAllowed}";     	
+    	var QtyAllocatedZero = "{!$Label.QuantityAllocatedZero}";
+    	var SelectStockLoc = "{!$Label.SelectStockLocation}";
+    	var IssueQtyMustBeWholeNum = "{!$Label.IssueQtyMustBeWholeNumber}";     	
+    	var IssueQtyExceedDecimals = "{!$Label.IssueQtyCannotExceedDecimals}";
+    	var IssueQtyMustMatchLoc = "{!$Label.IssueQtyMustMatchLocation}";
+    	var CannotIssueMoreThanLoc = "{!$Label.CannotIssueMoreThanLocation}";     	
+    	var CannotIssueMoreThanLocQty = "{!$Label.CannotIssueMoreThanLocationQuantity}"; 
+       	var TheFollowingOverissued = "{!$Label.TheFollowingOverissued}";
+    	var MustSelectAtLeastOneComponent = "{!$Label.MustSelectAtLeastOneComponent}"; 
+    	var isWOAutoComplete = "{!isWOAutoComplete}";
+    </script>
+</apex:page>

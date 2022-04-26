@@ -1,0 +1,442 @@
+<apex:page id="pg" standardController="rstk__sotax__c" extensions="rstk.ControllerExtnSotax,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sotax__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sotax__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sotax}" customInclude="{!$Resource.rstk__sotax_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__fields_cli_lib}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSaveAndNew="false"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+                <apex:inputHidden id="useFFTaxCode" value="{!useFFTaxCode}"/>
+            </apex:outputPanel>
+            
+            <!--  c:division id="sotax_div__c" cntr="{!controller}" /-->
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_locid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_locid__c.label}"/>
+                    <c:inputField id="sotax_locid__c" required="true" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_ff_taxcode__c.inlineHelpText}" >
+                    <apex:outputPanel rendered="{!isFFExist}">
+                        <apex:outputLabel value="{!f.rstk__sotax_ff_taxcode__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!isView}">
+                                <c:hoverDetail recId="{!o.rstk__sotax_ff_taxcode__c}" recName="{!ffTaxCodeName}"/>
+                            </apex:outputPanel>
+                            <apex:selectList id="sotax_ff_taxcode__c" value="{!o.rstk__sotax_ff_taxcode__c}" rendered="{!!isView}" size="1">
+                                <apex:selectOptions value="{!taxCodes}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>                  
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_desc__c.label}"/>
+                    <c:inputField id="sotax_desc__c" required="false" cntr="{!controller}" width="400px" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+ 
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_totalrate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_totalrate__c.label}"/>
+                    <c:inputField id="sotax_totalrate__c" required="false" disabled="true" cntr="{!controller}" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                
+                                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_div__c.label}"/>
+                    <c:selectList id="sotax_div__c" required="false" cntr="{!controller}" options="{!AcctDivs}" tabIndex="22"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_fedrate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_fedrate__c.label}"/>
+                    <c:inputField id="sotax_fedrate__c" required="false" cntr="{!controller}" tabIndex="4"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_fedacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_fedacct__c.label}"/>
+                    <c:largeSelectList id="sotax_fedacct__c" required="false" cntr="{!controller}" options="{!Syaccs}" tabIndex="23"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_staterate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_staterate__c.label}"/>
+                    <c:inputField id="sotax_staterate__c" required="false" cntr="{!controller}" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_stateacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_stateacct__c.label}"/>
+                    <c:largeSelectList id="sotax_stateacct__c" required="false" cntr="{!controller}" options="{!Syaccs}" tabIndex="24"/>
+                </apex:pageBlockSectionItem>
+                
+               <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_countyrate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_countyrate__c.label}"/>
+                    <c:inputField id="sotax_countyrate__c" required="false" cntr="{!controller}" tabIndex="6"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_countyacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_countyacct__c.label}"/>
+                    <c:largeSelectList id="sotax_countyacct__c" required="false" cntr="{!controller}" options="{!Syaccs}" tabIndex="25"/>
+                </apex:pageBlockSectionItem>  
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_cityrate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_cityrate__c.label}"/>
+                    <c:inputField id="sotax_cityrate__c" required="false" cntr="{!controller}" tabIndex="7"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_cityacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_cityacct__c.label}"/>
+                    <c:largeSelectList id="sotax_cityacct__c" required="false" cntr="{!controller}" options="{!Syaccs}" tabIndex="26"/>
+                </apex:pageBlockSectionItem>      
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_transitrate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_transitrate__c.label}"/>
+                    <c:inputField id="sotax_transitrate__c" required="false" cntr="{!controller}" tabIndex="8"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_transitacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_transitacct__c.label}"/>
+                    <c:largeSelectList id="sotax_transitacct__c" required="false" cntr="{!controller}" options="{!Syaccs}" tabIndex="27"/>
+                </apex:pageBlockSectionItem>      
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_misc1rate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_misc1rate__c.label}"/>
+                    <c:inputField id="sotax_misc1rate__c" required="false" cntr="{!controller}" tabIndex="9"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_misc1acct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_misc1acct__c.label}"/>
+                    <c:largeSelectList id="sotax_misc1acct__c" required="false" cntr="{!controller}" options="{!Syaccs}" tabIndex="28"/>
+                </apex:pageBlockSectionItem>      
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_misc2rate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_misc2rate__c.label}"/>
+                    <c:inputField id="sotax_misc2rate__c" required="false" cntr="{!controller}" tabIndex="10"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_misc2acct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_misc2acct__c.label}"/>
+                    <c:largeSelectList id="sotax_misc2acct__c" required="false" cntr="{!controller}" options="{!Syaccs}" tabIndex="29"/>
+                </apex:pageBlockSectionItem>      
+               
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_misc3rate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_misc3rate__c.label}"/>
+                    <c:inputField id="sotax_misc3rate__c" required="false" cntr="{!controller}" tabIndex="11"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_misc3acct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sotax_misc3acct__c.label}"/>
+                    <c:largeSelectList id="sotax_misc3acct__c" required="false" cntr="{!controller}" options="{!Syaccs}" tabIndex="30"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sotax_syvatclass__c.inlineHelpText}" rendered="{! VatIsActive}">
+                    <apex:outputLabel value="{!f.rstk__sotax_syvatclass__c.label}"/>
+                    <c:largeSelectList id="sotax_syvatclass__c" required="false" cntr="{!controller}" options="{! SyvatclassSelectOptions}" tabIndex="31"/>
+                </apex:pageBlockSectionItem>
+
+            </apex:pageBlockSection>
+            <apex:tabPanel switchType="client" selectedTab="tab_TaxLoc" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__sales_division_accounts}" name="tab_TaxLoc" id="tab_TaxLoc">
+                    <c:PageableGrid width="1550" jsController="taxLoc" data="{!sotaxaccts}" pageSize="5" editable="{!isView}" ispopup="false" disableSave="{!!isView}"/>
+                    <script>
+      
+                        taxLoc.onGridLoad = function() {
+                            self = this;
+                            this.getVisibleRows().each(function (index, el) {
+                               var row = jQuery(this);
+                               var rowId = self.getRowValue(row, 'Id');
+                               
+                                var fedacctValue = taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].value;
+                                if (!isEmpty("{!o.sotax_syvatclass__c}")) {
+                                    var syvatclassValue = taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].value;
+                                }
+                                var stateacctValue = taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].value;
+                                var countryacctValue = taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].value;
+                                var cityacctValue = taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].value;
+                                var transitacctValue = taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].value;
+                                var misc1acctValue = taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].value;
+                                var misc2acctValue = taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].value;
+                                var misc3acctValue = taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].value;
+                                
+                                taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                if (!isEmpty("{!o.sotax_syvatclass__c}")) {
+                                    taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                }
+                                taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                
+                                var syaccs = execQuery("select Id, Name from syacc__c where syacc_gltype_pl__c = 'Liability Accounts' and syacc_div__c = '" + self.getRowValue(row, 'sotaxacct_div__c') +"' order by name ");
+                                for(i=0; i<syaccs.length; i++) {
+                                    taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                }
+                                
+                                if (!isEmpty("{!o.sotax_syvatclass__c}")) {
+                                    var vatList = execQuery("select id, name from syvatclass__c where syvatclass_inactive__c = false and syvatclass_div__c = '" + self.getRowValue(row, 'sotaxacct_div__c') + "' order by name");
+                                    for (var i = 0; i < vatList.length; i++) {
+    				                    taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].length] = new Option(vatList[i].Name, vatList[i].Id, false, false);
+			                        }
+                                }
+                                
+                                taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].value = fedacctValue;
+                                if (!isEmpty("{!o.sotax_syvatclass__c}")) {
+                                    taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].value = syvatclassValue;
+                                }
+                                taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].value = stateacctValue;
+                                taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].value = countryacctValue;
+                                taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].value = cityacctValue;
+                                taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].value = transitacctValue;
+                                taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].value = misc1acctValue;
+                                taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].value = misc2acctValue;
+                                taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].value = misc3acctValue;
+                           });  
+                        }
+                        
+                        taxLoc.validate = function() {
+                        self = this;
+                        var isvalid = true;
+                        this.getVisibleRows().each(function (index, el) {
+                            var row = jQuery(this);
+                            var div = taxLoc.getRowValue(row, 'sotaxacct_div__c');
+                            var fedacct = taxLoc.getRowValue(row, 'sotaxacct_fedacct__c');
+                            var stateacct = taxLoc.getRowValue(row, 'sotaxacct_stateacct__c');
+                            var countryacct = taxLoc.getRowValue(row, 'sotaxacct_countyacct__c');
+                            var cityacct = taxLoc.getRowValue(row, 'sotaxacct_cityacct__c');
+                            var transitacct = taxLoc.getRowValue(row, 'sotaxacct_transitacct__c');
+                            var misc1acct = taxLoc.getRowValue(row, 'sotaxacct_misc1acct__c');
+                            var misc2acct = taxLoc.getRowValue(row, 'sotaxacct_misc2acct__c');
+                            var misc3acct = taxLoc.getRowValue(row, 'sotaxacct_misc3acct__c');
+                            var rowId = self.getRowValue(row, 'Id');
+
+                            if(!div){
+                                alert("{!$Label.DivReqd}");
+                                taxLoc.getRowObj(row, 'sotaxacct_div__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                                                        
+                            if(!fedacct && (parseFloat("{!o.sotax_fedrate__c}") != 0)){
+                                alert("{!$Label.FedAcctReqd}"); 
+                                taxLoc.getRowObj(row, 'sotaxacct_fedacct__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                            
+                            if(!stateacct && (parseFloat("{!o.sotax_staterate__c}") != 0)){
+                                alert("{!$Label.stateAcctReqd}"); 
+                                taxLoc.getRowObj(row, 'sotaxacct_stateacct__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                            
+                            if(!countryacct && (parseFloat("{!o.sotax_countyrate__c}") != 0)){
+                                alert("{!$Label.countyAcctReqd}");  
+                                taxLoc.getRowObj(row, 'sotaxacct_countyacct__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                            
+                            if(!cityacct && (parseFloat("{!o.sotax_cityrate__c}") != 0)){
+                                alert("{!$Label.CityAcctReqd}");  
+                                taxLoc.getRowObj(row, 'sotaxacct_cityacct__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                            
+                            if(!transitacct && (parseFloat("{!o.sotax_transitrate__c}") != 0)){
+                                alert("{!$Label.TransitAcctReqd}"); 
+                                taxLoc.getRowObj(row, 'sotaxacct_transitacct__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                            
+                            if(!misc1acct && (parseFloat("{!o.sotax_misc1rate__c}") != 0)){
+                                alert("{!$Label.Misc1AcctReqd}");  
+                                taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                            
+                            if(!misc2acct && (parseFloat("{!o.sotax_misc2rate__c}") != 0)){
+                                alert("{!$Label.Misc2AcctReqd}");  
+                                taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                            
+                            if(!misc3acct && (parseFloat("{!o.sotax_misc3rate__c}") != 0)){
+                                alert("{!$Label.Misc3AcctReqd}");  
+                                taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c').focus();
+                                isvalid = false;
+                                return false;   
+                            }
+                                                                                    
+                        });
+                         return isvalid;
+                     }
+                     
+                     taxLoc.addRow = function(rowCallback) {
+                            blockUI();
+                            self = this;
+                            taxLocHandler.prototype.addRow.call(self, rowCallback);
+                            this.getVisibleRows().each(function (index, el) {
+                               var row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                                
+                                if(rowId == '') {
+                                    var fedacctValue = taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].value;
+                                    if (!isEmpty("{!o.sotax_syvatclass__c}")) {
+                                        var syvatclassValue = taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].value;
+                                    }
+                                    var stateacctValue = taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].value;
+                                    var countryacctValue = taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].value;
+                                    var cityacctValue = taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].value;
+                                    var transitacctValue = taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].value;
+                                    var misc1acctValue = taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].value;
+                                    var misc2acctValue = taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].value;
+                                    var misc3acctValue = taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].value;
+                                
+                                    taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    if (!isEmpty("{!o.sotax_syvatclass__c}")) {
+                                        taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    }
+                                    taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                    
+                                    var syaccs = execQuery("select Id, Name from syacc__c where syacc_gltype_pl__c = 'Liability Accounts' and syacc_div__c = '" + self.getRowValue(row, 'sotaxacct_div__c') +"' order by name ");
+                                    for(i=0; i<syaccs.length; i++) {
+                                        taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                        taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                        taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                        taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                        taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                        taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                        taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                        taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    }
+                                    
+                                    taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].value = fedacctValue;
+                                    if (!isEmpty("{!o.sotax_syvatclass__c}")) {
+                                        taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].value = syvatclassValue;
+                                    }
+                                    taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].value = stateacctValue;
+                                    taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].value = countryacctValue;
+                                    taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].value = cityacctValue;
+                                    taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].value = transitacctValue;
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].value = misc1acctValue;
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].value = misc2acctValue;
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].value = misc3acctValue;
+                                } 
+                            }); 
+                            unblockUI(); 
+                        }
+                     
+                     taxLoc.entryChanged = function(row, rowNum, name, value) {                     
+                        if (name == 'sotaxacct_div__c') {
+                            blockUI();
+                            var div = taxLoc.getRowValue(row, 'sotaxacct_div__c');
+
+                            var sotaxDivs = execQuery("select sotaxacct_div__c from sotaxacct__c where sotaxacct_sotax__c = '" + "{!o.Id}" + "' and sotaxacct_div__c = '" + div + "'", true);
+                            if(sotaxDivs.length > 0) {
+                                alert("{!$Label.TaxLocAcctwithDivAlreadyExists}");  
+                                taxLoc.getRowObj(row, 'sotaxacct_div__c').focus();
+                                unblockUI();
+                                return;
+                            }
+                            else {
+                                taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                
+                                var syaccs = execQuery("select Id, Name from syacc__c where syacc_gltype_pl__c = 'Liability Accounts' and syacc_div__c = '" + self.getRowValue(row, 'sotaxacct_div__c') +"' order by name ");
+                                for(i=0; i<syaccs.length; i++) {
+                                    taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_fedacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_stateacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_countyacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_cityacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_transitacct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc1acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc2acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                    taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_misc3acct__c')[0].length] = new Option( syaccs[i].Name,syaccs[i].Id, false, false);
+                                }
+                            }
+                            
+                            if (!isEmpty("{!o.sotax_syvatclass__c}")) {
+                                taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].length = 0; taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                var vatList = execQuery("select id, name from syvatclass__c where syvatclass_div__c = '" + self.getRowValue(row, 'sotaxacct_div__c') + "' order by name");
+                                for (var i = 0;i < vatList.length; i++) {
+    				                taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].options[taxLoc.getRowObj(row, 'sotaxacct_syvatclass__c')[0].length] = new Option(vatList[i].Name, vatList[i].Id, false, false);
+			                    }
+                            }
+                                
+                            unblockUI();
+                        }
+                    }
+                    </script>    
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_sotax_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+
+        var RateCannotExceed = "{!$Label.rstk__theratecannotexceed}";     
+        var CheckTaxRate = "{!$Label.rstk__pleasechecktaxrate}";          
+        var LABEL_taxRateCantBeNegative = "{!$Label.rstk__taxratecantbenegative}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

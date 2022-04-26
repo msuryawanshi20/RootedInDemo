@@ -1,0 +1,1908 @@
+<apex:page id="pg" docType="html-5.0" standardController="rstkf__apinvh__c" extensions="rstkf.ControllerExtnApinvh,rstkf.RemoteQueryController" deferLastCommandUntilReady="true" sideBar="false" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <script>function setFocusOnLoad() {}</script>
+    <apex:variable var="o_h" value="{!rstkf__apinvh__c}" />
+    <apex:variable var="f_h" value="{!$ObjectType.rstkf__apinvh__c.fields}" />
+    <apex:variable var="o_t" value="{!batch.txn.apinvtxn}" />
+    <apex:variable var="f_t" value="{!$ObjectType.rstkf__apinvtxn__c.fields}" />
+    <apex:variable var="f_l" value="{!$ObjectType.rstkf__apinvline__c.fields}" />
+    <apex:variable var="f_d" value="{!$ObjectType.rstkf__apinvdist__c.fields}" />
+    <apex:variable var="f_dim" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <apex:variable var="f_customextf" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" displayListLink="true" subtitle="{!IF(apBatchOpt, o_h.Name, o_t.Name)}" escapePageMessages="false" enableAutoComplete="true"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+    
+    
+    <style>
+        input[type=checkbox][disabled]{
+          opacity: 0.4;
+        }
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .helpText {
+            z-index: 99996;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        .ac_results {
+            z-index: 9999;
+            background-color: #eee;
+        }
+    </style>
+    
+    <outputPanel rendered="{!useLightningStyleSheets && !isClassic}">
+	    <style>
+			@media (min-width: 30em) {
+			    body input[type="text"],.slds-scope input[type="text"] {
+			        min-width:4rem;
+			    }
+			}
+			
+			@media (min-width: 30em) {
+			    body select,body select[size='0'],body select[size='1'],.slds-scope select,.slds-scope select[size='0'],.slds-scope select[size='1'] {
+			        min-width:6rem
+			    }
+			}
+			
+			@media (min-width: 30em) {
+			    body .detailList .dataCol input[type="text"],body .detailList .dataCol input[type="date"],body .detailList .dataCol input[type="password"],body .detailList .dataCol textarea,body .detailList .dataCol select,.slds-scope .detailList .dataCol input[type="text"],.slds-scope .detailList .dataCol input[type="date"],.slds-scope .detailList .dataCol input[type="password"],.slds-scope .detailList .dataCol textarea,.slds-scope .detailList .dataCol select {
+					min-width:10rem;
+			    }
+			}
+			
+
+	    </style>
+    </outputPanel>
+    
+    <script>
+        function enableFixedHeaderSort(tableId) {
+            var tbl = jQuery("table[id$=" + tableId + "]");
+            if (tbl) {
+                var sortOptions = {};
+                
+                if (tableId == 'pg:fm:pb:pb_apinvtxns:pbs_apinvtxns:pbt_apinvtxns') {
+                    sortOptions = {
+                        5: { sorter: "shortDate" }
+                    };
+                } else if (tableId == 'pg:fm4:pb_vendtxns:pbt_vendtxns') {
+                    sortOptions = {
+                        0: { sorter: false }
+                    };
+                }
+            
+                tbl.vfFloatingHeaders();
+                tbl.tablesorter({
+                    headers: sortOptions
+                });
+            }
+        }
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionStatus id="statusProcessingBlock" onStart="blockUI('{!$Label.rstkf__updating}')" onStop="unblockUI()"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        
+        <apex:actionFunction name="doSave" action="{!save}" oncomplete="unblockUI();" rerender="pageMessages,op_hdrbtns,op_batch_totals,op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na,op_defaults">
+            <apex:param name="saveOption" assignTo="{!saveOption}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="doNew" action="{!newEntity}" immediate="true"/>
+
+        <apex:actionFunction name="cancelTxn" action="{!cancelTxn}" immediate="true" rerender="pageMessages,op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na,op_hdrbtns,op_comments,op_accounts,op_defaults" status="statusProcessing"/>
+
+        <apex:actionFunction name="openBatch" action="{!openBatch}" immediate="true" rerender="pageMessages,op_apinvtxn,op_apinvtxns,op_status,op_hdrbtns" oncomplete="unblockUI();"/>
+        <apex:actionFunction name="closeBatch" action="{!closeBatch}" immediate="true" rerender="pageMessages,op_apinvtxn,op_apinvtxns,op_status,op_hdrbtns" oncomplete="unblockUI();"/>
+        <apex:actionFunction name="transferBatch" action="{!transferBatch}" immediate="true" rerender="pageMessages,op_batchdate,op_year_period,op_apinvtxn,op_apinvtxns,op_status,op_hdrbtns" oncomplete="unblockUI();"/>
+        <apex:actionFunction name="deleteQuickPayBatch" action="{!deleteQuickPayBatch}" immediate="true"/>
+
+        <apex:actionFunction name="setCurrentTransaction" action="{!setCurrentTransaction}" immediate="true" rerender="pageMessages,op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na,op_hdrbtns,op_comments,op_accounts,op_defaults" status="statusProcessing">
+            <apex:param name="txnId" assignTo="{!activeApinvtxnId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="checkDeleteApinvtxn" action="{!checkDeleteApinvtxn}" immediate="true" rerender="pageMessages,op_resultVars" oncomplete="confirmDeleteTxn();return false;" status="statusProcessing"/>
+        <apex:actionFunction name="deleteCurrentTxn" action="{!deleteCurrentTxn}" immediate="true" rerender="pageMessages,op_batch_totals,op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na,op_hdrbtns,op_comments,op_accounts" status="statusProcessing"/>
+        
+        <apex:actionFunction name="vendorChanged" action="{!vendorChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_apinvtxn,op_vendtxns,op_resultVars" oncomplete="checkDuplicateDocno();doAfterVendorChanged();return false;" focus="apinvtxn_docno__c" status="statusProcessingBlock">
+            <apex:param name="vendor" assignTo="{!o_t.rstkf__apinvtxn_vendno__c}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="docnoChanged" action="{!docnoChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_resultVars,op_docno,op_docnoseq" oncomplete="checkDuplicateDocno();return false;" status="statusProcessing" >
+            <apex:param value="" name="docno" assignTo="{!o_t.rstkf__apinvtxn_docno__c}"/>
+        </apex:actionFunction>
+        <apex:actionFunction name="incrementDocnoseq" action="{!incrementDocnoseq}" immediate="true" rerender="pageMessages,op_docnoseq" oncomplete="setNextFocusField();" status="statusProcessing"/>
+        <apex:actionFunction name="batchTypeChanged" action="{!batchTypeChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_status,op_hdrbtns,op_trantypes,op_apinvtxn" status="statusProcessingBlock">
+            <apex:param name="batchType" assignTo="{!o_h.rstkf__apinvh_quickpayment_ui__c}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="tranTypeChanged" action="{!tranTypeChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_hdrbtns,op_apinvtxn,op_quickpayment" status="statusProcessingBlock">
+            <apex:param name="tranType" assignTo="{!o_t.rstkf__apinvtxn_trantype__c}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="batchdateChanged" action="{!batchdateChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_year,op_period,op_periodDesc" status="statusProcessingBlock">
+            <apex:param name="batchDate" assignTo="{!batchDateUI}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="trandateChanged" action="{!trandateChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_year,op_period,op_periodDesc,op_agedate,op_termsdiscdate,op_terms_detail,op_apinvtxn,op_vendtxns" oncomplete="setNextFocusField();" status="statusProcessingBlock">
+            <apex:param name="tranDate" assignTo="{!tranDateUI}" value="" />
+            <apex:param name="vendor" assignTo="{!o_t.rstkf__apinvtxn_vendno__c}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="agedateChanged" action="{!agedateChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_payment,op_terms_detail" status="statusProcessing">
+            <apex:param name="ageDate" assignTo="{!ageDateUI}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="agedateChanged2" action="{!agedateChanged}" immediate="true" rerender="ptiPageMessages,op_hdrbtns,op_payment,op_terms_detail" status="statusProcessing">
+            <apex:param name="ageDate" assignTo="{!ageDateUI}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="termsdiscdateChanged" action="{!termsdiscdateChanged}" immediate="true" rerender="ptiPageMessages,op_hdrbtns,op_payment,op_terms_detail" status="statusProcessing">
+            <apex:param name="termsdiscDate" assignTo="{!termsdiscDateUI}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="txnamtChanged" action="{!txnamtChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines,op_lines_btns,op_disctermamt,op_terms_detail,op_apinvtxn_maintamt,op_apinvtxn_hometamt,op_app_amts" status="statusProcessingBlock">
+            <apex:param name="txnAmtUI" assignTo="{!txnAmtUI}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="maintcurrChanged" action="{!maintcurrChanged}" immediate="true" rerender="pageMessages,op_hdrbtns" status="statusProcessing">
+            <apex:param name="maintcurr" assignTo="{!o_t.rstkf__apinvtxn_maintcurr__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="payTypeChanged" action="{!payTypeChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_payment,op_quickpayment,op_txnbtns" status="statusProcessing">
+            <apex:param name="paytype" assignTo="{!o_t.rstkf__apinvtxn_paytype__c}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="doWhtChanged" action="{!doWhtChanged}" immediate="true" rerender="pageMessages,op_wht" status="statusProcessing">
+            <apex:param name="dowht" assignTo="{!o_t.rstkf__apinvtxn_dowht__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="getNextCheckNo" action="{!getNextCheckNo}" immediate="true" rerender="pageMessages,op_hdrbtns,op_payment" status="statusProcessing"/>
+
+        <apex:actionFunction name="termsChanged" action="{!termsChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_agedate,op_termsdiscdate,op_disctermamt,op_terms_detail" status="statusProcessing">
+            <apex:param name="terms" assignTo="{!o_t.rstkf__apinvtxn_terms__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="termsBaseDateChanged" action="{!termsBaseDateChanged}" immediate="true" rerender="ptiPageMessages,op_hdrbtns,op_agedate,op_payment,op_terms_detail" status="statusProcessing">
+            <apex:param name="termsBaseDate" assignTo="{!o_t.rstkf__apinvtxn_termsbasedate__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="discblamtChanged" action="{!discblamtChanged}" immediate="true" rerender="ptiPageMessages,op_hdrbtns,op_agedate,op_payment,op_terms_detail" status="statusProcessing">
+            <apex:param name="discblamt" assignTo="{!o_t.rstkf__apinvtxn_discblamt__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="poordChanged" action="{!poordChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_purch_info" status="statusProcessing">
+            <apex:param name="poord" assignTo="{!o_t.rstkf__apinvtxn_poord__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="polineChanged" action="{!polineChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_purch_info,op_lines" status="statusProcessing">
+            <apex:param name="poline" assignTo="{!o_t.rstkf__apinvtxn_poline__c}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="holdprocindChanged" action="{!holdprocindChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_txndetails" status="statusProcessing">
+            <apex:param name="holdprocind" assignTo="{!o_t.rstkf__apinvtxn_holdprocind__c}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="checkDeleteApinvline" action="{!checkDeleteApinvline}" immediate="true" rerender="pageMessages,op_resultVars" oncomplete="confirmDeleteLine();return false;" status="statusProcessing" >
+            <apex:param value="" name="activeLineSeq" assignTo="{!activeLineSeq}"/>
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="deleteApinvline" action="{!deleteApinvline}" immediate="true" rerender="pageMessages,op_hdrbtns,op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na" status="statusProcessing" >
+            <apex:param value="" name="activeLineSeq" assignTo="{!activeLineSeq}"/>
+        </apex:actionFunction>
+
+        <apex:actionFunction name="addApinvline" action="{!addApinvline}" immediate="true" rerender="pageMessages,op_lines,op_apinvtxn" status="statusProcessing"/>
+
+        <apex:actionFunction name="lineOdcidChanged" action="{!lineOdcidChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines" oncomplete="setNextFocusField();"  status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="lineOdcid" assignTo="{!activeLineOdcid}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="itemAppForLineChanged" action="{!itemAppForLineChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="itemAppForLine" assignTo="{!activeItemAppForLine}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="chargeCodeAppForLineChanged" action="{!chargeCodeAppForLineChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="chargeCodeAppForLine" assignTo="{!activeChargeCodeAppForLine}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="lineAccttypeChanged" action="{!lineAccttypeChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines" oncomplete="setNextFocusField();" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="linetAccttype" assignTo="{!activeLineAccttype}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="lineAcctChanged" action="{!lineAcctChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="linetAcct" assignTo="{!activeLineAcct}" value="" />
+            <apex:param name="oldLineAcct" assignTo="{!oldLineAcct}" value="" />
+            
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="qtyPriceIndChanged" action="{!qtyPriceIndChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines" oncomplete="setNextFocusField();" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="activeQtyPriceInd" assignTo="{!activeQtyPriceInd}" value="" />
+        </apex:actionFunction>          
+        
+        <apex:actionFunction name="lineqtyChanged" action="{!lineqtyChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines,op_apinvdists" oncomplete="setNextFocusField();" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="linetqty" assignTo="{!activeLineQty}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="linepriceChanged" action="{!linepriceChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines,op_apinvdists" oncomplete="setNextFocusField();" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="linetprice" assignTo="{!activeLinePrice}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction name="lineamtChanged" action="{!lineamtChanged}" immediate="true" rerender="pageMessages,op_hdrbtns,op_lines,op_apinvdists" oncomplete="setNextFocusField();">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="linetamt" assignTo="{!activeLineAmount}" value="" />
+            <apex:param name="linedrcrind" assignTo="{!activeLineDrCrInd}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="lineSyvatclassChanged" action="{!lineSyvatclassChanged}" immediate="true" rerender="pageMessages,op_apinvtxn_maintamt,op_disctermamt,op_apinvtxn_hometamt,op_hdrbtns,op_lines,op_apinvdists" oncomplete="setNextFocusField();" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="currVatclass" assignTo="{!activeLineVatclass}" value="" />
+            <apex:param name="oldVatclass" assignTo="{!oldVatclass}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="lineDescChanged" action="{!lineDescChanged}" immediate="true" rerender="pageMessages,op_lines" oncomplete="setNextFocusField();" status="statusProcessing">
+            <apex:param name="activeLineSeq" assignTo="{!activeLineSeq}" value="" />
+            <apex:param name="currDesc" assignTo="{!currDesc}" value="" />
+        </apex:actionFunction>
+        
+        
+        <apex:actionFunction name="setDistributions" action="{!setDistributions}" immediate="true" rerender="pageMessages,op_diststatus,op_apinvdists,op_distbtns" oncomplete="showPopup('#popDistributions', 1300, 490);" status="statusProcessing">
+            <apex:param value="" name="activeLineSeq" assignTo="{!activeLineSeq}"/>
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="setVendorTxns" action="{!setVendorTxns}" immediate="true" rerender="pageMessages,op_vendtxns" oncomplete="enableFixedHeaderSort('pg:fm4:pb_vendtxns:pbt_vendtxns');showPopup('#popVendorTxns', 1300, 525);" status="statusProcessing">
+            <apex:param value="" name="vendTxnMode" assignTo="{!vendTxnMode}"/>
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="unapplyVendorCredit" action="{!unapplyVendorCredit}" immediate="true" rerender="pageMessages,op_batch_totals,op_apinvtxn,op_apinvtxns,op_resultVars" oncomplete="if (actionError != true) { window.location.reload(); }" status="statusProcessing">
+            <apex:param value="" name="selectedVndtxnId" assignTo="{!selectedVndtxnId}"/>
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="setExchangeRateValue" action="{!setExchangeRateValue}" immediate="true" oncomplete="openpopup();" rerender="pageMessages,op_var,op_rate_schedule"  status="statusProcessing"/>
+            
+        
+        
+        <apex:pageBlock id="pb" mode="detail" title="{!batchName}">
+            <apex:pageBlockButtons location="top">
+                <apex:outputPanel id="op_hdrbtns">
+                    <apex:commandButton onclick="blockUI();doSave('B');return false;" value="{!$Label.rstkf__pageval_save}" style="width:80px" rendered="{!(batch.txn == null || !apBatchOpt || isNew)}"/>
+                    <apex:commandButton onclick="doNew();return false;" value="{!$Label.rstkf__btn_new}" style="width:80px" rendered="{!((apBatchOpt && batch.txn == null || !apBatchOpt) && batch.isTransferred)}"/>
+                    <apex:commandButton onclick="blockUI();doSave('TN');return false;" value="{!$Label.rstkf__pageval_savenew}" style="width:120px" rendered="{!batch.txn != null && (!apBatchOpt || isNew) && allowEdits}"/>
+                    <apex:commandButton onclick="blockUI();doSave('TNS');return false;" value="{!$Label.rstkf__pageval_savenewsamevendor}" style="width:195px" rendered="{!batch.txn != null && (!apBatchOpt || isNew) && allowEdits}"/>
+                    <apex:commandButton onclick="checkDeleteApinvtxn();return false;" value="{!$Label.rstkf__pageval_delete}" rendered="{!!isNew && !apBatchOpt && batch.txn.isDeleteable}" style="width:90px"/>
+                    <apex:commandButton onclick="doCancel();return false;" value="{!$Label.rstkf__pageval_cancel}" rendered="{!isNew}" style="width:80px"/>
+                    <apex:outputPanel rendered="{!allowEdits && (batch.txn == null || !apBatchOpt) && !isNew}">
+                        <apex:commandButton onclick="if (confirm('{!$Label.rstkf__pageval_open} {!pageType}?')) {blockUI('{!$Label.rstkf__pageval_opening} {!pageType}...');openBatch();} return false;" value="{!$Label.rstkf__pageval_open} {!pageType}" disabled="{!batch.hasChanges}" rendered="{!batch.canOpen}"/>
+                        <apex:commandButton onclick="if (confirm('{!$Label.rstkf__pagevalclose} {!pageType}?')) {blockUI('{!$Label.rstkf__pageval_closing} {!pageType}...');closeBatch();} return false;" value="{!$Label.rstkf__pageval_close} {!pageType}" disabled="{!batch.hasChanges}" rendered="{!batch.isOpen}"/>
+                        <apex:commandButton onclick="if (confirm('{!$Label.rstkf__pageval_transfer} {!pageType}?')) {blockUI('{!$Label.rstkf__pageval_transferring} {!pageType}...');transferBatch();} return false;" value="{!$Label.rstkf__pageval_post} {!pageType}" disabled="{!batch.hasChanges}" rendered="{!batch.isClosed}"/>
+                    	<apex:commandButton onclick="if (confirm('{!$Label.rstkf__confirmdeletequickpaym} {!pageType}?')) {blockUI('{!$Label.rstkf__deletingquickpayment} {!pageType}...');deleteQuickPayBatch();} return false;" value="{!$Label.rstkf__btn_deletequickpayment} {!pageType}" disabled="{!batch.hasChanges}" rendered="{!batch.isClosed && batch.isQuickpayment}"/>
+                    </apex:outputPanel>
+                </apex:outputPanel>
+            </apex:pageBlockButtons>
+            <apex:outputPanel style="display:none">
+                <apex:outputPanel id="op_resultVars">
+                    <script>
+                        var actionError = {!actionError};
+                        var actionResult = "{!JSENCODE(actionResult)}";
+                        var actionSequence = {!actionSequence};
+                        var rejectDuplicateDocNo = {!rejectDuplicateDocNo};
+                        var useVendorAC = {!useVendorAC};
+                    </script>
+                </apex:outputPanel>
+            </apex:outputPanel>
+        
+            <apex:pageBlockSection id="pbs_apinvh" showHeader="false" columns="3" >
+                <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_cmpno__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f_h.rstkf__apinvh_cmpno__c.label}"/>
+                    <apex:outputField value="{!o_h.rstkf__apinvh_cmpno__c}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_batchdate__c.inlineHelpText}" rendered="{!apBatchOpt && isNew}" dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f_h.rstkf__apinvh_batchdate__c.label}"/>
+                    <apex:inputField id="apinvh_batchdate__c" value="{!o_h.rstkf__apinvh_batchdate__c}" required="true" onchange="if (!isEmpty(this.value) && !isValidDate(this.value,'apinvh_batchdate__c')) {alert('Invalid Date');this.value='{!o_h.rstkf__apinvh_batchdate__c}'} else {batchdateChanged(this.value);return false;}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_batchdate__c.inlineHelpText}" rendered="{!!apBatchOpt || !isNew}" dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f_h.rstkf__apinvh_batchdate__c.label}"/>
+                    <apex:outputPanel id="op_batchdate">
+                    	<apex:outputField value="{!o_h.rstkf__apinvh_batchdate__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_status__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f_h.rstkf__apinvh_status__c.label}"/>
+                    <apex:outputPanel id="op_status">
+                        <apex:outputField value="{!o_h.rstkf__apinvh_status__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_batchtype__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%" rendered="{!!isNew}">
+                    <apex:outputLabel value="{!f_h.rstkf__apinvh_batchtype__c.label}"/>
+                    <apex:outputField value="{!o_h.rstkf__formula_batchtype__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_quickpayment_ui__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%" rendered="{!isNew}">
+                    <apex:outputLabel value="{!f_h.rstkf__apinvh_quickpayment_ui__c.label}"/>
+                    <apex:outputPanel id="op_quickpayment">
+                        <apex:inputCheckbox value="{!o_h.rstkf__apinvh_quickpayment_ui__c}" disabled="{!batch.txn.isPaytypeC || isVendorCredit}" onchange="batchTypeChanged(this.checked);"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!yearPeriodHelptext}" dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!yearPeriodLabel}"/>
+                    <apex:outputPanel id="op_year_period">
+                        <apex:panelGrid columns="3" id="theGrid">
+                            <apex:outputPanel id="op_year">
+                                <apex:outputField value="{!o_h.rstkf__apinvh_year__c}"/>
+                            </apex:outputPanel>
+                            <apex:outputText value=" / "/>
+                            <apex:outputPanel id="op_periodDesc">
+                                <apex:outputText value="{!periodDesc}"/>
+                            </apex:outputPanel>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+           
+                <apex:pageBlockSectionItem id="pbsi_comments" helpText="{!f_h.rstkf__apinvh_comments__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f_h.rstkf__apinvh_comments__c.label}"/>
+                    <apex:outputPanel id="op_comments">
+                        <apex:inputTextarea id="apinvh_comments__c" value="{!o_h.rstkf__apinvh_comments__c}" cols="45" rows="1" tabIndex="40" rendered="{!allowEdits}"/>
+                        <apex:outputField value="{!o_h.rstkf__apinvh_comments__c}" rendered="{!!allowEdits}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_details" showHeader="true" title="{!$Label.rstkf__additional}" columns="1" >
+                <apex:tabPanel switchType="client" selectedtab="tab_general" id="theTabPanel">
+                    <apex:tab label="{!$Label.rstkf__pagetab_sessiontotals}" name="tab_batch" id="tab_batch" rendered="{!apBatchOpt}">
+                        <apex:outputPanel id="op_batch_totals">
+                            <apex:pageBlockSection id="pbs_batch" columns="2">
+                                <apex:outputField value="{!o_h.rstkf__apinvh_taxhomeamtnet__c}"/>
+                                <apex:outputField value="{!o_h.rstkf__apinvh_frghthomeamtnet__c}"/>
+                                <apex:outputField value="{!o_h.rstkf__apinvh_apdebitshome__c}"/>
+                                <apex:outputField value="{!o_h.rstkf__apinvh_apcreditshome__c}"/>
+                                <apex:outputField value="{!o_h.rstkf__apinvh_otheracctcreditsthome__c}"/>
+                                <apex:outputField value="{!o_h.rstkf__apinvh_otheracctdebitsthome__c}"/>
+                                <apex:outputField value="{!o_h.rstkf__apinvh_zerosumdebitscreditshome__c}"/>
+                                <apex:outputField value="{!o_h.rstkf__apinvh_numbtxns__c}"/>
+                                <apex:outputField value="{!o_h.rstkf__apinvh_pobatchind__c}"/>
+                            </apex:pageBlockSection>
+                        </apex:outputPanel>
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstkf__pagetab_defaultaccounts}" name="tab_accounts" id="tab_accounts">
+                        <apex:outputPanel id="op_accounts">
+                            <apex:outputPanel rendered="{!allowEdits && !batch.isPOBatch && (isNew || batch.txn == null || !apBatchOpt)}">
+                                <apex:pageBlocksection id="pbs_accounts" showHeader="false" columns="1">
+                                    <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_dflttaxacct__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_h.rstkf__apinvh_dflttaxacct__c.label}"/>
+                                        <apex:selectList id="apinvh_dflttaxacct__c" value="{!o_h.rstkf__apinvh_dflttaxacct__c}" size="1">
+                                            <apex:selectOptions value="{!TaxAccounts}"/>
+                                        </apex:selectList>
+                                    </apex:pageBlockSectionItem>
+                    
+                                    <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_dfltfrghtacct__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_h.rstkf__apinvh_dfltfrghtacct__c.label}"/>
+                                        <apex:selectList id="apinvh_dfltfrghtacct__c" value="{!o_h.rstkf__apinvh_dfltfrghtacct__c}" size="1">
+                                            <apex:selectOptions value="{!FreightAccounts}"/>
+                                        </apex:selectList>
+                                    </apex:pageBlockSectionItem>
+                    
+                                    <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_dflttrmdisctknacct__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_h.rstkf__apinvh_dflttrmdisctknacct__c.label}"/>
+                                        <apex:selectList id="apinvh_dflttrmdisctknacct__c" value="{!o_h.rstkf__apinvh_dflttrmdisctknacct__c}" size="1">
+                                            <apex:selectOptions value="{!TermsDiscountTakenAccounts}"/>
+                                        </apex:selectList>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlocksection>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!!isNew && ((batch.txn != null && apBatchOpt) || !allowEdits || batch.isPOBatch)}">
+                                <apex:pageBlocksection showHeader="false" columns="1">
+                                    <apex:outputField value="{!o_h.rstkf__apinvh_dflttaxacct__c}"/>
+                                    <apex:outputField value="{!o_h.rstkf__apinvh_dfltfrghtacct__c}"/>
+                                    <apex:outputField value="{!o_h.rstkf__apinvh_dflttrmdisctknacct__c}"/>
+                                </apex:pageBlocksection>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                    </apex:tab>
+                    <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    	<c:customFields cntr="{!controller}" cols="2"/>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstkf__pagetab_info}" name="tab_Info" id="tab_Info">
+                        <c:InfoSection cntr="{!controller}" showHeader="flase"/>
+                    </apex:tab>
+                </apex:tabPanel>
+                <BR/>
+            </apex:pageBlockSection>
+        
+            <apex:outputPanel id="op_apinvtxn">
+                <apex:pageBlock id="pb_apinvtxn" mode="detail" title="{!txnName}" rendered="{!o_t != null}">
+                    <apex:pageBlockButtons location="top">
+                        <apex:outputPanel id="op_txnbtns">
+                            <apex:outputPanel rendered="{!!isNew && apBatchOpt}">
+                                <apex:commandButton onclick="blockUI();doSave('T');return false;" value="{!$Label.rstkf__pageval_save}" style="width:80px"/>
+                                <apex:commandButton onclick="blockUI();doSave('TN');return false;" value="{!$Label.rstkf__pageval_savenew}" style="width:120px" rendered="{!allowEdits && (batch.isOpen || batch.txn.isQuickpayment)}"/>
+                                <apex:commandButton onclick="blockUI();doSave('TNS');return false;" value="{!$Label.rstkf__pageval_savenewsamevendor}" style="width:195px" rendered="{!allowEdits && (batch.isOpen || batch.txn.isQuickpayment)}"/>
+                            </apex:outputPanel>
+                            <apex:commandButton onclick="setVendorTxns('D');return false;" value="{!$Label.rstkf__debitmemosettings}" rendered="{!batch.txn.showDebitMemoSettings}"/>
+                            <apex:commandButton onclick="setVendorTxns('A');return false;" value="{!$Label.rstkf__applyvendorcredittoinvoicedebitmemo}" rendered="{!batch.txn.showApplyVendorCredit && batch.txn.apinvtxn.rstkf__apinvtxn_unapplamtmaint__c > 0}"/>
+                            <apex:commandButton onclick="setVendorTxns('C');return false;" value="{!$Label.rstkf__copyvendorcreditfrominvoicedebitmemo}" rendered="{!batch.txn.showCopyVendorCredit}"/>
+                            <apex:commandButton onclick="checkDeleteApinvtxn();return false;" value="{!$Label.rstkf__pageval_delete}" rendered="{!!batch.txn.isNew && apBatchOpt && batch.txn.isDeleteable}" style="width:90px"/>
+                            <apex:commandButton onclick="cancelTxn();return false;" value="{!$Label.rstkf__pageval_cancel}" style="width:80px" rendered="{!apBatchOpt && !isNew}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockButtons>
+                    
+                    <apex:outputPanel style="display:none">
+                        <apex:outputField value="{!o_t.rstkf__apinvtxn_quickpaymentind__c}" style="display:none;"/>
+                    </apex:outputPanel>
+                    
+                    <apex:pageBlockSection id="pbs_details" showHeader="false" columns="1" >
+                        <apex:tabPanel switchType="client" selectedtab="tab_details" id="theTabPanel">
+                            <apex:tab label="{!o_t.rstkf__apinvtxn_trantype__c}" name="tab_details" id="tab_details" immediate="true">
+                                <apex:pageBlockSection id="pbs_details" showHeader="false" columns="3">
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_vendno__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%" rendered="{!batch.txn.isVendorMaintainable}">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_vendno__c.label}"/>
+                                        <apex:panelGrid columns="12" cellpadding="0" cellspacing="0">
+                                            <c:simpleSelectList Id="apinvtxn_vendno_sl" value="{!o_t.rstkf__apinvtxn_vendno__c}" tabindex="2000" onchange="doVendorChanged(this.value)" options="{!Vendors}" required="true" rendered="{!!useVendorAC}"/>
+                                            <apex:outputPanel styleClass="requiredInput" layout="block" rendered="{!useVendorAC}">
+                                                <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+                                                <input type="text" name="apinvtxn_vendno__c_autocomplete" id="apinvtxn_vendno__c_autocomplete" class="ac_input" style="width:200px;" tabIndex="2000" value="{!VendorName}"/>
+                                                <apex:inputText id="apinvtxn_vendno__c" value="{!o_t.rstkf__apinvtxn_vendno__c}" style="display:none" onchange="doVendorChanged(this.value)"/>
+                                                <script>
+                                                	autocompleteParms["apinvtxn_vendno__c"] = {query:"select povendcmpno_vendno__c, povendcmpno_vendno__r.Name from povendcmpno__c where povendcmpno_cmpno__c = '{!currCompany.id}'", queryParms:[], codeColumn:"povendcmpno_vendno__c", descColumn:"povendcmpno_vendno__r.Name"};setupAutocomplete();
+                                                	var vendorFieldId = "{!$Component.apinvtxn_vendno__c}";
+                                                </script>
+                                            </apex:outputPanel>
+
+                                            <apex:outputText value="X" style="visibility:hidden;"/>
+                                            <apex:outputPanel id="op_vendor">&nbsp;
+                                                <apex:outputLink value="javascript:{showPopup('#popAddVendor', 550, 600);}" rendered="{!o_t.rstkf__apinvtxn_vendno__c = null && allowVendorAdd}">Add Vendor</apex:outputLink>
+                                                <apex:outputPanel rendered="{!o_t.rstkf__apinvtxn_vendno__c != null}">
+                                                    <c:hoverDetail recId="{!o_t.rstkf__apinvtxn_vendno__c}" recName="Details" target="_blank"/>
+                                                </apex:outputPanel>
+                                                <apex:outputText value="X" style="visibility:hidden;"/>
+                                                <apex:outputPanel rendered="{!povendpoaddr != null}">
+                                                    <c:hoverDetail recId="{!povendpoaddr.Id}" recName="Address" target="_blank"/>
+                                                </apex:outputPanel>
+                                            </apex:outputPanel>
+                                        </apex:panelGrid>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_vendno__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%" rendered="{!!batch.txn.isVendorMaintainable}">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_vendno__c.label}"/>
+                                        <apex:outputPanel >
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_vendno__c}"/>
+                                            &nbsp;
+                                            <apex:outputPanel rendered="{!povendpoaddr != null}">
+                                                <c:hoverDetail recId="{!povendpoaddr.Id}" recName="Address" target="_blank"/>
+                                            </apex:outputPanel>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_trantype__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_trantype__c.label}"/>
+                                        <apex:outputPanel id="op_trantypes">
+                                            <apex:selectList id="apinvtxn_trantype__c" value="{!o_t.rstkf__apinvtxn_trantype__c}" onchange="tranTypeChanged(this.value);" size="1" required="true" rendered="{!batch.txn.isTrantypeMaintainable}">
+                                                <apex:selectOptions value="{!TransactionTypes}"/>
+                                            </apex:selectList>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_trantype__c}" rendered="{!!batch.txn.isTrantypeMaintainable}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_agedate__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_agedate__c.label}"/>
+                                        <apex:outputPanel id="op_agedate">
+                                            <apex:inputField id="apinvtxn_agedate__c" value="{!o_t.rstkf__apinvtxn_agedate__c}" required="true" onchange="if (!isEmpty(this.value) && !isValidDate(this.value,'apinvtxn_agedate__c')) {alert('{!$Label.rstkf__invaliddate}');this.value='{!o_t.rstkf__apinvtxn_agedate__c}'} else {agedateChanged(this.value);return false;}" rendered="{!batch.txn.isAgedateMaintainable}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_agedate__c}" rendered="{!!batch.txn.isAgedateMaintainable}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_docno__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_docno__c.label}"/>
+                                        <apex:panelGrid columns="4" cellpadding="0" cellspacing="0">
+                                        	<apex:outputPanel id="op_docno">
+                                            	<apex:inputField id="apinvtxn_docno__c" value="{!o_t.rstkf__apinvtxn_docno__c}" onchange="docnoChanged(this.value);" taborderhint="202" required="{!isInvoice}" rendered="{!batch.txn.isDocnoMaintainable}"/>
+                                            </apex:outputPanel>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_docno__c}" rendered="{!!batch.txn.isDocnoMaintainable}"/>
+                                            <apex:outputPanel id="op_docnoseq">
+                                                <apex:outputPanel rendered="{!o_t.rstkf__apinvtxn_docnoseq__c > 0}">
+                                                    &nbsp;&nbsp;
+                                                    <apex:outputText value="{!$Label.rstkf__pageval_seqno}: "/>
+                                                    <apex:inputField value="{!o_t.rstkf__apinvtxn_docnoseq__c}" rendered="{!allowEdits && batch.txn.allowDocnoseqEdit && o_t.rstkf__apinvtxn_docnoseq__c != 0}"/>
+                                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_docnoseq__c}" title="{!f_t.rstkf__apinvtxn_docno__c.inlineHelpText}" rendered="{!!allowEdits || !batch.txn.allowDocnoseqEdit && o_t.rstkf__apinvtxn_docnoseq__c != 0}"/>
+                                                </apex:outputPanel>
+                                            </apex:outputPanel>
+                                        </apex:panelGrid>
+                                    </apex:pageBlockSectionItem>
+                                                                        
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_terms__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_terms__c.label}"/>
+                                        <apex:panelGrid columns="4" cellpadding="0" cellspacing="0">
+                                        	<apex:outputPanel styleClass="requiredInput" layout="block">
+                                                <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+	                                            <apex:selectList id="apinvtxn_terms__c" value="{!o_t.rstkf__apinvtxn_terms__c}" onchange="confirmTermsChanged(this, '{!o_t.rstkf__apinvtxn_terms__c}');return false;" size="1" required="true" rendered="{!batch.txn.isTermsMaintainable}">
+	                                                <apex:selectOptions value="{!Syterms}"/>
+	                                            </apex:selectList>&nbsp;
+                                            </apex:outputPanel>
+	                                        <script>document.getElementById('{!$Component.apinvtxn_terms__c}').value="{!o_t.rstkf__apinvtxn_terms__c}";</script>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_terms__c}" rendered="{!!batch.txn.isTermsMaintainable}"/>&nbsp;
+                                            <apex:outputLink value="javascript:{showPopup('#popTermsInfo', 480, 305);}" rendered="{!batch.txn.isTermsMaintainable}"> {!$Label.rstkf__pagelink_details}</apex:outputLink>
+                                        </apex:panelGrid>
+                                    </apex:pageBlockSectionItem>
+
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_termsdiscdate__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_termsdiscdate__c.label}"/>
+                                        <apex:outputPanel id="op_termsdiscdate">
+                                            <apex:inputField id="apinvtxn_termsdiscdate__c" value="{!o_t.rstkf__apinvtxn_termsdiscdate__c}" onchange="if (!isEmpty(this.value) && !isValidDate(this.value,'apinvtxn_termsdiscdate__c')) {alert('{!$Label.rstkf__invaliddate}');this.value='{!o_t.rstkf__apinvtxn_termsdiscdate__c}'} else {termsdiscdateChanged(this.value);return false;}" rendered="{!batch.txn.isAgedateMaintainable}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_termsdiscdate__c}" rendered="{!!allowEdits || !batch.txn.isAgedateMaintainable}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_maintamt__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_maintamt__c.label}"/>
+                                        <apex:outputPanel id="op_apinvtxn_maintamt">
+                                            <apex:inputField id="apinvtxn_maintamt__c" value="{!o_t.rstkf__apinvtxn_maintamt__c}" required="true" taborderhint="204" onkeypress="return filterNonNumeric(event, this)" onchange="if (!isEmpty(this.value)) {if(isNumber(this.value)) {setNextFocusId('pg:fm:pb:pb_apinvtxn:pb_apinvlines:pbt_lines:0:desc', true);txnamtChanged(removeLocaleFormatting(this.value))} else {alert('Invalid Number');};}" rendered="{!batch.txn.isTrandateMaintainable}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_maintamt__c}" rendered="{!!batch.txn.isTrandateMaintainable}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_trandate__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_trandate__c.label}"/>
+                                        <apex:outputPanel id="op_trandate">
+                                            <apex:inputField id="apinvtxn_trandate__c" value="{!o_t.rstkf__apinvtxn_trandate__c}" required="true" taborderhint="206" onchange="if (!isEmpty(this.value) && !isValidDate(this.value,'apinvtxn_trandate__c')) {alert('Invalid Date');this.value='{!o_t.rstkf__apinvtxn_trandate__c}'} else {setNextFocusId('pg:fm:pb:pb_apinvtxn:pb_apinvlines:pbt_lines:0:desc', true);doTrandateChanged(this.value,'{!o_t.rstkf__apinvtxn_vendno__c}');return false;}" rendered="{!batch.txn.isMaintamntMaintainable}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_trandate__c}" rendered="{!!batch.txn.isMaintamntMaintainable}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                                                        
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_disctermamt__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_disctermamt__c.label}"/>
+                                        <apex:outputPanel id="op_disctermamt">
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_disctermamt__c}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_homeamt__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%" rendered="{!!batch.txn.isNew}">
+                                    	<apex:outputLabel value="{!f_t.rstkf__apinvtxn_homeamt__c.label}"/>
+                                    	<apex:outputPanel id="op_apinvtxn_hometamt">
+                                    		<apex:outputField value="{!o_t.rstkf__apinvtxn_homeamt__c}"/>
+                                    	</apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%" rendered="{!batch.txn.isNew}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_comments__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%" rendered="{!apBatchOpt}">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_comments__c.label}"/>
+                                        <apex:outputPanel >
+                                            <apex:inputField value="{!o_t.rstkf__apinvtxn_comments__c}"   rendered="{!allowEdits}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_comments__c}" rendered="{!!allowEdits}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%" rendered="{!!apBatchOpt}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                            </apex:tab>
+                            
+                            <apex:tab label="{!$Label.rstkf__pagetab_paymentinfo}" name="tab_payment" id="tab_payment" immediate="true" rendered="{!o_t.rstkf__apinvtxn_vendno__c != null}">
+                                <apex:outputPanel id="op_payment">
+                                <apex:pageBlockSection id="pbs_payment" showHeader="false" columns="2">
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_paytype__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_paytype__c.label}"/>
+                                        <apex:panelGrid columns="8" cellpadding="0" cellspacing="0">
+                                        	<apex:outputPanel styleClass="requiredInput" layout="block">
+                                                <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+	                                            <apex:selectList id="apinvtxn_paytype__c" value="{!o_t.rstkf__apinvtxn_paytype__c}" onchange="payTypeChanged(this.value);return false;" size="1" required="true" rendered="{!batch.txn.isPaytypeMaintainable}">
+	                                                <apex:selectOptions value="{!Paytypes}"/>
+	                                            </apex:selectList>&nbsp;
+	                                            <script>setSelect('{!$Component.apinvtxn_paytype__c}', '{!o_t.rstkf__apinvtxn_paytype__c}');</script>
+                                            </apex:outputPanel>
+                                            
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_paytype__c}" rendered="{!!batch.txn.isPaytypeMaintainable}"/>
+                                            
+                                            <apex:outputText value="X" style="visibility:hidden;" rendered="{!batch.txn.isPaytypeC}"/>
+                                            <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f_t.rstkf__apinvtxn_cctype__c.label}" rendered="{!batch.txn.isPaytypeMaintainable && batch.txn.isPaytypeC}"/>
+                                            <c:simpleSelectList id="apinvtxn_cctype__c" value="{!o_t.rstkf__apinvtxn_cctype__c}" options="{!Glapccs}" required="true" rendered="{!batch.txn.isPaytypeMaintainable && batch.txn.isPaytypeC}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_cctype__c}" rendered="{!!batch.txn.isPaytypeMaintainable && batch.txn.isPaytypeC}"/>
+                                            
+                                            <apex:outputText value="X" style="visibility:hidden;" rendered="{!batch.txn.isQuickpayment && batch.txn.isPaytypeE}"/>
+                                            <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!f_t.rstkf__apinvtxn_eftsubtype__c.label}" rendered="{!batch.txn.isQPMaintainable && batch.txn.isPaytypeE}"/>
+                                            <apex:inputField value="{!o_t.rstkf__apinvtxn_eftsubtype__c}" required="true" rendered="{!batch.txn.isQPMaintainable && batch.txn.isQuickpayment && batch.txn.isPaytypeE}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_eftsubtype__c}" rendered="{!!batch.txn.isQPMaintainable && batch.txn.isQuickpayment && batch.txn.isPaytypeE}"/>
+                                            
+                                            <apex:outputText value="X" style="visibility:hidden;" rendered="{!batch.txn.isQuickpayment && batch.txn.isPaytypeP}"/>
+                                            <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstkf__checkno}" rendered="{!(batch.txn.isQPMaintainable && !ISBLANK(batch.txn.checkno)) && batch.txn.isQuickpayment && batch.txn.isPaytypeP}"/>
+                                            <apex:commandButton onclick="getNextCheckNo();return false;" value="{!$Label.rstkf__getnextcheckno}" rendered="{!batch.txn.checkno == null && batch.txn.isQPMaintainable && batch.txn.isPaytypeP}"/>
+                                            <apex:outputText value="{!batch.txn.checkno}" style="width:75px;" rendered="{!(batch.txn.isQPMaintainable && !ISBLANK(batch.txn.checkno)) && batch.txn.isQuickpayment && batch.txn.isPaytypeP}"/>
+                                            
+                                            <apex:outputText value="X" style="visibility:hidden;" rendered="{!batch.txn.isQuickpayment && (batch.txn.isPaytypeD || batch.txn.isPaytypeE)}"/>
+                                            <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="Ref #" rendered="{!batch.txn.isQPMaintainable && (batch.txn.isPaytypeD || batch.txn.isPaytypeE)}"/>
+                                            <apex:inputText value="{!batch.txn.refno}" style="width:75px;" rendered="{!batch.txn.isQPMaintainable && (batch.txn.isPaytypeD || batch.txn.isPaytypeE)}"/>
+                                        </apex:panelGrid>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem rendered="{!!batch.txn.isQuickpayment}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                                    <apex:outputField value="{!batch.glcmp.rstkf__glcmp_dfltbankacctcheck__c}" rendered="{!batch.txn.isQuickpayment && batch.txn.isPaytypeP}"/>
+                                    <apex:outputField value="{!batch.glcmp.rstkf__glcmp_dfltbankacctcash__c}" rendered="{!batch.txn.isQuickpayment && batch.txn.isPaytypeD}"/>
+                                    <apex:outputField value="{!batch.glcmp.rstkf__glcmp_dfltbankaccteft__c}" rendered="{!batch.txn.isQuickpayment && batch.txn.isPaytypeE}"/>
+                                                                        
+                                    <!-- <apex:pageBlockSectionItem helpText="{!f_t.apinvtxn_paycurr__c.inlineHelpText}" rendered="{!batch.txn.isPaycurrMaintainable}">
+                                        <apex:outputLabel value="{!f_t.apinvtxn_paycurr__c.label}"/>
+									    <apex:outputPanel styleClass="requiredInput" layout="block">
+									        <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+									        <apex:selectList id="apinvtxn_paycurr__c" value="{!o_t.rstkf__apinvtxn_paycurr__c}" size="1" required="true">
+									            <apex:selectOptions value="{!ValidCurrencies}"/>
+									        </apex:selectList>
+                                        	<script>setSelect('{!$Component.apinvtxn_paycurr__c}', '{!o_t.rstkf__apinvtxn_paycurr__c}');</script>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem> -->
+                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_paycurr__c}"/>
+
+                                    
+                                    <apex:inputField value="{!o_t.rstkf__apinvtxn_prepayind__c}" rendered="{!batch.txn.isNew && allowEdits && batch.txn.isPrepayAllowed}"/>
+                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_prepayind__c}" rendered="{!!batch.txn.isNew || !allowEdits || !batch.txn.isPrepayAllowed}"/>
+                                    
+                                    <!-- <apex:pageBlockSectionItem helpText="{!f_t.apinvtxn_maintcurr__c.inlineHelpText}" rendered="{!batch.txn.isNew && currCompany.glcmp_multicurrency__c}">
+                                        <apex:outputLabel value="{!f_t.apinvtxn_maintcurr__c.label}"/>
+									    <apex:outputPanel styleClass="requiredInput" layout="block">
+									        <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+									        <apex:selectList id="apinvtxn_maintcurr__c" value="{!o_t.rstkf__apinvtxn_maintcurr__c}" onchange="maintcurrChanged(this.value);return false;" size="1" required="true">
+									            <apex:selectOptions value="{!ValidCurrencies}"/>
+									        </apex:selectList>
+                                        	<script>setSelect('{!$Component.apinvtxn_maintcurr__c}', '{!o_t.rstkf__apinvtxn_maintcurr__c}');</script>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem> -->
+                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_maintcurr__c}"/>
+                                    
+                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_apacct__c}"/>
+                                                                        
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_remitdesc__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_remitdesc__c.label}"/>
+                                        <apex:outputPanel >
+                                            <apex:inputField value="{!o_t.rstkf__apinvtxn_remitdesc__c}" style="width:250px;" rendered="{!allowEdits}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_remitdesc__c}" rendered="{!!allowEdits}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_glbankacct__c.inlineHelpText}" rendered="{!batch.txn.isPaytypeB}">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_glbankacct__c.label}"/>
+                                        <apex:outputPanel >
+									        <apex:selectList id="apinvtxn_glbankacct__c" value="{!o_t.rstkf__apinvtxn_glbankacct__c}" size="1" rendered="{!allowEdits}">
+									            <apex:selectOptions value="{!Glbankaccts}"/>
+									        </apex:selectList>
+	                                       	<script>setSelect('{!$Component.apinvtxn_glbankacct__c}', '{!o_t.rstkf__apinvtxn_glbankacct__c}');</script>
+	                                       	<apex:outputField value="{!o_t.rstkf__apinvtxn_glbankacct__c}" rendered="{!!allowEdits}"/>
+                                       	</apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem rendered="{!allowEdits && (batch.txn.isPaytypeC || batch.txn.isQuickpayment)}">
+                                        <apex:outputLabel value="{!$Label.rstkf__takeadvantageoftermsdiscount}"/>
+                                        <apex:inputCheckbox value="{!batch.txn.cashDiscount}" disabled="{!!isNew}"/>
+                                    </apex:pageBlockSectionItem>
+
+                                </apex:pageBlockSection>
+                                
+                                <apex:pageBlockSection id="pbs_payment_exchrate_schedule" showHeader="true" title="{!$Label.rstkf__paymentexchangerateschedule}" columns="2" rendered="{!!batch.txn.isNew && currCompany.rstkf__glcmp_multicurrency__c && o_t.rstkf__apinvtxn_maintcurr__c != o_t.rstkf__apinvtxn_homecurr__c}">
+                                    <apex:pageBlockSectionItem >
+                                    	<apex:outputLabel value="{!f_t.rstkf__apinvtxn_schedassgndate__c.label}"/>
+                                    	<apex:outputField value="{!o_t.rstkf__apinvtxn_schedassgndate__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem />
+                                    
+                                    <apex:pageBlockSectionItem >
+                                    	<apex:outputLabel value="{!f_t.rstkf__apinvtxn_exchangerate__c.label}"/>
+                                    	<apex:outputField value="{!o_t.rstkf__apinvtxn_exchangerate__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem />
+                                                                        
+                                    <apex:pageBlockSectionItem >
+                                    	<apex:outputLabel value="{!f_t.rstkf__apinvtxn_syforexschedno__c.label}"/>
+                                    	<apex:outputField value="{!o_t.rstkf__apinvtxn_syforexschedno__c}"/> 
+                                    </apex:pageBlockSectionItem>
+	                                    
+	                                <apex:pageBlockSectionItem >
+	                                	<apex:commandButton value="{!$Label.rstkf__button_select_override_rate}" onclick="doSetExchangeRateValue(); return false;"  rendered="{!allowEdits}" />
+                                    </apex:pageBlockSectionItem>
+	                            
+	                            </apex:pageBlockSection>
+                                
+                                </apex:outputPanel>
+                            </apex:tab>
+                            
+                            <apex:tab label="{!$Label.rstkf__pagetab_wht}" name="tab_wht" id="tab_wht" rendered="{!isInvoice && isWithholdingTaxEnabled && o_t.rstkf__apinvtxn_vendno__c != null}">
+                                <apex:outputPanel id="op_wht">
+	                                <apex:pageBlockSection columns="1">
+	                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_dowht__c.inlineHelpText}">
+	                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_dowht__c.label}"/>
+	                                        <apex:outputPanel >
+	                                            <apex:inputCheckbox value="{!o_t.rstkf__apinvtxn_dowht__c}" onchange="doWhtChanged(this.checked);" rendered="{!allowEdits}"/>
+	                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_dowht__c}" rendered="{!!allowEdits}"/>
+	                                        </apex:outputPanel>
+	                                    </apex:pageBlockSectionItem>
+	    
+						                <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_apwht__c.inlineHelpText}">
+						                    <apex:outputLabel value="{!f_t.rstkf__apinvtxn_apwht__c.label}"/>
+						                    <apex:outputPanel >
+						                        <apex:outputField value="{!o_t.rstkf__apinvtxn_apwht__c}" rendered="{!!allowEdits}"/>
+				                                <apex:selectList id="apinvtxn_apwht__c" value="{!o_t.rstkf__apinvtxn_apwht__c}" disabled="{!!o_t.rstkf__apinvtxn_dowht__c}" size="1" rendered="{!allowEdits}">
+				                                    <apex:selectOptions value="{!Apwhts}"/>
+				                                </apex:selectList>
+						                    </apex:outputPanel>
+						                </apex:pageBlockSectionItem>
+	                                </apex:pageBlockSection>
+                                </apex:outputPanel>
+                            </apex:tab>
+                            
+                            <apex:tab label="{!$Label.rstkf__pagetab_otherdetails}" name="tab_txn_details" id="tab_txn_details" rendered="{!o_t.rstkf__apinvtxn_vendno__c != null}">
+                                <apex:outputPanel id="op_txndetails">
+                                    <apex:pageBlockSection columns="2">
+                                        <apex:inputField value="{!o_t.rstkf__apinvtxn_vendassgndind__c}" rendered="{!allowEdits && !isInvoice}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_vendassgndind__c}" rendered="{!!allowEdits || isInvoice}"/>
+                                        
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_ttaphdr__c}"/>
+                                        
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_quickpaymentind__c}"/>
+                                        
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_dfltdiv__c}"/>
+                                        
+                                        <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_holdprocind__c.inlineHelpText}">
+                                            <apex:outputLabel value="{!f_t.rstkf__apinvtxn_holdprocind__c.label}"/>
+                                            <apex:outputPanel >
+                                                <apex:inputField value="{!o_t.rstkf__apinvtxn_holdprocind__c}" onchange="holdprocindChanged(this.checked);" rendered="{!!batch.isQuickpayment}"/>
+                                                <apex:outputField value="{!o_t.rstkf__apinvtxn_holdprocind__c}" rendered="{!batch.isQuickpayment}"/> 
+                                            </apex:outputPanel>
+                                        </apex:pageBlockSectionItem>
+
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_dfltproj__c}"/>
+                                        
+                                        <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_holdcode__c.inlineHelpText}" rendered="{!o_t.rstkf__apinvtxn_holdprocind__c}">
+                                            <apex:outputLabel value="{!f_t.rstkf__apinvtxn_holdcode__c.label}"/>
+                                            <apex:outputPanel >
+                                                 <c:simpleSelectList id="apinvtxn_holdcode__c" value="{!o_t.rstkf__apinvtxn_holdcode__c}" options="{!Glrsns}"/>
+                                                <apex:outputField value="{!o_t.rstkf__apinvtxn_holdcode__c}" rendered="{!!allowEdits}"/> 
+                                            </apex:outputPanel>
+                                        </apex:pageBlockSectionItem>
+                                        <apex:outputText value="" rendered="{!!o_t.rstkf__apinvtxn_holdprocind__c}"/>
+                                    </apex:pageBlockSection>
+                                </apex:outputPanel>
+                            </apex:tab>
+                                    
+                            <apex:tab label="{!$Label.rstkf__pagetab_purchaseorderinfo}" name="tab_purch_info" id="tab_purch_info" rendered="{!!((isInvoice && batch.txn.isNew) || o_t.rstkf__apinvtxn_vendno__c == null)}">
+                                <apex:outputPanel id="op_purch_info">
+                                <apex:pageBlockSection columns="1">
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_poord__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_poord__c.label}"/>
+                                        <apex:outputPanel >
+                                            <c:simpleSelectList id="apinvtxn_poord__c" value="{!o_t.rstkf__apinvtxn_poord__c}" onchange="poordChanged(this.value);return false;" options="{!POHdrs}" rendered="{!batch.txn.isPurchordInfoMaintainable}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_poord__c}" rendered="{!!batch.txn.isPurchordInfoMaintainable}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+    
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_poline__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_poline__c.label}"/>
+                                        <apex:outputPanel >
+                                            <c:simpleSelectList id="apinvtxn_poline__c" value="{!o_t.rstkf__apinvtxn_poline__c}" onchange="polineChanged(this.value);return false;" options="{!POLines}" rendered="{!batch.txn.isPurchordInfoMaintainable}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_poline__c}" rendered="{!!batch.txn.isPurchordInfoMaintainable}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+    
+                                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_porcptno__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_porcptno__c.label}"/>
+                                        <apex:outputPanel >
+                                            <c:simpleSelectList id="apinvtxn_porcptno__c" value="{!o_t.rstkf__apinvtxn_porcptno__c}" onchange="porcptnoChanged(this.value);return false;" options="{!POReceipts}" rendered="{!batch.txn.isPurchordInfoMaintainable}"/>
+                                            <apex:outputField value="{!o_t.rstkf__apinvtxn_porcptno__c}" rendered="{!!batch.txn.isPurchordInfoMaintainable}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                </apex:outputPanel>
+                            </apex:tab>
+        
+                            <apex:tab label="{!$Label.rstkf__pagetab_appliedunappliedamounts}" name="tab_app_amts" id="tab_app_amts" rendered="{!!batch.txn.isNew}">
+                                <apex:outputPanel id="op_app_amts">
+                                    <apex:pageBlockSection id="pbs_currency_info" showHeader="true" title="{!$Label.rstkf__pagevalcurrencyinformation}" columns="2" >
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_maintcurr__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_homecurr__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_vendcurr__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_exchangerate__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_paycurr__c}"/>
+                                    </apex:pageBlockSection>
+                                    <apex:pageBlockSection id="pbs_amounts" showHeader="true" title="{!$Label.rstkf__pagevaltransactionandotheramounts}" columns="2" >
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_maintamt__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_taxmaintamtnet__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_frghtmaintamtnet__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_dsctknamtapplmaint__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_homeamt__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_taxhomeamtnet__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_frghthomeamtnet__c}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_totdebitshome__c}"/>
+                                        <apex:outputText value=""/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_totcreditshome__c}"/>
+                                    </apex:pageBlockSection>
+                                </apex:outputPanel>
+                                
+                                <apex:pageBlock id="pb_apapplic" mode="detail" title="{!$Label.rstkf__pageval_appliedunapplieddetail}">
+                                    <apex:pageBlockButtons location="top" rendered="{!!isVendorCredit}">
+                                        <apex:commandButton onclick="setVendorTxns('A');return false;" value="{!$Label.rstkf__applyvendorcredit}" rendered="{!batch.txn.showApplyUnapplyVendorCredit && batch.txn.apinvtxn.rstkf__apinvtxn_unapplamtmaint__c > 0}"/>
+                                    </apex:pageBlockButtons>
+                                
+                                    <apex:outputPanel id="op_apapplic">
+                                    
+                                        <apex:pageBlockSection showHeader="false" columns="3" rendered="{!batch.txn.isInvoice || batch.txn.isDebitMemo}">
+                                            <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_amtapplmaint__c.inlineHelpText}" dataStyle="width:13%" labelStyle="width:20%">
+                                                <apex:outputLabel value="{!o_t.rstkf__apinvtxn_trantype__c + ' ' + f_t.rstkf__apinvtxn_amtapplmaint__c.label}"/>
+                                                <apex:outputField value="{!o_t.rstkf__apinvtxn_amtapplmaint__c}"/>
+                                            </apex:pageBlockSectionItem>
+                                            <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_dsctknamtapplmaint__c.inlineHelpText}" dataStyle="width:13%" labelStyle="width:20%">
+                                                <apex:outputLabel value="{!f_t.rstkf__apinvtxn_dsctknamtapplmaint__c.label}"/>
+                                                <apex:outputField value="{!o_t.rstkf__apinvtxn_dsctknamtapplmaint__c}"/>
+                                            </apex:pageBlockSectionItem>
+                                            <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_unapplamtmaint__c.inlineHelpText}" dataStyle="width:13%" labelStyle="width:20%">
+                                                <apex:outputLabel value="{!o_t.rstkf__apinvtxn_trantype__c + ' ' + f_t.rstkf__apinvtxn_unapplamtmaint__c.label}"/>
+                                                <apex:outputField value="{!o_t.rstkf__apinvtxn_unapplamtmaint__c}"/>
+                                            </apex:pageBlockSectionItem>
+                                        </apex:pageBlockSection>
+                                    
+                                        <apex:pageBlockSection showHeader="false" columns="2" rendered="{!batch.txn.isVendorCredit}">
+                                            <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_amtapplmaint__c.inlineHelpText}">
+                                                <apex:outputLabel value="{!o_t.rstkf__apinvtxn_trantype__c + ' ' + f_t.rstkf__apinvtxn_amtapplmaint__c.label}"/>
+                                                <apex:outputField value="{!o_t.rstkf__apinvtxn_amtapplmaint__c}"/>
+                                            </apex:pageBlockSectionItem>
+                                            <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_unapplamtmaint__c.inlineHelpText}">
+                                                <apex:outputLabel value="{!o_t.rstkf__apinvtxn_trantype__c + ' ' + f_t.rstkf__apinvtxn_unapplamtmaint__c.label}"/>
+                                                <apex:outputField value="{!o_t.rstkf__apinvtxn_unapplamtmaint__c}"/>
+                                            </apex:pageBlockSectionItem>
+                                        </apex:pageBlockSection>
+                                    
+                                    
+                                        <apex:pageBlockTable id="pbt_drapapplics" value="{!batch.txn.apinvtxn.drapapplics__r}" var="apapplic" rendered="{!batch.txn.apinvtxn.drapapplics__r != null && batch.txn.apinvtxn.drapapplics__r.size > 0}">
+                                            <apex:column style="vertical-align:top;;width:60px">
+                                                <apex:facet name="header"></apex:facet>
+                                                <apex:outputLink value="#" onclick="if (confirm('{!$Label.rstkf__unapplyvendorcredit}?')) {unapplyVendorCredit('{!JSENCODE(apapplic.rstkf__apapplic_crapinvtxn__c)}');}return false;" rendered="{!!apapplic.apapplic_crapinvtxn__r.rstkf__apinvtxn_cmdisctknind__c && !apapplic.apapplic_crapinvtxn__r.rstkf__apinvtxn_creditcardind__c && apapplic.rstkf__apapplic_appayd__c == null}"> Unapply </apex:outputLink>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$Label.rstkf__pageval_paymentvendorcredit}">
+                                                <apex:outputPanel rendered="{!apapplic.rstkf__apapplic_appayd__c != null}">
+                                                    <apex:outputText value="{!$Label.rstkf__payment}"/>:&nbsp;
+                                                    <apex:outputField value="{!apapplic.rstkf__apapplic_appayd__c}"/>
+                                                </apex:outputPanel>
+                                                <apex:outputPanel rendered="{!apapplic.rstkf__apapplic_crapinvtxn__c != null}">
+                                                    <apex:outputText value="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_crapinvtxn__c.label}"/>:&nbsp;
+                                                    <apex:outputField value="{!apapplic.rstkf__apapplic_crapinvtxn__c}"/>
+                                                </apex:outputPanel>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_maintamtpayable__c.label}">
+                                                <apex:outputField value="{!apapplic.rstkf__apapplic_maintamtpayable__c}"/>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_dateappl__c.label}">
+                                                <apex:outputField value="{!apapplic.rstkf__apapplic_dateappl__c}"/>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_comments__c.label}">
+                                                <apex:outputField value="{!apapplic.rstkf__apapplic_comments__c}"/>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_maintcurrpayable__c.label}">
+                                                <apex:outputField value="{!apapplic.rstkf__apapplic_maintcurrpayable__c}"/>
+                                            </apex:column>
+                                        </apex:pageBlockTable>
+                                        
+                                        <apex:pageBlockTable id="pbt_crapapplics" value="{!batch.txn.apinvtxn.crapapplics__r}" var="apapplic" rendered="{!batch.txn.apinvtxn.crapapplics__r != null && batch.txn.apinvtxn.crapapplics__r.size > 0}">
+                                            <apex:column style="vertical-align:top;;width:60px">
+                                                <apex:facet name="header"></apex:facet>
+                                                <apex:outputLink value="#" onclick="if (confirm('{!$Label.rstkf__unapplyvendorcredit}?')) {unapplyVendorCredit('{!JSENCODE(apapplic.rstkf__apapplic_drapinvtxn__c)}');}return false;" rendered="{!batch.txn.showUnapplyVendorCredit}"> Unapply </apex:outputLink>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$Label.rstkf__pageval_invoicedebitmemo}">
+                                                <apex:outputPanel >
+                                                    <apex:outputText value="{!apapplic.apapplic_drapinvtxn__r.rstkf__apinvtxn_trantype__c}"/>:&nbsp;
+                                                    <apex:outputField value="{!apapplic.rstkf__apapplic_drapinvtxn__c}"/>
+                                                </apex:outputPanel>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_maintcurrpayable__c.label}">
+                                                <apex:outputField value="{!apapplic.rstkf__apapplic_maintcurrpayable__c}"/>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_maintamtpayable__c.label}">
+                                                <apex:outputField value="{!apapplic.rstkf__apapplic_maintamtpayable__c}"/>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_dateappl__c.label}">
+                                                <apex:outputField value="{!apapplic.rstkf__apapplic_dateappl__c}"/>
+                                            </apex:column>
+                                            <apex:column headerValue="{!$ObjectType.rstkf__apapplic__c.fields.rstkf__apapplic_comments__c.label}">
+                                                <apex:outputField value="{!apapplic.rstkf__apapplic_comments__c}"/>
+                                            </apex:column>
+                                        </apex:pageBlockTable>
+                                    </apex:outputPanel>
+                                </apex:pageBlock>
+                            </apex:tab>
+                            <!--  
+                            <apex:tab label="{!$Label.rstkf__pagetab_dimensions}" name="tab_Dimensions" id="tab_Dimensions" rendered="{!!batch.txn.isNew && numdims > 0}">
+                                <apex:pageBlockSection id="pbs_Dimensions" showHeader="false" columns="1">
+                                    <apex:pageBlockSectionItem helpText="{!f_dim.rstk__dimval1__c.inlineHelpText}" rendered="{!numdims > 0}">
+                                        <apex:outputLabel value="{!f_dim.rstk__dimval1__c.label}"/>
+                                        <apex:outputField value="{!batch.txn.dimvals.rstk__dimval1__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_dim.rstk__dimval2__c.inlineHelpText}" rendered="{!numdims > 1}">
+                                        <apex:outputLabel value="{!f_dim.rstk__dimval2__c.label}"/>
+                                        <apex:outputField value="{!batch.txn.dimvals.rstk__dimval2__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_dim.rstk__dimval3__c.inlineHelpText}" rendered="{!numdims > 2}">
+                                        <apex:outputLabel value="{!f_dim.rstk__dimval3__c.label}"/>
+                                        <apex:outputField value="{!batch.txn.dimvals.rstk__dimval3__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_dim.rstk__dimval4__c.inlineHelpText}" rendered="{!numdims > 3}">
+                                        <apex:outputLabel value="{!f_dim.rstk__dimval4__c.label}"/>
+                                        <apex:outputField value="{!batch.txn.dimvals.rstk__dimval4__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_dim.rstk__dimval5__c.inlineHelpText}" rendered="{!numdims > 4}">
+                                        <apex:outputLabel value="{!f_dim.rstk__dimval5__c.label}"/>
+                                        <apex:outputField value="{!batch.txn.dimvals.rstk__dimval5__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_dim.rstk__dimval6__c.inlineHelpText}" rendered="{!numdims > 5}">
+                                        <apex:outputLabel value="{!f_dim.rstk__dimval6__c.label}"/>
+                                        <apex:outputField value="{!batch.txn.dimvals.rstk__dimval6__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_dim.rstk__dimval7__c.inlineHelpText}" rendered="{!numdims > 6}">
+                                        <apex:outputLabel value="{!f_dim.rstk__dimval7__c.label}"/>
+                                        <apex:outputField value="{!batch.txn.dimvals.rstk__dimval7__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f_dim.rstk__dimval8__c.inlineHelpText}" rendered="{!numdims > 7}">
+                                        <apex:outputLabel value="{!f_dim.rstk__dimval8__c.label}"/>
+                                        <apex:outputField value="{!batch.txn.dimvals.rstk__dimval8__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                            </apex:tab>
+        					-->
+		                    <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!batch.txn.hasCustomFields}">
+								<apex:pageblocksection columns="2" id="pbsRSFTXN">
+								    <apex:repeat value="{!batch.txn.customFields}" var="f">
+								    	<apex:inputfield value="{!o_t[f]}" required="{!OR(f.required, f.dbrequired)}" rendered="{!batch.txn.isMaintainable}"/>
+								    	<apex:outputfield value="{!o_t[f]}" rendered="{!!batch.txn.isMaintainable}"/>
+								    </apex:repeat>  
+								</apex:pageblocksection>
+		                    </apex:tab>
+                            <apex:tab label="{!$Label.rstkf__pagetab_info}" name="tab_Info" id="tab_Info" rendered="{!!batch.txn.isNew}">
+                                <apex:pageBlockSection columns="2">
+                                    <apex:pageBlockSectionItem >
+                                        <apex:outputLabel value="{!$Label.rstkf__pageval_name}" />
+                                        <apex:outputField value="{!o_t.Name}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem >
+                                        <apex:outputLabel value="Id"/>
+                                        <apex:outputField value="{!o_t.Id}"/>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem >
+                                        <apex:outputLabel value="{!$Label.rstkf__pageval_createdby}"/>
+                                        <apex:outputPanel >
+                                            <apex:outputField value="{!o_t.CreatedById}"/>,&nbsp;&nbsp;<apex:outputField value="{!o_t.CreatedDate}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem >
+                                        <apex:outputLabel value="{!$Label.rstkf__pageval_lastmodifiedby}"/>
+                                        <apex:outputPanel >
+                                            <apex:outputField value="{!o_t.LastModifiedById}"/>,&nbsp;&nbsp;<apex:outputField value="{!o_t.LastModifiedDate}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                            </apex:tab>
+                        </apex:tabPanel>
+                        <BR/>
+                    </apex:pageBlockSection>
+                    
+                    <apex:pageBlock id="pb_apinvlines" mode="detail" title="{!$Label.rstkf__pageval_lines}">
+                        <apex:pageBlockButtons location="top">
+                            <apex:outputPanel id="op_lines_btns">
+                                <apex:commandButton id="btn_addline" onclick="addApinvline();return false;" value="{!$Label.rstkf__pageval_addline}" rendered="{!batch.txn.isLineAddDelete && batch.txn.isTxnValid}"/>
+                                <apex:commandButton onclick="showPopup('#popDefaults', 1024, 215);return false;" value="{!$Label.rstkf__setlinedistributiondefaults}" rendered="{!batch.txn.isMaintainable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockButtons>
+
+                        <apex:outputPanel id="op_lines">
+                            <apex:pageBlockTable id="pbt_lines" value="{!batch.txn.activeLines}" var="apline">
+                                <apex:column style="vertical-align:top;width:50px" rendered="{!allowEdits}">
+                                    <apex:facet name="header">{!$Label.rstkf__pageval_action}</apex:facet>
+                                    <apex:outputLink id="idOpLinkDel" value="#" onclick="checkDeleteApinvline('{!apline.apinvline.rstkf__apinvline_seq__c}');return false;" rendered="{!apline.isDeleteable && batch.txn.isLineAddDelete}"> {!$Label.rstkf__del} </apex:outputLink>
+                                </apex:column>
+                                <apex:column headerValue="{!f_l.rstkf__apinvline_item__c.label}" rendered="{!hasAnyPorcptap}">
+                                    <apex:outputField value="{!apline.apinvline.rstkf__apinvline_item__c}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_l.rstkf__apinvline_porcptap__c.label}" rendered="{!hasAnyPorcptap}">
+                                    <apex:outputField value="{!apline.apinvline.rstkf__apinvline_porcptap__c}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_l.rstkf__apinvline_odcid__c.label}">
+                                    <c:simpleSelectList value="{!apline.apinvline.rstkf__apinvline_odcid__c}" onchange="setNextFocusId(this.id, true);lineOdcidChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', this.value);" options="{!Syodcs}" rendered="{!apline.isOdcMaintainable}"/>
+                                    <apex:outputField value="{!apline.apinvline.rstkf__apinvline_odcid__c}" rendered="{!!apline.isOdcMaintainable}"/>
+                                </apex:column>
+                                <apex:column width="80px" rendered="{!!isInvoice && batch.txn.apinvtxn.rstkf__apinvtxn_poline__c != null}">
+                                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstkf__pageval_itemapplicable}<br/>{!$Label.rstkf__pageval_forline}</div></apex:facet>
+                                    <apex:inputCheckbox value="{!apline.itemApplicableForLine}" onchange="itemAppForLineChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', (this.checked ? 'true' : 'false'))" rendered="{!apline.isMaintainable}"/>
+                                </apex:column>
+                                <apex:column width="80px" rendered="{!batch.txn.apinvtxn.rstkf__apinvtxn_poline__c == null}">
+                                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstkf__pageval_chargecode}<br/>{!$Label.rstkf__pageval_applicableforline}</div></apex:facet>
+                                    <apex:inputCheckbox value="{!apline.chargeCodeApplicableForLine}" onchange="chargeCodeAppForLineChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', (this.checked ? 'true' : 'false'))" rendered="{!apline.isMaintainable}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_l.rstkf__apinvline_desc__c.label}" width="200px">
+                                    <apex:inputField id="desc" value="{!apline.apinvline.rstkf__apinvline_desc__c}" onchange="lineDescChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', this.value);" rendered="{!apline.isMaintainable}"/>
+                                    <apex:outputField value="{!apline.apinvline.rstkf__apinvline_desc__c}" rendered="{!!apline.isMaintainable}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_l.rstkf__apinvline_apaccttype__c.label}">
+                                    <c:simpleSelectList value="{!apline.apinvline.rstkf__apinvline_apaccttype__c}" onchange="setNextFocusId(this.id, true);lineAccttypeChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', this.value);" options="{!APAccountTypes}" rendered="{!apline.isAccttypeMaintainable}"/>
+                                    <apex:outputField value="{!apline.apinvline.rstkf__apinvline_apaccttype__c}" rendered="{!!apline.isAccttypeMaintainable}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_l.rstkf__apinvline_dfltglacct__c.label}">
+                                    <apex:outputPanel rendered="{!apline.isAcctMaintainable}">
+                                        <c:simpleSelectList value="{!apline.apinvline.rstkf__apinvline_dfltglacct__c}" onchange="setNextFocusId(this.id, true);lineAcctChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', this.value,'{!apline.apinvline.rstkf__apinvline_dfltglacct__c}');" options="{!apline.APAccounts}"/>
+                                    </apex:outputPanel>
+                                    <apex:outputField value="{!apline.apinvline.rstkf__apinvline_dfltglacct__c}" rendered="{!!apline.isAcctMaintainable}"/>
+                                </apex:column>
+                                <apex:column width="60px">
+                                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstkf__pageval_inputline}<br/>{!$Label.rstkf__pageval_qtyprice}</div></apex:facet>
+                                    <apex:inputCheckbox id="qpi" value="{!apline.qtyPriceInd}" onchange="setNextFocusId(this.id.replace('qpi',(this.checked?'qty':'amount')));qtyPriceIndChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', (this.checked ? 'true' : 'false'))" rendered="{!apline.isMaintainable}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_l.rstkf__apinvline_quantity__c.label}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                    <apex:outputPanel id="op_lineqty">
+                                        <apex:inputField id="qty" value="{!apline.apinvline.rstkf__apinvline_quantity__c}" onkeydown="getKeycode()" onkeypress="return filterNonNumeric(event, this)" onchange="setNextFocusId(this.id.replace('qty','price'));if (!this.value) this.value=0;lineqtyChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', parseLocaleFloat(this.value));return false;" style="text-align:right;width:80px" rendered="{!apline.isPriceMaintainable && apline.qtyPriceInd}"/>
+                                        <apex:outputField id="qty_out" value="{!apline.apinvline.rstkf__apinvline_quantity__c}" rendered="{!!apline.isPriceMaintainable || !apline.qtyPriceInd}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column headerValue="{!$Label.rstkf__pageval_price}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                    <apex:outputPanel id="op_lineprice">
+                                        <apex:inputField id="price" value="{!apline.apinvline.rstkf__apinvline_uprice__c}" onkeydown="getKeycode()" onkeypress="return filterNonNumeric(event, this)" onchange="setNextFocusId(this.id.replace('price','dist'));if (!this.value) this.value=0;linepriceChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', parseLocaleFloat(this.value));return false;" style="text-align:right;width:80px" rendered="{!apline.isPriceMaintainable && apline.qtyPriceInd}"/>
+                                        <apex:outputField id="price_out" value="{!apline.apinvline.rstkf__apinvline_uprice__c}" rendered="{!!apline.isPriceMaintainable || !apline.qtyPriceInd}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column headerValue="Debit or Credit Indicator" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                    <apex:outputPanel id="op_linedrcrind">
+                                        <apex:inputField id="linedrcrind" value="{!apline.apinvline.rstkf__apinvline_drcrind__c}" rendered="{!apline.isPriceMaintainable && !apline.qtyPriceInd}" onchange="lineamtChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', parseLocaleFloat('{!apline.apinvline.rstkf__apinvline_maintamt__c}'), this.value );return false;" />
+                                        <apex:outputField id="linedrcrind_out" value="{!apline.apinvline.rstkf__apinvline_drcrind__c}" rendered="{!!apline.isPriceMaintainable || apline.qtyPriceInd}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column headerValue="{!$Label.rstkf__pageval_amount}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                    <apex:outputPanel id="op_lineamt">
+                                        <apex:inputField id="amount" value="{!apline.apinvline.rstkf__apinvline_maintamt__c}" onkeydown="getKeycode()" onkeypress="return filterNonNumeric(event, this)" onchange="setNextFocusId(this.id.replace('amount','dist'));if (!this.value) this.value=0;lineamtChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', parseLocaleFloat(this.value), '{!apline.apinvline.rstkf__apinvline_drcrind__c}');return false;" style="text-align:right;width:80px" rendered="{!apline.isPriceMaintainable && !apline.qtyPriceInd}"/>
+                                        <apex:outputField id="amount_out" value="{!apline.apinvline.rstkf__apinvline_maintamt__c}" rendered="{!!apline.isPriceMaintainable || apline.qtyPriceInd}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column headerValue="{!f_l.rstkf__apinvline_syvatclass__c.label}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                    <apex:outputPanel id="op_syvatclass">
+                                        <c:simpleSelectList value="{!apline.apinvline.rstkf__apinvline_syvatclass__c}" onchange="setNextFocusId(this.id, true);lineSyvatclassChanged('{!apline.apinvline.rstkf__apinvline_seq__c}', this.value, '{!apline.apinvline.rstkf__apinvline_syvatclass__c}');" options="{!Syvatclass}" rendered="{!batch.isOpen && apline.apinvline.rstkf__apinvline_porcptap__c == null}"/>
+                                        <apex:outputField id="syvatclass_out" value="{!apline.apinvline.rstkf__apinvline_syvatclass__c}" rendered="{!!batch.isOpen || apline.apinvline.rstkf__apinvline_porcptap__c != null}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column headerValue="" headerClass="ct">
+                                    <apex:commandButton id="dist" value="{!$Label.rstkf__pagevaldistributions} ({!apline.activeDists.size})" style="color:{!IF(apline.isDistInSync,'#333','#FF2626')}" onclick="setDistributions('{!apline.apinvline.rstkf__apinvline_seq__c}');return false;" rendered="{!batch.txn.isTxnValid}"/>
+                                </apex:column>
+                            </apex:pageBlockTable>
+                        </apex:outputPanel>
+                    </apex:pageBlock>
+                </apex:pageBlock>
+
+                <div id="popTermsInfo" style="display:none">
+                    <apex:pageMessages id="ptiPageMessages"/>
+                    <apex:pageBlock mode="detail" title="{!$Label.rstkf__pageval_paymenttermsdetail}">
+                        <apex:pageBlockButtons location="top">
+                            <apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+                        </apex:pageBlockButtons>
+                            <apex:outputPanel id="op_terms_detail" rendered="{!batch.txn != null}">
+                            <apex:pageBlockSection columns="1">
+                                <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_terms__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                    <apex:outputLabel value="{!f_t.rstkf__apinvtxn_terms__c.label}"/>
+                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_terms__c}"/>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_termsbasedate__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                    <apex:outputLabel value="{!f_t.rstkf__apinvtxn_termsbasedate__c.label}"/>
+                                    <apex:outputPanel >
+                                        <apex:inputField id="apinvtxn_termsbasedate__c" value="{!o_t.rstkf__apinvtxn_termsbasedate__c}" onchange="confirmTermsBaseDateChanged(this, '{!o_t.rstkf__apinvtxn_termsbasedate__c}','apinvtxn_termsbasedate__c');return false;" rendered="{!batch.txn.isAgedateMaintainable}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_termsbasedate__c}" rendered="{!!batch.txn.isAgedateMaintainable}"/>
+                                    </apex:outputPanel>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_agedate__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                    <apex:outputLabel value="{!f_t.rstkf__apinvtxn_agedate__c.label}"/>
+                                    <apex:outputPanel >
+                                        <apex:inputField id="apinvtxn_agedate__c" value="{!o_t.rstkf__apinvtxn_agedate__c}" required="true" onchange="if (!isEmpty(this.value) && !isValidDate(this.value,'apinvtxn_agedate__c')) {alert('Invalid Date');this.value='{!o_t.rstkf__apinvtxn_agedate__c}'} else {agedateChanged2(this.value);return false;}" rendered="{!batch.txn.isAgedateMaintainable}"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_agedate__c}" rendered="{!!batch.txn.isAgedateMaintainable}"/>
+                                    </apex:outputPanel>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_termsdiscdate__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                    <apex:outputLabel value="{!f_t.rstkf__apinvtxn_termsdiscdate__c.label}"/>
+                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_termsdiscdate__c}"/>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_discblamt__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                    <apex:outputLabel value="{!f_t.rstkf__apinvtxn_discblamt__c.label}"/>
+                                    <apex:outputPanel >
+                                        <apex:inputField id="apinvtxn_discblamt__c" value="{!o_t.rstkf__apinvtxn_discblamt__c}" onchange="confirmDiscblAmtChanged(this, '{!o_t.rstkf__apinvtxn_discblamt__c}');return false;" rendered="{!batch.txn.isDiscblamtMaintainable }"/>
+                                        <apex:outputField value="{!o_t.rstkf__apinvtxn_discblamt__c}" rendered="{!!batch.txn.isDiscblamtMaintainable}"/>
+                                    </apex:outputPanel>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_disctermamt__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                    <apex:outputLabel value="{!f_t.rstkf__apinvtxn_disctermamt__c.label}"/>
+                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_disctermamt__c}"/>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_agedays__c.inlineHelpText}" dataStyle="width:70%" labelStyle="width:30%">
+                                    <apex:outputLabel value="{!f_t.rstkf__apinvtxn_agedays__c.label}"/>
+                                    <apex:outputField value="{!o_t.rstkf__apinvtxn_agedays__c}"/>
+                                </apex:pageBlockSectionItem>                                
+                            </apex:pageBlockSection>
+                            </apex:outputPanel>                            
+                    </apex:pageBlock>
+                </div>
+            </apex:outputPanel>
+        </apex:pageBlock>
+    </apex:form>
+
+    <apex:outputPanel id="op_apinvtxn_na">
+        <apex:relatedList list="CombinedAttachments" subject="{!o_t.id}" rendered="{!o_t != null && !isNew}"/>
+    </apex:outputPanel>
+        
+    <apex:form id="fm5" rendered="{!displayPageContent}">
+        <apex:actionStatus id="statusProcessing5" startStyleClass="Processing"/>
+        <apex:actionFunction name="addApinvtxn" action="{!addApinvtxn}" immediate="true" rerender="pageMessages,op_hdrbtns,op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na,op_hdrbtns,op_comments,op_accounts,op_defaults" status="statusProcessing5"/>
+            <apex:outputPanel id="op_apinvtxns">
+                <apex:pageBlock id="pb_apinvtxns" mode="detail" title="{!$Label.rstkf__pagevalbatchtransactionlist}" rendered="{!apBatchOpt && !isNew}">
+                        <apex:pageBlockButtons location="top">
+                            <apex:commandButton onclick="addApinvtxn();return false;" value="{!$Label.rstkf__pagevaladdpayabletransaction}" rendered="{!allowEdits && batch.txn == null && (batch.isOpen || (batch.isClosed && batch.isQuickpayment))}"/>
+                        </apex:pageBlockButtons>
+                        <apex:pageBlockSection id="pbs_apinvtxns" showHeader="true" columns="1">
+                            <apex:pageBlockTable id="pbt_apinvtxns" value="{!TransactionList}" var="txn">
+                                <apex:column headerValue="{!f_t.rstkf__apinvtxn_tranid__c.label}" onclick="setCurrentTransaction('{!txn.Id}');return false;" style="{!IF((batch.txn != null && txn.Id == batch.txn.apinvtxn.Id),'background:#BDF4CB','')};">
+                                    <apex:outputLink value="#" onclick="setCurrentTransaction('{!txn.Id}');return false;"><apex:outputText value="{!txn.rstkf__apinvtxn_tranid__c}"/></apex:outputLink>
+                                </apex:column>
+                                <apex:column headerValue="{!f_t.rstkf__apinvtxn_trantype__c.label}" onclick="setCurrentTransaction('{!txn.Id}');return false;" style="{!IF((batch.txn != null && txn.Id == batch.txn.apinvtxn.Id),'background:#BDF4CB','')};">
+                                    <apex:outputField value="{!txn.rstkf__apinvtxn_trantype__c}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_t.rstkf__apinvtxn_vendno__c.label}" style="{!IF((batch.txn != null && txn.Id == batch.txn.apinvtxn.Id),'background:#BDF4CB','')};">
+                                    <apex:outputLink value="{!URLFOR($Action.rstk__povend__c.View, txn.rstkf__apinvtxn_vendno__c)}" target="_blank">{!txn.apinvtxn_vendno__r.Name}</apex:outputLink>
+                                </apex:column>
+                                <apex:column headerValue="{!f_t.rstkf__apinvtxn_docno__c.label}" onclick="setCurrentTransaction('{!txn.Id}');return false;" style="{!IF((batch.txn != null && txn.Id == batch.txn.apinvtxn.Id),'background:#BDF4CB','')};">
+                                    <apex:outputField value="{!txn.rstkf__apinvtxn_docno__c}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_t.rstkf__apinvtxn_docnoseq__c.label}" onclick="setCurrentTransaction('{!txn.Id}');return false;" style="{!IF((batch.txn != null && txn.Id == batch.txn.apinvtxn.Id),'background:#BDF4CB','')};">
+                                    <apex:outputField value="{!txn.rstkf__apinvtxn_docnoseq__c}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!f_t.rstkf__apinvtxn_trandate__c.label}" value="{!txn.rstkf__apinvtxn_trandate__c}" onclick="setCurrentTransaction('{!txn.Id}');return false;" style="{!IF((batch.txn != null && txn.Id == batch.txn.apinvtxn.Id),'background:#BDF4CB','')};"/>
+                                <apex:column headerValue="{!$Label.rstkf__txntotaltxncurr}" value="{!txn.rstkf__apinvtxn_maintamt__c}" onclick="setCurrentTransaction('{!txn.Id}');return false;" style="{!IF((batch.txn != null && txn.Id == batch.txn.apinvtxn.Id),'background:#BDF4CB','')};"/>
+                                <apex:column headerValue="{!$Label.rstkf__txntotalhomecurr}" value="{!txn.rstkf__apinvtxn_homeamt__c}" onclick="setCurrentTransaction('{!txn.Id}');return false;" style="{!IF((batch.txn != null && txn.Id == batch.txn.apinvtxn.Id),'background:#BDF4CB','')};"/>
+                            </apex:pageBlockTable>
+                        </apex:pageBlockSection>
+                </apex:pageBlock>
+                <script>enableFixedHeaderSort('pg:fm:pb:pb_apinvtxns:pbs_apinvtxns:pbt_apinvtxns')</script>
+            </apex:outputPanel>
+    </apex:form>
+
+    <div id="popDistributions" style="display:none">
+        <apex:outputPanel id="op_diststatus" style="display:none"><script>if({!distStatusOK}){unblockUI();setDistmod(false);}</script></apex:outputPanel>
+        <apex:form id="fm2">
+        <apex:pageBlock id="pb_apinvdists" mode="detail" title="{!$Label.rstkf__pagevalpayablesdistribution}">
+            <apex:pageMessages id="distPageMessages"/>
+            <apex:actionStatus id="statusProcessing2" startStyleClass="Processing"/>
+            <apex:actionFunction name="updateDistributions" action="{!updateDistributions}" immediate="false" rerender="distPageMessages,op_diststatus,op_lines,op_apinvtxn" status="statusProcessing2"/>
+
+            <apex:actionFunction name="deleteApinvdist" action="{!deleteApinvdist}" immediate="false" rerender="distPageMessages,distPageMessages,op_apinvdists" status="statusProcessing2" >
+                <apex:param value="" name="delDist" assignTo="{!activeDistSeq}"/>
+            </apex:actionFunction>
+            
+            <apex:actionFunction name="addApinvdist" action="{!addApinvdist}" immediate="false" rerender="distPageMessages,distPageMessages,op_apinvdists" status="statusProcessing2"/>
+
+            <apex:actionFunction name="distAcctChanged" action="{!distAcctChanged}" immediate="true" rerender="distPageMessages,op_apinvdists" status="statusProcessing">
+                <apex:param name="activeDistSeq" assignTo="{!activeDistSeq}" value="" />
+                <apex:param name="distAcct" assignTo="{!activeDistAcct}" value="" />
+            </apex:actionFunction>
+
+            <apex:actionFunction name="distDivChanged" action="{!distDivChanged}" immediate="true" rerender="distPageMessages,op_apinvdists" status="statusProcessing">
+                <apex:param name="activeDistSeq" assignTo="{!activeDistSeq}" value="" />
+                <apex:param name="distDiv" assignTo="{!activeDistDiv}" value="" />
+            </apex:actionFunction>
+            
+            <apex:actionFunction name="distProjChanged" action="{!distProjChanged}" immediate="true" rerender="distPageMessages,op_apinvdists" status="statusProcessing">
+                <apex:param name="activeDistSeq" assignTo="{!activeDistSeq}" value="" />
+                <apex:param name="distProj" assignTo="{!activeDistProj}" value="" />
+            </apex:actionFunction>
+            
+            <apex:actionFunction name="distamtChanged" action="{!distamtChanged}" immediate="true" rerender="distPageMessages,op_apinvdists" status="statusProcessing">
+                <apex:param name="activeDistSeq" assignTo="{!activeDistSeq}" value="" />
+                <apex:param name="disttamt" assignTo="{!activeDistAmount}" value="" />
+                <apex:param name="drcrind" assignTo="{!activeDistDrcrind}" value="" />
+            </apex:actionFunction>
+
+            <apex:pageBlockButtons location="top">
+                <apex:outputPanel id="op_distbtns">
+                    <apex:commandButton onclick="setDistmod(true);addApinvdist();return false;" value="{!$Label.rstkf__pagevaladddistributionline}" rendered="{!apdists[0].line.isDistAddDelete}"/>
+                    <apex:commandButton onclick="updateDistributions();return false;" value="{!$Label.rstkf__pagevaldone}" style="width:75px;"/>
+                    <apex:commandButton onclick="cancelDist();return false;" value="{!$Label.rstkf__pageval_cancel}" style="width:80px"/>
+                </apex:outputPanel>
+            </apex:pageBlockButtons>
+            <apex:outputPanel id="op_apinvdists" style="height:380px;overflow:auto;display:block">
+                <apex:panelGrid columns="8" id="theGrid" style="text-align:right;">
+                        <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstkf__pageval_linetotal}" />
+                        <apex:outputField value="{!apdists[0].line.apinvline.apinvline_maintamt__c}" style="width:80px"/>
+                        <apex:outputText value="XXXXX" style="visibility:hidden;"/>
+                        <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstkf__pageval_lineamountdebits}" />
+                        <apex:outputText value="{!apdists[0].line.debits}" html-decimals="2" style="width:80px"/>
+                        <apex:outputText value="XXXXX" style="visibility:hidden;"/>
+                        <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstkf__pageval_linedefaultaccount}" />
+                        <apex:outputField value="{!apdists[0].line.apinvline.apinvline_dfltglacct__c}"/>
+                        <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstkf__pageval_linedebitorcredit}" />
+                        <apex:outputField value="{!apdists[0].line.apinvline.apinvline_drcrind__c}"/>
+                        <apex:outputText value="XXXXX" style="visibility:hidden;"/>
+                        <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstkf__pageval_lineamountcredits}" />
+                        <apex:outputText value="{!apdists[0].line.credits}" html-decimals="2" style="width:80px"/>
+                        <apex:outputText value="XXXXX" style="visibility:hidden;"/>
+                        <apex:outputLabel styleClass="labelCol vfLabelColTextWrap  first  last " value="{!$Label.rstkf__pageval_lineodc}" />
+                        <apex:outputField value="{!apdists[0].line.apinvline.apinvline_odcid__c}"/>
+                        <script>try { formatLocaleOutputFields(); } catch (e) { }</script>
+                </apex:panelGrid>
+                <BR/>
+                
+                <apex:tabPanel switchType="client" selectedtab="tab_distribution" id="theTabPanel">
+                    <apex:tab label="{!$Label.rstkf__pagevaldistributions}" name="tab_distribution" id="tab_distribution">
+                        <apex:pageBlockTable id="pbt_dists" value="{!apdists}" var="apdist">
+                            <apex:column headerValue="#">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_seq__c}"/>
+                            </apex:column>
+                            <apex:column style="vertical-align:top;width:50px" rendered="{!allowEdits}">
+                                <apex:facet name="header">{!$Label.rstkf__pagevalaction}</apex:facet>
+                                <apex:outputLink id="idOpLinkDelDist" value="#" onclick="setDistmod(true);deleteApinvdist('{!apdist.apinvdist.rstkf__apinvdist_seq__c}');return false;" rendered="{!apdists.size > 1 && apdist.line.isDistAddDelete}"> Del </apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_comments__c.label}" width="200px">
+                                <apex:inputField value="{!apdist.apinvdist.rstkf__apinvdist_comments__c}" rendered="{!apdist.isMaintainable}"/>
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_comments__c}" rendered="{!!apdist.isMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_apaccttype__c.label}">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_apaccttype__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_glacct__c.label}" width="250px">
+                                <apex:outputPanel rendered="{!apdist.isGlacctMaintainable}">
+                                    <c:simpleSelectList value="{!apdist.apinvdist.rstkf__apinvdist_glacct__c}" onchange="setDistmod(true);distAcctChanged('{!apdist.apinvdist.rstkf__apinvdist_seq__c}', this.value);" options="{!apdist.APAccounts}" style="width:240px"/>
+                                </apex:outputPanel>
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_glacct__c}" rendered="{!!apdist.isGlacctMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_gldiv__c.label}">
+                                <apex:selectList id="apinvdist_gldiv__c" value="{!apdist.apinvdist.rstkf__apinvdist_gldiv__c}" onchange="setDistmod(true);distDivChanged('{!apdist.apinvdist.rstkf__apinvdist_seq__c}', this.value);" size="1" rendered="{!apdist.isMaintainable}">
+                                    <apex:selectOptions value="{!DefaultDivisions}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_gldiv__c}" rendered="{!!apdist.isMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_glproj__c.label}" width="210px">
+                                <apex:outputPanel rendered="{!apdist.isMaintainable}">
+									<input type="text" name="apinvdist_glproj{!apdist.apinvdist.rstkf__apinvdist_seq__c}__c_autocomplete" id="apinvdist_glproj__c_autocomplete" class="ac_input" style="width:200px;" tabIndex="2000" value="{!apdist.DistProjName}"/>
+									<apex:inputText id="apinvdist_glproj__c" value="{!apdist.apinvdist.rstkf__apinvdist_glproj__c}" onchange="setDistmod(true);distProjChanged('{!apdist.apinvdist.rstkf__apinvdist_seq__c}', this.value);" style="display:none"/>
+									<script>setupAutocompleteField("apinvdist_glproj{!apdist.apinvdist.rstkf__apinvdist_seq__c}__c_autocomplete", document.getElementById("{!$Component.apinvdist_glproj__c}"), {query:"select Id, Name from glproj__c where glproj_gldiv__c = '{!apdist.apinvdist.rstkf__apinvdist_gldiv__c}' and glproj_pjproj__r.rstk__pjproj_completed__c = false", queryParms:[], codeColumn:"id", descColumn:"name"});</script>
+								</apex:outputPanel>
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_glproj__c}" rendered="{!!apdist.isMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_drcrind__c.label}" width="100px">
+                                <apex:inputField value="{!apdist.apinvdist.rstkf__apinvdist_drcrind__c}" rendered="{!apdist.isMaintainable}" onchange="setDistmod(true);if (!this.value) this.value=0;distamtChanged('{!apdist.apinvdist.rstkf__apinvdist_seq__c}', '{!apdist.apinvdist.rstkf__apinvdist_maintamt__c}',this.value);return false;"/>
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_drcrind__c}" rendered="{!!apdist.isMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstkf__pageval_amount}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                <apex:inputField value="{!apdist.apinvdist.rstkf__apinvdist_maintamt__c}" onkeypress="return filterNonNumeric(event, this)" onchange="setDistmod(true);if (!this.value) this.value=0;distamtChanged('{!apdist.apinvdist.rstkf__apinvdist_seq__c}',parseLocaleFloat(this.value),'{!apdist.apinvdist.rstkf__apinvdist_drcrind__c}');return false;" style="text-align:right;width:100px" rendered="{!apdist.isPriceMaintainable}"/>
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_maintamt__c}" rendered="{!!apdist.isPriceMaintainable}"/>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstkf__pagetab_currencyamounts}" name="tab_curamts" id="tab_curamts">
+                        <apex:pageBlockTable value="{!apdists}" var="apdist">
+                            <apex:column headerValue="#">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_seq__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_maintcurr__c.label}">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_maintcurr__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_maintamt__c.label}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_maintamt__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_t.rstkf__apinvtxn_exchangerate__c.label}">
+                                <apex:outputField value="{!o_t.rstkf__apinvtxn_exchangerate__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_homecurr__c.label}">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_homecurr__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_homeamt__c.label}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_homeamt__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_drhomeamt__c.label}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_drhomeamt__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_crhomeamt__c.label}" style="text-align:right;width:100px" width="100px" headerClass="ct">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_crhomeamt__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_drcrind__c.label}">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_drcrind__c}"/>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstkf__pagetab_dimensions}" name="tab_dims" id="tab_dims">
+                        <apex:pageBlockTable value="{!apdists}" var="apdist">
+                            <apex:column headerValue="#" style="text-align:right;width:10px" width="10px">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_seq__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_dim.rstk__dimval1__c.label}" rendered="{!numDims >= 1}">
+                                <apex:selectList value="{!apdist.dimvals.rstk__dimval1__c}" size="1" rendered="{!apdist.isDimensionMaintainable}">
+                                    <apex:selectOptions value="{!DimValsOptions1}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.dimvals.rstk__dimval1__c}" rendered="{!!apdist.isDimensionMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_dim.rstk__dimval2__c.label}" rendered="{!numDims >= 2}">
+                                <apex:selectList value="{!apdist.dimvals.rstk__dimval2__c}" size="1" rendered="{!apdist.isDimensionMaintainable}">
+                                    <apex:selectOptions value="{!DimValsOptions2}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.dimvals.rstk__dimval2__c}" rendered="{!!apdist.isDimensionMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_dim.rstk__dimval3__c.label}" rendered="{!numDims >= 3}">
+                                <apex:selectList value="{!apdist.dimvals.rstk__dimval3__c}" size="1" rendered="{!apdist.isDimensionMaintainable}">
+                                    <apex:selectOptions value="{!DimValsOptions3}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.dimvals.rstk__dimval3__c}" rendered="{!!apdist.isDimensionMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_dim.rstk__dimval4__c.label}" rendered="{!numDims >= 4}">
+                                <apex:selectList value="{!apdist.dimvals.rstk__dimval4__c}" size="1" rendered="{!apdist.isDimensionMaintainable}">
+                                    <apex:selectOptions value="{!DimValsOptions4}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.dimvals.rstk__dimval4__c}" rendered="{!!apdist.isDimensionMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_dim.rstk__dimval5__c.label}" rendered="{!numDims >= 5}">
+                                <apex:selectList value="{!apdist.dimvals.rstk__dimval5__c}" size="1" rendered="{!apdist.isDimensionMaintainable}">
+                                    <apex:selectOptions value="{!DimValsOptions5}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.dimvals.rstk__dimval5__c}" rendered="{!!apdist.isDimensionMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_dim.rstk__dimval6__c.label}" rendered="{!numDims >= 6}">
+                                <apex:selectList value="{!apdist.dimvals.rstk__dimval6__c}" size="1" rendered="{!apdist.isDimensionMaintainable}">
+                                    <apex:selectOptions value="{!DimValsOptions6}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.dimvals.rstk__dimval6__c}" rendered="{!!apdist.isDimensionMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_dim.rstk__dimval7__c.label}" rendered="{!numDims >= 7}">
+                                <apex:selectList value="{!apdist.dimvals.rstk__dimval7__c}" size="1" rendered="{!apdist.isDimensionMaintainable}">
+                                    <apex:selectOptions value="{!DimValsOptions7}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.dimvals.rstk__dimval7__c}" rendered="{!!apdist.isDimensionMaintainable}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_dim.rstk__dimval8__c.label}" rendered="{!numDims >= 8}">
+                                <apex:selectList value="{!apdist.dimvals.rstk__dimval8__c}" size="1" rendered="{!apdist.isDimensionMaintainable}">
+                                    <apex:selectOptions value="{!DimValsOptions8}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!apdist.dimvals.rstk__dimval8__c}" rendered="{!!apdist.isDimensionMaintainable}"/>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstkf__pagetab_addlvat}" name="tab_addlvat" id="tab_addlvat" rendered="{!renderAddlVat}">
+                        <apex:pageBlockTable value="{!intraEUApdists}" var="apdist">
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_glacct__c.label}">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_glacct__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_drcrind__c.label}">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_drcrind__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_d.rstkf__apinvdist_maintamt__c.label}">
+                                <apex:outputField value="{!apdist.apinvdist.rstkf__apinvdist_maintamt__c}"/>
+                            </apex:column>
+						</apex:pageBlockTable>
+					</apex:tab>
+                </apex:tabPanel>
+            </apex:outputPanel>
+        </apex:pageBlock>
+        </apex:form>
+    </div>
+    
+    <div id="popDefaults" style="display:none">
+        <apex:form id="fm3">
+        <apex:outputPanel id="op_defaults">
+            <apex:pageBlock mode="detail" title="{!$Label.rstkf__setlinedistributiondefaults}">
+                <apex:actionStatus id="statusProcessing3" startStyleClass="Processing"/>
+                <apex:actionFunction name="updateDefaults" action="{!updateDefaults}" immediate="false" oncomplete="unblockUI()" rerender="pageMessages,op_accounts,op_lines,op_apinvdists,op_txndetails" status="statusProcessing3"/>
+                <apex:actionFunction name="dfltdivChanged" action="{!dfltdivChanged}" immediate="true" rerender="op_dfltproj,op_txndetails" status="statusProcessing3">
+                    <apex:param name="dfltdiv" assignTo="{!o_t.rstkf__apinvtxn_dfltdiv__c}" value="" />
+                </apex:actionFunction>
+                <apex:pageBlockButtons location="top">
+                    <apex:commandButton value="{!$Label.rstkf__pageval_set}" onclick="updateDefaults();return false;" style="width:50px"/>
+                </apex:pageBlockButtons>
+                <apex:outputPanel rendered="{!batch.txn != null}">
+                    <apex:pageBlocksection id="pbs_defaults" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_dflttaxacct__c.inlineHelpText}" rendered="{!!o_h.rstkf__apinvh_pobatchind__c}">
+                            <apex:outputLabel value="{!f_h.rstkf__apinvh_dflttaxacct__c.label}"/>
+                            <apex:selectList id="apinvh_dflttaxacct__c" value="{!o_h.rstkf__apinvh_dflttaxacct__c}" size="1">
+                                <apex:selectOptions value="{!TaxAccounts}"/>
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:outputField value="{!o_h.rstkf__apinvh_dflttaxacct__c}" rendered="{!o_h.rstkf__apinvh_pobatchind__c}"/>
+        
+                        <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_dfltdiv__c.inlineHelpText}" rendered="{!!o_h.rstkf__apinvh_pobatchind__c}">
+                            <apex:outputLabel value="{!f_t.rstkf__apinvtxn_dfltdiv__c.label}"/>
+                            <apex:selectList id="apinvtxn_dfltdiv__c" onchange="dfltdivChanged(this.value);return false;" value="{!o_t.rstkf__apinvtxn_dfltdiv__c}" size="1">
+                                <apex:selectOptions value="{!DefaultDivisions}"/>
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:outputField value="{!o_t.rstkf__apinvtxn_dfltdiv__c}" rendered="{!o_h.rstkf__apinvh_pobatchind__c}"/>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_dfltfrghtacct__c.inlineHelpText}" rendered="{!!o_h.rstkf__apinvh_pobatchind__c}">
+                            <apex:outputLabel value="{!f_h.rstkf__apinvh_dfltfrghtacct__c.label}"/>
+                            <apex:selectList id="apinvh_dfltfrghtacct__c" value="{!o_h.rstkf__apinvh_dfltfrghtacct__c}" size="1">
+                                <apex:selectOptions value="{!FreightAccounts}"/>
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:outputField value="{!o_h.rstkf__apinvh_dfltfrghtacct__c}" rendered="{!o_h.rstkf__apinvh_pobatchind__c}"/>
+        
+                        <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_dfltproj__c.inlineHelpText}" rendered="{!!o_h.rstkf__apinvh_pobatchind__c}">
+                            <apex:outputLabel value="{!f_t.rstkf__apinvtxn_dfltproj__c.label}"/>
+                            <apex:outputPanel id="op_dfltproj">
+								<input type="text" name="apinvtxn_dfltproj__c_autocomplete" id="apinvtxn_dfltproj__c_autocomplete" class="ac_input" style="width:200px;" tabIndex="2000" value="{!DfltProjName}"/>
+								<apex:inputText id="apinvtxn_dfltproj__c" value="{!o_t.rstkf__apinvtxn_dfltproj__c}" style="display:none"/>
+								<script>autocompleteParms["apinvtxn_dfltproj__c"] = {query:"select Id, Name from glproj__c where glproj_gldiv__c = '{!o_t.rstkf__apinvtxn_dfltdiv__c}' and glproj_pjproj__c != '{!dflthomeproj}' and glproj_pjproj__r.rstk__pjproj_completed__c = false", queryParms:[], codeColumn:"Id", descColumn:"Name"};setupAutocomplete();</script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:outputField value="{!o_t.rstkf__apinvtxn_dfltproj__c}" rendered="{!o_h.rstkf__apinvh_pobatchind__c}"/>
+        
+                        <apex:pageBlockSectionItem helpText="{!f_h.rstkf__apinvh_dflttrmdisctknacct__c.inlineHelpText}" rendered="{!!o_h.rstkf__apinvh_pobatchind__c}">
+                            <apex:outputLabel value="{!f_h.rstkf__apinvh_dflttrmdisctknacct__c.label}"/>
+                            <apex:selectList id="apinvh_dflttrmdisctknacct__c" value="{!o_h.rstkf__apinvh_dflttrmdisctknacct__c}" size="1">
+                                <apex:selectOptions value="{!TermsDiscountTakenAccounts}"/>
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:outputField value="{!o_h.rstkf__apinvh_dflttrmdisctknacct__c}" rendered="{!o_h.rstkf__apinvh_pobatchind__c}"/>
+                    </apex:pageBlocksection>
+                </apex:outputPanel>
+                <p>
+                    <apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;" style="width:75px;"/>
+                </p>
+            </apex:pageBlock>
+        </apex:outputPanel>
+        </apex:form>
+    </div>
+
+    <div id="popVendorTxns" style="display:none">
+        <apex:form id="fm4">
+        <apex:outputPanel id="op_vendtxns">
+        <apex:outputPanel rendered="{!batch.txn != null && displayVendorTxns}">
+            <apex:pageBlock id="pb_vendtxns" mode="detail" title="{!IF(batch.txn.isNew, IF(batch.txn.isDebitMemo, $Label.rstkf__debitmemosettings, $Label.rstkf__copyvendorcreditfrominvoicedebitmemo), IF(vendTxnMode = 'A', $Label.rstkf__applyvendorcredittoinvoicedebitmemo, $Label.rstkf__unapplyvendorcreditfrominvoicedebitmemo))}">
+                <apex:pageMessages id="vendtxnsPageMessages"/>
+                <apex:actionStatus id="statusProcessing3" startStyleClass="Processing"/>
+    
+                <apex:actionFunction name="vendTxnChanged" action="{!vendTxnChanged}" immediate="false" rerender="vendtxnsPageMessages,op_vendtxns" status="statusProcessing3">
+                    <apex:param value="" name="txnId" assignTo="{!selectedVndtxnId}"/>
+                </apex:actionFunction>
+    
+                <apex:actionFunction name="vendTxnAmtChanged" action="{!vendTxnAmtChanged}" immediate="true" rerender="vendtxnsPageMessages" status="statusProcessing3">
+                    <apex:param value="" name="vendTxnAmtUI" assignTo="{!customextf.rstkf__apinvh_vendtxnamtui__c}"/>
+                </apex:actionFunction>
+    
+                <apex:actionFunction name="applyVendorCredit" action="{!applyVendorCredit}" immediate="false" rerender="vendtxnsPageMessages,op_batch_totals,op_apinvtxn,op_apinvtxns,op_resultVars" oncomplete="if (actionError != true) { unblockUI();closeVendtxnsPage();window.location.reload(); }" status="statusProcessing3"/>
+                <apex:actionFunction name="autoApplyVendorCredit" action="{!autoApplyVendorCredit}" immediate="true" rerender="vendtxnsPageMessages,op_batch_totals,op_apinvtxn,op_apinvtxns,op_resultVars" oncomplete="if (actionError != true) { unblockUI();closeVendtxnsPage();window.location.reload(); }" status="statusProcessing3"/>
+                <apex:actionFunction name="copyVendorCredit" action="{!copyVendorCredit}" immediate="false" rerender="vendtxnsPageMessages,op_batch_totals,op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na" status="statusProcessing3"/>
+                <apex:actionFunction name="copyDebitMemo" action="{!copyDebitMemo}" immediate="false" rerender="vendtxnsPageMessages,op_batch_totals,op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na" status="statusProcessing3"/>
+                <apex:actionFunction name="closeVendtxnsPage" action="{!closeVendtxnsPage}" immediate="true" rerender="op_apinvtxn,op_apinvtxns,op_apinvtxn_na,op_apinvh_na"/>
+    
+                <apex:pageBlockButtons location="top">
+                    <apex:commandButton onclick="copyVendorCredit();return false;" value="{!$Label.rstkf__copyvendorcredit}" disabled="{!selectedVndtxnId == null}" rendered="{!batch.txn.isNew && batch.txn.isVendorCredit}"/>
+                    <apex:commandButton onclick="applyVendorCredit();return false;" value="{!IF(vendTxnMode = 'A', $Label.rstkf__applyvendorcredit, $Label.rstkf__unapplyvendorcredit)}" disabled="{!selectedVndtxnId == null}" rendered="{!!batch.txn.isNew}"/>
+                    <apex:commandButton onclick="autoApplyVendorCredit();return false;" value="{!$Label.rstkf__autoapplyvendorcredit}" disabled="{!selectedVndtxnId != null}" rendered="{!!batch.txn.isNew}"/>
+                    <apex:commandButton onclick="copyDebitMemo();return false;" value="{!$Label.rstkf__createdebitmemo}" disabled="{!selectedVndtxnId == null}" rendered="{!batch.txn.isNew && batch.txn.isDebitMemo}"/>
+                    <apex:commandButton onclick="unblockUI();closeVendtxnsPage();return false;" value="{!$Label.rstkf__pagevalclose}" style="width:75px;"/>
+                </apex:pageBlockButtons>
+                
+                <apex:pageBlockSection id="pbs_vendtxns" showHeader="false" columns="3" >
+                    <apex:pageBlockSectionItem dataStyle="width:15%" labelStyle="width:10%" rendered="{!selectedVndtxnId != null}">
+                        <apex:outputLabel value="{!$Label.rstkf__pageval_transactiontotal}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!customextf.rstkf__apinvh_vendtxnamtui__c}" onchange="vendTxnAmtChanged(removeLocaleFormatting(this.value))" rendered="{!vendTxnMode != 'U'}"/>
+                            <apex:outputField value="{!customextf.rstkf__apinvh_vendtxnamtui__c}" rendered="{!vendTxnMode = 'U'}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_comments__c.inlineHelpText}" dataStyle="width:30%" labelStyle="width:10%">
+                        <apex:outputLabel value="{!f_t.rstkf__apinvtxn_comments__c.label}"/>
+                        <apex:inputTextarea id="apinvtxn_comments__c" value="{!o_t.rstkf__apinvtxn_comments__c}" cols="45" rows="1" tabIndex="40"/>
+                    </apex:pageBlockSectionItem>
+    
+                    <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:15%" rendered="{!displayExchangeRateOption}">
+                        <apex:outputLabel value="{!$Label.rstkf__pageval_exchangerateoption}"/>
+                        <apex:selectList value="{!exchangeRateOption}" size="1">
+                            <apex:selectOption itemValue="E" itemLabel="{!$Label.rstkf__pageval_useexchangerateofinvoicedebitmemo}"/>
+                            <apex:selectOption itemValue="C" itemLabel="{!$Label.rstkf__pageval_usecurrentexchangerate}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <BR/>
+                <apex:outputPanel style="height:380px;overflow:auto;display:block">
+                    <apex:pageBlockTable id="pbt_vendtxns" value="{!Vndtxns}" var="vtxn">
+                        <apex:column headerValue="{!$Label.rstkf__pageval_select}" style="width:35px;">
+                            <apex:inputCheckbox id="selected_txn" value="{!vtxn.isSelected}" onchange="vendTxnChanged('{!vtxn.apinvtxn.Id}');" disabled="{!isVendorCredit && vtxn.apinvtxn.rstkf__apinvtxn_trantype__c = 'Vendor Credit'}"/>
+                            <apex:inputHidden id="apinvh" value="{!vtxn.apinvtxn.rstkf__apinvtxn_apinvh__c}"/>
+                            <apex:inputHidden id="apinvtxn" value="{!vtxn.apinvtxn.Id}"/>
+                        </apex:column>
+                        <apex:column headerValue="" width="40px">
+                            <apex:outputLink value="{!URLFOR($Action.rstkf__apinvtxn__c.View, vtxn.apinvtxn.Id)}" target="_blank">{!$Label.rstkf__view}</apex:outputLink>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstkf__pageval_docmumentno}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_docno__c}"/>
+                        <apex:column headerValue="{!f_t.rstkf__apinvtxn_trantype__c.label}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_trantype__c}"/>
+                        <apex:column headerValue="{!f_t.rstkf__apinvtxn_trandate__c.label}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_trandate__c}"/>
+                        <apex:column headerValue="{!$Label.rstkf__pageval_hold}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_holdprocind__c}"/>
+                        <apex:column headerValue="{!f_t.rstkf__apinvtxn_poord__c.label}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_poord__c}"/>
+                        <apex:column headerValue="{!f_t.rstkf__apinvtxn_poline__c.label}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_poline__c}"/>
+                        <apex:column headerValue="{!f_t.rstkf__apinvtxn_porcptno__c.label}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_porcptno__c}"/>
+                        <apex:column headerValue="{!$Label.rstkf__pageval_currency}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_maintcurr__c}"/>
+                        <apex:column headerValue="{!$Label.rstkf__pageval_transactiontotal}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_maintamt__c}" style="text-align:right;"/>
+                        <apex:column headerValue="{!$Label.rstkf__pageval_amountapplied}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_amtapplmaint__c}" style="text-align:right;" rendered="{!vendTxnMode = 'U'}"/>
+                        <apex:column headerValue="{!$Label.rstkf__pageval_amountunapplied}" value="{!vtxn.apinvtxn.rstkf__apinvtxn_unapplamtmaint__c}" style="text-align:right;" rendered="{!vendTxnMode != 'U'}"/>
+                    </apex:pageBlockTable>
+                </apex:outputPanel>                        
+            </apex:pageBlock>
+        </apex:outputPanel>
+        </apex:outputPanel>
+                        
+        </apex:form>
+    </div>
+    
+	<c:Popup popupId="OverrideExchangeRatePopup" title="{!$Label.rstkf__pagepopup_overrideexchangeratepopup}" onOk="unblockUI();_closeDialog();"  okCaption="Ok" buttonsOnTop="false">
+    	<apex:form id="exchRatePopup"  >
+    	<apex:pageMessages id="ordPageMessages"/>
+    		<apex:actionFunction name="overRideSchedule" action="{!overRideSchedule}" oncomplete="unblockUI();" immediate="false" rerender="ordPageMessages" /> 
+    		<apex:actionFunction name="revertSpotRate" action="{!revertSpotRate}" oncomplete="unblockUI();" immediate="false" rerender="ordPageMessages" /> 
+    		<apex:actionFunction name="exchangeScheduleChanged" action="{!exchangeScheduleChanged}" oncomplete="unblockUI();" immediate="false" rerender="pageMessages,op_exchange_rate,op_exchange_rate_a,set_exchange_rate" /> 
+    		<apex:actionFunction name="getExchangeRate" action="{!getExchangeRate}" oncomplete="unblockUI();" immediate="false" rerender="pageMessages,set_exchange_rate" />
+  				<apex:pageBlockSection id="pbs_exchangepopup" showHeader="false" columns="1">
+	           		<apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__exchange_rate_schedule__c.inlineHelpText}" >
+	                	<apex:outputLabel value="{!f_customextf.rstkf__exchange_rate_schedule__c.label}" />
+	                	<apex:outputPanel id="op_rate_schedule">
+	                	<apex:inputField id="exchange_rate_schedule__c" value="{!customextf.rstkf__exchange_rate_schedule__c}" onchange="exchangeScheduleChanged();blockUI(); return false;"  />
+	                	</apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                <apex:pageBlockSectionItem >
+	                	<apex:outputLabel value="{!$Label.rstkf__override_rate_schedule}" />
+	                	<apex:outputPanel id="op_exchange_rate">
+		                	<apex:selectList id="scheduleIdLockedIn" size="1"  
+			                		multiselect="false" 
+			                		value="{!customextf.rstkf__apinv_overriderate__c}" 
+			                		onchange="doGetExchangeRate({!customextf.rstkf__apinv_overriderate__c});blockUI(); return false;" 
+			                		rendered="{!isOverRide == 'LockedIn'}" >
+	                            <apex:selectOptions value="{!LockedInRates}"/>
+	                        </apex:selectList>
+	                        
+	                        <apex:selectList id="scheduleIdOverride" size="1"  
+		                       		multiselect="false" 
+		                       		value="{!customextf.rstkf__apinv_overriderate__c}" 
+		                       		onchange="doGetExchangeRate({!customextf.rstkf__apinv_overriderate__c});blockUI(); return false;" 
+		                       		rendered="{!isOverRide == 'Overrride'}" >
+	                            <apex:selectOptions value="{!OverRideRates}"/>
+	                        </apex:selectList>
+	                       </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+	                    <apex:outputLabel value="{!f_customextf.rstkf__exchange_rate__c.label}" />
+	                	<apex:outputPanel id="set_exchange_rate">
+		                	<apex:outputField value="{!customextf.rstkf__exchange_rate__c}" />
+		                </apex:outputPanel>
+		            </apex:pageBlockSectionItem>
+	                
+		       </apex:pageBlockSection>
+		       <apex:pageBlockSection id="pbs_jobpopup_but" showHeader="false" columns="3">
+		            <apex:commandButton id="selectOverride" onclick="overRideSchedule(); blockUI(); return false;" value="Use Selected Override Schedule" />
+	                <apex:commandButton id="revertspotrate" onclick="revertSpotRate(); blockUI(); return false;" value="Revert to Current Spot Rate" />
+	                <!--<apex:commandButton onclick="_closeDialog();" value="Cancel" />-->
+		       </apex:pageBlockSection>
+	    </apex:form>  
+    </c:Popup>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true" showActivities="{!o_h.id != null}"/>
+    <apex:outputPanel id="op_apinvh_na">
+        <apex:relatedList list="CombinedAttachments" subject="{!o_h.id}" rendered="{!o_t == null && !isNew}"/>
+    </apex:outputPanel>
+    <apex:outputPanel id="op_var">
+       <script>
+        	var showpoupYN = {!showpoupYN};
+        	var scheduletype = "{!batch.txn.apinvtxn.apinvtxn_syforexschedno__r.syforexschedno_schedtype__c}";
+        </script>
+  	</apex:outputPanel>
+    <script>
+    	var mode;
+        var apBatchOpt = {!apBatchOpt};
+        var nextFocusId;
+        var fromTabEvent = false;
+        var distmod = false;
+        
+        function doGetExchangeRate(scheduleId) {
+        	if(scheduleId == ''){
+        		 jQuery('input[Id*=selectOverride]')[0].disabled = true;
+        	}else{
+        		jQuery('input[Id*=selectOverride]')[0].disabled = false;
+        	}
+        	getExchangeRate();
+        }
+       
+        function setDistmod(isModified) {
+        	distmod = isModified;
+        }
+        
+        function pageInit(type) {
+        	mode = type;
+            var el = document.getElementById('pg:fm:pb:pbs_apinvh:pbsi_comments:apinvh_comments__c');
+            if (el) {el.focus()};
+            return true;
+        }
+        
+        function initializeFormFields() {
+            return;
+        }
+        
+        function setNextFocusId(elementId, forceFocus) {
+            nextFocusId = elementId;
+            fromTabEvent = forceFocus;
+        }
+        
+        function setNextFocusField() {
+            if (fromTabEvent && nextFocusId) {
+                document.getElementById(nextFocusId).focus().select();
+            }
+            nextFocusId = null;
+            fromTabEvent = false;
+        }
+        
+        function getKeycode (e) {
+            var evt = e ? e:event;
+            fromTabEvent = evt.keyCode == 9;
+        }
+        
+        function checkDuplicateDocno(docno, vendorId) {
+            if (actionResult != '') {
+            	if(rejectDuplicateDocNo == true) {
+            		alert('{!$Label.DuplicateDocNoError}');
+            	}
+            	else {
+            		if (confirm('Another Transaction with this Document Number exists for this Vendor. Transaction ID (' + actionResult + ')\nPlease confirm that you want to add another.')) {
+	                    incrementDocnoseq();
+	                }
+            	}
+            }
+            return false;
+        }
+        
+        function confirmTermsChanged(elem, oldValue) {
+            var newValue = elem.value;
+            if (confirm('The following fields may be changed automatically.\n\n{!f_t.rstkf__apinvtxn_termsbasedate__c.label}\n{!f_t.rstkf__apinvtxn_termsdiscdate__c.label}\n{!f_t.rstkf__apinvtxn_disctermamt__c.label}\n{!f_t.rstkf__apinvtxn_discblamt__c.label}\n{!f_t.rstkf__apinvtxn_agedate__c.label}\n{!f_t.rstkf__apinvtxn_agedays__c.label}\n\nPlease confirm.')) {
+                termsChanged(newValue);
+            } else {
+                elem.value = oldValue;
+            }
+        }
+        
+        function confirmTermsBaseDateChanged(elem, oldValue,fieldname) {
+            var newValue = elem.value.replace(/-/g, '/');
+			if (!isEmpty(newValue) && !isValidDate(newValue,fieldname)) {
+	        	alert('Invalid Date');
+	        	elem.value = oldValue;
+				return;
+	        }
+
+            if (confirm('The following fields may be changed automatically.\n\n{!f_t.rstkf__apinvtxn_termsdiscdate__c.label}\n{!f_t.rstkf__apinvtxn_agedate__c.label}\n\nPlease confirm.')) {
+                termsBaseDateChanged(newValue);
+            } else {
+                elem.value = oldValue;
+            }
+        }
+        
+        function confirmDiscblAmtChanged(elem, oldValue) {
+            var newValue = elem.value;
+            if (confirm('The following fields may be changed automatically.\n\n{!f_t.rstkf__apinvtxn_termsdiscdate__c.label}\n{!f_t.rstkf__apinvtxn_agedate__c.label}\n\nPlease confirm.')) {
+                discblamtChanged(newValue);
+            } else {
+                elem.value = oldValue;
+            }
+        }
+        
+        function confirmDeleteTxn() {
+            if (actionError == true) {
+                alert(actionResult);
+            } else {
+                if (actionResult != '') {
+                    if (confirm(actionResult)) {
+                        deleteCurrentTxn();
+                    }
+                }
+            }
+            return false;
+        }
+        
+        function setSelect(elId, val) {
+        	var el = document.getElementById(elId);
+        	el.value = val;
+        }
+
+        function confirmDeleteLine() {
+            if (actionError == true) {
+                alert(actionResult);
+            } else {
+                if (actionResult != '') {
+                    if(confirm(actionResult)) {
+                        deleteApinvline(actionSequence);
+                    }
+                }
+            }
+            return false;
+        }
+        
+        function cancelDist() {
+        	if (distmod) {
+        		if (confirm('{!$Label.CancellingWillCausePageRefresh}')) {
+        			if (mode == 'create') {
+        				window.location.reload();
+        			} else {
+        				cancelTxn();unblockUI();
+        			}
+        		}
+        	} else {
+        		unblockUI();
+        	}
+        }
+
+        function showPopup(popName, popWidth, popHeight) {
+            var top = ((jQuery(window).height() - popHeight) / 2);
+            var width = jQuery(window).width();
+            var left = (width - popWidth) / 2;
+            if (popWidth > width) {
+                left = 0;
+            } else {
+                width = popWidth;
+            }
+            
+            jQuery.blockUI({
+                message: jQuery(popName),
+                baseZ: 50,
+                css: {
+                    backgroundColor:'#fff',
+                    left: (left + 'px'),
+                    top: (top + 'px'),
+                    width:(width + 'px'),
+//                    height:(popHeight + 'px'),
+                    padding:'15px',
+                    textAlign:'left',
+                    fontSize:'1em',
+                    border:'2px solid #333',
+                    
+                    opacity:'1.0',
+                    '-moz-border-radius':'6px',
+                    '-webkit-border-radius':'6px',
+                    '-moz-box-shadow': '0 0 50px #ccc',
+                    '-webkit-box-shadow': '0 0 50x #ccc'
+                }
+            });
+        }
+        
+        var currVendorId = '{!o_t.rstkf__apinvtxn_vendno__c}';
+        function doVendorChanged(vendorId) {
+        	currVendorId = vendorId;
+        	vendorChanged(vendorId);
+        }
+        
+        function doAfterVendorChanged() {
+        	if(actionError == true) {
+        		currVendorId = '';
+       			var fld = useVendorAC == true ? document.getElementById(vendorFieldId) : jQuery('select[name*=apinvtxn_vendno_sl]')[0];
+       			if (fld) {
+               		fld.value = '';
+               	}	
+        	}
+        }
+        
+
+        function doTrandateChanged(trandate, vendorId) {
+        	currVendorId = vendorId
+       		trandateChanged(trandate, currVendorId);
+        }
+        
+        function setVendor(vendorId) {
+			var fld = document.getElementById(vendorFieldId);
+			if (fld) {
+        		fld.value = vendorId;
+        	}
+        	vendorChanged(vendorId);
+        }
+        
+        function isValidDate(inputdate,fieldname) {
+        	try {
+        		var d = sfffStringToDate(inputdate, pageParms.localeDateFormat);
+        		if (d == null || d.toString() == "NaN" || d.toString() == "Invalid Date") {
+        		    return false;
+	            } else {
+	            		if (sfffDateToString(d) != inputdate) {
+	            		return false;
+	            	} else {
+	            		jQuery("input[id*="+fieldname+"]")[0].value = inputdate;
+	            	 	return true;
+	                }
+				}
+            } catch (e) {
+            	return false;
+            }
+            
+        }
+        
+        function parseDate(input, format) {
+          format = format || 'yyyy-mm-dd'; // default format
+          var parts = input.match(/(\d+)/g), 
+              i = 0, fmt = {};
+
+          format.replace(/(yyyy|dd|mm)/g, function(part) { fmt[part] = i++; });
+          
+          if (parts[fmt['mm']] > 12) { return null; }
+        
+          return new Date(parts[fmt['yyyy']], parts[fmt['mm']]-1, parts[fmt['dd']]);
+        }
+        
+		function filterNonNumeric(evt, element) {
+			
+			var separator = '.';
+			var separatorCode = 46;
+			if (window.pageParms && pageParms.decimalSep != '.') {
+				separator = pageParms.decimalSep;
+				separatorCode = 44;
+			}
+						
+			var charCode = (evt.which) ? evt.which : evt.keyCode;
+			if (charCode >= 37 && charCode <= 40) return true;
+			if ((charCode != separatorCode && charCode > 31 && (charCode < 48 || charCode > 57))
+				|| (charCode == separatorCode && jQuery(element).val().split(separator).length >= 2))
+		 		return false;
+			
+			return true;
+		}
+		
+		function doSetExchangeRateValue() {
+			//jQuery('input[id*=glbnkacc_localcurrentbalance__c]')[0].value =amtbank;
+			//jQuery('input[id*=glbnkacc_localcurrentbalance__c]')[0].disabled = true;
+			//blockUI();
+			setExchangeRateValue();
+			//unblockUI();
+			return false;
+		}
+		
+		function openpopup() {
+			if(showpoupYN == true){
+				if(scheduletype == 'Current Spot Rate'){
+					jQuery('input[Id*=revertspotrate]')[0].disabled = true;
+				}else{
+					jQuery('input[Id*=revertspotrate]')[0].disabled = false;
+				}
+				
+				jQuery('input[Id*=selectOverride]')[0].disabled = true;
+				exchangeScheduleChanged();
+				_showDialog('OverrideExchangeRatePopup');
+				
+			}
+			return false;
+		}
+		
+		
+		
+
+    </script>
+    <div id="popAddVendor" style="display:none">
+        <iframe id="popAddVendor" src="/apex/newpovend?nocache=004" width="100%" height="500px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+    </div>
+ </apex:page>

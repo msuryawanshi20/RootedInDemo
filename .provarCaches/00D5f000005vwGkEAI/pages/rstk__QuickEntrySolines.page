@@ -1,0 +1,1190 @@
+<apex:page id="pg" standardController="rstk__sohdr__c" extensions="rstk.ControllerExtnSalesOrder,rstk.RemoteQueryController,rstk.ControllerJobStatus" 
+    action="{!doBeforePageLoad}" sideBar="false" showHeader="false">
+    <apex:variable var="o" value="{!rstk__sohdr__c}" />
+    <apex:variable var="f_sl" value="{!$ObjectType.rstk__soline__c.fields}" />
+    
+    <c:popupPageHeader enableAutocomplete="true" querysupport="true"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+
+    <style>
+.modalPopup{
+     background-color: white;
+     border-style: solid;
+     border-width: 3px;
+     padding:1px;
+     position: absolute;
+     z-index: 10011;
+     width: 650px;
+     top:100px;
+     overflow:auto;
+ }
+.topPopup{
+     background-color: transparent;
+     border-style: none;
+     position: absolute;
+     z-index: 20001;
+     width: 50px;
+     top:100px;
+ }
+.popupBackground{
+     background-color:black;
+     opacity: 0.20;
+     position:absolute;
+     width: 100%;
+     height: 100%;
+     top: 0;
+     left: 0;
+     z-index: 10010;
+ }
+.topPopupBackground{
+     background-color:green;
+     opacity: 0.10;
+     position:absolute;
+     width: 100%;
+     height: 100%;
+     top: 0;
+     left: 0;
+     z-index: 20000;
+ }
+ 
+       input.elwarning {
+         }
+
+       span.spwarning {
+           color:#FF6347;
+           font-size:90%;
+           padding-left: 6px; 
+        }
+        .ac_results {
+            z-index: 8001;
+            background-color: #eee;
+        }
+    </style>
+    
+    <apex:form id="fm">
+
+<apex:outputpanel id="localVariables">
+    <c:LocalData jsname="products" objectName="soprod__c" deferLoad="true"
+      filter="soprod_div__c={0} and soprod_icitem__r.icitem_item__r.peitem_inactivests__c != 'I' and soprod_activeind__c = true" filterBy="{!o.rstk__sohdr_div__c}"
+      type1="B" field1="soprod_dfltqtyordind__c" key1="dfltqtyordind"
+      type2="N" field2="soprod_dfltqtyord__c" key2="dfltqtyord"
+      type3="N" field3="soprod_comcod__r.socomm_dfltqtyord__c" key3="comm_dfltqtyord"
+      type4="B" field4="soprod_shipdivind__c" key4="shipdivind"
+      type5="S" field5="soprod_shipdiv__c" key5="shipdiv"
+      type6="S" field6="soprod_comcod__r.socomm_shipdiv__c" key6="socomm_shipdiv"
+      type7="S" field7="soprod_prodtype__c" key7="prodtype"
+      type8="B" field8="soprod_firmind__c" key8="firmind"
+      type9="B" field9="soprod_firm__c" key9="firm"
+      type10="B" field10="soprod_comcod__r.socomm_firm__c" key10="socomm_firm"
+      type11="S" field11="soprod_icitem__c" key11="icitem"
+      type12="B" field12="soprod_rolluppriceind__c" key12="rolluppriceind"
+      type13="B" field13="soprod_rollupprice__c" key13="rollupprice"
+      type14="B" field14="soprod_comcod__r.socomm_rollupprice__c" key14="socomm_rollupprice"
+      type15="B" field15="soprod_leadtimeissind__c" key15="leadtimeissind"
+      type16="N" field16="soprod_leadtimeiss__c" key16="leadtimeiss"
+      type17="N" field17="soprod_comcod__r.socomm_leadtimeiss__c" key17="socomm_leadtimeiss"
+      type18="B" field18="soprod_leadtimepackind__c" key18="leadtimepackind"
+      type19="N" field19="soprod_leadtimepack__c" key19="leadtimepack"
+      type20="N" field20="soprod_comcod__r.socomm_leadtimepack__c" key20="socomm_leadtimepack"
+      type21="B" field21="soprod_leadtimeprodind__c" key21="leadtimeprodind"
+      type22="N" field22="soprod_leadtimeprod__c" key22="leadtimeprod"
+      type23="N" field23="soprod_comcod__r.socomm_leadtimeprod__c" key23="socomm_leadtimeprod"
+      type24="B" field24="soprod_multicitem__c" key24="multicitem"
+      type25="S" field25="soprod_descr__c" key25="proddesc"
+      type26="S" field26="soprod_prod__c" key26="prodname"
+      postClause="order by Name"/>
+      
+    <c:LocalData jsname="projects" objectName="pjproj__c" deferLoad="true" 
+      filter="pjproj_completed__c=false"
+      type1="S" field1="pjproj_div__c" key1="div"
+      type2="S" field2="pjproj_proj__c" key2="proj"
+      postClause="order by Name"/>
+
+    <c:LocalData jsname="wbss" objectName="pjprojwbs__c" deferLoad="true" 
+      type1="S" field1="pjprojwbs_proj__c" key1="proj"
+      type2="S" field2="Name" key2="name"
+      postClause="order by Name" rendered="{!isChargeCodeActive}"/>
+      
+    <c:LocalData jsname="divisions" objectName="sydiv__c" deferLoad="true" postClause="order by Name"/>
+    
+    <c:LocalData jsname="sopcs" objectName="sopc__c" deferLoad="true"
+      filter="sopc_custno__c={0} and sopc_soprod__r.soprod_div__c={1} and sopc_soprod__r.soprod_icitem__r.icitem_item__r.peitem_inactivests__c != 'I' and sopc_soprod__r.soprod_activeind__c = true"
+        filterBy="{!o.rstk__sohdr_custno__c}" filterBy1="{!o.rstk__sohdr_div__c}"
+      type1="N" field1="sopc_dfltqtyord__c" key1="dfltqtyord"
+      type2="S" field2="sopc_soprod__c" key2="soprod"
+      type3="S" field3="sopc_proddesc__c" key3="proddesc"
+      type4="S" field4="sopc_prodname__c" key4="prodname"
+      type5="S" field5="sopc_soprod__r.soprod_descr__c" key5="std_proddesc"
+      type6="S" field6="sopc_soprod__r.soprod_prod__c" key6="std_prodname"
+      type7="S" field7="sopc_soprod__r.soprod_prodtype__c" key7="prodtype"
+      postClause="order by sopc_prodname__c"/>
+
+    <c:LocalData jsname="productdivs" objectName="sopdiv__c" deferLoad="true"
+      filter="sopdiv_active__c = true and sopdiv_soprod__r.soprod_div__c={0}" filterBy="{!o.rstk__sohdr_div__c}"
+      type1="S" field1="sopdiv_shipdiv__c" key1="shipdiv"
+      type2="S" field2="sopdiv_soprod__c" key2="soprod"/>
+
+    <c:LocalData jsname="inventoryItems" objectName="sopicitem__c" deferLoad="true"
+      filter="sopicitem_active__c = true and sopicitem_soprod__r.soprod_div__c={0}" filterBy="{!o.rstk__sohdr_div__c}"
+      type1="S" field1="sopicitem_soprod__c" key1="soprod"
+      type2="S" field2="sopicitem_icitem__c" key2="icitem"
+      type3="S" field3="sopicitem_icitem__r.Name" key3="icitemName"
+      postClause="order by sopicitem_icitem__r.Name"/>
+
+    <!-- Not needed -----   c:LocalData jsname="icitems" objectName="icitem__c" deferLoad="true"
+        filter="icitem_div__c={0} and icitem_item__r.peitem_inactivests__c != 'I'" filterBy="{!o.rstk__sohdr_div__c}"
+        type1="B" field1="icitem_homeprojindind__c" key1="homeprojindind"
+        type2="S" field2="icitem_homeprojind__c" key2="homeprojind"
+        type3="S" field3="icitem_iccomcod__r.iccomcod_dflthomeprojind_pl__c" key3="iccomcod_dflthomeprojind"/   -->
+
+    <c:LoadDeferredLocalData />
+</apex:outputpanel>
+    
+
+    <apex:pageBlock id="pb" mode="detail">
+    <script>
+      autoCompleteRefs = {};
+      var projOptions = {!projectOptionsJSON};
+      var pageOptions = {!pageOptionsJSON};
+      var socntl = {!socntlJSON};
+      var isQuote = {!isQuote};
+      var wbsActive = {!isChargeCodeActive};
+      var MaxSOLines = {!MaxSOLines};
+      var solineCnt = {!solineCnt};
+    </script>
+
+<apex:outputPanel id="op_JobStatus">
+    <input type="hidden" id="processlogId" value="{!soh.processlogId}"/>
+</apex:outputPanel>
+
+<apex:outputPanel rendered="{!popupType='qesolines'}">
+        <apex:actionFunction name="saveQuickEntryStandAlone" action="{!saveQuickEntryGridStandAlone}"
+           oncomplete="checkJobStatus();" rerender="gridMessages,op_JobStatus"/>
+           <apex:actionFunction name="saveQuickEntry" action="{!saveQuickEntryGrid}" oncomplete="unblockUI();qesolines_cleanupAndUpdate(); qesolines_postSave();" rerender="pageMessages"/>
+        <apex:outputPanel rendered="{!isStandalonePage}"> 
+            <input type="button" class="btn" value="{!$Label.Save}" onclick="return qesolines.saveAndExit();"/> 
+        </apex:outputPanel>
+        <apex:actionFunction name="doReloadPage" id="doReloadPage" immediate="true" action="{!reloadPage}" rerender="pageMessages" oncomplete="unblockUI();">
+             <apex:param name="warningsText" value=""/>
+             <apex:param name="sohdrId" value=""/>
+        </apex:actionFunction>
+        <c:EditableGrid disableSave="true" id="qesolines" jsController="qesolines" data="{!quickEntrySolines}" editable="true" ispopup="{!!isStandalonePage}"/>
+        <apex:outputPanel rendered="{!isStandalonePage}"> 
+            <input type="button" class="btn" value="{!$Label.Save}" onclick="return qesolines.saveAndExit();"/> 
+        </apex:outputPanel>
+     <c:Popup popupId="inventoryItemPopup" title="{!f_sl.rstk__soline_icitem__c.label}" onOk="saveInventoryItem();">
+       <apex:pageBlockSection showHeader="false" columns="2" collapsible="false">
+           <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_icitem__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sl.rstk__soline_icitem__c.label}"/>
+               <select id="popup_soline_icitem__c" style="width:250px"/>
+           </apex:pageBlockSectionItem>
+         </apex:pageBlockSection>
+     </c:Popup>
+
+    
+ <script>
+    function getJobFailMessage(processLog) { displayProcessErrorsAsPageMessage("{!$Label.errors}:", processLog); return null; }
+
+    function getJobSuccessMessage(processLog) {
+    // The job message will be displayed in the info section, nothing to do here
+    return null;
+    }
+
+    function doAfterJobComplete(processLog) {
+        if (!processLog.iserror__c) { 
+            // Reload page
+            doReloadPage(); 
+        } else { 
+            console.log('Unblocking after an error....');
+            
+            unblockUI(); 
+        }
+    }
+
+    qesolines.saveAndExit = function() {
+        if (qesolines.validate())
+        {     
+            saveAutoCompletes(qesolines, qesolines.autoFields);
+            qesolines.pleaseWait();
+            saveQuickEntryStandAlone();
+        }
+    }
+    
+    qesolines.saveAndClose = function() {
+        jQuery("#datePicker").hide();
+        if (qesolines.validate())
+        {
+            if (qesolines.isDirty()) {
+                saveAutoCompletes(qesolines, qesolines.autoFields);
+                qesolines.pleaseWait();
+                saveQuickEntry();
+            } else {
+                window.top._closeDialog();
+            }
+        }
+    }
+    
+    qesolines.validate = function() {
+      var self = this;
+      var errMap = {}
+      setWarningClasses(null, 'spwarning');
+      this.getVisibleRows().each(function () {
+        var row = jQuery(this);
+        var prodObj = self.getAutocompleteTextField(row, 'soline_prod__c');
+        var qtyObj = self.getRowObj(row, 'soline_qtyorder__c');
+        var prcObj = self.getRowObj(row, 'soline_price__c');
+        var pctObj = self.getRowObj(row, 'soline_discpct__c');
+        
+        setErrorEl(prodObj, null);
+        setErrorEl(qtyObj, null);
+        setErrorEl(prcObj, null);
+        setErrorEl(pctObj, null);
+        
+        if (isEmpty(self.getRowValue(row, 'soline_prod__c'))) {
+          addToError(errMap, prodObj, 'All products must have a value'); 
+        }
+        var qty = self.getRowDecimal(row, 'soline_qtyorder__c') || -1;
+        if (qty <= 0) {
+          addToError(errMap, qtyObj, 'All quantities must have a value greater than zero'); 
+        }
+        var prcStr = self.getRowValue(row, 'soline_price__c');
+        var prcVal = getDefaultedValue(prcStr, -1);
+        if (!isEmpty(prcStr) && prcVal < 0) {
+          addToError(errMap, prcObj, 'Unit Prices must be left blank or contain a number greater than or equal to zero'); 
+        }
+        var pctStr = self.getRowValue(row, 'soline_discpct__c');
+        var pctVal = getDefaultedValue(pctStr, -1);
+        if (!isEmpty(pctStr) && (pctVal < 0 || pctVal > 100)) {
+          addToError(errMap, pctObj, 'Discount Percentages must be left blank or contain a number greater than or equal to zero and less than 100'); 
+        }
+      });
+      var errs = '';
+      for (errStr in errMap) {
+        if (errMap.hasOwnProperty(errStr)) {
+          var numErrs = errMap[errStr];
+          errs = errs + errStr;
+          if (numErrs > 1) {
+            errs = errs + ' ('+numErrs + ' occurrences)';
+          }
+          errs +='\n\n';
+        }
+      }
+      if (errs != '') {
+        alert(errs);
+        return false;
+      }
+      return true;
+    }
+    
+    function isANumber(str) {
+      return (str - parseLocaleFloat(str) + 1) >= 0;
+    }
+    
+    function getDefaultedValue(strVal, defaultIfNonNumber) {
+      if (isANumber(strVal)) {
+        return parseLocaleFloat(strVal);
+      }
+      return defaultIfNonNumber;
+    }
+    
+    function addToError(errMap, errObj, errStr) {
+      if (errMap[errStr] == null) {
+        errMap[errStr] = 0;
+      }
+      errMap[errStr] = errMap[errStr] + 1;
+      setErrorEl(errObj, errStr);
+    }
+
+    qesolines.resetRow = function(row) { 
+        var self = this;
+        var num = this.getRowValue(row, 'line__g');
+        if (num == '') {
+          num = ++this.lineNum;
+        }
+        qesolinesHandler.prototype.resetRow.call(this, row);
+        this.setRowValue(row, 'line__g',''+num);
+        this.setRowValue(row, "soline_duedate__c", toLocaleDateFormat(new Date()));
+        setAutoRowValue(this, row, "soline_project__c", projects, getDefaultProjectId());
+        if (wbsActive) {
+            setupAutocompletes(this, row, 'soline_wbs__c', createSelectableWithMap(wbss, getProjectWBSMap(getDefaultProjectId())));
+        }
+        setAutoRowValue(this, row, "soline_shipdiv__c", divisions, getDefaultDivisionId());
+        if (self.autoAddingRow) {
+            setTimeout(function() { self.getAutocompleteTextField(row, 'soline_prod__c').focus().select(); self.autoAddingRow=false;});
+        }
+        if (++solineCnt > MaxSOLines) {
+		    alert(LABEL_A_maximum_of_lines_is_supported_on_Sales_Orders, MaxSOLines);
+		}
+     }
+    
+    function setAutoRowValue(theGrid, row, attrName, localValues, value) {
+        var entry = localValues.entryById(value);
+        var name;
+        if (entry == null) {
+            name = '';
+            value = '';
+        } else {
+            name = entry.label;
+        }
+        theGrid.setRowValue(row, attrName, value);
+        theGrid.setRowAutoValue(row, attrName, name);
+    }
+
+    qesolines.postReset = function() {
+      qesolines_getErrorDivs().remove();
+    }
+    
+    qesolines.onSaveFailed = function() {
+      var errDivs = qesolines_getErrorDivs();
+      if (errDivs.length > 0) {
+        errDivs[0].scrollIntoView(false);
+      }
+    }
+                
+    qesolines.onGridLoad = function() {
+      var title = jQuery("#qesolines_headerText");
+      title.html("<div width='100%' align='center'> </div>");
+      title.find("div").text("{!$Label.WhenUnitPriceBlankPriceSetWhenLinesSaved}");
+      this.autoAddingRow = false;
+      var selectableProducts = createSelectable(filterByProdType(products));
+      var selectableDivs = createSelectable(divisions);
+      if (includeAutoProject()) {
+        var autoId = getDefaultProjectId();
+        var autoName = '-- Auto --';
+        projects.createIdMap();
+        projectsIdMap[autoId] = { label: autoName, value: { ID: autoId } };
+      }
+      var selectableProjects = createSelectableWithMap(projects, getDivisionProjectMap(getDefaultDivisionId()));
+      this.lineNum = {!currentMaxLineNumber};
+      var self = this;
+      self.getRows().each(function() {
+        var row = jQuery(this);
+        setupAutocompletes(self, row, 'soline_prod__c', selectableProducts);
+        if (!socntl.socntl_noprojects__c) {
+            setupAutocompletes(self, row, 'soline_project__c', selectableProjects);
+        }
+        if (!socntl.socntl_singlediv__c) {
+            setupAutocompletes(self, row, 'soline_shipdiv__c', selectableDivs);
+        }
+        self.getRowObj(row, 'soline_duedate__c').siblings('.dateFormat').hide();
+        self.getRowObj(row, 'soline_duedate__c').blur(autAddRow);
+        self.getAutocompleteTextField(row, 'soline_shipdiv__c').blur(autAddRow);
+        self.getAutocompleteTextField(row, 'soline_project__c').blur(autAddRow);
+        self.getRowObj(row, 'soline_firm__c').blur(autAddRow);
+        self.getAutocompleteTextField(row, 'soline_prod__c').bind("contextmenu", function() { return showCustomerProductLookup(row); });
+      });
+    }
+    
+    function getWindow(forElement) {
+      var doc = forElement.ownerDocument;
+      var win = doc.defaultView || doc.parentWindow;
+      return win;
+    }
+    
+    function autAddRow() {
+      setTimeout(function(e){
+        if (!qesolines.autoAddingRow) {
+            var nextEl = document.activeElement;
+            if (nextEl != null && nextEl.id == 'qesolines_add') {
+              qesolines.autoAddingRow = true;
+              jQuery(document.activeElement).click();
+              getWindow(nextEl).scrollBy(0, 100);
+            }
+        }
+      })
+    }
+    
+   var popupForRow;
+   function showCustomerProductLookup(row) {
+     popupForRow = row;
+     _showDialog("chooseProductPopup", 1100, 380, 8, jQuery("#chooseProductSearchButton"));
+     return false;
+   }
+   function setSoProd(soprodId) {
+     _closeDialog();
+     setAutoRowValue(qesolines, popupForRow, "soline_prod__c", products, soprodId);
+     qesolines.entryChanged(popupForRow, qesolines.getRowNum(popupForRow), "soline_prod__c", soprodId);
+   }
+
+    qesolines.entryChanged=function(row, rowNum, name, value) {
+        if (name == 'soline_prod__c') {
+            
+            this.getRowObj(row, 'soline_qtyorder__c').focus();
+            var attrs = getProductAttributes(value);
+            this.addIcitemLink(row, (attrs.icitems.length > 0));
+            this.setRowValue(row, 'soline_icitem__c', '');
+            if (!zeroOrBlank(attrs.defaultQty)) {
+              this.setRowValue(row, 'soline_qtyorder__c', attrs.defaultQty);
+            } else {
+              this.setRowValue(row, 'soline_qtyorder__c', '');
+            }
+            if (!socntl.socntl_singlediv__c) {
+                setupAutocompletes(this, row, 'soline_shipdiv__c', createSelectable(divisions, attrs.divsSelectable));
+            }
+            if (!socntl.socntl_noprojects__c) {
+                setupAutocompletes(this, row, 'soline_project__c', createSelectable(projects, attrs.projectsSelectable));
+            }
+            this.setRowValue(row, 'soline_firm__c', attrs.defaultFirm && !isQuote);
+            this.getRowObj(row, 'soline_firm__c')[0].disabled=isQuote;
+            setAutoRowValue(this, row, "soline_shipdiv__c", divisions, attrs.defaultDivision);
+            setAutoRowValue(this, row, "soline_project__c", projects, attrs.defaultProject);
+            this.getRowObj(row, 'soline_price__c')[0].disabled=attrs.isRollupPrice;
+            this.setRowValue(row, 'soline_duedate__c', toLocaleDateFormat(attrs.defaultDueDate));
+        } else if (name == 'soline_shipdiv__c') {
+            if (!socntl.socntl_noprojects__c) {
+                setupAutocompletes(this, row, 'soline_project__c', createSelectableWithMap(projects, getDivisionProjectMap(value)));
+                this.getAutocompleteTextField(row, 'soline_project__c').focus();
+            } else {
+                this.getRowObj(row, 'soline_firm__c').focus();
+            }
+            setAutoRowValue(this, row, "soline_project__c", projects, '');
+        } else if (name == 'soline_project__c') {
+            if (wbsActive) {
+                setupAutocompletes(this, row, 'soline_wbs__c', createSelectableWithMap(wbss, getProjectWBSMap(value)));
+            } else {
+                this.getRowObj(row, 'soline_firm__c').focus();
+            }
+        }  else if (name == 'soline_wbs__c') {
+            this.getRowObj(row, 'soline_firm__c').focus();
+        }
+        
+    }
+    
+    qesolines.addIcitemLink = function(row, doShow) {
+        var ac = this.getAutocompleteTextField(row, "soline_prod__c");
+        ac.parent().find('.infoIcitem').remove();
+        if (doShow) {
+          ac.after("<span class='infoIcitem'>&nbsp;<a title='Click to modify the product's Inventory Item' href='#' onclick='showInventoryItemPopup("+this.getRowNum(row)+");'>"+
+                      "<img height='8' width='8' src='/img/msg_icons/info16.png'/></a></span");
+        }
+    }
+
+function getIcItemId(row, soprod) {
+    var solineIcitemId = qesolines.getRowValue(row, 'soline_icitem__c');
+
+    if (isEmpty(solineIcitemId)) {
+        solineIcitemId = soprod.icitem;
+    }
+    
+    if (isEmpty(solineIcitemId)) {
+      solineIcitemId = null;
+    }
+    
+    return solineIcitemId;
+}
+    
+var invPopupRowNum;
+function showInventoryItemPopup(rowNum) {
+    var row = qesolines.getRow(rowNum);
+    var soprodId = qesolines.getRowValue(row, 'soline_prod__c');
+    var attrs = getProductAttributes(soprodId);
+    
+    var icitemsSel = jQuery("#popup_soline_icitem__c");
+    icitemsSel.find("option").remove();
+    for (var i=0; i<attrs.icitems.length; i++) {
+        icitemsSel.append(
+            jQuery("<option></option>")
+              .attr("value",attrs.icitems[i].Id)
+              .text(attrs.icitems[i].Name)); 
+    }
+    
+    var icitemId = getIcItemId(row, getSOProd(soprodId));
+    if (icitemId) {
+        icitemsSel.val(icitemId);
+    }
+    invPopupRowNum = rowNum;
+    _showDialog('inventoryItemPopup',500);
+}
+
+function saveInventoryItem() {
+    var row = qesolines.getRow(invPopupRowNum);
+    var soprodId = qesolines.getRowValue(row, 'soline_prod__c');
+    var attrs = getProductAttributes(soprodId);
+    
+    var icitemsSel = jQuery("#popup_soline_icitem__c");
+    var icitemId = icitemsSel.val();
+    if (icitemId) {
+      qesolines.setRowValue(row, 'soline_icitem__c', icitemId);
+    }
+    _closeDialog();
+}    
+    
+    qesolines.usePageMessages=function() { return true; }
+    
+    qesolines.fnAddRow = function(numof) { 
+      alert("{!$Label.Cannot_add_any_more_rows_please_save_the_existing_lines_first}");
+      closeTopDialog(); 
+    }
+    
+    //-----------------------
+    
+    function setupAutocompletes(theGrid, row, attrName, values) {
+      var autoObj = theGrid.getRowObj(row, attrName)[0];
+      setupAutocompleteFieldData(
+            theGrid.getAutocompleteTextField(row, attrName)[0], 
+            autoObj, 
+            values);
+      autoCompleteRefs[autoObj.id].getOptions()['autoscroll'] = true;
+    }
+    
+    function getFilterMap(filterIds) {
+      if (filterIds == null) {
+        return null;
+      }
+      filterMap = {};
+      for (var i=0;i<filterIds.length;i++) {
+        filterMap[filterIds[i]] = true;
+      }
+      return filterMap;
+    }
+    
+    function createSelectable(localVar, filterIds) {
+      return createSelectableWithMap(localVar, getFilterMap(filterIds));
+    }
+    
+    function createSelectableWithMap(localVar, filterMap) {
+      selectArray = [];
+      for (var i=0;i<localVar.length;i++) {
+        var v = localVar[i];
+        if (filterMap == null || filterMap[v.value.ID]) {
+            selectArray.push([ v.label, v.value.ID ]);
+        }
+      }
+      return selectArray;
+    }
+
+    function filterByProdType(allProducts) {
+      var filteredProducts = [];
+      for (var i=0; i<allProducts.length; i++) {
+        var p = allProducts[i];
+        if (allowedForCustomer(p.value.prodtype)) {
+          filteredProducts.push(p);
+        }
+      }
+      return filteredProducts;
+    }
+    
+    allowedForcustMap = {}
+    function allowedForCustomer(prodType) {
+        if (allowedForcustMap[prodType] != null) {
+          return allowedForcustMap[prodType];
+        }
+        var allowProd = {!o.sohdr_custno__r.rstk__socust_prodind__c};
+        var allowServ = {!o.sohdr_custno__r.rstk__socust_serviceind__c};
+        var allowEnt = pageOptions.showEntitlements;
+        
+        var doAllow = true;
+        if (!allowProd && (prodType == 'Configured' || prodType == 'Stock' || prodType == 'Kit')) {
+          doAllow = false;
+        }
+        if (!allowServ && prodType == 'Service') {
+          doAllow = false;
+        }
+        if (!allowEnt && prodType == 'Entitlement') {
+          doAllow = false;
+        }
+        allowedForcustMap[prodType] = doAllow;
+        return doAllow;
+    }
+    
+    function newProductAttributes() {
+      return {
+         defaultQty:null,
+         defaultShipLocId:null,
+         defaultShipLocNum:null,
+         defaultShipSite:null,
+         defaultTaxCode:null,
+         productDescription:null,
+         productCode:null,
+         isSerial:false,
+         defaultProject:null,
+         projectsSelectable:null,
+         defaultDivision:null,
+         divsSelectable:null,
+         defaultFirm:false,
+         isRollupPrice:false,
+         isConfiguredProduct:false,
+         defaultDueDate:null
+        }
+    }
+    
+    function getProductAttributes(soprodId) {
+        var attrs = newProductAttributes();
+        
+        if (soprodId != null) {
+            var sopc = getSOPC(soprodId);
+            var soprod = getSOProd(soprodId);
+            var sopdivs = getSOPDivs(soprodId);
+            
+            attrs.defaultQty = getDefaultQuantity(sopc, soprod);
+            attrs.divsSelectable = getDivisions(sopdivs, soprod);
+            attrs.defaultDivision = getShipDivision(soprod);
+            attrs.projectsSelectable = getDivisionProjectIds(attrs.defaultDivision);
+            attrs.defaultProject = getDefaultProjectId();
+            attrs.defaultFirm = getDefaultFirm(soprod);
+            attrs.isRollupPrice = getRollupPriceInd(soprod);
+            attrs.isConfiguredProduct = (soprod.prodtype=='Configured');
+            attrs.defaultDueDate = getDefaultDueDate(soprod);
+            attrs.multicitem = soprod.multicitem;
+            attrs.icitems = getIcitems(soprod);
+        }
+            
+        return attrs;
+    }
+    
+    function getIcitems(soprod) {
+        icitems = [];
+        if (soprod.multicitem) {
+            var vals = getInventoryItems(soprod.ID);
+            for (var i=0;i<vals.length; i++) {
+              var val = vals[i].value;
+              icitems.push({
+                'Id':val.icitem,
+                'Name': val.icitemName });
+            }
+        }
+        return icitems;
+    }
+    
+    function getDefaultQuantity(sopc, soprod) {
+        var defaultQty = null;
+        if (sopc != null) {
+          defaultQty = sopc.value.dfltqtyord;
+        } else if (soprod != null) {
+          defaultQty = (soprod.dfltqtyordind)?(soprod.comm_dfltqtyord):soprod.dfltqtyord;
+        }
+        return defaultQty;
+    }
+    
+    function getDivisions(sopdivs, soprod) {
+      var divIds = [ ];
+      if (sopdivs.length == 0) {
+        divIds.push(getShipDivision(soprod));
+      } else {
+        for (var i=0;i<sopdivs.length;i++) {
+          divIds.push(sopdivs[i].value.shipdiv);
+        }
+      }
+      return divIds;
+    }
+    
+    function getShipDivision(soprod) {
+      return (soprod.shipdivind)?(soprod.comm_shipdiv):soprod.shipdiv;
+    }
+    
+    function getDefaultFirm(soprod) {
+      return (soprod.firmind)?(soprod.socomm_firm):soprod.firm;
+    }
+
+    function getRollupPriceInd(soprod) {
+      return (soprod.rolluppriceind)?(soprod.socomm_rollupprice):soprod.rollupprice;
+    }   
+    
+    function getHomeProject(div) {
+        for (var i=0; i<projects.length; i++) {
+            var proj = projects[i].value;
+            if (proj.proj == null && proj.div == div && !isEmpty(proj.ID)) {
+              return proj.ID;
+            }
+        }
+        return null;
+    }
+    
+    projMapByDiv = {}
+    function getDivisionProjectMap(divId) {
+        var projMap = projMapByDiv[divId];
+        if (projMap == null) {
+            projMap = getFilterMap(getDivisionProjectIds(divId));
+            projMapByDiv[divId] = projMap;
+        }
+        return projMap;
+    }
+    
+    wbssByProjMap = {}
+    function getProjectWBSMap(pjprojId) {
+        wbsMap = wbssByProjMap[pjprojId];
+        if (wbsMap == null) {
+            wbsMap = getFilterMap(getProjectWBSIds(pjprojId));
+            wbssByProjMap[pjprojId] = wbsMap;
+        }
+        return wbsMap;
+    }
+
+    projIdsByDiv = {}
+    function getDivisionProjectIds(divId) {
+    
+        var projIds = projIdsByDiv[divId];
+        if (projIds == null) {
+            projIds = [];
+            for (var i=0; i<projects.length; i++) {
+                var proj = projects[i].value;
+                if (proj.div == divId || isEmpty(proj.ID)) {
+                  projIds.push(proj.ID);
+                }
+            }
+            projIdsByDiv[divId] = projIds;
+        }
+        return projIds;
+    }
+
+    wbsIdsByProj = {}
+    function getProjectWBSIds(projId) {
+    
+        var wbsIds = wbsIdsByProj[projId];
+        if (wbsIds == null) {
+            wbsIds = [];
+            for (var i=0; i<wbss.length; i++) {
+                var wbs = wbss[i].value;
+                if (wbs.proj == projId) {
+                  wbsIds.push(wbs.ID);
+                }
+            }
+            wbsIdsByProj[projId] = wbsIds;
+        }
+        return wbsIds;
+    }
+
+
+/*------------------ not needed -----------
+    function getIcitem(soprod) {
+      var icitemEntry = icitems.entryById(soprod.icitem);
+      if (icitemEntry != null) {
+        return icitemEntry.value;
+      }
+      return null;
+    }
+
+    function overrideForHomeProject(soprod, icitem, div, dfltProject) {
+      var proj = dfltProject;
+      if(!includeAutoProject() && (soprod.prodtype=='Configured' || soprod.prodtype=='Stock')) {
+        if (getIsHomeProject(icitem)) {
+          proj = getHomeProject(div);
+        }
+      }
+      return proj;
+    }
+    
+    function getIsHomeProject(icitem) {
+      var homeProj = (icitem.homeprojindind)?(icitem.iccomcod_dflthomeprojind):icitem.homeprojind;
+      return (homeProj == 'Project Home');
+    }
+------------------*/
+
+    function getSOPC(soprodId) {
+      return getFirstByAttrValue(sopcs, 'soprod', soprodId);
+    }
+
+    function getSOProd(soprodId) {
+      var prodEntry = products.entryById(soprodId);
+      if (prodEntry != null) {
+        return prodEntry.value;
+      }
+      return null;
+    }
+
+    function getSOPDivs(soprodId) {
+      return getByAttrValue(productdivs, 'soprod', soprodId);
+    }
+    
+    function getInventoryItems(soprodId) {
+      return getByAttrValue(inventoryItems, 'soprod', soprodId);
+    }
+    
+    function getDefaultDueDate(soprod) {
+      var reqdate = new Date();
+      var schdate = daysFromDate(reqdate, getProdLeadTime(soprod));
+      var dueDate = daysFromDate(schdate, getCustomerLeadTime());
+      return dueDate;
+    }
+    
+    function daysFromDate(date, days) {
+        var result = null;
+        var divId = getDefaultDivisionId();
+        if (days >= 0) {
+            result = shopCalAddDays(ensureDate(date), days, divId);
+        } else {
+            result = shopCalSubDays(ensureDate(date), -days, divId);
+        }
+        return result;
+    }
+    
+    function getCustomerLeadTime() {
+       return {!customerLeadTime};
+    }
+
+    function getProdLeadTime(soprod) {
+       if (soprod != null) {
+          return parseLocaleFloat((soprod.leadtimeissind)?(soprod.socomm_leadtimeiss):soprod.leadtimeiss) + 
+                 parseLocaleFloat((soprod.leadtimepackind)?(soprod.socomm_leadtimepack):soprod.leadtimepack) + 
+                 parseLocaleFloat((soprod.leadtimeprodind)?(soprod.socomm_leadtimeprod):soprod.leadtimeprod);
+       }
+       return 0;
+    }
+
+    function getFirstByAttrValue(localVar, attrName, attrValue) {
+      var vals = getByAttrValue(localVar, attrName, attrValue);
+      if (vals.length > 0) {
+        return vals[0];
+      }
+      return null;
+    }
+        
+    function getByAttrValue(localVar, attrName, attrValue) {
+      var vals = [];
+      for (var i=0;i<localVar.length;i++) {
+        if (localVar[i].value[attrName] == attrValue) {
+          vals.push(localVar[i]);
+        }
+      }
+      return vals;
+    }
+    
+    function zeroOrBlank(v) {
+      return (v == null || v == '' || v == 0);
+    }
+    
+    
+    function getCustomerId() { return "{!o.rstk__sohdr_custno__c}"; }
+    function getDefaultProjectId() { 
+      if (includeAutoProject()) {
+        return '';
+      }
+      return "{!o.sohdr_proj__c}"; 
+    }
+
+    function includeAutoProject() {
+        return (projOptions.autoLine || (projOptions.auto && projOptions.initLine));
+    }
+      
+    function getDefaultDivisionId() { return "{!o.rstk__sohdr_div__c}"; }
+</script>
+
+<script>
+  function rowData(soprodId, custProd, custProdDesc, stdProd, stdProdDesc) {
+    return {
+        soprodId: soprodId,
+        custProd: custProd,
+        custProdDesc: custProdDesc, 
+        stdProd: stdProd,
+        stdProdDesc: stdProdDesc
+    };
+  }
+
+  function addCheckboxCell(row, cellName) {
+    var c = row.insertCell(-1);
+    c.innerHTML ='<input type="checkbox" name="'+cellName+'"/>';
+  }
+
+  function addTextCell(row, cellName, value, ishidden) {
+    var c = row.insertCell(-1);
+    if (ishidden) {
+      c.style.display='none';
+    }
+    c.innerHTML='<span name="'+cellName+'"/>';
+    jQuery(c).find('span').text(value);
+  }
+
+  function addLinkCell(row, cellName, value, onclickStr, ishidden) {
+    var c = row.insertCell(-1);
+    if (ishidden) {
+      c.style.display='none';
+    }
+    c.innerHTML='<a href="#" onclick="'+onclickStr+';return false;" name="'+cellName+'"/>';
+    jQuery(c).find('a').text(value);
+  }
+  
+  function clearTable() {
+    var tbody=jQuery("#searchprodBody");
+    tbody.find('tr').remove();
+  }
+
+  function addRow(rowData) {
+    var t = document.getElementById('searchprodBody');
+    var r = t.insertRow(-1);
+    addLinkCell(r, 'custProd', rowData.custProd, "setSoProd('"+rowData.soprodId+"')");
+    addLinkCell(r, 'custProdDesc', rowData.custProdDesc, "setSoProd('"+rowData.soprodId+"')");
+    addLinkCell(r, 'stdProd', rowData.stdProd, "setSoProd('"+rowData.soprodId+"')");
+    addLinkCell(r, 'stdProdDesc', rowData.stdProdDesc, "setSoProd('"+rowData.soprodId+"')");
+  }
+  
+  function setRows(rowDataList) {
+    clearTable();
+    for (var i=0;i<rowDataList.length;i++) {
+      addRow(rowDataList[i]);
+    }
+  }
+
+function globStringToRegex(str) {
+    return new RegExp('^'+preg_quote(str).replace(/\*/g, '.*').replace(/\?/g, '.'), 'i');
+}
+function preg_quote (str, delimiter) {
+    // http://kevin.vanzonneveld.net
+    // +   original by: booeyOH
+    // +   improved by: Ates Goral (http://magnetiq.com)
+    // +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+    // +   bugfixed by: Onno Marsman
+    // +   improved by: Brett Zamir (http://brett-zamir.me)
+    // *     example 1: preg_quote("$40");
+    // *     returns 1: '\$40'
+    // *     example 2: preg_quote("*RRRING* Hello?");
+    // *     returns 2: '\*RRRING\* Hello\?'
+    // *     example 3: preg_quote("\\.+*?[^]$(){}=!<>|:");
+    // *     returns 3: '\\\.\+\*\?\[\^\]\$\(\)\{\}\=\!\<\>\|\:'
+    return (str + '').replace(new RegExp('[.\\\\+*?\\[\\^\\]$(){}=!<>|:\\' + (delimiter || '') + '-]', 'g'), '\\$&');
+}
+
+  function doSearchProducts() {
+    var searchStr = jQuery('#ProductSearchCriteria').val().trim();
+    var mode = jQuery('input[name=selectType]:checked').val();
+    var productType = jQuery('input[name=prodType]:checked').val();
+    var spaceSepStrOptions = jQuery("select[name=spaceSelectOption]").val();
+    var limitToCustomerProduct = jQuery("input[name=limitToCustomerProduct]").attr("checked");
+    var isOrMode = (spaceSepStrOptions == 'OR');
+    res = [];
+    var values = getSearchValues(searchStr, spaceSepStrOptions);
+    
+    if (limitToCustomerProduct) {
+        for (var i=0; i<sopcs.length; i++) {
+            var sopc = sopcs[i].value;
+            var doesMatch = !isOrMode;
+            for (var v=0; v<values.length; v++) {
+                var regExSearch = values[v];
+                var matches = sopcMatches(sopc, regExSearch, mode, productType);
+                if (isOrMode) {
+                  if (matches) {
+                    doesMatch = true;
+                    break;
+                  }
+                } else if (!matches) {
+                  doesMatch = false;
+                  break;
+                }
+            }
+            if (doesMatch) {
+              res.push(rowData(sopc.soprod, sopc.prodname, sopc.proddesc, sopc.std_prodname, sopc.std_proddesc));
+            }
+        }
+    } else {
+        for (var i=0; i<products.length; i++) {
+            var soprod = products[i].value;
+            var doesMatch = !isOrMode;
+            for (var v=0; v<values.length; v++) {
+                var regExSearch = values[v];
+                var matches = soprodMatches(soprod, regExSearch, mode, productType);
+                if (isOrMode) {
+                  if (matches) {
+                    doesMatch = true;
+                    break;
+                  }
+                } else if (!matches) {
+                  doesMatch = false;
+                  break;
+                }
+            }
+            if (doesMatch) {
+              res.push(rowData(soprod.ID, '', '', soprod.prodname, soprod.proddesc));
+            }
+        }
+    }
+    
+    jQuery("[id$=searchprod_messagePanel]").hide();
+    setRows(res);
+    if (res.length == 0) {
+        jQuery("[id$=searchprod_messagePanel]").show();
+    }
+  }
+
+  function getSearchValues(searchStr, spaceSepStrOptions) { 
+    var values = [];
+    if (!searchStr || spaceSepStrOptions == 'EXACT') {
+        values.push(getRegEx(searchStr));
+    } else {
+        var valStrs = searchStr.split(' ');
+        for (var i=0; i<valStrs.length; i++) {
+          if (valStrs[i]) {
+            values.push(getRegEx(valStrs[i]));
+          }
+        }
+    }
+    return values;
+  }
+
+  function getRegEx(searchStr) {
+    var regExSearch;
+    if (searchStr == '') {
+      regExSearch = /.*/i;
+    } else {
+        if (searchStr.indexOf('*') != 0) {
+          searchStr = '*' + searchStr;
+        }
+        if (!searchStr.endsWith('*')) {
+          searchStr += '*';
+        }
+        regExSearch = globStringToRegex(searchStr);
+    }
+    return regExSearch;
+  }
+  
+  function sopcMatches(sopc, regEx, mode, prodType) {
+    var matches = allowedForCustomer(sopc.prodtype) && (prodType == 'All' || prodType == sopc.prodtype);
+    if (matches) {
+      matches = false;
+      matches = matches || ((mode=='All' || mode=='ProductNumber')        && (regEx.exec(sopc.prodname) != null));
+      matches = matches || ((mode=='All' || mode=='ProductDescription')   && (regEx.exec(sopc.proddesc) != null));
+      matches = matches || ((mode=='All' || mode=='RSProductNumber')      && (regEx.exec(sopc.std_prodname) != null));
+      matches = matches || ((mode=='All' || mode=='RSProductDescription') && (regEx.exec(sopc.std_proddesc) != null));
+    }
+    return matches;
+  }
+
+  function soprodMatches(soprod, regEx, mode, prodType) {
+    var matches = allowedForCustomer(soprod.prodtype) && (prodType == 'All' || prodType == soprod.prodtype);
+    if (matches) {
+      matches = false;
+      matches = matches || ((mode=='All' || mode=='RSProductNumber')      && (regEx.exec(soprod.prodname) != null));
+      matches = matches || ((mode=='All' || mode=='RSProductDescription') && (regEx.exec(soprod.proddesc) != null));
+    }
+    return matches;
+  }
+
+  function enableDisable(elems, isEnabled) {
+    if (isEnabled) {
+        jQuery(elems).removeAttr("disabled");
+    } else {
+        jQuery(elems).attr("disabled", "disabled")
+    }
+  }
+
+  function limitToCustomerProductChanged() {
+      var isChecked = jQuery("input[name=limitToCustomerProduct]").attr("checked");
+      var prodEl = jQuery("input[value=ProductNumber]");
+      var descEl = jQuery("input[value=ProductDescription]");
+      if (!isChecked && prodEl.attr("checked") || descEl.attr("checked")) {
+          var allEl = jQuery("input[value=All]");
+          allEl.attr("checked", true);
+      }
+      enableDisable(prodEl, isChecked);
+      enableDisable(descEl, isChecked);
+  }
+</script>
+</apex:outputPanel>
+    <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
+    </apex:pageBlock>
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+    
+    <c:Popup popupId="chooseProductPopup" title="{!$Label.rstk__pagepopup_salesorder_customerproductlookup}">
+    <apex:pageBlockSection columns="3">
+      <apex:pageBlockSectionItem helpText="{!$Label.rstk__enter_search_values_here}">
+          <apex:outputPanel >
+            <input id="ProductSearchCriteria" style="width:300px;" value=""/>
+            <input type="button" class="btn" id="chooseProductSearchButton" value="{!$Label.salesorder_pagebtn_Search}" onclick="doSearchProducts(); return false;"/><br/><br/>
+            <table>
+              <tr>
+                <td align="right">{!$Label.SpaceSeparatedStringOptions}</td>
+                <td align="left">
+                    <select name="spaceSelectOption">:
+                        <option value="AND">{!$Label.ProductSpaceSearchAll}</option>
+                        <option value="OR">{!$Label.ProductSpaceSearchOR}</option>
+                        <option value="EXACT">{!$Label.ProductSpaceSearchExact}</option>
+                    </select><br/><br/>
+                </td>
+              </tr>
+              <tr>
+                <td align="right">{!$Label.LimitSearchToCustomerProducts}</td>
+                <td align="left"><input type="checkbox" name="limitToCustomerProduct" onchange="limitToCustomerProductChanged()"/></td>
+              </tr>
+            </table>
+          </apex:outputPanel>
+      </apex:pageBlockSectionItem>
+
+      <apex:pageBlockSectionItem helpText="{!$Label.rstk__entry_criteria}">
+          <apex:outputPanel >
+             <input type="radio" name="selectType" value="ProductNumber"/>
+             <apex:outputLabel value="{!$Label.rstk__customerproductnumber}"/><br/>
+             <input type="radio" name="selectType" value="ProductDescription"/>
+             <apex:outputLabel value="{!$Label.rstk__customerproductdescription}"/><br/>
+             <input type="radio" name="selectType" value="RSProductNumber"/>
+             <apex:outputLabel value="{!$Label.rstk__rootstockproductnumber}"/><br/>
+             <input type="radio" name="selectType" value="RSProductDescription"/>
+             <apex:outputLabel value="{!$Label.rstk__rootstockproductdescription}"/><br/>
+             <input type="radio" name="selectType" value="All" checked="true"/>
+             <apex:outputLabel value="{!$Label.rstk__all}"/>
+          <script>
+            if ({!socntl.rstk__socntl_dlftcustprodsrch__c}) {
+              jQuery("input[name=limitToCustomerProduct]").attr("checked", "checked");
+            } else {
+              jQuery("input[value=ProductNumber]").attr("disabled", "disabled");
+              jQuery("input[value=ProductDescription]").attr("disabled", "disabled");
+            }
+          </script>
+          </apex:outputPanel>
+      </apex:pageBlockSectionItem>
+
+      <apex:pageBlockSectionItem helpText="{!$Label.rstk__product_type_entry_criteria}">
+          <apex:outputPanel >
+             <apex:outputpanel rendered="{!o.sohdr_custno__r.rstk__socust_prodind__c}">
+               <input type="radio" name="prodType" value="Configured"/>
+               <apex:outputLabel value="{!$Label.rstk__producttypeconfigured}"/><br/>
+             </apex:outputpanel>
+             <apex:outputpanel rendered="{!o.sohdr_custno__r.rstk__socust_serviceind__c}">
+               <input type="radio" name="prodType" value="Service"/>
+               <apex:outputLabel value="{!$Label.rstk__producttypeservice}"/><br/>
+             </apex:outputpanel>
+             <apex:outputpanel rendered="{!o.sohdr_custno__r.rstk__socust_prodind__c}">
+               <input type="radio" name="prodType" value="Stock"/>
+               <apex:outputLabel value="{!$Label.rstk__producttypestock}"/><br/>
+               <input type="radio" name="prodType" value="Kit"/>
+               <apex:outputLabel value="{!$Label.rstk__producttypekit}"/><br/>
+             </apex:outputpanel>
+             <input type="radio" name="prodType" value="Miscellaneous"/>
+             <apex:outputLabel value="{!$Label.rstk__producttypemiscellaneous}"/><br/>
+             <apex:outputpanel rendered="{!pageOptions.showEntitlements}">
+               <input type="radio" name="prodType" value="Entitlement"/>
+               <apex:outputLabel value="{!$Label.rstk__producttypeentitlement}"/><br/>
+             </apex:outputpanel>
+             <input type="radio" name="prodType" value="All" checked="true"/>
+             <apex:outputLabel value="{!$Label.rstk__all}"/>
+          </apex:outputPanel>
+      </apex:pageBlockSectionItem>
+
+     </apex:pageBlockSection>
+     
+     <apex:pageBlockSection id="searchprod_message" columns="1">
+       <apex:outputpanel id="searchprod_messagePanel" style="display:none;">
+            <apex:image value="/img/msg_icons/warning16.png"/>&nbsp;{!$Label.NoResultsForSearchCriteria}
+       </apex:outputpanel>
+     </apex:pageBlockSection>
+     
+     <apex:pageBlockSection columns="1">
+        <table id="searchprodTable" class="list">
+        <thead>
+         <tr class="headerRow">
+          <th class="headerRow"><div>{!$Label.rstk__customerproductnumber}</div></th>
+          <th class="headerRow"><div>{!$Label.rstk__customerproductdescription}</div></th>
+          <th class="headerRow"><div>{!$Label.StandardProductNumber}</div></th>
+          <th class="headerRow"><div>{!$Label.StandardProductDescription}</div></th>
+         </tr>
+        </thead>
+        <tbody Id='searchprodBody'>
+        </tbody>
+        </table>
+        </apex:pageBlockSection>
+     <apex:pageBlockSection id="searchprod_permmessage" columns="1">
+       {!$Label.rstk__dependingoncriteriaproductsearchingmaytakeseveralminutes}
+     </apex:pageBlockSection>
+    </c:Popup>
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+        var LABEL_A_maximum_of_lines_is_supported_on_Sales_Orders = "{!$Label.rstk__a_maximum_of_lines_is_supported_on_sales_orders}";
+    </script>
+  
+</apex:page>

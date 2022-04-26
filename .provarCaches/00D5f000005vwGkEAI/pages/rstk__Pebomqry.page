@@ -1,0 +1,130 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_pebomqry}" standardController="rstk__pebom__c" extensions="rstk.ControllerExtnPebomqry,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}"
+    readonly="true">
+    <apex:variable var="o" value="{!rstk__pebom__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__pebom__c.fields}" /> 
+    <apex:variable var="f_div" value="{!$ObjectType.rstk__sydiv__c.fields}" />
+    <apex:variable var="f_peitem" value="{!$ObjectType.rstk__peitem__c.fields}" />
+    <apex:variable var="f_peitemrev" value="{!$ObjectType.rstk__peitemrev__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_pebomqry}" customInclude="{!$Resource.rstk__pebomqry_cli}" enableAutocomplete="true"/>
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.rstk__busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+	</style>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/> 
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="reloadBOMList" action="{!doReloadBOMList}" oncomplete="unblockUI();setReturnLinks();hideAutoCompletePopups();" rerender="op_BOMList, pageMessages"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_pebomqry_searchboms}" onclick="blockUI();reloadBOMList(); return false;" style="width:100px;" />
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <c:selectList id="pebom_addrev__c" cntr="{!controller}" options="{!ItemRevisions}" rendered="{!!ShowAddRev}"/>
+        </apex:outputPanel>
+        
+        <c:division id="pebom_div__c" cntr="{!controller}" disabled="false"/>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__pebom_item__c.label}"/>
+                <c:autocomplete id="pebom_item__c" cntr="{!controller}" query="select id, name from peitem__c where peitem_div__c = 'prm'" queryParms="[['pebom_div__c','Division']]" tabIndex="2" slDesc="{!initItemText}"/>
+            </apex:pageBlockSectionItem>            
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_adddate__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__effectivedate}"/>
+                <c:inputField id="pebom_adddate__c" cntr="{!controller}" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_compitem__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__pebom_compitem__c.label}"/>
+                <c:autocomplete id="pebom_compitem__c" cntr="{!controller}" query="select id, formula_longname__c from peitem__c where peitem_div__c = 'prm'" queryParms="[['pebom_div__c','Division']]" tabIndex="3" slDesc="{!initCompItemText}" descColumn="formula_longname__c"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_addrev__c.inlineHelpText}" rendered="{!ShowAddRev}">
+                <apex:outputLabel value="{!f.rstk__pebom_addrev__c.label}" />
+                <c:selectList id="pebom_addrev__c" cntr="{!controller}" options="{!ItemRevisions}" tabIndex="5"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_addsts_pl__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__status}"/>
+                <c:inputField id="pebom_addsts_pl__c" cntr="{!controller}" tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__includeallrevisionsbelowthisrevision}"/>
+                <apex:inputCheckbox id="includeall__c" value="{!includeAllRevisions}"/>
+            </apex:pageBlockSectionItem>
+
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:form>
+
+	<apex:form id="fm2">
+	<apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+    <apex:pageBlock >
+        <apex:outputPanel id="op_BOMList">
+            <apex:outputPanel layout="inline" styleClass="pSearchShowMore" rendered="{!displayBomlist}">
+                {!$Label.rstk__total_records_found}: <apex:outputText >{!pebomController.resultSize}</apex:outputText>
+                <apex:image url="/img/search_prevarrow_disabled.gif" styleClass="prevArrow" rendered="{!NOT(pebomController.HasPrevious)}"/>
+                <apex:image url="/img/search_prevarrow.gif" title="{!$Label.rstk__previouspage}" styleClass="prevArrow" rendered="{!pebomController.HasPrevious}"/>
+                <apex:commandLink immediate="true" action="{!previousPeboms}" title="{!$Label.rstk__previouspage}" value="{!$Label.rstk__previouspage}" rendered="{!pebomController.HasPrevious}" rerender="op_BOMList" status="statusProcessing"/>
+                <apex:outputPanel styleClass="pShowLess noLink" style="color:grey" rendered="{!NOT(pebomController.HasPrevious)}">{!$Label.rstk__previous_page}</apex:outputPanel>
+                &nbsp;({!IF(pebomController.PageNumber == 1, 1, ((pebomController.PageNumber - 1) * pebomController.PageSize)+1)}&nbsp;-
+                    {!IF(OR(pebomController.resultSize < pebomController.PageSize, NOT(pebomController.HasNext)), pebomController.resultSize, pebomController.PageNumber * pebomController.pageSize)})&nbsp;
+                <apex:outputPanel styleClass="pShowLess noLink" style="color:grey" rendered="{!NOT(pebomController.HasNext)}">{!$Label.rstk__next_page}</apex:outputPanel>
+                <apex:commandLink title="{!$Label.rstk__nextpage}" value="{!$Label.rstk__nextpage}" rendered="{!pebomController.HasNext}" immediate="true" action="{!nextPeboms}" rerender="op_BOMList" status="statusProcessing"/>&nbsp;
+                <apex:image url="/img/search_nextarrow.gif" title="{!$Label.rstk__nextpage}" styleClass="nextArrow" rendered="{!pebomController.HasNext}"/>
+                <apex:image url="/img/search_nextarrow_disabled.gif" rendered="{!NOT(pebomController.HasNext)}"/>
+            	<BR/>
+            </apex:outputPanel>
+            <apex:pageBlockTable value="{!peboms}" var="rec" rendered="{!displayBomlist}">
+                    <apex:column headerValue="{!$Label.rstk__editandview}"><apex:outputLink value="{!URLFOR($Action.rstk__pebom__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink>&nbsp;|&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__pebom__c.View, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__actiontitle_view}</apex:outputLink></apex:column>
+                    <apex:column headerValue="{!f.rstk__pebom_div__c.label}" value="{!rec.pebom_div__r.rstk__sydiv_div__c}"/>
+                    <apex:column headerValue="{!f.rstk__pebom_item__c.label}" value="{!rec.rstk__pebom_item__c}"/>
+                    <apex:column headerValue="{!f.rstk__pebom_compitem__c.label}" value="{!rec.rstk__pebom_compitem__c}"/>
+                    <!-- apex:column headerValue="Comp Item Descr" value="{!rec.pebom_compitem__r.peitem_descr__c}"/ -->
+                    <apex:column headerValue="{!f_peitem.rstk__peitem_src_pl__c.label}" value="{!rec.pebom_compitem__r.rstk__peitem_src_pl__c}"/>
+                    <apex:column headerValue="{!f_peitem.rstk__peitem_type_pl__c.label}" value="{!rec.pebom_compitem__r.rstk__peitem_type_pl__c}"/>
+                    <apex:column headerValue="{!f.rstk__pebom_addrev__c.label}" value="{!rec.pebom_addrev__r.rstk__peitemrev_rev__c}"/>
+                    <apex:column headerValue="{!f.rstk__pebom_adddate__c.label}" value="{!rec.rstk__pebom_adddate__c}"/>
+                    <apex:column headerValue="{!f_peitem.rstk__peitem_enguom__c.label}" value="{!rec.pebom_compitem__r.rstk__peitem_enguom__c}"/>
+                    <apex:column headerValue="{!f.rstk__pebom_qtyper__c.label}" headerClass="rl-rightalign" styleClass="rl-rightalign">
+                        <c:outputFormattedNumber value="{!rec.rstk__pebom_qtyper__c}" decimals="6"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__pebom_addsts_pl__c.label}" value="{!rec.rstk__pebom_addsts_pl__c}"/>
+                    <apex:column headerValue="{!f.rstk__pebom_delrev__c.label}" value="{!rec.rstk__pebom_delrev__c}"/>
+                    <apex:column headerValue="{!f.rstk__pebom_deldate__c.label}" value="{!rec.rstk__pebom_deldate__c}"/>
+                    <apex:column headerValue="{!f.rstk__pebom_delsts_pl__c.label}" value="{!rec.rstk__pebom_delsts_pl__c}"/>
+            </apex:pageBlockTable>
+        </apex:outputPanel>
+    </apex:pageBlock>
+    </apex:form>
+      
+    <script>
+    	var LABEL_SelectOptionAll = "{!$Label.SelectOptionAll}"; 
+        {!controller.initPage}
+    </script>
+
+
+
+
+</apex:page>

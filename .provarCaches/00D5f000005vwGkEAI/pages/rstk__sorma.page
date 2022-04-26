@@ -1,0 +1,463 @@
+<apex:page id="pg" standardController="rstk__sorma__c" extensions="rstk.ControllerExtnSorma,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sorma__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sorma__c.fields}" /> 
+    <apex:variable var="f1" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <apex:variable var="f_sormh" value="{!$ObjectType.rstk__sormh__c.fields}" />
+    <apex:variable var="f_sormaaddr" value="{!$ObjectType.rstk__sormaaddr__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sorma}" customInclude="{!$Resource.rstk__sorma_cli}" enableAutocomplete="true"/>
+    <script>
+        var oldqtyauth = {!qtyauth};
+        var replaceSoline = '{!sormaextn.rstk__sormaextn_replacesoline__c}';
+        var syconfig_wbs = {!syconfig.rstk__syconfig_wbs__c};
+    </script>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doSORMAShipToAddress" action="{!doSORMAShipToAddress}" oncomplete="unblockUI(); ovrshiptoChanged(); return false;" rerender="pbs_ShipAddr"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+                <apex:inputHidden id="sorma_div__c" value="{!sormh.rstk__sormh_div__c}"/>
+                <apex:inputHidden id="sormh_released__c" value="{!sormh.rstk__sormh_released__c}"/>
+                <apex:inputHidden id="sorma_rmano__c" value="{!sormh.rstk__sormh_rmano__c}" rendered="{!AND(creatermafromcase,!ISBLANK(sormh.rstk__sormh_rmano__c))}"/>
+                <apex:inputHidden id="sorma_custno__c" value="{!sormh.rstk__sormh_custno__c}"/>
+                <apex:inputHidden id="sorma_soprod__c" value="{!o.rstk__sorma_soprod__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="sorma_qtyrec__c" value="{!o.rstk__sorma_qtyrec__c}"/>
+                <apex:inputHidden id="sorma_qtyinsp__c" value="{!o.rstk__sorma_qtyinsp__c}"/>
+                <apex:inputHidden id="sorma_qtyscrap__c" value="{!o.rstk__sorma_qtyscrap__c}"/>
+                <apex:inputHidden id="sorma_qtyship__c" value="{!o.rstk__sorma_qtyship__c}"/>
+                <apex:inputHidden id="sorma_case__c" value="{!o.rstk__sorma_case__c}" rendered="{!o.rstk__sorma_fromcase__c}"/>
+                <apex:inputField id="sorma_usegenerickit__c" value="{!o.rstk__sorma_usegenerickit__c}" rendered="{!isEdit}"/>
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:outputField value="{!o.rstk__sorma_sormh__c}" rendered="{!!creatermafromcase}"/>
+                <apex:outputField value="{!sormh.rstk__sormh_rmano__c}" rendered="{!AND(creatermafromcase,!ISBLANK(sormh.rstk__sormh_rmano__c))}"/>
+                <apex:inputField id="sorma_rmano__c" value="{!sormh.rstk__sormh_rmano__c}" required="true" rendered="{!AND(creatermafromcase,ISBLANK(sormh.rstk__sormh_rmano__c))}" taborderhint="1"/>
+                
+                <apex:inputField id="sorma_released__c" value="{!o.rstk__sorma_released__c}" taborderhint="16"/>
+                
+                <apex:outputField value="{!sormh.rstk__sormh_custno__c}" />
+                
+                <apex:inputField id="sorma_preshipok__c" value="{!o.rstk__sorma_preshipok__c}" taborderhint="17"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_soprod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_soprod__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__sorma_soprod__c}" rendered="{!isEdit}"/>
+                        <c:autocomplete id="sorma_soprod__c" cntr="{!controller}" slDesc="{!prodname}" 
+                            query="select Id, Name from soprod__c where soprod_prodtype__c not in ('Service','Miscellaneous') and soprod_div__c = '{!o.rstk__sorma_div__c}'" 
+                            minChars="{!prodMinCharForAutoComplete}"
+                            width="400px" tabIndex="11" required="true" rendered="{!!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="sorma_returnonly__c" value="{!o.rstk__sorma_returnonly__c}" taborderhint="18"/>
+                
+                <apex:inputField id="sorma_qtyauth__c" required="true" value="{!o.rstk__sorma_qtyauth__c}" taborderhint="12"/>
+                
+                <apex:inputField id="sorma_usegenerickit__c" value="{!o.rstk__sorma_usegenerickit__c}" taborderhint="19" rendered="{!isNew}"/>
+                <apex:outputField value="{!o.rstk__sorma_usegenerickit__c}" rendered="{!isEdit}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_reason__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_reason__c.label}"/>
+                    <apex:selectList id="sorma_reason__c" value="{!o.rstk__sorma_reason__c}" size="1" style="width:250px;" tabIndex="121">
+                        <apex:selectOptions value="{!soreasons}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <!-- <apex:inputField id="sorma_advpackage__c" value="{!o.sorma_advpackage__c}" taborderhint="23"/> -->
+                <!-- SAMB:UNCOMMENT related code in sormaView, sorma_cli and ControllerExtnSorma when adding back this field -->
+                <apex:inputField id="sorma_closed__c" value="{!o.rstk__sorma_closed__c}" taborderhint="20"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_soline__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_soline__c.label}"/>
+                    <c:autocomplete id="sorma_soline__c" cntr="{!controller}" slDesc="{!SolineName}" 
+                        query="{!SolineAutocompleteQuery}" 
+                        queryParms="[['sorma_soprod__c','Product']]"
+                        width="250px" tabIndex="122"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="sorma_creditauth__c" value="{!o.rstk__sorma_creditauth__c}" taborderhint="21"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_soshipline__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_soshipline__c.label}"/>
+                    <apex:selectList id="sorma_soshipline__c" value="{!o.rstk__sorma_soshipline__c}" size="1" style="width:250px;" tabIndex="123">
+                        <apex:selectOptions value="{!shipperlines}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <!-- <apex:outputField value="{!o.sorma_soinv__c}"/> -->
+                <apex:outputField value="{!o.rstk__sorma_qtyrec__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_invdiv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_invdiv__c.label}"/>
+                    <apex:selectList id="sorma_invdiv__c" required="true" value="{!o.rstk__sorma_invdiv__c}" size="1" style="width:250px;" tabIndex="124">
+                        <apex:selectOptions value="{!invdivs}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__sorma_qtyinsp__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_project__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_project__c.label}"/>
+                    <c:autocomplete id="sorma_project__c" required="true" slDesc="{!projectDesc}" cntr="{!controller}" 
+                        query="select id, name from pjproj__c where pjproj_div__c = '{!o.rstk__sorma_div__c}' and pjproj_sochrgallowind__c = true and pjproj_soshipallowind__c = true {!IF(isNew, 'and pjproj_completed__c = false', '')}"
+                        tabIndex="125"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__sorma_qtyscrap__c}"/>
+                
+                <apex:inputField id="sorma_action__c" required="true" value="{!o.rstk__sorma_action__c}" taborderhint="13"/>
+                
+                <!-- <apex:outputField value="{!o.rstk__sorma_qtyship__c}"/> -->
+                <apex:inputField id="sorma_shipcost__c" value="{!o.rstk__sorma_shipcost__c}" taborderhint="22"/>
+                
+                <apex:inputField id="sorma_condition__c" value="{!o.rstk__sorma_condition__c}" taborderhint="14"/>
+                
+                <!-- <apex:outputField value="{!o.sorma_soship__c}"/> -->
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_resp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_resp__c.label}"/>
+                    <apex:selectList id="sorma_resp__c" value="{!o.rstk__sorma_resp__c}" size="1" style="width:250px;" tabIndex="221">
+                        <apex:selectOptions value="{!syusrs}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="sorma_date__c" required="true" value="{!o.rstk__sorma_date__c}" taborderhint="15"/>
+                
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_syorg__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_syorg__c.label}"/>
+                    <apex:selectList id="sorma_syorg__c" value="{!o.rstk__sorma_syorg__c}" size="1" style="width:250px;" tabIndex="222">
+                        <apex:selectOptions value="{!syorgs}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_sormastat__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_sormastat__c.label}"/>
+                    <apex:selectList id="sorma_sormastat__c" value="{!o.rstk__sorma_sormastat__c}" size="1" style="width:250px;" tabIndex="151">
+                        <apex:selectOptions value="{!sormastats}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_case__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_case__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__sorma_case__c}" rendered="{!o.rstk__sorma_fromcase__c}"/>
+                        <c:largeSelectList id="sorma_case__c" cntr="{!controller}" options="{!cases}" tabIndex="223" rendered="{!!o.rstk__sorma_fromcase__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_returnprod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_returnprod__c.label}"/>
+                    <apex:outputPanel >
+                        <c:autocomplete id="sorma_returnprod__c" cntr="{!controller}" slDesc="{!repProdname}" 
+                            query="select Id, Name from soprod__c where soprod_div__c = '{!o.rstk__sorma_div__c}'" 
+                            minChars="{!prodMinCharForAutoComplete}"
+                            width="400px" tabIndex="152" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_adjacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sorma_adjacct__c.label}"/>
+                    <apex:selectList id="sorma_adjacct__c" value="{!o.rstk__sorma_adjacct__c}" required="false" size="1" style="width:250px;" tabIndex="224">
+                        <apex:selectOptions value="{!costSalesAccts}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="sorma_returnprice__c" value="{!o.rstk__sorma_returnprice__c}" taborderhint="13"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_dracct__c.inlineHelpText}" rendered="{!isCsg}">
+                    <apex:outputLabel value="{!f.rstk__sorma_dracct__c.label}"/>
+                    <apex:selectList id="sorma_dracct__c" value="{!o.rstk__sorma_dracct__c}" size="1" style="width:250px;" tabIndex="225">
+                        <apex:selectOptions value="{!DracctSyaccs}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="sorma_zerormarcpt__c" value="{!o.rstk__sorma_zerormarcpt__c}" rendered="{!isCsg}" taborderhint="14"/>
+                <apex:selectList id="sorma_wbs__c" value="{!o.rstk__sorma_wbs__c}" size="1" style="width:250px;" tabIndex="226" rendered="{!syconfig.rstk__syconfig_wbs__c}">
+                        <apex:selectOptions value="{!projChargeCodes}"/>
+                    </apex:selectList>
+            </apex:pageBlockSection>
+            <br />
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_ShipAddr" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_sorma_ship_toaddress}" name="tab_ShipAddr">
+                    <apex:pageBlockSection id="pbs_ShipAddr" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                        <apex:inputField id="sorma_ovrshipto__c" value="{!o.rstk__sorma_ovrshipto__c}" taborderhint="101"/>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_socaddr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_socaddr__c.label}"/>
+                            <c:autocomplete id="sorma_socaddr__c" cntr="{!controller}" slDesc="{!SocaddrName}" 
+                                query="select Id, Name from socaddr__c where socaddr_custno__c = '{!sormh.rstk__sormh_custno__c}' and socaddr_useasshipto__c = true" 
+                                queryParms="[]"
+                                width="300px" tabIndex="121"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:inputField id="sormaaddr_address1__c" value="{!sormaaddr.rstk__sormaaddr_address1__c}" taborderhint="102"/>
+                        
+                        <apex:inputField id="sormaaddr_name__c" value="{!sormaaddr.rstk__sormaaddr_name__c}" taborderhint="112"/>
+                        
+                        <apex:inputField id="sormaaddr_address2__c" value="{!sormaaddr.rstk__sormaaddr_address2__c}" taborderhint="103"/>
+                        
+                        <apex:inputField id="sormaaddr_phone__c" value="{!sormaaddr.rstk__sormaaddr_phone__c}" taborderhint="113"/>
+                        
+                        <apex:inputField id="sormaaddr_address3__c" value="{!sormaaddr.rstk__sormaaddr_address3__c}" taborderhint="104"/>
+                        
+                        <apex:inputField id="sormaaddr_fax__c" value="{!sormaaddr.rstk__sormaaddr_fax__c}" taborderhint="114"/>
+                        
+                        <apex:inputField id="sormaaddr_city__c" value="{!sormaaddr.rstk__sormaaddr_city__c}" taborderhint="105"/>
+                        
+                        <apex:inputField id="sormaaddr_email__c" value="{!sormaaddr.rstk__sormaaddr_email__c}" taborderhint="115"/>
+                        
+                        <apex:inputField id="sormaaddr_state__c" value="{!sormaaddr.rstk__sormaaddr_state__c}" taborderhint="106"/>
+                        
+                        <apex:inputField id="sormaaddr_contact__c" value="{!sormaaddr.rstk__sormaaddr_contact__c}" taborderhint="116"/>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_country__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_country__c.label}"/>
+                            <apex:outputpanel >
+                        		<apex:inputField id="sormaaddr_country__c" value="{!sormaaddr.rstk__sormaaddr_country__c}" taborderhint="107"/>
+                        		<apex:inputField id="sormaaddr_isocountry__c" value="{!sormaaddr.rstk__sormaaddr_isocountry__c}" taborderhint="107"/>
+                        	</apex:outputpanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:inputField id="sormaaddr_conmethod__c" value="{!sormaaddr.rstk__sormaaddr_conmethod__c}" taborderhint="117"/>
+                        
+                        <apex:inputField id="sormaaddr_zip__c" value="{!sormaaddr.rstk__sormaaddr_zip__c}" taborderhint="108"/>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_taxloc__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_taxloc__c.label}"/>
+                            <apex:outputPanel >
+                                <c:selectList id="sormaaddr_taxloc__c" cntr="{!controller}" objKey="sormaaddr__c" options="{!Sotaxes}" width="150px" onchange="editTaxLocChanged();" tabIndex="118" />
+                                <apex:inputText id="totalrate__c" value="{!taxRate}" style="width:50px;" disabled="true" />%
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_sormh_installationaddress}" name="tab_InstallationAddress">
+                    <apex:pageBlockSection id="pbs_InstallationAddress" showHeader="false" columns="2" >
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_installcust__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_installcust__c.label}"/>
+                            <c:largeSelectList id="sorma_installcust__c" cntr="{!controller}" options="{!InstallCustomers}"  required="true" tabIndex="201"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_installaddr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_installaddr__c.label}"/>
+                            <c:autocomplete id="sorma_installaddr__c" cntr="{!controller}" slDesc="{!InstalladdrName}" 
+                                query="select Id, Name from socaddr__c where socaddr_custno__c = 'prm' and socaddr_useasinstall__c = true" 
+                                queryParms="[['sorma_installcust__c','Installation Customer']]"
+                                required="true"
+                                width="300px" tabIndex="202"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_sorma_inventorylocation}" name="tab_InventoryLocation">
+                    <apex:pageBlockSection id="pbs_InventoryLocation" showHeader="false" columns="2" >
+                        <apex:inputField id="sorma_consigned__c" value="{!o.rstk__sorma_consigned__c}" taborderhint="101"/>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_insplocid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_insplocid__c.label}"/>
+                            <c:largeSelectList id="sorma_insplocid__c" value="{!o.rstk__sorma_insplocid__c}" cntr="{!controller}" options="{!inspsylocids}" width="250px" tabIndex="2010"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_site__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_site__c.label}"/>
+                            <c:largeSelectList cntr="{!controller}" options="{!sites}" id="sorma_site__c" required="true" width="250px" tabIndex="1020"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_insplocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_insplocnum__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="sorma_insplocnum__c" required="false" value="{!o.rstk__sorma_insplocnum__c}" taborderhint="202"/>
+                                <select id="sorma_insplocnumlist__c" size="1" style="width:200px;display:{!IF(displaylocnumlist,'inline','none')};" onchange="document.getElementById('{!$Component.sorma_insplocnum__c}').value = this.value;" tabIndex="2020">
+                                </select>
+                                <script>
+                                    var insplocnumfld = document.getElementById("{!$Component.sorma_insplocnum__c}");
+                                    insplocnumfld.disabled = {!displaylocnumlist};
+                                    var insplocnumlistfld = document.getElementById("sorma_insplocnumlist__c");
+                                    insplocnumlistfld.value = "{!o.rstk__sorma_insplocnum__c}";
+                                </script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <!-- <apex:pageBlockSectionItem helpText="{!f.sorma_shipsite__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.sorma_shipsite__c.label}"/>
+                            <apex:selectList id="sorma_shipsite__c" required="false" value="{!o.sorma_shipsite__c}" size="1" style="width:250px;" tabIndex="1030">
+                                <apex:selectOptions value="{!sites}"/>
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem> -->
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_invlocid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_invlocid__c.label}"/>
+                            <c:largeSelectList id="sorma_invlocid__c" value="{!o.rstk__sorma_invlocid__c}" cntr="{!controller}" options="{!invsylocids}" width="250px" tabIndex="1040"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_scraplocid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_scraplocid__c.label}"/>
+                            <c:largeSelectList id="sorma_scraplocid__c" value="{!o.rstk__sorma_scraplocid__c}" cntr="{!controller}" options="{!scrapsylocids}" width="250px" tabIndex="2030"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_invlocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_invlocnum__c.label}"/>
+                            <apex:outputPanel styleClass="requiredInput" layout="block">
+                                <apex:outputPanel styleClass="requiredBlock" layout="block" rendered="false"/>
+                                <apex:inputField id="sorma_invlocnum__c" required="false" value="{!o.rstk__sorma_invlocnum__c}" taborderhint="105"/>
+                                <select id="sorma_invlocnumlist__c" size="1" style="width:200px;display:{!IF(displaylocnumlist,'inline','none')};" onchange="document.getElementById('{!$Component.sorma_invlocnum__c}').value = this.value;" tabIndex="1050">
+                                </select>
+                                <script>
+                                    var invlocnumfld = document.getElementById("{!$Component.sorma_invlocnum__c}");
+                                    invlocnumfld.disabled = {!displaylocnumlist};
+                                    var invlocnumlistfld = document.getElementById("sorma_invlocnumlist__c");
+                                    invlocnumlistfld.value = "{!o.rstk__sorma_invlocnum__c}";
+                                </script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_scraplocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_scraplocnum__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="sorma_scraplocnum__c" required="false" value="{!o.rstk__sorma_scraplocnum__c}" taborderhint="204"/>
+                                <select id="sorma_scraplocnumlist__c" size="1" style="width:200px;display:{!IF(displaylocnumlist,'inline','none')};" onchange="document.getElementById('{!$Component.sorma_scraplocnum__c}').value = this.value;" tabIndex="2040">
+                                </select>
+                                <script>
+                                    var scraplocnumfld = document.getElementById("{!$Component.sorma_scraplocnum__c}");
+                                    scraplocnumfld.disabled = {!displaylocnumlist};
+                                    var scraplocnumlistfld = document.getElementById("sorma_scraplocnumlist__c");
+                                    scraplocnumlistfld.value = "{!o.rstk__sorma_scraplocnum__c}";
+                                </script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sorma_insptempl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sorma_insptempl__c.label}"/>
+                            <apex:selectList id="sorma_insptempl__c" value="{!o.rstk__sorma_insptempl__c}" size="1" style="width:250px;" tabIndex="1060">
+                                <apex:selectOptions value="{!insptempls}"/>
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_sorma_comments}" name="tab_Comments">
+                    <div style="width:700px">
+                        <apex:outputLabel value="{!f.rstk__sorma_intcomment__c.label}"/>
+                        <apex:inputTextarea id="sorma_intcomment__c" value="{!o.rstk__sorma_intcomment__c}" rows="6" richtext="true" tabIndex="201"/>
+                        <br />
+                        <apex:outputLabel value="{!f.rstk__sorma_extcomment__c.label}"/>
+                        <apex:inputTextarea id="sorma_extcomment__c" value="{!o.rstk__sorma_extcomment__c}" rows="6" richtext="true" tabIndex="202"/> 
+                    </div>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_dimensions}" name="Dimensions" id="Dimensions" rendered="{!numdims > 0}">
+                    <apex:pageBlockSection id="pbs_Dimensions" showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval1__c.inlineHelpText}" rendered="{!numdims > 0}">
+                            <apex:outputLabel value="{!f1.rstk__dimval1__c.label}"/>
+                            <apex:outputField value="{!dimvals.rstk__dimval1__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval2__c.inlineHelpText}" rendered="{!numdims > 1}">
+                            <apex:outputLabel value="{!f1.rstk__dimval2__c.label}"/>
+                            <apex:outputField value="{!dimvals.rstk__dimval2__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval3__c.inlineHelpText}" rendered="{!numdims > 2}">
+                            <apex:outputLabel value="{!f1.rstk__dimval3__c.label}"/>
+                            <apex:outputField value="{!dimvals.rstk__dimval3__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval4__c.inlineHelpText}" rendered="{!numdims > 3}">
+                            <apex:outputLabel value="{!f1.rstk__dimval4__c.label}"/>
+                            <apex:outputField value="{!dimvals.rstk__dimval4__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval5__c.inlineHelpText}" rendered="{!numdims > 4}">
+                            <apex:outputLabel value="{!f1.rstk__dimval5__c.label}"/>
+                            <apex:outputField value="{!dimvals.rstk__dimval5__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval6__c.inlineHelpText}" rendered="{!numdims > 5}">
+                            <apex:outputLabel value="{!f1.rstk__dimval6__c.label}"/>
+                            <apex:outputField value="{!dimvals.rstk__dimval6__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval7__c.inlineHelpText}" rendered="{!numdims > 6}">
+                            <apex:outputLabel value="{!f1.rstk__dimval7__c.label}"/>
+                            <apex:outputField value="{!dimvals.rstk__dimval7__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval8__c.inlineHelpText}" rendered="{!numdims > 7}">
+                            <apex:outputLabel value="{!f1.rstk__dimval8__c.label}"/>
+                            <apex:outputField value="{!dimvals.rstk__dimval8__c}"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        <script>
+            setSelectListRequired("sorma_soprod__c");
+            setInputFieldRequired("sorma_qtyauth__c");
+            setSelectListRequired("sorma_invdiv__c");
+            setSelectListRequired("sorma_project__c");
+            setInputFieldRequired("sorma_action__c");
+            setSelectListRequired("sorma_adjacct__c");
+            setSelectListRequired("sorma_site__c");
+            setInputFieldRequired("sorma_date__c");
+            //setSelectListRequired("sorma_shipsite__c");
+            //setSelectListRequired("sorma_invlocid__c");
+            //setInputFieldRequired("sorma_invlocnum__c");
+            //setSelectListRequired("sorma_insplocid__c");
+            //setInputFieldRequired("sorma_insplocnum__c");
+            //setSelectListRequired("sorma_scraplocid__c");
+            //setInputFieldRequired("sorma_scraplocnum__c");
+            setSelectListRequired("sorma_installcust__c");
+            
+            addRequiredFieldDecoration("input[id*=':sorma_insplocnum__c']");
+            addRequiredFieldDecoration("input[id*=':sorma_invlocnum__c']");
+            addRequiredFieldDecoration("input[id*=':sorma_scraplocnum__c']");
+            
+            addRequiredFieldDecoration("select[name*=':sorma_insplocid__c']");
+            addRequiredFieldDecoration("select[name*=':sorma_scraplocid__c']");
+            addRequiredFieldDecoration("select[name*=':sorma_invlocid__c']");
+            
+            var qtyauthdecprecision = {!qtyauthdecprecision};
+        </script>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_NoDesignatedGenericKitDefinedOnControlRec = "{!$Label.rstk__nodesignatedgenerickitdefinedoncontrolrec}";
+        var LABEL_ControlRecNotConfigdForDiv = "{!$Label.rstk__controlrecnotconfigdfordiv}";
+        var LABEL_QtyAuthorizedCantBeChangedToValLessThanCurrVal = "{!$Label.rstk__qtyauthorizedcantbechangedtovallessthancurrval}";
+        var LABEL_InvalidAmtForShippingCosts = "{!$Label.rstk__invalidamtforshippingcosts}";
+        var LABEL_EnterValForReqdField_InventoryDiv = "{!$Label.rstk__entervalforreqdfield_inventorydiv}";
+        var LABEL_EnterValForReqdField_Proj = "{!$Label.rstk__entervalforreqdfield_proj}";
+        var LABEL_LocNumNotValidForSpecifiedLocId = "{!$Label.rstk__locnumnotvalidforspecifiedlocid}";
+        var LABEL_ActionMustBeIssueCreditInOrderToAuthorizeCreditMemo = "{!$Label.rstk__actionmustbeissuecreditinordertoauthorizecreditmemo}";
+        var LABEL_AddrDetailsNotFoundForOrdLine = "{!$Label.rstk__addrdetailsnotfoundforordline}";
+        var LABEL_Invalidvaluefor = "{!$Label.rstk__invalidvaluefor}";
+        var LABEL_HdrReleaseReqdToReleaseDtl = "{!$Label.rstk__hdrreleasereqdtoreleasedtl}";
+        var LABEL_ThisWouldClearOutOverrideAddInfo_WantToCont = "{!$Label.rstk__thiswouldclearoutoverrideaddinfo_wanttocont}";
+        var LABEL_ThisWouldClearOutOverrideAddrInfo_Continue = "{!$Label.rstk__thiswouldclearoutoverrideaddrinfo_continue}";
+        var LABEL_taxLocationIsRequired = "{!$Label.rstk__taxlocationisrequired}";
+        var LABEL_actionReplaceAndIndicatorReturnOnlyAreIncompatible = "{!$Label.rstk__actionreplaceandindicatorreturnonlyareincompatible}";
+        
+        var LABEL_pleaseSpecifyOverrideEmail = "{!$Label.rstk__pleasespecifyoverrideemail}";
+        var LABEL_pleaseSpecifyOverridePhone = "{!$Label.rstk__pleasespecifyoverridephone}";
+        var LABEL_pleaseSpecifyOverrideFax = "{!$Label.rstk__pleasespecifyoverridefax}";
+        var LABEL_projChgCodeIsReqdIfProjCodeActiveIsChkdOnProj = "{!$Label.rstk__projchgcodeisreqdifprojcodeactiveischkdonproj}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

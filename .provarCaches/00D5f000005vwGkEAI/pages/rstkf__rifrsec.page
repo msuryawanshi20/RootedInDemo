@@ -1,0 +1,353 @@
+<apex:page id="pg" standardController="rstkf__rifrsec__c" extensions="rstkf.ControllerExtnRifrsec" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__rifrsec__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__rifrsec__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__interactive_financial_report_section}" displayListLink="true"/>
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+    <apex:form id="fm">
+    <apex:outputPanel id="op_var">
+	    <script>
+			var expressionValue = '{!expressionValue}';
+			var isEdit = {!isEdit};
+	    </script>
+    </apex:outputPanel>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" />
+         <apex:actionFunction name="validateFormula" action="{!validateFormula}" immediate="true" oncomplete="validateExpression();" status="pleaseWaitStatus" reRender="pageMessages,op_var" >
+         	<apex:param name="formulaValue" assignTo="{!formulaValue}" value=""/>
+         </apex:actionFunction>
+         <apex:actionFunction name="updateFormula" action="{!updateFormula}" immediate="true" oncomplete="" status="pleaseWaitStatus" reRender="pageMessages" />
+         
+        <apex:actionFunction name="parentFinancialSec" action="{!parentFinancialSec}" immediate="true" status="pleaseWaitStatus" reRender="op_ParentFinancial,op_formula" >
+        	<apex:param name="financialReportId" assignTo="{!financialReportId}" value=""/>
+        </apex:actionFunction>
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSaveAndNew="false"/>
+                <!--apex:commandButton onclick="doPageSave(null, null, 'true');return false;" value="{!$Label.btnSaveAndNew}" rendered="{!isNew}" />
+                <apex:commandButton onclick="doPageSave(null, null, 'false');return false;" value="{!$Label.pagebtn_Save}" rendered="{!isEdit}"/>
+                <apex:commandButton onclick="doView();return false;" value="{!$Label.pagebtn_Cancel}" immediate="true" rendered="{!isEdit}"/>
+                <apex:commandButton onclick="doCancel();return false;" value="{!$Label.pagebtn_Cancel}" rendered="{!isNew}" immediate="true"/>
+                <apex:commandButton onclick="doEdit();return false;" value="{!$Label.pagebtn_Edit}" immediate="true" rendered="{!isView}"/>
+                <apex:commandButton onclick="doDelete();return false;" value="{!$Label.pagebtn_Delete}" immediate="true" rendered="{!isView}"/-->
+            </apex:pageBlockButtons>    
+            <apex:pageBlockSection id="pbs_main" columns="1" >
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_rifr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_rifr__c.label}"/>
+                    <apex:outputPanel id="rifrsec_rifr__c_op">
+                        <apex:selectList id="rifrsec_rifr__c" value="{!o.rstkf__rifrsec_rifr__c}" required="true" rendered="{!isNew}" size="1" onchange="doParentFinancialSec();checkForUniqueStmttype();">
+                            <apex:selectOptions value="{!Rifrs}" /> 
+                        </apex:selectList>
+                    	<apex:outputField value="{!o.rstkf__rifrsec_rifr__c}" rendered="{!OR(isView,isEdit)}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>    
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_seq__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_seq__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__rifrsec_seq__c}" rendered="{!OR(isView)}"/>
+                        <apex:inputField id="rifrsec_seq__c" value="{!o.rstkf__rifrsec_seq__c}" required="true" rendered="{!OR(isNew,isEdit)}" onchange="checkForUniqueStmttype()"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_secname__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_secname__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__rifrsec_secname__c}" rendered="{!OR(isView)}"/>
+                        <apex:inputField id="rifrsec_secname__c" value="{!o.rstkf__rifrsec_secname__c}" required="true" rendered="{!OR(isNew,isEdit)}" onchange="checkForUniqueStmttype()"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_display_section_name__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_display_section_name__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_display_section_name__c" value="{!o.rstkf__rifrsec_display_section_name__c}" rendered="{!OR(isNew,isEdit)}"/>
+                    	<apex:outputField value="{!o.rstkf__rifrsec_display_section_name__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem> 
+               <!--   <apex:pageBlockSectionItem helpText="{!f.rifrsec_font_size__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rifrsec_font_size__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_font_size__c" value="{!o.rifrsec_font_size__c}" required="true" rendered="{!OR(isNew,isEdit)}"/>                        
+                    	<apex:outputField value="{!o.rifrsec_font_size__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem> -->
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_gsfs_name__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_gsfs_name__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_gsfs_name__c" value="{!o.rstkf__rifrsec_gsfs_name__c}" rendered="{!OR(isNew,isEdit)}"/>                        
+                    	<apex:outputField value="{!o.rstkf__rifrsec_gsfs_name__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_section_type__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_section_type__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_section_type__c" value="{!o.rstkf__rifrsec_section_type__c}" onchange="sectiontypeChanged();" required="true" rendered="{!OR(isNew,isEdit)}"/>
+                    	<apex:outputField value="{!o.rstkf__rifrsec_section_type__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_cfcash__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_cfcash__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_cfcash__c" value="{!o.rstkf__rifrsec_cfcash__c}" rendered="{!OR(isNew,isEdit)}"/>                        
+                    	<apex:outputField value="{!o.rstkf__rifrsec_cfcash__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_acctsource__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_acctsource__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_acctsource__c" value="{!o.rstkf__rifrsec_acctsource__c}" rendered="{!OR(isNew,isEdit)}" onchange="acctsourceChanged(this.value);"/>                        
+                    	<apex:outputField value="{!o.rstkf__rifrsec_acctsource__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_glfstmlt7__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_glfstmlt7__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="rifrsec_glfstmlt7__c" value="{!o.rstkf__rifrsec_glfstmlt7__c}" rendered="{!OR(isNew,isEdit)}" size="1">
+                            <apex:selectOptions value="{!glfstmplt7s}" /> 
+                        </apex:selectList>
+                    	<apex:outputField value="{!o.rstkf__rifrsec_glfstmlt7__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_ragover__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_ragover__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_ragover__c" value="{!o.rstkf__rifrsec_ragover__c}" onchange="ragoverChanged();" rendered="{!OR(isNew,isEdit)}"/>
+                    	<apex:outputField value="{!o.rstkf__rifrsec_ragover__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_cfsection__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_cfsection__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_cfsection__c" value="{!o.rstkf__rifrsec_cfsection__c}" rendered="{!OR(isNew,isEdit)}"/>                        
+                    	<apex:outputField value="{!o.rstkf__rifrsec_cfsection__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_reverse_sign__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_reverse_sign__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_reverse_sign__c" value="{!o.rstkf__rifrsec_reverse_sign__c}" rendered="{!OR(isNew,isEdit)}"/>                        
+                    	<apex:outputField value="{!o.rstkf__rifrsec_reverse_sign__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>
+                
+                <!--  <apex:pageBlockSectionItem helpText="{!f.rifrsec_key_label__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rifrsec_key_label__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_key_label__c" value="{!o.rifrsec_key_label__c}" rendered="{!OR(isNew,isEdit)}"/>                       
+                    	<apex:outputField value="{!o.rifrsec_key_label__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+                <apex:pageBlockSectionItem helpText="{!f.rifrsec_order__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rifrsec_order__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_order__c" value="{!o.rifrsec_order__c}" rendered="{!OR(isNew,isEdit)}"/>                        
+                    	<apex:outputField value="{!o.rifrsec_order__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem> -->
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_parent_rifrsec__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_parent_rifrsec__c.label}"/>
+                    <apex:outputPanel id="op_ParentFinancial" >
+                        <apex:selectList id="rifrsec_parent_rifrsec__c" value="{!o.rstkf__rifrsec_parent_rifrsec__c}" rendered="{!OR(isNew,isEdit)}" size="1">
+                            <apex:selectOptions value="{!rifrsecs}" /> 
+                        </apex:selectList>
+                    	<apex:outputField value="{!o.rstkf__rifrsec_parent_rifrsec__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>                
+                <!--  <apex:pageBlockSectionItem helpText="{!f.rifrsec_show_gsfs__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rifrsec_show_gsfs__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_show_gsfs__c" value="{!o.rifrsec_show_gsfs__c}" rendered="{!OR(isNew,isEdit)}"/>                        
+                    	<apex:outputField value="{!o.rifrsec_show_gsfs__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>  -->              
+                <apex:pageBlockSectionItem helpText="{!f.rifrsec_numeric_scale__c	.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_numeric_scale__c.label}"/>
+                    <apex:outputPanel >
+                    	<apex:outputField value="{!o.rstkf__rifrsec_numeric_scale__c}" rendered="{!OR(isView,isEdit)}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>                
+                <!--  <apex:pageBlockSectionItem helpText="{!f.rifrsec_period_name__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rifrsec_period_name__c.label}"/>
+                    <apex:outputPanel >
+                    	<apex:outputField value="{!o.rifrsec_period_name__c}" rendered="{!OR(isView,isEdit)}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>                
+                <apex:pageBlockSectionItem helpText="{!f.rifrsec_schema__c	.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rifrsec_schema__c	.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="rifrsec_schema__c" value="{!o.rifrsec_schema__c}" rendered="{!OR(isNew,isEdit)}"/>
+                    	<apex:outputField value="{!o.rifrsec_schema__c}" rendered="{!isView}"/>	
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>-->
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__rifrsec_formula__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__rifrsec_formula__c.label}"/>
+                    <apex:outputPanel id="op_formula">
+                        <apex:inputField id="rifrsec_formula__c" value="{!o.rstkf__rifrsec_formula__c}" rendered="{!OR(isNew,isEdit)}"/>
+                    	<apex:outputField value="{!o.rstkf__rifrsec_formula__c}" rendered="{!isView}"/>&nbsp; &nbsp; &nbsp; 
+                    	<apex:selectList id="reportSectionName" size="1" rendered="{!OR(isNew,isEdit)}" onchange="dosetReportSectionName();" >
+                            <apex:selectOptions value="{!ReportSectionNames}" /> 
+                        </apex:selectList>	
+                       
+                    </apex:outputPanel>                    
+                </apex:pageBlockSectionItem>
+                 <apex:pageBlockSectionItem >
+                  	<apex:outputPanel >
+                  		&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;
+                  		&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;
+                  		&nbsp; &nbsp; 
+                  		<apex:commandButton onclick="blockUI(); doValidateFormula(); return false;" value="{!$Label.rstkf__button_label_check_syntax}" rendered="{!OR(isNew,isEdit)}"/>
+                  	</apex:outputPanel>
+                 </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>  
+            <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>   
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+    	setSelectListRequired("rifrsec_rifr__c");
+    	//setSelectListRequired("gltype_toacct__c");
+    	function checkForUniqueStmttype() {                
+            var secname = sfffGetFieldValue('rifrsec_secname__c');
+            var rifr = sfffGetFieldValue('rifrsec_rifr__c');
+            var duplictes = execQuery("select count() from rifrsec__c where rifrsec_rifr__c = '"+rifr+"' and rifrsec_secname__c = '"+secname+"'");
+            if(duplictes != '0' && duplictes.length > 0 ){
+                alert("{!$Label.X0_Report_section_Name_already_exists_for_selected_Interactive_Financial_Report}",secname);
+                sfffSetFieldValue('rifrsec_secname__c','');
+                getFmFld('rifrsec_secname__c').focus();
+                return false;
+            }
+            
+        }
+        
+        function dosetReportSectionName(){
+        	var reportSectionName = jQuery("select[id*=reportSectionName")[0].value;
+        	var formulaName =  sfffGetFieldValue('rifrsec_formula__c'); 
+        	var formulaInput = '\{\!';
+        	formulaInput =  formulaInput.concat(reportSectionName);
+        	formulaInput = formulaInput.concat('\}');
+        	//var curPos =  document.getElementById('pg:fm:pb:pbs_main:j_id151:rifrsec_formula__c').selectionStart;
+        	var curPos = jQuery("textArea[id*=rifrsec_formula__c")[0].selectionStart;
+        	var output = [formulaName.toString().slice(0, curPos), formulaInput, formulaName.toString().slice(curPos)].join('');
+        	sfffSetFieldValue('rifrsec_formula__c', output);
+        	return false;
+        }
+        
+        function doValidateFormula(){
+        	var formulaValue = sfffGetFieldValue('rifrsec_formula__c');
+        	validateFormula(formulaValue);
+        	return false;
+        }
+        
+        function validateExpression(){
+        	console.log('expressionValue '+expressionValue);
+        	if(expressionValue != ''){
+        	try{
+        		var result = eval (expressionValue);
+	        	console.log('result '+result);
+	        	if(isNaN(result)){
+	        		alert('{!$Label.Please_provide_validate_input_for_formula_field}');
+	        	}else{
+	        		alert('{!$Label.There_is_no_syntax_error_in_formula_field}');
+	        		if(isEdit) {
+	        			updateFormula();
+	        		}
+	        		
+	        	}
+        	
+	           }catch ( e ) {
+			      alert('Please provide validate formula input \n Error :'+e);   
+			   }
+	       }
+        	
+        	unblockUI();
+        	return false;
+        }
+        
+        function doParentFinancialSec(){
+        	var financialReportId = sfffGetFieldValue('rifrsec_rifr__c');
+        	parentFinancialSec(financialReportId);
+        	return false;
+        }
+        
+        function sectiontypeChanged() {
+            console.log('value is' +AcctSource_RAG);
+        	var sectype = sfffGetFieldValue('rifrsec_section_type__c');
+        	if(sectype != RIFRSEC_SECTION_TYPE_D) {
+        		sfffSetFieldValue('rifrsec_acctsource__c', '');
+        		sfffDisableField('rifrsec_acctsource__c', true);
+                
+                sfffSetFieldValue('rifrsec_cfsection__c', '');
+        		sfffDisableField('rifrsec_cfsection__c', true);
+                
+                sfffSetFieldValue('rifrsec_ragover__c', '');
+        		sfffDisableField('rifrsec_ragover__c', true);
+                
+                sfffSetFieldValue('rifrsec_glfstmlt7__c', '');
+                sfffDisableField('rifrsec_glfstmlt7__c', true);                   
+        	}
+        	else {
+        		sfffDisableField('rifrsec_acctsource__c', false);
+        	}
+        }
+
+    	function acctsourceChanged() {            
+            var acctsource = sfffGetFieldValue('rifrsec_acctsource__c');
+            console.log(' acctsourceChanged '+acctsource);
+            if(acctsource == null || acctsource == "" || acctsource == AcctSource_RAG) {
+                sfffDisableField('rifrsec_glfstmlt7__c', false);
+                
+                sfffSetFieldValue('rifrsec_cfsection__c', '');
+        		sfffDisableField('rifrsec_cfsection__c', true);
+                
+                sfffSetFieldValue('rifrsec_ragover__c', '');
+        		sfffDisableField('rifrsec_ragover__c', true);
+            } else if(acctsource == AcctSource_ATO) {
+                sfffDisableField('rifrsec_ragover__c', false);
+                
+                sfffSetFieldValue('rifrsec_cfsection__c', '');
+        		sfffDisableField('rifrsec_cfsection__c', true);
+                
+                sfffSetFieldValue('rifrsec_glfstmlt7__c', '');
+        		sfffDisableField('rifrsec_glfstmlt7__c', true);
+            } else if(acctsource == AcctSource_CFS) {
+                sfffDisableField('rifrsec_cfsection__c', false);
+                
+                sfffSetFieldValue('rifrsec_ragover__c', '');
+        		sfffDisableField('rifrsec_ragover__c', true);
+                
+                sfffSetFieldValue('rifrsec_glfstmlt7__c', '');
+        		sfffDisableField('rifrsec_glfstmlt7__c', true);
+            }                
+        }    
+            
+        function ragoverChanged() {
+        	var ragover = sfffGetFieldValue('rifrsec_ragover__c');
+        	if(ragover == 'All Asset Accounts' 
+       			|| ragover == 'All Liability Accounts'
+       			|| ragover == 'All Capital Accounts'
+       			|| ragover == 'All Revenue Accounts'
+				|| ragover == 'All Expense Accounts') {
+        		sfffSetFieldValue('rifrsec_glfstmlt7__c', '');
+        	}
+        	
+        }
+        
+        function pageInit(){
+        	sectiontypeChanged();
+            acctsourceChanged();
+        }
+        var AcctSource_RAG = "{!AcctSource_RAG}";
+    	var AcctSource_ATO = "{!AcctSource_ATO}";
+        var AcctSource_CFS = "{!AcctSource_CFS}";
+        var RIFRSEC_SECTION_TYPE_D = "{!RIFRSEC_SECTION_TYPE_D}";
+    </script>
+    
+</apex:page>

@@ -1,0 +1,91 @@
+<apex:page standardController="OpportunityLineItem" extensions="rstk.ControllerExtnSalesOrderHelper">
+    <c:standardHeader cntr="{!controller}" showHeader="false" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+	<script type="text/javascript">
+	  var __sfdcSessionId = '{!GETSESSIONID()}';
+	  
+	  jQuery(function() {
+ 
+	  });
+//----------------------
+function setRootstockPricing(oppProdId) {
+  callSetRootstockPricing(oppProdId, setPricingSuccess, setPricingFailure);
+}
+
+function setPricingSuccess() {
+  try {
+  top.location.replace('/{!OpportunityLineItem.Id}');
+  } catch (e) {
+    alert(e.stack);
+  }
+}
+
+function setPricingFailure(msg) {
+  alert(msg);
+}
+
+function getCtrl(name) {
+	var rtn = null;
+	try {
+		rtn = eval(name);
+	} catch(e){}
+	if (rtn == null) {
+		try {
+			rtn = eval('rstk.'+name);
+		} catch(e){}
+	}
+	return rtn;
+} 
+
+function callSetRootstockPricing(oppProdId, callBackFn, callBackError) {
+	var ctrl = getCtrl("ControllerExtnSalesOrderHelper");
+	console.log('ctrl='+ctrl);
+	var ctrlMethod = ctrl["setRootstockPricing"];
+	
+	if (ctrlMethod == null) { 
+		callBackError('Can\'t find remote function "setRootstockPricing" in ControllerExtnSalesOrderHelper');
+		return;
+	}
+
+    showTopDialog('pleaseWaitPopup');
+	
+	doRemoteActionJSON({
+		controllerMethod: ctrlMethod,
+		parameters: {
+			oppProdId : oppProdId
+		},
+		callback: function(retValues)
+		{
+			closeTopDialog();
+
+			if (!retValues)
+			{
+				callBackError('setRootstockPricing failed: No data returned.');
+			}
+			else
+			{
+				if (retValues['error'] != null) {
+					callBackError('Failed to set Rootstock Pricing: '+retValues['error']);
+				} else {
+					callBackFn(retValues);
+				}
+			}
+		},
+		blockui: false,
+		waitMessage: null,
+		allowRuninbackground: false,
+		uiBlockedAfterComplete: false
+	});	
+}
+	</script>
+	<div width="100%">
+	  <input style="align:center;" type="button" class="btn" value="Rootstock Pricing" onclick="setRootstockPricing('{!OpportunityLineItem.Id}')"/>
+	</div>
+    <div id="pleaseWaitPopup" style="display:none">
+          <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+          <apex:outputPanel styleClass="topPopup">
+             <apex:image url="{!$Resource.rstk__busy}"/>
+          </apex:outputPanel>
+    </div>
+</apex:page>

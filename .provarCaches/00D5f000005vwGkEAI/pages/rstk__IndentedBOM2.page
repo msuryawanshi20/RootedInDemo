@@ -1,0 +1,358 @@
+<apex:page id="pg" title="{!IF(hideForm,pageTitle,IF(isCostedBOM, $Label.rstk__costedbom, $Label.rstk__indentedbom))}" standardController="rstk__indentedbom__c" extensions="rstk.ControllerExtnIndentedBOM2,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" 
+    contenttype="{!contentType}" action="{!doBeforePageLoad}" cache="false">
+    <apex:variable value="{!0}" var="rowNum"/>
+    <script>
+		function setFocusOnLoad() {}
+	</script>
+
+    <apex:variable var="o" value="{!rstk__indentedbom__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__indentedbom__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!IF(hideForm,pageTitle,IF(isCostedBOM, $Label.rstk__costedbom, $Label.rstk__indentedbom))}" customInclude="{!$Resource.rstk__indented_bom2_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!URLFOR($Resource.rstk__jstree, 'jquery.jstree.js')}"/>
+    <apex:includeScript value="{!$Resource.rstk__treesupport}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doSave" action="{!displayDetails}" oncomplete="checkJobStatus();" rerender="pb, op_JobStatus"/>
+        <apex:actionFunction name="displayBomTable" action="{!displayBomTable}" oncomplete="unblockUI();" rerender="pb2"/> 
+        <apex:actionFunction name="upsertSyreg" action="{!upsertSyreg}" oncomplete="unblockUI();initBOMTreeView();"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:outputPanel id="op_JobStatus">
+        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        <apex:pageBlockButtons location="bottom">
+            <apex:commandButton value="{!$Label.rstk__pagebtn_indentedbom2_changesearchcriteria}" action="{!changeCriteria}"  rendered="{!hideForm}" immediate="true"/>
+            <apex:commandButton onclick="return displayIndentedBom(); return false;" value="{!$Label.rstk__pagebtn_indentedbom2_submit}" style="width:50px" rendered="{!!hideForm}" rerender="pb"/>
+            <apex:outputPanel id="buttonPanel" layout="inline" rendered="{!hideForm}">
+                  <apex:commandButton value="{!$Label.rstk__pagebtn_indentedbom2_print}" onClick="openPdfWindow(); return false;" action="{!doNothing}" rerender="buttonPanel" immediate="true"/>
+            </apex:outputPanel>
+            <apex:commandButton onClick="openExcelWindow(); return false;" action="{!doNothing}" immediate="true" value="{!$Label.rstk__pagebtn_indentedbom2_exporttoexcel}" rendered="{!hideForm}"/>
+        </apex:pageBlockButtons>
+        
+
+		<apex:outputPanel style="display:none">
+	    	<apex:inputHidden id="iscostedbom__c" value="{!isCostedBOM}" />
+	    	<apex:inputText id="engdiv__c" value="{!engDiv}" />
+	    	<apex:inputField value="{!o.rstk__ibom_picklistfilter__c}"/> 
+		</apex:outputPanel>
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!!hideForm}">
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__ibom_div__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__ibom_div__c.label}"/>
+                <c:selectList id="ibom_div__c" required="true" cntr="{!controller}" options="{!sl.sydivs}" tabIndex="10"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__ibom_effdate__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__ibom_effdate__c.label}"/>
+                <c:inputField id="ibom_effdate__c" cntr="{!controller}" tabIndex="130"/>
+            </apex:pageBlockSectionItem>
+            
+             <apex:pageBlockSectionItem helpText="{!f.rstk__ibom_parentitem__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__ibom_parentitem__c.label}"/>
+<!-- RCB: RSTK-2960 -->                
+                <c:autocomplete id="ibom_parentitem__c" cntr="{!controller}" required="true" slDesc="{!itemName}" minChars="{!minCharForAutoComplete}"
+                      query="select id, name from peitem__c where id in (select pebom_item__c from pebom__c where pebom_div__c = '{!engDiv}')"
+                      tabIndex="20"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__ibom_implonly__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__ibom_implonly__c.label}"/>
+                <c:inputCheckbox id="ibom_implonly__c" cntr="{!controller}" tabIndex="140"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__ibom_reporttype__c.inlineHelpText}" rendered="{!isCostedBOM}">
+                <apex:outputLabel value="{!f.rstk__ibom_reporttype__c.label}"/>
+                <c:inputField id="ibom_reporttype__c" cntr="{!controller}" tabIndex="30"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__ibom_singlelevelonly__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__ibom_singlelevelonly__c.label}"/>
+                <c:inputCheckbox id="ibom_singlelevelonly__c" cntr="{!controller}" tabIndex="150"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__ibom_displaymode__c.inlineHelpText}" rendered="{!!isCostedBOM}">
+                <apex:outputLabel value="{!f.rstk__ibom_displaymode__c.label}"/>
+                <apex:inputField id="ibom_displaymode__c" value="{!o.rstk__ibom_displaymode__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem />
+
+            <apex:pageBlockSectionItem helpText="{!IF(isCostedBOM, f.rstk__ibom_costdecimalprecision__c.inlineHelpText, $Label.rstk__print_qty_cost_precision)}">
+                <apex:outputLabel value="{!IF(isCostedBOM, f.rstk__ibom_costdecimalprecision__c.label, $Label.rstk__print_qty_cost_precision)}"/>
+                <c:inputField id="ibom_costdecimalprecision__c" cntr="{!controller}" tabIndex="160"/>
+            </apex:pageBlockSectionItem>
+
+        </apex:pageBlockSection>
+            <apex:outputPanel style="display:none" rendered="{!hideForm}">
+                <c:inputText id="ibom_div__c" cntr="{!controller}"/>
+                <c:inputField id="ibom_effdate__c" cntr="{!controller}"/>
+	    		<c:inputText id="ibom_parentitem__c" cntr="{!controller}" />
+	    		<c:inputText id="ibom_reporttype__c" cntr="{!controller}"/>
+	    		<c:inputField id="ibom_implonly__c" cntr="{!controller}"/>
+	    		<c:inputField id="ibom_singlelevelonly__c" cntr="{!controller}"/>
+            </apex:outputPanel>
+        <apex:pageBlockSection id="pbs_Info" showHeader="false" title="{!$Label.rstk__information}" columns="2"  rendered="{!hideForm}">
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__ibom_div__c.label}"/>
+                <apex:outputField value="{!o.rstk__ibom_div__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__ibom_itemdescr__c.label}"/>
+                <apex:outputText value="{!itemDesc}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__ibom_parentitem__c.label}"/>
+                <apex:outputField value="{!o.rstk__ibom_parentitem__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__ibom_effdate__c.label}"/>
+                <apex:outputField value="{!o.rstk__ibom_effdate__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__ibom_src__c.label}"/>
+                <apex:outputText value="{!invSource}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__ibom_reporttype__c.inlineHelpText}" rendered="{!isCostedBOM}">
+                <apex:outputLabel value="{!f.rstk__ibom_reporttype__c.label}"/>
+				<apex:outputField value="{!o.rstk__ibom_reporttype__c}" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!!isCostedBOM}"/>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    <div id="invSelect" style="display:none">
+		<iframe id="bomAddFrame" src="" width="100%" height="600px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+	</div>
+    </apex:form>
+    <script>var curpageparentidfld;</script>
+    <apex:pageBlock id="pb2">
+    	<apex:outputPanel id="op_bomtree" style="display:none;">
+				<input type="submit" onclick="refreshBomTree(); return false;" value="{!$Label.pagebtn_peitem_RefreshTree}" class="btn"/>&nbsp;
+				<input type="submit" onclick="expandBomView(); return false;" value="{!$Label.pagebtn_peitem_ExpandView}" class="btn"/>&nbsp;
+				<input type="submit" onclick="openPdfWindow(); return false;" value="{!$Label.pagebtn_peitem_PrintBom}" class="btn"/>&nbsp;
+				<input type="submit" onclick="openExcelWindow(); return false;" value="{!$Label.rstk__pagebtn_indentedbom2_exporttoexcel}" class="btn"/>&nbsp;&nbsp;&nbsp;&nbsp;
+				<apex:outputPanel ><div style="height:5px;"></div></apex:outputPanel>
+				<apex:outputPanel id="op_bom_tree">
+					<div id="tree_anchor_bom" style="height:400px;overflow-y:scroll;display:block">
+					</div>
+				</apex:outputPanel>
+    	</apex:outputPanel>
+    	<apex:form id="fm2" rendered="{!displayPageContent}">
+    		<apex:actionFunction name="setCurrentPage" action="{!setCurrentPage}" oncomplete="unblockUI();" rerender="pbs_supdmds, pageMessages"/>
+        	<apex:pageBlockSection id="pbs_supdmds" showHeader="false" title="{!$Label.rstk__indentedbom}" columns="1" collapsible="false" rendered="{!hideForm}">
+            	<apex:outputPanel >
+            		<apex:outputPanel rendered="{!isMultiPage}">
+	            		<apex:inputHidden id="curPageParentId" value="{!curPageParentId}"/>
+	            		<script>curpageparentidfld = document.getElementById("{!$Component.curPageParentId}");</script>
+	            		<apex:outputLabel value="{!$Label.rstk__selectpage}"/>
+	                	<apex:selectList id="pageSelect" value="{!curPage}" size="1" onchange="doSetCurrentPage(this);">
+	                    	<apex:selectOptions value="{!pageSelectOptions}"/>
+	                	</apex:selectList>
+                	</apex:outputPanel>
+                    <!--<apex:pageBlockTable id="pbt_supdmds" value="{!details}" var="d" rendered="{!isdebug}">
+         				<apex:variable var="rowNum" value="{!rowNum + 1}"/>
+                        <apex:column headerValue="{!f.rstk__ibom_level__c.label}" width="{!(d.level+2)*10}">
+                            <apex:outputPanel layout="block" style="width: {!d.level*10}px; text-indent: {!d.level*10}px;">
+                                <apex:outputText value="{!d.level}" />
+                            </apex:outputPanel>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_compitem__c.label}" width="300" >
+                            <apex:outputField value="{!d.pebom.pebom_compitem__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_effrev__c.label}" width="50">
+                            <apex:outputText value="{!d.effRev}" />
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_src__c.label}"  width="75">
+                        	<apex:outputText value="{!IF(ISNULL(d.pebom), d.icitem.icitem_item__r.peitem_src_pl__c, d.pebom.pebom_compitem__r.peitem_src_pl__c)}" />
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_qtyper__c.label}" width="40" style="text-align:right">
+                         	<c:outputFormattedNumber value="{!d.pebom.pebom_qtyper__c}" decimals="{!IF(ISNULL(d.icitem),6,d.icitem.formula_qtydecimal__c)}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__enguom}" width="40" rendered="{!isCostedBOM}">
+                            <apex:outputText value="{!d.pebom.pebom_compitem__r.peitem_enguom__r.syuom_uom__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_uom__c.label}" width="30">
+                            <apex:outputText value="{!d.pebom.pebom_compitem__r.peitem_enguom__r.syuom_uom__c}" rendered="{!ISNULL(d.icitem)}"/>
+                            <apex:outputText value="{!d.icitem.icitem_invuom__r.syuom_uom__c}" rendered="{!!ISNULL(d.icitem)}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_yield__c.label}" width="40" style="text-align:right" rendered="{!isCostedBOM}">
+                        	<c:outputFormattedNumber value="{!d.icitem.icitem_scrapfctr__c}" decimals="{!d.icitem.formula_qtydecimal__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_scrappct__c.label}" width="70" style="text-align:right">
+                         	<c:outputFormattedNumber value="{!d.pebom.pebom_scrappct__c}" decimals="{!IF(ISNULL(d.icitem),6,d.icitem.formula_qtydecimal__c)}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_setupqty__c.label}" width="80" style="text-align:right">
+                         	<c:outputFormattedNumber value="{!d.pebom.pebom_setupqty__c}" decimals="{!IF(ISNULL(d.icitem),6,d.icitem.formula_qtydecimal__c)}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_addrev__c.label}" value="{!d.pebom.pebom_addrev__r.peitemrev_rev__c}" rendered="{!(showRev && !isCostedBOM)}" width="60"/>
+                        <apex:column headerValue="{!f.rstk__ibom_addsts__c.label}" value="{!d.pebom.pebom_addsts_pl__c}" rendered="{!!isCostedBOM}" width="80"/>
+                        <apex:column headerValue="{!f.rstk__ibom_adddate__c.label}" value="{!d.pebom.pebom_adddate__c}" rendered="{!!isCostedBOM}" width="80">
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_delrev__c.label}" value="{!d.pebom.pebom_delrev__r.peitemrev_rev__c}" rendered="{!(showRev && !isCostedBOM)}" width="60"/>
+                        <apex:column headerValue="{!f.rstk__ibom_delsts__c.label}" value="{!d.pebom.pebom_delsts_pl__c}" rendered="{!!isCostedBOM}" width="80"/>
+                        <apex:column headerValue="{!f.rstk__ibom_deldate__c.label}" value="{!d.pebom.pebom_deldate__c}" rendered="{!!isCostedBOM}" width="80">
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_mtl__c.label}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                        	<c:outputFormattedNumber value="{!d.costObj[costCols[0]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_lab__c.label}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                         	<c:outputFormattedNumber value="{!d.costObj[costCols[1]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__ohdmtl}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                         	<c:outputFormattedNumber value="{!d.costObj[costCols[2]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__ohdlabor}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                         	<c:outputFormattedNumber value="{!d.costObj[costCols[3]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__ohdfringe}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                         	<c:outputFormattedNumber value="{!d.costObj[costCols[4]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__ohdmachine}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                         	<c:outputFormattedNumber value="{!d.costObj[costCols[5]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__submtl}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                         	<c:outputFormattedNumber value="{!d.costObj[costCols[6]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__sublabor}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                         	<c:outputFormattedNumber value="{!d.costObj[costCols[7]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f.rstk__ibom_unitcost__c.label}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                         	<c:outputFormattedNumber value="{!d.costObj[costCols[0]]+d.costObj[costCols[1]]+d.costObj[costCols[2]]+d.costObj[costCols[3]]+d.costObj[costCols[4]]+d.costObj[costCols[5]]+d.costObj[costCols[6]]+d.costObj[costCols[7]]}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__extcost}" width="100" style="text-align:right" rendered="{!isCostedBOM}">
+	                    	<c:outputFormattedNumber value="{!(d.costObj[costCols[0]]+d.costObj[costCols[1]]+d.costObj[costCols[2]]+d.costObj[costCols[3]]+d.costObj[costCols[4]]+d.costObj[costCols[5]]+d.costObj[costCols[6]]+d.costObj[costCols[7]]) * d.pebom.pebom_qtyper__c * d.umcf}" decimals="{!o.ibom_costdecimalprecision__c}"/>
+	                    </apex:column>
+	                    <apex:column headerValue="{!$Label.notes}" rendered="{!forCostRollup}">
+	                        <apex:outputPanel rendered="{!ISNULL(d.costObj) && !ISNULL(d.costObj['notes__c'])}">
+	                        <a rel="#notes{!rowNum}" href="javascript:{}">View</a> 
+	                        <div class="overlayStyle" id="notes{!rowNum}" style="width:500px; max-height:200px;">
+    	                    <apex:outputText value="{!substitute(d.costObj['notes__c'], '~', '<br/>')}" escape="false"/>
+        	                <a class='close' href='javascript:{}'>close</a>
+            	            </div>
+                	        </apex:outputPanel>
+	                    </apex:column>
+                	</apex:pageBlockTable>-->
+                	<script>
+                    	initHoverPopups(jQuery("#bodyTable"));
+                	</script>
+                	<apex:outputPanel id="op_supdmds2">
+                		<apex:panelGrid columns="6" rendered="{!showBOMTable}">
+							<apex:commandButton status="fetchStatus" reRender="op_supdmds2" value="|<" action="{!firstBomDetails}" disabled="{!!bomDetailsCon.hasPrevious}" title="{!$Label.rstk__firstpage}"/>
+							<apex:commandButton status="fetchStatus" reRender="op_supdmds2" value="<" action="{!previousBomDetails}" disabled="{!!bomDetailsCon.hasPrevious}" title="{!$Label.rstk__previouspage}"/>
+							<apex:commandButton status="fetchStatus" reRender="op_supdmds2" value=">" action="{!nextBomDetails}" disabled="{!!bomDetailsCon.hasNext}" title="{!$Label.rstk__nextpage}"/>
+							<apex:commandButton status="fetchStatus" reRender="op_supdmds2" value=">|" action="{!lastBomDetails}" disabled="{!!bomDetailsCon.hasNext}" title="{!$Label.rstk__lastpage}"/>
+							<apex:outputText >{!(bomDetailsCon.pageNumber * size)+1-size}-{!IF((bomDetailsCon.pageNumber * size)>noOfRecords, noOfRecords,(bomDetailsCon.pageNumber * size))} of {!noOfRecords}</apex:outputText>
+							<apex:outputPanel style="color:#4AA02C;font-weight:bold">
+							<apex:actionStatus id="fetchStatus" startText="Fetching..." stopText=""/>
+							</apex:outputPanel>
+						</apex:panelGrid>  
+	                	<apex:pageBlockTable id="pbt_supdmds2" value="{!bom_details}" var="d" rendered="{!showBOMTable}">
+	         				<apex:variable var="rowNum" value="{!rowNum + 1}"/>
+	                        <apex:column headerValue="{!f.rstk__ibom_level__c.label}" width="{!(d.be.rstk__bomexport_level__c+2)*10}">
+	                            <apex:outputPanel layout="block" style="width: {!d.be.rstk__bomexport_level__c*10}px; text-indent: {!d.be.rstk__bomexport_level__c*10}px;">
+	                                <!-- <c:outputFormattedNumber value="{!d.be.bomexport_level__c}" decimals="0"/> -->
+	                                <apex:outputText value="{!d.level}"/>
+	                            </apex:outputPanel>
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_compitem__c.label}" width="300" >
+	                            <apex:outputField value="{!d.be.rstk__bomexport_compitem__c}" rendered="{!d.be.rstk__bomexport_level__c > 0}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_effrev__c.label}" width="50">
+	                            <apex:outputText value="{!d.be.rstk__bomexport_effrev__c}" />
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_src__c.label}"  width="75">
+	                        	<apex:outputText value="{!d.be.rstk__bomexport_src__c}" />
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_qtyper__c.label}" width="40" style="text-align:right">
+	                         	<apex:outputText value="{!d.qty}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!$Label.rstk__enguom}" width="40" rendered="{!isCostedBOM}">
+	                            <apex:outputText value="{!d.be.rstk__bomexport_enguom__c}" rendered="{!(d.be.rstk__bomexport_level__c > 0)}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_uom__c.label}" width="30">
+	                            <apex:outputText value="{!d.be.rstk__bomexport_invuom__c}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_yield__c.label}" width="40" style="text-align:right" rendered="{!isCostedBOM}">
+	                        	<apex:outputText value="{!d.scrapfctr}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_scrappct__c.label}" width="70" style="text-align:right">
+	                         	<apex:outputText value="{!d.scrappct}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_setupqty__c.label}" width="80" style="text-align:right">
+	                         	<apex:outputText value="{!d.setupqty}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_addrev__c.label}" value="{!d.be.rstk__bomexport_addrev__c}" rendered="{!(showRev && !isCostedBOM)}" width="60"/>
+	                        <apex:column headerValue="{!f.rstk__ibom_addsts__c.label}" value="{!d.be.rstk__bomexport_addsts__c}" rendered="{!!isCostedBOM}" width="80"/>
+	                        <apex:column headerValue="{!f.rstk__ibom_adddate__c.label}" value="{!d.be.rstk__bomexport_adddate__c}" rendered="{!!isCostedBOM}" width="80"/>
+	                        <apex:column headerValue="{!f.rstk__ibom_delrev__c.label}" value="{!d.be.rstk__bomexport_delrev__c}" rendered="{!(showRev && !isCostedBOM)}" width="60"/>
+	                        <apex:column headerValue="{!f.rstk__ibom_delsts__c.label}" value="{!d.be.rstk__bomexport_delsts__c}" rendered="{!!isCostedBOM}" width="80"/>
+	                        <apex:column headerValue="{!f.rstk__ibom_deldate__c.label}" value="{!d.be.rstk__bomexport_deldate__c}" rendered="{!!isCostedBOM}" width="80"/>
+	                        <apex:column headerValue="{!f.rstk__ibom_mtl__c.label}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                        	<apex:outputText value="{!d.mtl}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_lab__c.label}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                         	<apex:outputText value="{!d.lab}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!$Label.rstk__ohdmtl}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                         	<apex:outputText value="{!d.ohdmtl}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!$Label.rstk__ohdlabor}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                         	<apex:outputText value="{!d.ohdlab}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!$Label.rstk__ohdfringe}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                         	<apex:outputText value="{!d.ohdfrng}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!$Label.rstk__ohdmachine}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                         	<apex:outputText value="{!d.ohdmach}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!$Label.rstk__submtl}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                         	<apex:outputText value="{!d.submtl}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!$Label.rstk__sublabor}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                         	<apex:outputText value="{!d.sublab}"/>
+	                        </apex:column>
+							<apex:column headerValue="{!$Label.rstk__freight}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                                <apex:outputText value="{!d.freight}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__other_landed}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+                                <apex:outputText value="{!d.othlnd}"/>
+                            </apex:column>
+	                        <apex:column headerValue="{!f.rstk__ibom_unitcost__c.label}" width="80" style="text-align:right" rendered="{!isCostedBOM}">
+	                         	<apex:outputText value="{!d.cost}"/>
+	                        </apex:column>
+	                        <apex:column headerValue="{!$Label.rstk__extcost}" width="100" style="text-align:right" rendered="{!isCostedBOM}">
+		                    	<apex:outputText value="{!d.extcost}" rendered="{!(d.be.rstk__bomexport_level__c > 0)}"/>
+		                    </apex:column>
+	                    </apex:pageBlockTable>
+	                     
+	                    <apex:panelGrid columns="6" rendered="{!showBOMTable}">
+							<apex:commandButton status="fetchStatus1" reRender="op_supdmds2" value="|<" action="{!firstBomDetails}" disabled="{!!bomDetailsCon.hasPrevious}" title="{!$Label.rstk__firstpage}"/>
+							<apex:commandButton status="fetchStatus1" reRender="op_supdmds2" value="<" action="{!previousBomDetails}" disabled="{!!bomDetailsCon.hasPrevious}" title="{!$Label.rstk__previouspage}"/>
+							<apex:commandButton status="fetchStatus1" reRender="op_supdmds2" value=">" action="{!nextBomDetails}" disabled="{!!bomDetailsCon.hasNext}" title="{!$Label.rstk__nextpage}"/>
+							<apex:commandButton status="fetchStatus1" reRender="op_supdmds2" value=">|" action="{!lastBomDetails}" disabled="{!!bomDetailsCon.hasNext}" title="{!$Label.rstk__lastpage}"/>
+							<apex:outputText >{!(bomDetailsCon.pageNumber * size)+1-size}-{!IF((bomDetailsCon.pageNumber * size)>noOfRecords, noOfRecords,(bomDetailsCon.pageNumber * size))} of {!noOfRecords}</apex:outputText>
+							<apex:outputPanel style="color:#4AA02C;font-weight:bold">
+							<apex:actionStatus id="fetchStatus1" startText="Fetching..." stopText=""/>
+							</apex:outputPanel>
+						</apex:panelGrid>
+	                     
+                    </apex:outputPanel>
+            	</apex:outputPanel>
+        	</apex:pageBlockSection>
+        </apex:form>
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}"/>
+     <script>
+        var ParentItem = "{!$Label.PleaseSelectParentItem}"; 
+        var EffectiveDate = "{!$Label.PleaseSpecifyAnEffectiveDate}";
+        var LABEL_SpecifyCostDecimalPrecision = "{!$Label.SpecifyCostDecimalPrecision}";                                                             	
+    </script>
+</apex:page>

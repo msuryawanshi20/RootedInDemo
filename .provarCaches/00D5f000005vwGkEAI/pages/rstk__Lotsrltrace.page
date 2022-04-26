@@ -1,0 +1,82 @@
+<apex:page id="pg" standardController="rstk__lotsrltrace__c" extensions="rstk.ControllerExtnLotsrltrace,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__lotsrltrace__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__lotsrltrace__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_lotsrltrace}" customInclude="{!$Resource.rstk__lotsrltrace_cli}" enableAutocomplete="true"/> 
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="reloadDispatchList" action="{!doReloadAllList}" oncomplete="unblockUI();" rerender="op_SubList" immediate="true"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_lotsrltrace_submit}" onclick="blockUI();reloadDispatchList(); return false;"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <input type="hidden" id="reporttype" value="1"/>
+        </apex:outputPanel>
+        
+        <c:division id="lotsrltrace_div__c" cntr="{!controller}"/>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+            <apex:pageBlockSectionItem helpText="{!f.rstk__lotsrltrace_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__lotsrltrace_item__c.label}"/>
+                <c:autocomplete id="lotsrltrace_item__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}" query="select id, name from icitem__c where icitem_div__c = 'prm'" queryParms="[['lotsrltrace_div__c','Division']]"  tabIndex="100"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__lotsrltrace_lot__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__lotsrltrace_lot__c.label}"/>
+                <c:selectList id="lotsrltrace_lot__c" required="true" cntr="{!controller}" tabIndex="201"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__lotsrltrace_serial__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__lotsrltrace_serial__c.label}"/>
+                <c:selectList id="lotsrltrace_serial__c" required="true" cntr="{!controller}" tabIndex="101"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__lotsrltrace_summary_only__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__lotsrltrace_summary_only__c.label}"/>
+                <c:inputCheckbox id="lotsrltrace_summary_only__c" cntr="{!controller}" tabIndex="202"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:pageMessages id="PageMessages"/>
+        <apex:outputPanel id="op_SubList">
+            <apex:tabPanel switchType="client" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_lotsrltrace_serializedworkorder}" name="tab_swo" id="tab_swo">
+                    <apex:pageBlockTable value="{!WOItemList}" var="rec1">
+                        <apex:column headerValue="{!$Label.rstk__order}" value="{!rec1.orderno}"/>
+                        <apex:column headerValue="{!$Label.rstk__qtyinwip}" value="{!rec1.qtyinwip}"/>
+                        <apex:column headerValue="{!$Label.rstk__item}" value="{!rec1.itemid}"/>
+                        <apex:column headerValue="{!$Label.rstk__serial}" value="{!rec1.serialno}"/>
+                    </apex:pageBlockTable>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_lotsrltrace_currentinventory}" name="tab_cinv" id="tab_cinv">
+                    <apex:pageBlockTable value="{!InvItemList}" var="rec2">
+                        <apex:column headerValue="{!$Label.rstk__item}" value="{!rec2.itemid}"/>
+                        <apex:column headerValue="{!$Label.rstk__lotandserial}" value="{!rec2.lotserial}"/>
+                        <apex:column headerValue="{!$Label.rstk__locid}" value="{!rec2.locid}"/>
+                        <apex:column headerValue="{!$Label.rstk__locnum}" value="{!rec2.locnum}"/>
+                    </apex:pageBlockTable>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_lotsrltrace_saleorders}" name="tab_so" id="tab_so">
+                    <apex:pageBlockTable value="{!SOItemList}" var="rec3">
+                        <apex:column headerValue="{!$Label.rstk__order}" value="{!rec3.orderno}"/>
+                        <apex:column headerValue="{!$Label.rstk__item}" value="{!rec3.itemid}"/>
+                        <apex:column headerValue="{!$Label.rstk__lotno}" value="{!rec3.lotno}"/>
+                        <apex:column headerValue="{!$Label.rstk__serial}" value="{!rec3.serialno}"/>
+                    </apex:pageBlockTable>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+             </apex:tabPanel>
+        </apex:outputPanel>
+        
+    </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

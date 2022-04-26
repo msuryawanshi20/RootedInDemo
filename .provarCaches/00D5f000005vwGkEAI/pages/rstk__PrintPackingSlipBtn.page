@@ -1,0 +1,152 @@
+<!-- <apex:page standardController="sopack__c" lightningStyleSheets="true">
+    <apex:includeScript value="{!$Resource.rstk__connection}" />
+    <script>
+        function printPackingSlip() {
+            sforce.connection.sessionId = '{!$Api.Session_ID}';
+            var result = sforce.connection.describeGlobal(); 
+            var sobjects = result.getArray("sobjects"); 
+            if (sobjects.length == 0) { sobjects = result.getArray("types"); } 
+                var re = /([A-Za-z0-9]+)?(__)?(icixr__c)/; 
+                var prefix = ''; 
+                for (var i=0; i<sobjects.length; i++) { 
+                    var mData = re.exec(sobjects[i]); 
+                    if (mData ==null) continue; 
+                    if (mData[3] == 'icixr__c') { 
+                    prefix = mData[1]==null?'':(mData[1]+mData[2]); 
+                    break; 
+                } 
+            } 
+            console.log(' prefix is '+prefix); 
+            sforce.connection.defaultNamespace = prefix; 
+            var prefixNamespace = '' 
+            if(prefix != '') { 
+                prefixNamespace = prefix; 
+            } 
+            
+            var queryStr = "select " + prefixNamespace + "syconfig_rootdox__c," + prefixNamespace + "syconfig_drawloop__c from " + prefixNamespace + "syconfig__c"; 
+            
+            var querySocntlStr = "select Id," + prefixNamespace + "socntl_sopacktemplate__c from " + prefixNamespace + "socntl__c where " + prefixNamespace+"socntl_div__c = '{!sopack__c.DivisionforPrintTemplate__c}' limit 1"; 
+            
+            var querySydefaultStr = "select Id," + prefixNamespace + "sydefault_formovr_pck__c from " + prefixNamespace + "sydefault__c"; 
+            
+            console.log(' queryStr is '+queryStr); 
+            console.log(' querySocntlStr is '+querySocntlStr ); 
+            console.log(' querySydefaultStr is '+querySydefaultStr ); 
+            
+            var config = sforce.connection.query(queryStr); 
+            var result = config.records; 
+            console.log(' result is '+result ); 
+            console.log(' result[syconfig_drawloop__c] is '+result['syconfig_drawloop__c'] ); 
+            console.log(' result[syconfig_rootdox__c] is '+result['syconfig_rootdox__c'] ); 
+            
+            var sydefault = sforce.connection.query(querySydefaultStr); 
+            var sydefaultResult = sydefault.records; 
+            console.log(' sydefaultResult is '+sydefaultResult );
+            console.log(' sydefaultResult[sydefault_formovr_pck__c] is '+sydefaultResult['sydefault_formovr_pck__c'] ); 
+            
+            if(result['syconfig_rootdox__c'] == 'true' && ( sydefaultResult[ 'sydefault_formovr_pck__c'] == null || sydefaultResult['sydefault_formovr_pck__c'] == 'No Override' || sydefaultResult['sydefault_formovr_pck__c'] == 'RootForms')){ 
+                var socntlRec = sforce.connection.query(querySocntlStr); 
+                var socntlResult = socntlRec.records; 
+                console.log(' socntlRec result is '+socntlResult ); 
+                var templaterec = socntlResult['socntl_sopacktemplate__c']; 
+                window.open("/apex/"+prefix+"printDOX?oid={!sopack__c.Id}&t=" +templaterec, ""); 
+            }else if (result['syconfig_drawloop__c'] == 'true') 
+                window.open("/apex/"+prefix+"printDDP?oid={!sopack__c.Id}" + "&type=ps", ""); 
+            else 
+                window.open("/apex/"+prefix+"sopackprint?Id={!sopack__c.Id}", "");
+        }
+    </script>
+    <apex:form >
+        <apex:commandButton onclick="printPackingSlip(); return false;" value="{!$Label.rstk__printthepackingslip}"/>
+    </apex:form>
+</apex:page> -->
+
+
+<apex:page standardController="rstk__sopack__c" extensions="rstk.PackingSlipPrintExt" lightningStyleSheets="true">
+    <apex:includeScript value="{!$Resource.rstk__connection}" />
+    <apex:includeScript value="{!URLFOR($Resource.rstk__jqueryuiLatest, 'js/jquery.min.js')}"/>
+    <apex:includeScript value="{!URLFOR($Resource.rstk__jqueryuiLatest, 'js/jquery-ui.min.js')}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__jqueryuiLatest, 'css/ui-lightness/jquery-ui.min.css')}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <script>
+        var prefix = '';
+        var isRootDox = {!isRootDox};
+        function printPackingSlip() {
+            sforce.connection.sessionId = '{!$Api.Session_ID}';
+            var result = sforce.connection.describeGlobal(); 
+            var sobjects = result.getArray("sobjects"); 
+            if (sobjects.length == 0) { sobjects = result.getArray("types"); } 
+                var re = /([A-Za-z0-9]+)?(__)?(icixr__c)/; 
+                //var prefix = ''; 
+                for (var i=0; i<sobjects.length; i++) { 
+                    var mData = re.exec(sobjects[i]); 
+                    if (mData ==null) continue; 
+                    if (mData[3] == 'icixr__c') { 
+                    prefix = mData[1]==null?'':(mData[1]+mData[2]); 
+                    break; 
+                } 
+            } 
+            console.log(' prefix is '+prefix); 
+            sforce.connection.defaultNamespace = prefix; 
+            var prefixNamespace = '' 
+            if(prefix != '') { 
+                prefixNamespace = prefix; 
+            } 
+            
+            var queryStr = "select " + prefixNamespace + "syconfig_rootdox__c," + prefixNamespace + "syconfig_drawloop__c from " + prefixNamespace + "syconfig__c"; 
+            var querySocntlStr = "select Id," + prefixNamespace + "socntl_sopacktemplate__c," + prefixNamespace + "socntl_packtemplovr__c from " + prefixNamespace + "socntl__c where " + prefixNamespace+"socntl_div__c = '{!rstk__sopack__c.rstk__DivisionforPrintTemplate__c}' limit 1"; 
+            var querySydefaultStr = "select Id," + prefixNamespace + "sydefault_formovr_pck__c from " + prefixNamespace + "sydefault__c"; 
+            
+            console.log(' queryStr is '+queryStr); 
+            console.log(' querySocntlStr is '+querySocntlStr ); 
+            console.log(' querySydefaultStr is '+querySydefaultStr ); 
+            
+            var config = sforce.connection.query(queryStr); 
+            var result = config.records; 
+            console.log(' result is '+result ); 
+            console.log(' result[syconfig_drawloop__c] is '+result['syconfig_drawloop__c'] ); 
+            console.log(' result[syconfig_rootdox__c] is '+result['syconfig_rootdox__c'] ); 
+            
+            var sydefault = sforce.connection.query(querySydefaultStr); 
+            var sydefaultResult = sydefault.records; 
+            console.log(' sydefaultResult is '+sydefaultResult );
+            console.log(' sydefaultResult[sydefault_formovr_pck__c] is '+sydefaultResult['sydefault_formovr_pck__c'] ); 
+            
+            var socntlRec = sforce.connection.query(querySocntlStr); 
+            var socntlResult = socntlRec.records; 
+            console.log(' socntlRec result is '+socntlResult );
+            var templateOverride = socntlResult['socntl_packtemplovr__c'];
+            var templaterec = socntlResult['socntl_sopacktemplate__c'];
+            if (templateOverride == 'true' && result['syconfig_drawloop__c'] == 'false') {
+                 if (templaterec) {
+                     jQuery('select[id$=selected_template__c]').val(templaterec);
+                 }
+                 _showDialog('selectEmailTemplate');
+                 return false;
+             } else {
+                if(result['syconfig_rootdox__c'] == 'true' && ( sydefaultResult[ 'sydefault_formovr_pck__c'] == null || sydefaultResult['sydefault_formovr_pck__c'] == 'No Override' || sydefaultResult['sydefault_formovr_pck__c'] == 'RootForms')){ 
+                    window.open("/apex/"+prefix+"printDOX?oid={!rstk__sopack__c.Id}&t=" +templaterec, ""); 
+                }else if (result['syconfig_drawloop__c'] == 'true') 
+                    window.open("/apex/"+prefix+"printDDP?oid={!rstk__sopack__c.Id}" + "&type=ps", ""); 
+                else 
+                    window.open("/apex/"+prefix+"sopackprint?Id={!rstk__sopack__c.Id}", "");
+             }
+        }
+        
+        function template_ok() {
+              var packTemplate = jQuery('select[id$=selected_template__c]').val();
+              if(isRootDox){
+                window.open("/apex/"+prefix+"printDOX?oid={!rstk__sopack__c.Id}&t=" +packTemplate, ""); 
+              }else 
+                window.open("/apex/"+prefix+"sopackprint?Id={!rstk__sopack__c.Id}"+(packTemplate != '' ? '&t=' + packTemplate :''), "");
+          }
+    </script>
+    <apex:form >
+        <apex:commandButton onclick="printPackingSlip(); return false;" value="{!$Label.rstk__printthepackingslip}"/>
+        <c:Popup popupId="selectEmailTemplate" title="{!$Label.rstk__pagepopup_soship_selectemailtemplate}" onOk="_closeDialog(); template_ok();">
+            <apex:selectList id="selected_template__c" style="width:300px" multiselect="false" size="1">
+                <apex:selectOptions value="{!EmailTemplates}"/>
+            </apex:selectList>
+       </c:Popup>
+    </apex:form>
+</apex:page>

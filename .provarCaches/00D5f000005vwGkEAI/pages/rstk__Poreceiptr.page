@@ -1,0 +1,175 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_poreceiptr}" standardController="rstk__porcpt_ui__c" extensions="rstk.ControllerExtnPoreceiptr,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__porcpt_ui__c}" /> 
+    <apex:variable var="f" value="{!$ObjectType.rstk__porcpt_ui__c.fields}" />
+    <apex:variable var="f_poline" value="{!$ObjectType.rstk__poline__c.fields}" />
+    <apex:variable var="f_woiss" value="{!$ObjectType.rstk__woiss__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poreceiptr}" customInclude="{!$Resource.rstk__porcptr_sl_cli}" enableAutocomplete="true"/>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" immediate="true"/>
+        <apex:actionFunction name="refreshPage" action="{!refreshPage}" immediate="true" rerender="reBlock">
+        	<apex:param name="param1" value="" />
+        </apex:actionFunction>        
+        <apex:actionFunction name="refreshPageMessage" action="{!refreshPageMessage}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="searchLocs" action="{!searchLocs}" oncomplete="unblockUI();" rerender="pageMessages, op_locs, op_rrecieveselected"/>
+        <apex:actionFunction name="rrecieveSelectedLocs" action="{!rrecieveSelectedLocs}" oncomplete="checkJobStatus();" rerender="pageMessages, op_JobStatus"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:pageBlock id="pb_search" mode="detail">
+        <apex:outputPanel id="op_JobStatus">
+        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+		<apex:pageBlockSection showHeader="false" columns="1">
+			<apex:pageBlockSectionItem >
+				<apex:outputPanel id="reBlock">
+					<c:division id="porcv_div__c" cntr="{!controller}" disabled="false"/>
+					<apex:pageBlockSection showHeader="false" columns="1">
+						<apex:pageBlockSectionItem helpText="{!f.rstk__porcptr_hdrordno__c.inlineHelpText}">
+			                <apex:outputLabel value="{!f.rstk__porcptr_hdrordno__c.label}"/>
+                            <c:autocomplete id="porcptr_hdrordno__c" cntr="{!controller}" slDesc="{!OrderNumber}" 
+                                            query="" 
+                                            queryParms="[]"  
+                                            useCustomAutocomplete="true" 
+                                            autocompleteController="ControllerExtnPoreceiptr"
+                                            autocompleteMethodParms="fieldId=porcptr_hdrordno__c;invDivId={!currDivision.id};pohdrid={!o.rstk__porcptr_hdrordno__c}"
+                                            tabIndex="1"/>
+			            </apex:pageBlockSectionItem>
+			            
+			            <apex:pageBlockSectionItem helpText="{!f.rstk__porcptr_poline__c.inlineHelpText}">
+			                <apex:outputLabel value="{!f.rstk__porcptr_poline__c.label}"/>
+			                <c:selectList id="porcptr_poline__c" cntr="{!controller}" options="{!POLines}" width="400px" tabIndex="2"/>
+			            </apex:pageBlockSectionItem>
+			            
+			            <apex:pageBlockSectionItem helpText="{!f.rstk__porcptr_porcptcst__c.inlineHelpText}">
+			                <apex:outputLabel value="{!f.rstk__porcptr_porcptcst__c.label}"/>
+			                <c:selectList id="porcptr_porcptcst__c" cntr="{!controller}" options="{!POReceipts}" tabIndex="3"/>
+			            </apex:pageBlockSectionItem>
+			            
+			            <apex:pageBlockSectionItem helpText="{!f.rstk__porcptr_rtvind__c.inlineHelpText}">
+			                <apex:outputLabel value="{!f.rstk__porcptr_rtvind__c.label}"/>
+			                <c:inputField id="porcptr_rtvind__c" cntr="{!controller}" tabIndex="4"/>
+			            </apex:pageBlockSectionItem>
+			            
+			            <apex:inputField id="porcv_txndate__c" value="{!o.rstk__porcv_txndate__c}" rendered="{!displayTxnDate}"/>
+					</apex:pageBlockSection>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+		</apex:pageBlockSection>
+		
+		<apex:commandButton value="{!$Label.rstk__pagebtn_poreceiptr_displayreceiptlocations}" onclick="return doSearchlocs();" style="width:150px;display:none;"/>&nbsp;
+		<apex:outputPanel id="op_rrecieveselected">
+			<c:nosubmitbutton label="{!$Label.rstk__pagebtn_poreceiptr_performreceiptreversal}" onclick="if(doValidate()){doSetFFCompanyAndProcess(doRreceieve);}" rendered="{!displayLocs}" style="width:225px;"/>
+		</apex:outputPanel>
+	</apex:pageBlock>
+	
+	<script>var locs = {};</script>
+	<apex:outputPanel id="op_locs">
+	<apex:pageBlock id="pb_locs" mode="detail" rendered="{!displayLocs}">
+        <apex:pageBlockSection id="pbs_locs" showHeader="false" title="{!$Label.rstk__receiptlocations}" columns="1" collapsible="false">
+			<apex:pageBlock mode="edit">
+				<apex:pageBlockSection showHeader="false" columns="3">
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f_poline.rstk__poline_item__c.label}" />
+								<apex:outputField value="{!poline.rstk__poline_item__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f_poline.rstk__poline_invdiv__c.label}" />
+								<apex:outputField value="{!poline.rstk__poline_invdiv__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!f_poline.rstk__poline_proj__c.label}" />
+								<apex:outputField value="{!poline.rstk__poline_proj__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__pfx_poline & ' ' & f_poline.rstk__poline_qtyreq__c.label}" />
+								<apex:outputField value="{!poline.rstk__poline_qtyreq__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__pfx_poline & ' ' & f_poline.rstk__poline_qtyacc__c.label}" />
+								<apex:outputField value="{!poline.rstk__poline_qtyacc__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+					
+					<apex:pageBlockSectionItem >
+						<apex:pageBlockSection columns="1">
+							<apex:pageBlockSectionItem >
+								<apex:outputLabel value="{!$Label.rstk__pfx_poline & ' ' & f_poline.rstk__poline_qtyrtv__c.label}" />
+								<apex:outputField value="{!poline.rstk__poline_qtyrtv__c}"/>
+							</apex:pageBlockSectionItem>
+						</apex:pageBlockSection>
+					</apex:pageBlockSectionItem>
+				</apex:pageBlockSection>
+				<apex:pageBlockTable value="{!locs}" var="l" columnsWidth="50px,100px,50px,50px,300px,200px">
+					<apex:column headerValue="{!f.rstk__porcptr_selected__c.label}" style="vertical-align:top;">
+						<script>var locrow = {}; locs["{!l.index}"] = locrow;</script>
+		        		<apex:inputCheckbox id="locSelected" value="{!l.selected}" onclick="selectRow('{!l.index}');"/>
+		        		<script>locrow["selected"] = document.getElementById("{!$Component.locSelected}");</script>
+		        	</apex:column>
+					<apex:column headerValue="{!f_woiss.rstk__woiss_iclocitemname__c.label}" value="{!l.locidlocnum}" style="vertical-align:top;"/>
+					<apex:column headerValue="{!f.rstk__porcptr_qtyacc__c.label}" style="vertical-align:top;">
+						<apex:outputField value="{!l.qtyaccfld.rstk__qty__c}" style="width:50px;"/>
+						<script>locrow["qtyacc"] = {!l.qtyaccfld.rstk__qty__c};</script>
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__porcptr_qtyrtv__c.label}" style="vertical-align:top;">
+						<apex:outputField value="{!l.qtyrtvfld.rstk__qty__c}" style="width:50px;"/>
+						<script>locrow["qtyrtv"] = {!l.qtyrtvfld.rstk__qty__c};</script>
+					</apex:column>
+					<apex:column headerValue="{!IF(l.isSrl, f.rstk__porcptr_srlporlocdtls__c.label, f.rstk__porcptr_qty__c.label)}" style="vertical-align:top;">
+						<apex:outputPanel rendered="{!l.isSrl}">
+							<apex:selectList id="reverseSrls" value="{!l.reverserSrlLocs}" multiselect="true" size="5" style="width:300px;" onchange="serialsChanged('{!l.index}');">
+		                    	<apex:selectOptions value="{!l.receivedSrlLocs}"/>
+		                    </apex:selectList><br/><apex:outputLabel value="{!$Label.rstk__selectedcount}"/>&nbsp;&nbsp;
+		                    <script>locrow["reverseSrls"] = document.getElementById("{!$Component.reverseSrls}");</script>
+	                    </apex:outputPanel>
+	                    <apex:inputField id="qtyreverse" value="{!l.qtyreversefld.rstk__qty__c}" style="width:50px;" onchange="qtyreverseChanged('{!l.index}');"/>
+	                    <script>locrow["qtyreverse"] = document.getElementById("{!$Component.qtyreverse}");if({!l.isSrl}){locrow["qtyreverse"].disabled = true;}</script>
+	                    <script>locrow["qtydecimal"] = {!l.porlocdtl.porlocdtl_poitem__r.rstk__formula_qtydecimal__c};</script>
+					</apex:column>
+					<apex:column headerValue="{!f.rstk__porcptr_txncomment__c.label}" style="vertical-align:top;">
+						<apex:inputTextArea value="{!l.txncomment}" cols="20" rows="1" />
+					</apex:column>
+				</apex:pageBlockTable>
+			</apex:pageBlock>
+		</apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:outputPanel>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    
+    <script>
+		var LABEL_SelectAtLeastOneEntryForReceiptReversal = "{!$Label.SelectAtLeastOneEntryForReceiptReversal}";
+		var LABEL_UsersCurrentDivisionCouldNotBeDetermined = "{!$Label.UsersCurrentDivisionCouldNotBeDetermined}";
+		var LABEL_CurrentUserCouldNotBeDetermined = "{!$Label.CurrentUserCouldNotBeDetermined}";
+		var LABEL_CurrentUsersIdCouldNotBeDetermined = "{!$Label.CurrentUsersIdCouldNotBeDetermined}";
+		var LABEL_PORcptReversalOfIndirectItemsNotSupportedFromThisScreen_UsePOAuth = "{!$Label.PORcptReversalOfIndirectItemsNotSupportedFromThisScreen_UsePOAuth}";
+		var WholeNumber = "{!$Label.QuantityMustBeWholeNumber}";
+		var Decimal = "{!$Label.QuantityCannotExceedDecimal}";
+	</script>
+</apex:page>

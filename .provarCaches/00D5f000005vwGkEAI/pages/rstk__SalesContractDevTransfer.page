@@ -1,0 +1,221 @@
+<apex:page id="pg" title="{!$Label.rstk__salescontractdevtransf}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnContrDevTransferMgmt,rstk.RemoteQueryController,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+<apex:variable var="o" value="{!rstk__customext__c}" />
+<apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+
+<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__salescontractdevtransf}" 
+    customInclude="{!$Resource.rstk__salesContractDevTransfer_cli}" enableAutocomplete="true"/>
+
+<apex:form id="fm">
+    <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+    <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+    <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+    <apex:actionFunction name="doSave" action="{!save}"/>
+    
+    <apex:actionFunction name="validateFilter" action="{!validateFilter}" reRender="op_javascript" immediate="false"/>
+    <apex:actionFunction name="retrieveDevDisps" action="{!retrieveDevDisps}" oncomplete="unblockUI();" reRender="op_deviceDispList, pageMessages" immediate="false"/>
+    <apex:actionFunction name="devCustContractTransfer" action="{!devCustContractTransfer}" oncomplete="checkJobStatus();" reRender="op_JobStatus,pageMessages,op_deviceDispList" immediate="false"/>
+    <apex:actionFunction name="retrieveDevDisps2" action="{!retrieveDevDisps}" immediate="false"/>  
+    
+    <apex:actionFunction name="showBulkSrlNums" action="{!showBulkSrlNums}" oncomplete="unblockUI();" reRender="SrlNumPanel" immediate="false"/>
+    <apex:actionFunction name="showBulkContract" action="{!showBulkContract}" oncomplete="unblockUI();" reRender="mainSalesContractPanel" immediate="false"/>
+    <apex:actionFunction name="showSingleContract" action="{!showBulkContract}" oncomplete="showContractButton();socustChange();unblockUI();" reRender="mainSalesContractPanel" immediate="false"/>
+    <apex:actionFunction name="showBulkAsset" action="{!showBulkAsset}" oncomplete="unblockUI();" reRender="assetPanel" immediate="false"/>
+    
+    <apex:inputHidden id="divId__c" value="{!o.rstk__div__c}"/>
+    
+     <apex:pageBlock id="pb_main" mode="edit">
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        <apex:outputPanel id="op_javascript"><script>setTimeout(function() { {!scriptToExecute} }, 10);</script> </apex:outputPanel>
+        <apex:pageBlockButtons >
+            <apex:commandButton id="btn_refreshDevDisp" value="{!$Label.rstk__refreshdevdisp}" onclick="refreshDeviceDisp(); return false;"/>
+            <apex:commandButton id="btn_procSelActivity" value="{!$Label.rstk__devicecustcontracttransf}" onclick="devCustContrTransf(); return false;"/>
+        </apex:pageBlockButtons>
+        
+        <apex:pageBlockSection id="pbs_main" showHeader="false" columns="2" >
+            <!-- FILTER_DIV -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__division1}"/>
+                <apex:outputField id="div__c"  value="{!o.rstk__div__c}" />
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem />
+            
+            <!-- FILTER_CUST -->
+            <apex:pageBlockSectionItem >
+               <apex:outputLabel value="{!$Label.rstk__customer}" />
+                <c:autocomplete id="customext_socust__c" cntr="{!controller}" slDesc="{!custName}"
+                        query="select id, name from socust__c where socust_inactive__c = false"/>
+            </apex:pageBlockSectionItem>
+            <!-- LOCAL_REASON -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__activityreasoncode}"/>
+                    <apex:selectList id="local_reason__c" value="{!reason}" size="1" >
+                    <apex:selectOptions value="{!reasons}"/>
+                </apex:selectList>
+            </apex:pageBlockSectionItem>
+            
+            <!-- FILTER_CONTRACT -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__salescontract}" />
+                <apex:outputPanel Id="mainSalesContractPanel">
+                    <script>var isBulkContractEntry = "{!isBulkContractEntry}"</script>
+                    <apex:outputPanel Id="singleSalesContract" rendered="{!!isBulkContractEntry}">
+                        <c:selectList id="customext_socontract__c" cntr="{!controller}" options="{!socontracts}" width="250px" tabIndex="3" onchange="socontractChange();"/>
+                        <!-- <apex:commandButton id="bulkEntry" value="Bulk Entry" onclick="blockUI();showBulkContract();return false;" rendered="{!!isBulkContractEntry}"/> -->
+                    </apex:outputPanel>
+                    <apex:outputPanel style="display:none">
+                        <apex:commandButton id="socontractBulkEntryButton" value="{!$Label.rstk__salescontractdevtransfer_pagebtn_bulkentry}" onclick="blockUI();showBulkContract();return false;"/>
+                    </apex:outputPanel>
+                     <apex:outputPanel Id="salesContractPanel">
+                        <apex:inputTextarea id="filter_socontracts__c" value="{!socontractIds}" rows="5" cols="30" rendered="{!isBulkContractEntry}"/>
+                        <apex:commandButton id="singleEntry" value="{!$Label.rstk__salescontractdevtransfer_pagebtn_singleentry}" onclick="blockUI();showSingleContract();return false;" rendered="{!isBulkContractEntry}"/>
+                    </apex:outputpanel>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            <!-- LOCAL_TOCUST -->
+            <apex:pageBlockSectionItem >
+               <apex:outputLabel value="{!$Label.rstk__transfertocustomer}" />
+                <c:autocomplete id="customext_socust2__c" cntr="{!controller}" slDesc="{!custName2}"
+                        query="select id, name from socust__c where socust_inactive__c = false"/>
+            </apex:pageBlockSectionItem>
+            
+            
+            <!-- FILTER_SRLNO -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__serialnumber}"/>
+                <apex:outputPanel Id="SrlNumPanel">
+                    <apex:inputText id="filter_srlno__c" value="{!serialNum}" rendered="{!!isBulkSrlEntry}"/>
+                    <apex:inputTextarea id="filter_srlnos__c" value="{!srlNums}" rows="5" cols="30" rendered="{!isBulkSrlEntry}"/>
+                    <apex:commandButton id="singleEntry" value="{!$Label.rstk__salescontractdevtransfer_pagebtn_singleentry}" onclick="blockUI();showBulkSrlNums();return false;" rendered="{!isBulkSrlEntry}"/>
+                    <apex:commandButton id="bulkEntry" value="{!$Label.rstk__salescontractdevtransfer_pagebtn_bulkentry}" onclick="blockUI();showBulkSrlNums();return false;" rendered="{!!isBulkSrlEntry}"/>
+                </apex:outputpanel>
+            </apex:pageBlockSectionItem>
+            <!-- LOCAL_TOCONTRACT -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__transfertocontract}" />
+                <c:selectList id="customext_socontract3__c" cntr="{!controller}" options="{!socontracts2}" width="250px" tabIndex="31"/>
+                <!-- <apex:outputPanel >
+                    <apex:selectList id="customext_socontract3__c" value="{!o.customext_socontract3__c}" size="1" style="width:250px;" tabIndex="31"> 
+                           <apex:selectOptions value="{!socontracts2}" /> 
+                       </apex:selectList>
+                </apex:outputPanel> -->
+            </apex:pageBlockSectionItem>
+            
+            <!-- FILTER_ASSET -->
+            <apex:pageBlockSectionItem > 
+                <apex:outputLabel value="{!$Label.rstk__assetid}"/>
+                <apex:outputPanel Id="assetPanel">
+                    <apex:inputText id="filter_asset__c" value="{!assetId}" rendered="{!!isBulkAssetEntry}"/>
+                    <apex:inputTextarea id="filter_assets__c" value="{!assetIds}" rows="5" cols="30" rendered="{!isBulkAssetEntry}"/>
+                    <apex:commandButton id="singleEntry" value="{!$Label.rstk__salescontractdevtransfer_pagebtn_singleentry}" onclick="blockUI();showBulkAsset();return false;" rendered="{!isBulkAssetEntry}"/>
+                    <apex:commandButton id="bulkEntry" value="{!$Label.rstk__salescontractdevtransfer_pagebtn_bulkentry}" onclick="blockUI();showBulkAsset();return false;" rendered="{!!isBulkAssetEntry}"/>
+                </apex:outputpanel>
+            </apex:pageBlockSectionItem>
+            <!-- LOCAL_INSTALLADDR -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__transfertoinstalladdr}" />
+                <apex:outputPanel >
+                    <apex:selectList id="customext_socaddr__c" value="{!o.rstk__customext_socaddr__c}" size="1" style="width:250px;" tabIndex="31"> 
+                           <apex:selectOptions value="{!socaddrs}" /> 
+                       </apex:selectList>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <!-- FILTER_ACTIVERONLY -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__activedevicesonly}"/>
+                <apex:inputCheckbox id="custom_checkbox__c" value="{!o.rstk__custom_checkbox__c}"/>
+            </apex:pageBlockSectionItem>
+             <apex:pageBlockSectionItem />
+             
+             <!-- FILTER_INACTIVERONLY -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__inactivedevicesonly}"/>
+                <apex:inputCheckbox id="custom_checkbox2__c" value="{!o.rstk__custom_checkbox2__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem />
+            
+            <!-- FILTER_HELDONLY -->                        
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__devicesonbillinghold}"/>
+                <apex:inputCheckbox id="custom_checkbox3__c" value="{!o.rstk__custom_checkbox3__c}"/>
+            </apex:pageBlockSectionItem>
+            <!-- LOCAL_EFFDATE -->
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__activityeffdate}"/>
+                <apex:inputField id="custom_date3__c" value="{!o.rstk__custom_date3__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <!-- Exclude Terminated Devices -->                        
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__excludeterminateddevices}"/>
+                <apex:inputCheckbox id="custom_checkbox5__c" value="{!o.rstk__custom_checkbox5__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem />
+            
+             <!-- Exclude Terminated Devices : Using local variable as field does not exist in customext object-->                        
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__excludetransferreddevices}"/>
+                <apex:inputCheckbox id="excludeTransferredDevices__c" value="{!excludeTransferredDevices}"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+     </apex:pageBlock>
+     
+     <apex:outputPanel id="op_deviceDispList" >
+     <apex:pageBlock id="deviceDisplist">
+     <script>var rows = {};  var selectcbxs = []; var matchescbxs = {};</script>
+        <input type="checkbox" onclick="selectall(this)" />
+        <apex:outputLabel value="{!$Label.rstk__selectall}" />
+        <apex:pageBlockTable value="{!socondevRecs}" var="s" id="pb_table1">
+            <apex:column headerValue="{!$Label.rstk__select}">
+                <apex:inputCheckbox id="selected" value="{!s.selected}" onchange="selectRecord('{!s.key}')"/>
+                <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+            </apex:column>
+            <apex:column headerValue="{!$Label.rstk__view}">
+                <apex:outputLink value="{!URLFOR($Action.rstk__socondev__c.View, s.socondev.id)}">{!s.socondev.Name}</apex:outputLink>
+            </apex:column>
+            <apex:column headerValue="{!$Label.rstk__serialnumber}" value="{!s.socondev.socondev_sowarr__r.rstk__sowarr_srlno__c}" />
+            <apex:column headerValue="{!$Label.rstk__assetnum}" value="{!s.socondev.socondev_sowarr__r.rstk__sowarr_asset__c}" />
+            <apex:column headerValue="{!$Label.rstk__billingstatus}" value="{!s.socondev.rstk__socondev_billstatus__c}" />
+            <apex:column headerValue="{!$Label.rstk__startdate}" value="{!s.socondev.rstk__socondev_startdate__c}" />
+            <apex:column headerValue="{!$Label.rstk__enddate}" value="{!s.socondev.rstk__socondev_enddate__c}" />
+            <apex:column headerValue="">
+                <script>
+                    rows["{!s.key}"] = {
+                        selected: document.getElementById("{!$Component.selected}"),
+                    };
+                </script>
+            </apex:column>
+    </apex:pageBlockTable>
+    <!-- Pagination Buttons Start-->
+    <apex:panelGrid columns="7" rendered="{!showDeviceDispPanel}">
+        <apex:commandButton status="fetchStatus2" reRender="op_deviceDispList" value="|<" action="{!firstPage}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__firstpage}"/>
+        <apex:commandButton status="fetchStatus2" reRender="op_deviceDispList" value="<" action="{!previousPage}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__previouspage}"/>
+        <apex:commandButton status="fetchStatus2" reRender="op_deviceDispList" value=">" action="{!nextPage}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__nextpage}"/>
+        <apex:commandButton status="fetchStatus2" reRender="op_deviceDispList" value=">|" action="{!lastPage}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__lastpage}"/>
+        <apex:outputText >{!(setCon.pageNumber * size)+1-size}-{!IF((setCon.pageNumber * size)>noOfRecords, noOfRecords,(setCon.pageNumber * size))} of {!noOfRecords}</apex:outputText>
+        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+        <apex:actionStatus id="fetchStatus2" startText="Fetching..." stopText=""/>
+        </apex:outputPanel>
+    </apex:panelGrid>
+    <!-- Pagination Buttons End-->  
+     </apex:pageBlock>
+     </apex:outputPanel>
+</apex:form>
+
+<c:footerInclude cntr="{!controller}" />
+
+<script>
+    var Label_TransfToContrMustBeSpec = "{!$Label.rstk__transftocontrmustbespec}";
+    var Label_TransfToCustMustBeSpec = "{!$Label.rstk__transftocustmustbespec}";
+    var Label_TransfToInstallAddrMustBeSpec = "{!$Label.rstk__transftoinstalladdrmustbespec}";
+    var Label_selDevFromListBelow = "{!$Label.rstk__seldevfromlistbelow}";
+    var Label_contractOrCustMustBeSpec = "{!$Label.rstk__contractorcustmustbespec}";
+    var Label_activityEffDateMustBeSpec = "{!$Label.rstk__activityeffdatemustbespec}";
+    var Label_salesContracstMustBelongToOneCust = "{!$Label.rstk__salescontracstmustbelongtoonecust}";
+    
+    var todaysDate = formatDate("{!todaysDate}");
+</script>
+</apex:page>

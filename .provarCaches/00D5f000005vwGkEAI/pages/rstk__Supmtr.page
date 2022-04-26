@@ -1,0 +1,277 @@
+<apex:page id="pg" standardController="rstk__supmtr__c" extensions="rstk.ControllerExtnSupmtr,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__supmtr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__supmtr__c.fields}" /> 
+    <apex:variable var="f_obshipcont" value="{!$ObjectType.rstk__obshipcont__c.fields}" />
+    <apex:variable var="f_obship" value="{!$ObjectType.rstk__obship__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_supmtr}" customInclude="{!$Resource.rstk__supmtr_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <style>
+        .modal {
+            background-color: #fff;
+            display: none;
+            width: 640px;
+            padding: 15px;
+            text-align: left;
+            font-size: 1em;
+            border: 2px solid #333;
+            opacity: 1.0;
+            -moz-border-radius: 6px;
+            -webkit-border-radius: 6px;
+            -moz-box-shadow: 0 0 50px #ccc;
+            -webkit-box-shadow: 0 0 50x #ccc;
+        }
+    </style>
+    
+    <script>
+        var sydiv = '{!o.rstk__supmtr_div__c}';
+        var approvedsup = {!o.rstk__supmtr_approvedsup__c};
+        var approvedmm = {!o.rstk__supmtr_approvedmm__c};
+        var relased = {!o.rstk__supmtr_released__c};
+        var obship = '{!o.rstk__supmtr_obship__c}';
+        var tempContrl = {!tempCheck};
+       jQuery(document).ready(function() {
+            jQuery("button[rel]").overlay({
+            
+                top: "10%",
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                fixed: false,
+                
+                closeOnClick: false
+            });
+            
+            initHoverPopups(jQuery("div[id$=':pbs_outboundShip']"), {manualLoad:false, displayUp:true});
+        });
+    </script>
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="CreateOutboundShipment" action="{!CreateOutboundShipment}" immediate="false" />
+        
+        
+        <div class="overlayStyle" id="outboundShip">
+            <apex:pageBlock id="ovr_outboundShip">
+                <apex:pageBlockSection id="pbs_outboundShip" showHeader="true" title="{!$Label.rstk__pagetab_supmtr_createoutboundshipment}" collapsible="false" columns="1"> 
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!$Label.rstk__shipment_id}" /> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                            <apex:inputText id="obship_id__c" style="z-index: 9999;width:150px;" value="{!obshipid}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!$Label.rstk__sourceshipmentroute}" /> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                            <apex:inputHidden id="poroute__c" value="{!poroute}" />
+                             <select id="poroute_sel" style="z-index: 9999;width:200px;">
+                                <option> </option>
+                            </select>
+                        </apex:outputPanel>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!f_obshipcont.rstk__obshipcont_poconttype__c.label}" /> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                            <apex:inputHidden id="conttype__c" value="{!conttype}" />
+                            <select id="conttype_sel" style="z-index: 9999;width:200px;">
+                                <option> </option>
+                            </select>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!$Label.rstk__temperature_controlled_materials}" /> &nbsp;
+                            <apex:inputHidden id="tempcheck__c" value="{!tempCheck}" />
+                            <apex:inputCheckbox id="tempcheck__fld_c" style="z-index: 9999;" value="{!tempCheck}" disabled="true" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!$Label.rstk__minimum_temperature_value}" /> &nbsp;&nbsp;&nbsp;
+                            <apex:inputHidden id="mintemp__c" value="{!o.supmtr_supitem__r.rstk__supitem_shipmintempf__c}" />
+                            <apex:outputField id="tempcheck__fld_c" style="z-index: 9999;width:150px;" value="{!o.supmtr_supitem__r.rstk__supitem_shipmintempf__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!$Label.rstk__maximum_temperature_value}" /> &nbsp;&nbsp;&nbsp;
+                            <apex:inputHidden id="maxtemp__c" value="{!o.supmtr_supitem__r.rstk__supitem_shipmaxtempf__c}" />
+                            <apex:outputField style="z-index: 9999;width:150px;" value="{!o.supmtr_supitem__r.rstk__supitem_shipmaxtempf__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel >
+                            <apex:outputLabel value="{!$Label.rstk__suggested_container_temperature}" /> &nbsp;&nbsp;&nbsp;
+                            <apex:inputHidden id="sugtemp__c" value="{!suggestedTemp}" />
+                            <apex:outputText style="z-index: 9999;width:150px;" value="{!suggestedTemp}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+            <button type="button" onclick="return createOBS();">{!$Label.Create_OBS}</button>
+            <button type="button" class="close" onclick="outbondShipmentBtn_cancel();">{!$Label.so_pagebtn_Cancel}</button>
+        </div>  
+        
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+                <button name="outbondShipmentBtn" id="outbondShipmentBtn" type="button" onclick="return false;" rel="#outboundShip"
+                    class="btn" style="width: 160px;display: {!IF(isView, '', 'none')};" >{!$Label.rstk__pagetab_supmtr_createoutboundshipment}</button>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+            
+            <c:division id="supmtr_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_number__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_number__c.label}"/>
+                    <c:inputField id="supmtr_number__c" required="true" cntr="{!controller}" tabIndex="10"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_owner__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_owner__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="supmtr_owner__c" cntr="{!controller}" tabIndex="90" rendered="{!o.rstk__supmtr_obship__c == null}"/>
+                        <apex:outputField value="{!o.rstk__supmtr_owner__c}" rendered="{!o.rstk__supmtr_obship__c != null}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_povend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_povend__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isView}">
+                            <c:autocomplete id="supmtr_povend__c" cntr="{!controller}" required="true" slDesc="{!VendName}"
+                                query="select id, name from povend__c" width="250px" tabIndex="20"/>
+                        </apex:outputPanel>
+                        <apex:outputField value="{!o.rstk__supmtr_povend__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_relabel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_relabel__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="supmtr_relabel__c" cntr="{!controller}" tabIndex="110" rendered="{!o.rstk__supmtr_obship__c == null}"/>
+                        <apex:outputField value="{!o.rstk__supmtr_relabel__c}" rendered="{!o.rstk__supmtr_obship__c != null}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                        
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_supitem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_supitem__c.label}"/>
+                    <c:selectList id="supmtr_supitem__c" required="true" cntr="{!controller}" options="{!Supitems}" tabIndex="30"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_oemapproved__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_oemapproved__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="supmtr_oemapproved__c" cntr="{!controller}" tabIndex="120" rendered="{!o.rstk__supmtr_obship__c == null}"/>
+                        <apex:outputField value="{!o.rstk__supmtr_oemapproved__c}" rendered="{!o.rstk__supmtr_obship__c != null}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_qty__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_qty__c.label}"/>
+                    <c:inputField id="supmtr_qty__c" required="true" cntr="{!controller}" tabIndex="40"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_exportlic__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_exportlic__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="supmtr_exportlic__c" cntr="{!controller}" tabIndex="130" rendered="{!o.rstk__supmtr_obship__c == null}"/>
+                        <apex:outputField value="{!o.rstk__supmtr_exportlic__c}" rendered="{!o.rstk__supmtr_obship__c != null}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_lotno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_lotno__c.label}"/>
+                    <c:inputField id="supmtr_lotno__c" required="false" cntr="{!controller}" tabIndex="50"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_temprecorders__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_temprecorders__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="supmtr_temprecorders__c" cntr="{!controller}" tabIndex="140" rendered="{!o.rstk__supmtr_obship__c == null}"/>
+                        <apex:outputField value="{!o.rstk__supmtr_temprecorders__c}" rendered="{!o.rstk__supmtr_obship__c != null}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_destaddress__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_destaddress__c.label}"/>
+                    <c:inputField id="supmtr_destaddress__c" required="true" cntr="{!controller}" tabIndex="60"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_obship__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_obship__c.label}"/>
+                    <apex:outputField id="supmtr_obship__c" value="{!o.rstk__supmtr_obship__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_tempspecverified__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_tempspecverified__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="supmtr_tempspecverified__c" cntr="{!controller}" tabIndex="150" rendered="{!o.rstk__supmtr_obship__c == null}"/>
+                        <apex:outputField value="{!o.rstk__supmtr_tempspecverified__c}" rendered="{!o.rstk__supmtr_obship__c != null}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_approvedsup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_approvedsup__c.label}"/>
+                    <c:inputField id="supmtr_approvedsup__c" required="false" cntr="{!controller}" tabIndex="70"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_inthaz__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_inthaz__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="supmtr_inthaz__c" cntr="{!controller}" tabIndex="160" rendered="{!o.rstk__supmtr_obship__c == null}"/>
+                        <apex:outputField value="{!o.rstk__supmtr_inthaz__c}" rendered="{!o.rstk__supmtr_obship__c != null}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_approvedmm__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_approvedmm__c.label}"/>
+                    <c:inputField id="supmtr_approvedmm__c" required="false" cntr="{!controller}" tabIndex="80"/>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstk__supmtr_released__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__supmtr_released__c.label}"/>
+                    <apex:outputField value="{!o.rstk__supmtr_released__c}" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_supmtr_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_Invalidvaluefor_MustBeNonNegativeNumber = "{!$Label.rstk__invalidvaluefor_mustbenonnegativenumber}";
+        var LABEL_LotNumReqdWhenSupplierPatLotContrlled = "{!$Label.rstk__lotnumreqdwhensupplierpatlotcontrlled}";
+        var LABEL_ProvideReqdFieldContainerType = "{!$Label.rstk__providereqdfieldcontainertype}";
+        var LABEL_ProvideReqdField_SrcShipmentRoute = "{!$Label.rstk__providereqdfield_srcshipmentroute}";
+        var LABEL_MustBePositiveValue = "{!$Label.rstk__mustbepositivevalue}";
+        var LABEL_ShipmentIdAlreadyExist_ProvideUniqueId = "{!$Label.rstk__shipmentidalreadyexist_provideuniqueid}";
+        var LABEL_Warning_Temperature_Controlled_Material_has_been_selected_to_ship_in_a_General_D = "{!$Label.rstk__warning_temperature_controlled_material_has_been_selected_to_ship_in_a_general_d}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

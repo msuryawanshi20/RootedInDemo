@@ -1,0 +1,317 @@
+<apex:page id="pg" title="{!$Label.rstkf__prepare_financial_reports}" standardController="rstkf__statementrun__c" extensions="rstkf.ControllerExtnStatementrun,rstkf.RemoteQueryController,rstkf.ControllerJobStatus" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__statementrun__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__statementrun__c.fields}" />
+    <apex:variable var="f_parms" value="{!$ObjectType.rstkf__statementrunparms__c.fields}" />
+    <apex:sectionHeader subtitle="{!$Label.rstkf__prepare_financial_reports}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}"  enableAutoComplete="true" showHeader="false" customInclude="{!$Resource.rstkf__statementrun_cli}" title="{!$Label.rstkf__prepare_financial_reports}" />
+
+    <apex:form id="fm">
+        <apex:actionFunction name="displayTemplates" action="{!displayTemplates}" oncomplete="unblockUI()" rerender="pageMessages, op_main, op_buttons, op_templates, op_templatedetails, op_reportparms, op_columnparms, op_lineparms, op_selectedtemplates"/>
+        <apex:actionFunction name="specifyParameters" action="{!specifyParameters}" oncomplete="unblockUI()" rerender="pageMessages, op_main, op_buttons, op_templates, op_templatedetails, op_reportparms, op_columnparms, op_lineparms, op_selectedtemplates"/>
+        <apex:actionFunction name="executeTemplates" action="{!executeTemplates}" oncomplete="checkJobStatus()" rerender="pageMessages, op_JobStatus, op_main, op_buttons, op_templates, op_templatedetails, op_reportparms, op_columnparms, op_lineparms, op_selectedtemplates"/>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_main">
+            <apex:pageBlock id="pb" mode="detail" rendered="{!currTemplate == null}">
+                <apex:pageBlockSection id="pbs_main" columns="1">
+                    <apex:outputField value="{!o.rstkf__glcmp__c}"/>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__glyear__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:selectList id="glyear__c" value="{!o.rstkf__glyear__c}" size="1" style="width:180px;" tabindex="91"> 
+                                <apex:selectOptions value="{!glyears}"/> 
+                            </apex:selectList>
+                            <script>
+                                var glyearfld = document.getElementById("{!$Component.glyear__c}");
+                            </script>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:inputField id="period__c" value="{!o.rstkf__period__c}"/>
+                    <script>
+                        var periodfld = document.getElementById("{!$Component.period__c}");
+                    </script>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_buttons">
+            <c:nosubmitbutton id="btn_displaytemplates" label="{!$Label.rstkf__btn_display_templates}" onclick="doDisplayTemplates()" style="width:150px;" rendered="{!currTemplate == null    }"/>
+            <c:nosubmitbutton id="btn_specifyparameters" label="{!$Label.rstkf__btn_next}" onclick="doSpecifyParameters()" style="width:200px;" rendered="{!showSpecifyParameters}"/>
+            <c:nosubmitbutton id="btn_executetemplate" label="{!$Label.rstkf__btn_execute_templates}" onclick="doExecuteTemplates()" style="width:200px;" rendered="{!showExecuteTemplates}"/>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_templates">
+            <apex:pageBlock mode="detail" rendered="{!displayTemplates}">
+                <script>var rows = {}; var selectedTemplate = null;</script>
+                <apex:pageBlockSection columns="1" title="{!$Label.rstkf__txt_select_a_template}" collapsible="false">
+                    <!-- <apex:outputPanel >
+                        &nbsp;<apex:inputCheckbox id="selectAll" onchange="selectAll(this.checked)"/>&nbsp;<apex:outputLabel value="Select All"/>&nbsp;&nbsp;
+                        <script>var rows = {};document.getElementById("{!$Component.selectAll}").checked = false;</script>
+                    </apex:outputPanel> -->
+                    
+                    <apex:pageBlockTable value="{!templates}" var="t">
+                        <apex:column headerValue="Select">
+                            <apex:inputCheckbox id="selected" value="{!t.selected}" onclick="selectTemplate(this)"/>
+                        </apex:column>
+                        <!-- <apex:column headerValue="{!f.seqno__c.label}">
+                            <apex:inputText id="seqno__c" value="{!t.statementrun.seqno__c}" size="2" maxlength="2" />
+                        </apex:column>
+                        <apex:column headerValue="{!f_parms.rundesc__c.label}">
+                            <apex:inputText id="rundesc__c" value="{!t.statementrun.rundesc__c}" size="25" maxlength="50" />
+                        </apex:column> -->
+                        <apex:column value="{!t.glfstmplt2.rstkf__glfstmplt2_format__c}"/>
+                        <apex:column value="{!t.glfstmplt2.glfstmplt2_glfstmplt1__r.rstkf__glfstmplt1_template__c}"/>
+                        <apex:column value="{!t.glfstmplt2.rstkf__glfstmplt2_effreporttype__c}"/>
+                        <apex:column value="{!t.statementrun.rstkf__gldataisready__c}"/>
+                        <apex:column value="{!t.statementrun.rstkf__stmtentriesareready__c}"/>
+                        <apex:column headerValue="{!f.rstkf__budgetdataisready__c.label}">
+                            <apex:outputField value="{!t.statementrun.rstkf__budgetdataisready__c}"/>
+                            <apex:outputPanel layout="none">
+                                <script>
+                                    rows["{!t.key}"] = {
+                                        selectedfld: document.getElementById("{!$Component.selected}"),
+                                        seqnofld: document.getElementById("{!$Component.seqno__c}"),
+                                        rundescfld: document.getElementById("{!$Component.rundesc__c}")
+                                    };
+                                </script>
+                            </apex:outputPanel>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_selectedtemplates">
+            <apex:pageBlock mode="detail" rendered="{!showExecuteTemplates}">
+                <apex:pageBlockSection columns="1" title="{!$Label.rstkf__txt_selected_templates}" collapsible="false">
+                    <apex:pageBlockTable value="{!templates}" var="t">
+                        <!-- <apex:column value="{!t.statementrun.seqno__c}"/>
+                        <apex:column value="{!t.statementrun.rundesc__c}"/> -->
+                        <apex:column value="{!t.glfstmplt2.rstkf__glfstmplt2_format__c}"/>
+                        <apex:column value="{!t.glfstmplt2.glfstmplt2_glfstmplt1__r.rstkf__glfstmplt1_template__c}"/>
+                        <apex:column value="{!t.glfstmplt2.rstkf__glfstmplt2_effreporttype__c}"/>
+                        <apex:column value="{!t.statementrun.rstkf__gldataisready__c}"/>
+                        <apex:column value="{!t.statementrun.rstkf__stmtentriesareready__c}"/>
+                        <apex:column value="{!t.statementrun.rstkf__budgetdataisready__c}"/>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_templatedetails">
+            <apex:pageBlock mode="detail" rendered="{!currTemplate != null}">
+                <apex:pageBlockSection columns="1">
+                    <apex:outputField value="{!o.rstkf__glcmp__c}"/>
+                    <apex:outputField value="{!o.rstkf__glyear__c}"/>
+                    <apex:outputField value="{!o.rstkf__period__c}"/>
+                    <apex:outputField value="{!currTemplate.glfstmplt2.glfstmplt2_glfstmplt1__r.rstkf__glfstmplt1_template__c}"/>
+                    <apex:outputField value="{!currTemplate.glfstmplt2.rstkf__glfstmplt2_format__c}"/>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_reportparms">
+            <apex:pageBlock mode="detail" rendered="{!AND(currTemplate != null, currTemplate.statementrun.rstkf__specifyreportparms__c, !currTemplate.statementrun.rstkf__reportparmsspecified__c)}">
+                <apex:pageBlockSection columns="1" title="{!$Label.rstkf__txt_specify_report_parameters}">
+                    <apex:pageBlockSectionItem helpText="{!f_parms.rstkf__gldiv__c.inlineHelpText}" rendered="{!currTemplate.reportparms.rstkf__specifygldiv__c}">
+                        <apex:outputLabel value="{!f_parms.rstkf__gldiv__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:selectList id="gldiv__c" value="{!currTemplate.reportparms.rstkf__gldiv__c}" size="1" style="width:180px;"> 
+                                <apex:selectOptions value="{!gldivs}"/> 
+                            </apex:selectList>
+                            <!--<script>var gldivfld = document.getElementById("{!$Component.glyear__c}");</script>-->
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_parms.rstkf__glproj__c.inlineHelpText}" rendered="{!currTemplate.reportparms.rstkf__specifyglproj__c}">
+                        <apex:outputLabel value="{!f_parms.rstkf__glproj__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:selectList id="glproj__c" value="{!currTemplate.reportparms.rstkf__glproj__c}" size="1" style="width:180px;"> 
+                                <apex:selectOptions value="{!glprojs}"/> 
+                            </apex:selectList>
+                            <!--<script>var gldivfld = document.getElementById("{!$Component.glyear__c}");</script>-->
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:inputField id="dimnum__c" value="{!currTemplate.reportparms.rstkf__dimnum__c}" rendered="{!currTemplate.reportparms.rstkf__specifydimnum__c}"/>
+                    
+                    <apex:inputField id="dimval__c" value="{!currTemplate.reportparms.rstkf__dimval__c}" rendered="{!currTemplate.reportparms.rstkf__specifydimval__c}"/>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_columnparms">
+            <script>var colparms = {};</script>
+            <apex:pageBlock mode="detail" rendered="{!AND(currTemplate != null, currTemplate.specifyColumnAndLineParms, currTemplate.statementrun.rstkf__specifycolumnparms__c, !currTemplate.statementrun.rstkf__columnparmsspecified__c)}">
+                <apex:pageBlockSection columns="1" title="{!$Label.rstkf__txt_specify_column_parameters}">
+                    <apex:pageBlockTable value="{!currTemplate.columnparms}" var="p" columnsWidth="30px,40px,40px,450px,175px,175px,175px,50px,100px,100px,100px">
+                        <apex:column headerValue="{!f_parms.rstkf__colno__c.label}">
+                            <apex:outputField id="colno__c" value="{!p.rstkf__colno__c}"/>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__glyear__c.label}">
+                            <apex:outputPanel >
+                                <apex:selectList id="glyear__c" value="{!p.rstkf__glyear__c}" size="1" rendered="{!p.rstkf__specifyglyear__c}" onchange="glyearChanged('{!p.rstkf__colno__c}')"> 
+                                    <apex:selectOptions value="{!glyears}"/> 
+                                </apex:selectList>
+                                <apex:outputField value="{!p.rstkf__glyear__c}" rendered="{!!p.rstkf__specifyglyear__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__period__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="period__c" value="{!p.rstkf__period__c}" rendered="{!p.rstkf__specifyperiod__c}"/>
+                                <apex:outputField value="{!p.rstkf__period__c}" rendered="{!!p.rstkf__specifyperiod__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__budrevlevel__c.label}">
+                            <apex:outputPanel rendered="{!p.rstkf__specifybudrevlevel__c}">
+                                <select id="budrevlevelsl__c__{!p.rstkf__colno__c}" size="1" style="width:430px;" onchange="budrevlevelChanged('{!p.rstkf__colno__c}')"/>
+                                <apex:inputHidden id="budrevlevelkey__c" value="{!p.rstkf__budrevlevelkey__c}"/>
+                                <script>
+                                colparms["{!p.rstkf__colno__c}"] = {
+                                    glyearfld : document.getElementById("{!$Component.glyear__c}"),
+                                    glyearid : "{!IF(ISBLANK(p.glyear__c),'',p.glyear__c)}",
+                                    periodfld : document.getElementById("{!$Component.period__c}"),
+                                    budrevlevelkeyfld : document.getElementById("{!$Component.budrevlevelkey__c}"),
+                                    budrevlevelslfld : document.getElementById("budrevlevelsl__c__{!p.rstkf__colno__c}")
+                                };
+                                populateBudrevlevels("{!p.rstkf__colno__c}");
+                                colparms["{!p.rstkf__colno__c}"].budrevlevelslfld.value = colparms["{!p.rstkf__colno__c}"].budrevlevelkeyfld.value;
+                                </script>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__columnco__c.label}">
+                            <apex:outputPanel >
+                                <apex:selectList id="columnco__c" value="{!p.rstkf__columnco__c}" size="1" rendered="{!p.rstkf__specifyco__c}" style="width:155px"> 
+                                    <apex:selectOptions value="{!ChainOfConsolidation}"/> 
+                                </apex:selectList>
+                                <apex:outputField value="{!p.rstkf__columnco__c}" rendered="{!!p.rstkf__specifyco__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__gldiv__c.label}">
+                            <apex:outputPanel >
+                                <apex:selectList id="gldiv__c" value="{!p.rstkf__gldiv__c}" size="1" rendered="{!p.rstkf__specifygldiv__c}" style="width:155px"> 
+                                    <apex:selectOptions value="{!gldivs}"/> 
+                                </apex:selectList>
+                                <apex:outputField value="{!p.rstkf__gldiv__c}" rendered="{!!p.rstkf__specifygldiv__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__glproj__c.label}">
+                            <apex:outputPanel >
+                                <apex:selectList id="glproj__c" value="{!p.rstkf__glproj__c}" size="1" rendered="{!p.rstkf__specifyglproj__c}" style="width:155px"> 
+                                    <apex:selectOptions value="{!glprojs}"/> 
+                                </apex:selectList>
+                                <apex:outputField value="{!p.rstkf__glproj__c}" rendered="{!!p.rstkf__specifygldiv__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__dimnum__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="dimnum__c" value="{!p.rstkf__dimnum__c}" rendered="{!p.rstkf__specifydimnum__c}"/>
+                                <apex:outputField value="{!p.rstkf__dimnum__c}" rendered="{!!p.rstkf__specifydimnum__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__dimval__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="dimval__c" value="{!p.rstkf__dimval__c}" rendered="{!p.rstkf__specifydimval__c}"/>
+                                <apex:outputField value="{!p.rstkf__dimval__c}" rendered="{!!p.rstkf__specifydimval__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__value1__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="value1__c" value="{!p.rstkf__value1__c}" rendered="{!p.rstkf__specifyvalue1__c}"/>
+                                <apex:outputField value="{!p.rstkf__value1__c}" rendered="{!!p.rstkf__specifyvalue1__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__value2__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="value2__c" value="{!p.rstkf__value2__c}" rendered="{!p.rstkf__specifyvalue2__c}"/>
+                                <apex:outputField value="{!p.rstkf__value2__c}" rendered="{!!p.rstkf__specifyvalue2__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_lineparms">
+            <apex:pageBlock mode="detail" rendered="{!AND(currTemplate != null, currTemplate.specifyColumnAndLineParms, currTemplate.statementrun.rstkf__specifylineparms__c, !currTemplate.statementrun.rstkf__lineparmsspecified__c)}">
+                <apex:pageBlockSection columns="1" title="{!$Label.rstkf__txt_specify_line_parameters}">
+                    <apex:pageBlockTable value="{!currTemplate.lineparms}" var="p" columnsWidth="50px,200px,200px,50px,100px,100px,100px">
+                        <apex:column headerValue="{!f_parms.rstkf__lineno__c.label}">
+                            <apex:outputField id="lineno__c" value="{!p.rstkf__lineno__c}"/>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__gldiv__c.label}">
+                            <apex:outputPanel >
+                                <apex:selectList id="gldiv__c" value="{!p.rstkf__gldiv__c}" size="1" rendered="{!p.rstkf__specifygldiv__c}" style="width:180px"> 
+                                    <apex:selectOptions value="{!gldivs}"/> 
+                                </apex:selectList>
+                                <apex:outputField value="{!p.rstkf__gldiv__c}" rendered="{!!p.rstkf__specifygldiv__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__glproj__c.label}">
+                            <apex:outputPanel >
+                                <apex:selectList id="glproj__c" value="{!p.rstkf__glproj__c}" size="1" rendered="{!p.rstkf__specifyglproj__c}" style="width:180px"> 
+                                    <apex:selectOptions value="{!glprojs}"/> 
+                                </apex:selectList>
+                                <apex:outputField value="{!p.rstkf__glproj__c}" rendered="{!!p.rstkf__specifyglproj__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__dimnum__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="dimnum__c" value="{!p.rstkf__dimnum__c}" rendered="{!p.rstkf__specifydimnum__c}"/>
+                                <apex:outputField value="{!p.rstkf__dimnum__c}" rendered="{!!p.rstkf__specifydimnum__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__dimval__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="dimval__c" value="{!p.rstkf__dimval__c}" rendered="{!p.rstkf__specifydimval__c}"/>
+                                <apex:outputField value="{!p.rstkf__dimval__c}" rendered="{!!p.rstkf__specifydimval__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__value1__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="value1__c" value="{!p.rstkf__value1__c}" rendered="{!p.rstkf__specifyvalue1__c}"/>
+                                <apex:outputField value="{!p.rstkf__value1__c}" rendered="{!!p.rstkf__specifyvalue1__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_parms.rstkf__value2__c.label}">
+                            <apex:outputPanel >
+                                <apex:inputField id="value2__c" value="{!p.rstkf__value2__c}" rendered="{!p.rstkf__specifyvalue2__c}"/>
+                                <apex:outputField value="{!p.rstkf__value2__c}" rendered="{!!p.rstkf__specifyvalue2__c}"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+        </apex:outputPanel>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+        var LABEL_Please_specify_a_GL_Fiscal_Year = "{!$Label.Please_specify_a_GL_Fiscal_Year}";
+        var LABEL_Please_specify_a_Period = "{!$Label.Please_specify_a_Period}";
+        var LABEL_Sequence_must_be_greaterthanorequalto_1_and_lessthanorequalto_99 = "{!$Label.Sequence_must_be_greaterthanorequalto_1_and_lessthanorequalto_99}";
+        var LABEL_Run_Description_must_be_specified = "{!$Label.Run_Description_must_be_specified}";
+        var LABEL_Please_select_a_template_to_run = "{!$Label.Please_select_a_template_to_run}";
+    </script>
+</apex:page>

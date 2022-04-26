@@ -1,0 +1,378 @@
+<apex:page id="pg" standardController="rstk__pocontainer__c" extensions="rstk.ControllerExtnPocontainer" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__pocontainer__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__pocontainer__c.fields}" /> 
+    <apex:variable var="f_supreq" value="{!$ObjectType.rstk__supreq__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_pocontainer}"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doAddDeleteRequisitions" action="{!doAddDeleteRequisitions}" oncomplete="return false;" immediate="false" rerender="pbt_Pocontdtls" />
+        
+        
+        <script>
+            var isNew = {!isNew};
+            
+    
+            function uploadDGN() {
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=pocontainer__c&parms=set_pocontainer_havedgn");
+                } finally {
+                    return false;
+                }
+            }
+            
+            function uploadCPC() {
+                try {
+                    window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=pocontainer__c&parms=set_pocontainer_havecpc");
+                } finally {
+                    return false;
+                }
+            }
+        </script>
+        <c:Popup popupId="Contpopup" title="{!$Label.rstk__pagepopup_pocontainer_interimshipmentcontainercontents}" onOk="Cont_saveAndClose()">
+            <c:EditableGrid jsController="Cont" data="{!ContDetails}" editable="true" ispopup="true"/>
+            <script>
+                var usedSupreqs = [];
+                var locl = new Locale();
+                Cont.onGridLoad = function() {
+                    try {
+                        self=this;
+                        console.log('***onGridLoad');
+                        var rows = Cont.getRows();
+                        usedSupreqs.length = 0;
+                        if(!isNew) {
+                            var pocontdtls = execQuery("select pocontdtl_supreq__c, "+
+                                "pocontdtl_supreq__r.supreq_supitem__r.Name, pocontdtl_supreq__r.supreq_qtyreq__c "+
+                                "from pocontdtl__c where pocontdtl_pocontainer__c = '{!o.id}' order by pocontdtl_supreq__r.Name", true); 
+                            
+                            if (pocontdtls.length > 0)
+                            {
+                                for (var i = 0; i < pocontdtls.length; i++)
+                                {
+                                    var row =  Cont.getRow(i);
+                                    Cont.setRowValue(row, "supreq_supitem__g", getColumnValue(pocontdtls[i], 'pocontdtl_supreq__r.supreq_supitem__r.Name'));
+                                    Cont.setRowValue(row, "supreq_qtyreq__g", formatLocaleFloat(getColumnValue(pocontdtls[i], 'pocontdtl_supreq__r.supreq_qtyreq__c'), 2));
+                                }
+                            }
+                            
+                        }
+                    } catch (e) {
+                        console.log('onGridLoad Exception:' +e);
+                        console.log('onGridLoad Exception Stack:' +e.stack);
+                        alert("{!$Label.rstk__ongridloadexception}", e.stack);
+                    }
+                }; 
+                
+                Cont.validate = function() {
+                    self = this;
+                    var isvalid = true;
+                      this.getVisibleRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        var rowId = self.getRowValue(row, 'Id');
+                        if(rowId ==''){
+                            var supreq = Cont.getRowValue(row, 'pocontdtl_supreq__c');
+                            if(!supreq){
+                                alert("{!$Label.rstk__requisitionnumberisrequired}"); 
+                                isvalid = false;
+                                return false;
+                            }
+                        } 
+                    }); 
+                    return isvalid;
+                  }
+                
+                Cont.addRow = function(rowCallback) {
+                    self = this;
+                    ContHandler.prototype.addRow.call(self, rowCallback);
+                    this.getVisibleRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        var rowId = self.getRowValue(row, 'Id');
+                        if(rowId =='' && Cont.getRowObj(row, 'pocontdtl_supreq__c')[0].value == ''){
+                            Cont.getRowObj(row, 'pocontdtl_supreq__c')[0].length = 0;
+                            Cont.getRowObj(row, 'pocontdtl_supreq__c')[0].options[0] = new Option("--None--", "");
+                            var supreqObjs = execQuery("select Id, Name from supreq__c where supreq_div__c = '{!o.rstk__pocontainer_div__c}' and supreq_receivedcon__c = true and supreq_pocontainer__c = null and supreq_poshipcontwms__c = null and supreq_poshipcontcc__c = null and supreq_pocontctr__c = '{!o.rstk__pocontainer_poconctr__c}' and supreq_icreq__c != null order by name");
+                            for(i=0; i<supreqObjs.length; i++) {
+                                Cont.getRowObj(row, 'pocontdtl_supreq__c')[0].options[Cont.getRowObj(row, 'pocontdtl_supreq__c')[0].length] = new Option( supreqObjs[i].Name,supreqObjs[i].Id, false, false);
+                            }
+                        }
+                    });
+                }
+                
+                Cont.entryChanged = function(row, rowNum, name, value) {
+                    console.log('***entryChanged');
+                    if (name == 'pocontdtl_supreq__c') {
+                        supreqChanged(row, rowNum, name, value);
+                    }
+                };
+                
+                function supreqChanged(row, rowNum, name, value) {
+                    if(value) {
+                        var rows = Cont.getVisibleRows();
+                        for (var i = 0; i < rows.length; i++)
+                        {
+                            if (i != rowNum) {
+                                var r =  Cont.getRow(i);
+                                var supreq = Cont.getRowValue(r, 'pocontdtl_supreq__c');
+                                if (!supreq) continue;
+                                if (supreq == value) {
+                                    alert("{!$Label.rstk__requisitionalreadyselected_selectanotherrequisition}");
+                                    Cont.setRowValue(row, "pocontdtl_supreq__c", '');
+                                    Cont.setRowValue(row, "supreq_supitem__g", '');
+                                    Cont.setRowValue(row, "supreq_qtyreq__g", '');
+                                    return false;
+                                } 
+                            }
+                        }
+                        var supreqs = execQuery("select supreq_supitem__c, supreq_supitem__r.Name, supreq_qtyreq__c from supreq__c where id = '" + value + "'");
+                        if (supreqs != null && supreqs.length > 0) {
+                            var qtyreq = formatLocaleFloat(supreqs[0].supreq_qtyreq__c, 2);
+                            var nrow = Cont.getRow(rowNum);
+                            Cont.setRowValue(nrow, "supreq_supitem__g", supreqs[0].supreq_supitem__r.Name);
+                            Cont.setRowValue(nrow, "supreq_qtyreq__g", qtyreq);
+                        }
+                    } else {
+                        Cont.setRowValue(row, "supreq_supitem__g", '');
+                        Cont.setRowValue(row, "supreq_qtyreq__g", '');
+                    }
+                }
+        
+                Cont.onSaved = function() {
+                    console.log('***onSaved');
+                    refreshRequisition();
+                };
+                
+                function refreshRequisition()
+                {
+                    showTopDialog('pleaseWaitPopup');
+                    doAddDeleteRequisitions();
+                }
+            
+            </script>
+        </c:Popup>          
+       
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+                <apex:commandbutton value="{!$Label.rstk__pocontainer_pagebtn_adddeleterequisitions}" onclick="_showDialog('Contpopup', '720');return false;" disabled="{!o.rstk__pocontainer_converted__c}" rendered="{!isView && !o.rstk__pocontainer_converted__c}" style="width:150px;"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none"> 
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection showHeader="false" columns="2" rendered="{!OR(isNew, isEdit)}">
+                <apex:outputField value="{!o.rstk__pocontainer_div__c}"/>
+                
+                <apex:inputField id="pocontainer_priority__c" value="{!o.rstk__pocontainer_priority__c}" taborderhint="31"/>
+                
+                <apex:inputField id="pocontainer_containerid__c" required="true" value="{!o.rstk__pocontainer_containerid__c}" taborderhint="12" rendered="{!isNew}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_containerid__c}" rendered="{!isEdit}"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_poship__c}" />
+                
+                <apex:selectList id="pocontainer_poconttype__c" value="{!o.rstk__pocontainer_poconttype__c}" required="true" size="1" style="width:250px;" tabIndex="130" rendered="{!isNew}">
+                    <apex:selectOptions value="{!Poconttypes}"/>
+                </apex:selectList>
+                <apex:outputField value="{!o.rstk__pocontainer_poconttype__c}" rendered="{!isEdit}"/>
+                
+                <apex:inputField id="pocontainer_hotshipment__c" value="{!o.rstk__pocontainer_hotshipment__c}" taborderhint="32"/>
+                
+                <apex:inputField id="pocontainer_serialno__c" value="{!o.rstk__pocontainer_serialno__c}" taborderhint="14"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_converted__c}" />
+                
+                <apex:inputField id="pocontainer_desc__c" value="{!o.rstk__pocontainer_desc__c}" taborderhint="15"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_batchno__c}" />
+                
+                <apex:inputField id="pocontainer_comment__c" value="{!o.rstk__pocontainer_comment__c}" taborderhint="16"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_itemminf__c}" />
+                
+                <apex:selectList id="pocontainer_poconctr__c" value="{!o.rstk__pocontainer_poconctr__c}" required="true" size="1" style="width:250px;" rendered="{!isNew}" tabIndex="170">
+                    <apex:selectOptions value="{!Poconctrs}"/>
+                </apex:selectList>
+                <apex:outputField value="{!o.rstk__pocontainer_poconctr__c}" rendered="{!isEdit}"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_itemmaxf__c}" />
+                
+                <apex:inputField id="pocontainer_loadondate__c" value="{!o.rstk__pocontainer_loadondate__c}" taborderhint="18"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_sugmidf__c}" />
+                
+                <apex:inputField id="pocontainer_referloop__c" value="{!o.rstk__pocontainer_referloop__c}" taborderhint="19"/>
+                
+                <apex:inputField id="pocontainer_askminf__c" value="{!o.rstk__pocontainer_askminf__c}" taborderhint="38"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_contutilization__c}" />
+                
+                <apex:inputField id="pocontainer_askmaxf__c" value="{!o.rstk__pocontainer_askmaxf__c}" taborderhint="39"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_tempcheck__c}" />
+                
+                <apex:inputField id="pocontainer_setpointf__c" value="{!o.rstk__pocontainer_setpointf__c}" taborderhint="40"/>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_class5122__c}" />
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:inputField id="pocontainer_loadontime__c" value="{!o.rstk__pocontainer_loadontime__c}" taborderhint="23"/>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:inputField id="pocontainer_sealnumber__c" value="{!o.rstk__pocontainer_sealnumber__c}" taborderhint="24"/>
+                
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection showHeader="false" columns="2" rendered="{!isView}">
+                <apex:outputField value="{!o.rstk__pocontainer_div__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_priority__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_containerid__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_poship__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_poconttype__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_hotshipment__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocontainer_serialno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocontainer_serialno__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__pocontainer_serialno__c}"/>
+                        <apex:outputText value="   *" style="font-size:125%;color:#FF0505;" rendered="{!pohvcontExists}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__pocontainer_converted__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_desc__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_batchno__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_comment__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_itemminf__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_poconctr__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_itemmaxf__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_loadondate__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_sugmidf__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_referloop__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_askminf__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_contutilization__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_askmaxf__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_tempcheck__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_setpointf__c}"/>
+                <apex:outputField value="{!o.rstk__pocontainer_class5122__c}"/>
+                <apex:pageBlockSectionItem >
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_pocontainer_uploaddgn}" onclick="return uploadDGN();" disabled="{!o.rstk__pocontainer_havedgn__c}"/>
+                    <apex:outputPanel />
+                </apex:pageBlockSectionItem>
+                <apex:outputField value="{!o.rstk__pocontainer_loadontime__c}"/>
+                <apex:pageBlockSectionItem >
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_pocontainer_uploadcpc}" onclick="return uploadCPC();" disabled="{!o.rstk__pocontainer_havecpc__c}"/>
+                    <apex:outputPanel />
+                </apex:pageBlockSectionItem>
+                <apex:outputField value="{!o.rstk__pocontainer_sealnumber__c}"/>
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_supplier" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_pocontainer_supplier}" name="tab_supplier" id="tab_supplier">
+                    <apex:pageBlockSection id="pbs_Credit" showHeader="false" columns="2">
+                        <apex:outputField value="{!o.rstk__pocontainer_povend1__c}" />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pocontainer_aesnumber1__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pocontainer_aesnumber1__c.label}"/>
+                            <c:inputField id="pocontainer_aesnumber1__c" cntr="{!controller}" tabIndex="501"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:outputField value="{!o.rstk__pocontainer_povend2__c}" />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pocontainer_aesnumber2__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pocontainer_aesnumber2__c.label}"/>
+                            <c:inputField id="pocontainer_aesnumber2__c" cntr="{!controller}" tabIndex="502"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:outputField value="{!o.rstk__pocontainer_povend3__c}" />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pocontainer_aesnumber3__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pocontainer_aesnumber3__c.label}"/>
+                            <c:inputField id="pocontainer_aesnumber3__c" cntr="{!controller}" tabIndex="503"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:outputField value="{!o.rstk__pocontainer_povend4__c}" />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pocontainer_aesnumber4__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pocontainer_aesnumber4__c.label}"/>
+                            <c:inputField id="pocontainer_aesnumber4__c" cntr="{!controller}" tabIndex="504"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:outputField value="{!o.rstk__pocontainer_povend5__c}" />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pocontainer_aesnumber5__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pocontainer_aesnumber5__c.label}"/>
+                            <c:inputField id="pocontainer_aesnumber5__c" cntr="{!controller}" tabIndex="505"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:outputField value="{!o.rstk__pocontainer_povend6__c}" />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pocontainer_aesnumber6__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pocontainer_aesnumber6__c.label}"/>
+                            <c:inputField id="pocontainer_aesnumber6__c" cntr="{!controller}" tabIndex="506"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_pocontainer_requisitions}" name="tab_Pocontdtls" id="tab_Pocontdtls" rendered="{!!isNew}">
+                    <apex:pageBlockSection id="pbs_Pocontdtls" showHeader="false" title="{!$Label.rstk__requisitions}" columns="1" >
+                        <apex:pageBlockTable id="pbt_Pocontdtls" value="{!pocontdtls}" var="d">
+                            <apex:column headerValue="{!$Label.rstk__requisitionnumber}">
+                                <c:hoverDetail recId="{!d.rstk__pocontdtl_supreq__c}" recName="{!d.pocontdtl_supreq__r.Name}" />
+                            </apex:column>
+                            <apex:column headerValue="{!f_supreq.rstk__supreq_supitem__c.label}">
+                                <c:hoverDetail recId="{!d.pocontdtl_supreq__r.rstk__supreq_supitem__c}" recName="{!d.pocontdtl_supreq__r.supreq_supitem__r.Name}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__quantity}">
+                                <apex:outputText value="{!d.pocontdtl_supreq__r.rstk__supreq_qtyreq__c}" html-decimals="2"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__dateduetowms}">
+                                <apex:outputText value="{0,date,M'/'d'/'yyyy}"> <apex:param value="{!d.pocontdtl_supreq__r.rstk__supreq_currwmsdate__c}" /> </apex:outputText>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__maximumtempf}">
+                                <apex:outputText value="{!d.rstk__pocontdtl_maxf__c}" html-decimals="2"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__minimumtempf}">
+                                <apex:outputText value="{!d.rstk__pocontdtl_minf__c}" html-decimals="2"/>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_pocontainer_info}" name="tab_Info" id="tab_Info" rendered="{!!isNew}">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        setInputFieldRequired("pocontainer_containerid__c");
+        setSelectListRequired("pocontainer_poconttype__c");
+        setSelectListRequired("pocontainer_poconctr__c");
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

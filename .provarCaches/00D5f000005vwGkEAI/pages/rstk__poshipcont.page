@@ -1,0 +1,535 @@
+<apex:page id="pg" standardController="rstk__poshipcont__c" extensions="rstk.ControllerExtnPoshipcont" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__poshipcont__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__poshipcont__c.fields}" /> 
+     <apex:variable var="f_supreq" value="{!$ObjectType.rstk__supreq__c.fields}" /> 
+     <apex:variable var="f_poshipcontdtl" value="{!$ObjectType.rstk__poshipcontdtl__c.fields}" /> 
+     <apex:variable var="f_supmtr" value="{!$ObjectType.rstk__supmtr__c.fields}" />
+     
+    <apex:outputPanel id="emailtemplateInfo" >
+        <script>
+            var tempLateInfoRecID = '{!tempLateInfoRecID}';
+            var tempLateID = '{!tempLateID}';
+            var poasnID = '{!poasnID}';
+        </script>
+    </apex:outputPanel>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poshipcont}" enableAutocomplete="true"/> 
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    
+    <script>
+        function openEmailTemplateWindow(){
+             if(!poasnID){
+               alert("Advance Shipment Notification is not associated with Inbound Shipment");
+             }else{
+                if(!tempLateID){
+                    alert("Email Template is not Setup on Forecast Control Record");
+                 }else{
+                    if(!tempLateInfoRecID){
+                        alert("Template Information Record not Created");
+                     } 
+                 }
+             }
+            if(tempLateInfoRecID && tempLateID && poasnID){
+                var url = '/apex/emailTemplateInfoPrint?id=' + tempLateInfoRecID+'&t='+tempLateID+'&poasnId='+poasnID+'&delete=Yes';
+                window.open(url, '', 'toolbar=0,resizeable=0');
+            }
+        }
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doAddDeleteRequisitions" action="{!doAddDeleteRequisitions}" oncomplete="return false;" immediate="false" rerender="pbt_Poshipcontdtls" />
+        <apex:actionFunction name="doCreateEmailTemplateInfo" action="{!doCreateEmailTemplateInfo}" oncomplete="unblockUI();openEmailTemplateWindow();" immediate="false" rerender="emailtemplateInfo" />
+        
+        <c:Popup popupId="ShipContpopup" title="{!$Label.rstk__pagepopup_poshipcont_shipmentcontainercontents}" onOk="ShipCont_saveAndClose()">
+            <c:EditableGrid jsController="ShipCont" data="{!ShipContDetails}" editable="true" ispopup="true"/>
+        </c:Popup> 
+        <c:Popup popupId="mtrpopup" title="{!$Label.rstk__pagepopup_poshipcont_materialtransferrequest}" onOk="ShipContmtr_saveAndClose()">
+            <c:EditableGrid jsController="ShipContmtr" data="{!ShipContMTRDetails}" editable="true" ispopup="true"/>
+        </c:Popup>
+        <c:Popup popupId="recRetpopup" title="{!$Label.rstk__pagepopup_poshipcont_receptaclereturn}" onOk="ShipContrec_saveAndClose();">
+            <c:EditableGrid jsController="ShipContrec" data="{!ShipContRecRetDetails}" editable="true" ispopup="true"/>
+        </c:Popup>
+    <script>
+        var isNew = {!isNew};
+        var nextInboundContainerId = '{!NextInboundContainerId}';
+        
+        function createFieldChangeHandlers() {
+            fieldChangeHandlers['poshipcont_received__c'] = receivedChanged;
+        }
+        
+        function receivedChanged(){
+            alert("{!$Label.rstk__manualrcptofcontainershouldonlybedonewhenmismatchincontainersrlnumandchemsrc}");
+        }
+        
+        function refreshPage(){
+            window.location.replace(window.location);
+        }
+        ShipCont.entryChanged = function(row, rowNum, name, value) {
+            console.log('***entryChanged');
+            if (name == 'poshipcontdtl_supreq__c') {
+                supreqChanged(row, rowNum, name, value);
+            }
+        };
+        
+        function supreqChanged(row, rowNum, name, value) {
+            if(value) {
+                var rows = ShipCont.getVisibleRows();
+                for (var i = 0; i < rows.length; i++)
+                {
+                    if (i != rowNum) {
+                        var r =  ShipCont.getRow(i);
+                        var supreq = ShipCont.getRowValue(r, 'poshipcontdtl_supreq__c');
+                        if (!supreq) continue;
+                        if (supreq == value) {
+                            alert("{!$Label.rstk__requisitionalreadyselected_selectanotherrequisition}");
+                            ShipCont.setRowValue(row, "poshipcontdtl_supreq__c", '');
+                            ShipCont.setRowValue(row, "supreq_supitem__g", '');
+                            ShipCont.setRowValue(row, "supreq_qtyreq__g", '');
+                            return false;
+                        } 
+                    }
+                }
+                var supreqs = execQuery("select supreq_supitem__c, supreq_supitem__r.Name, supreq_qtyreq__c from supreq__c where id = '" + value + "'");
+                if (supreqs != null && supreqs.length > 0) {
+                    var qtyreq = formatLocaleFloat(supreqs[0].supreq_qtyreq__c, 2);
+                    var nrow = ShipCont.getRow(rowNum);
+                    ShipCont.setRowValue(nrow, "supreq_supitem__g", supreqs[0].supreq_supitem__r.Name);
+                    ShipCont.setRowValue(nrow, "supreq_qtyreq__g", qtyreq);
+                }
+            } else {
+                ShipCont.setRowValue(row, "supreq_supitem__g", '');
+                ShipCont.setRowValue(row, "supreq_qtyreq__g", '');
+            }
+        }
+
+        ShipCont.onSaved = function() {
+            console.log('***onSaved');
+            refreshRequisition();
+        };
+        
+         ShipCont.validate = function(){
+             var self = this;
+             var valid = true;
+             self.getSelectableRows().each(function (index, el){
+                 var row = jQuery(this);
+                 if (isEmpty(self.getRowValue(row, 'poshipcontdtl_supreq__c'))) {
+                    alert("{!$Label.rstk__requisitionnumberisrequired}");
+                     valid = false;
+                 }
+              });
+            return valid;
+         }
+        
+        function refreshRequisition()
+        {
+            showTopDialog('pleaseWaitPopup');
+            doAddDeleteRequisitions();
+        }
+        
+        ShipContmtr.entryChanged = function(row, rowNum, name, value) {
+            if(name == 'poshipcontdtl_supmtr__c'){
+                if(isEmpty(value)){
+                    alert("{!$Label.rstk__materialtransferreqfieldreqd}");
+                    ShipContmtr.setRowValue(row, "poshipcontdtl_mtrpartno__c", '');
+                    ShipContmtr.setRowValue(row, "poshipcontdtl_mtrqnty__c", '');
+                }else{
+                    updateDetails(row, rowNum, name, value);
+                }
+            }
+        };
+        
+        function updateDetails(row, rowNum, name, value){
+            var supmtr = execQuery("select supmtr_supitem__r.Name,supmtr_qty__c from supmtr__c where id = '" + value + "'");
+            if (supmtr.length > 0) {
+                var qty = formatLocaleFloat(supmtr[0].supmtr_qty__c, 2);
+                ShipContmtr.setRowValue(row, "poshipcontdtl_mtrpartno__c", supmtr[0].supmtr_supitem__r.Name);
+                ShipContmtr.setRowValue(row, "poshipcontdtl_mtrqnty__c", qty);
+            }
+        }
+        
+        ShipContmtr.onSaved = function() {
+            refreshPage();
+        };
+        
+        ShipContrec.onSaved = function() {
+            refreshPage();
+        };
+        
+        ShipContmtr.validate = function(){
+           return true;
+        }
+        
+        ShipContrec.validate = function(){
+             var self = this;
+             var valid = true;
+             self.getSelectableRows().each(function (index, el){
+                 var row = jQuery(this);
+                 if (isEmpty(self.getRowValue(row, 'poshipcontdtl_icreceptacle__c'))) {
+                    alert("{!$Label.rstk__receptablefieldreqd}");
+                     valid = false;
+                 }
+                 if (isEmpty(self.getRowValue(row, 'poshipcontdtl_receptqty__c'))  || toNumber(self.getRowValue(row, 'poshipcontdtl_receptqty__c')) < 0 ) {
+                     alert("{!$Label.rstk__qtyfieldisreqdandmustbegt0}");
+                     valid = false;
+                 }
+              });
+            return valid;
+         }
+        
+
+        function uploadDGN() {
+            try {
+                window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=poshipcont__c&parms=set_poshipcont_havedgn");
+            } finally {
+                return false;
+            }
+        }
+        
+        function uploadCPC() {
+            try {
+                window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=poshipcont__c&parms=set_poshipcont_havecpc");
+            } finally {
+                return false;
+            }
+        }
+        
+        function poshipChanged()
+        {
+            var shipid = sfffGetFieldValue('poshipcont_poship__c');
+            if (!isEmpty(shipid)) {
+                var poships = execQuery("select poship_outbound__c from poship__c where id = '" + shipid + "'");
+                if (poships.length > 0) {
+                    var isOutbound = (poships[0].poship_outbound__c == 'true');
+                    //var nextContainerId = isOutbound ? nextInboundContainerId.replace(/IMTM/g, 'OMTM') : nextInboundContainerId;
+                    var nextContainerId = isOutbound ? nextInboundContainerId.replace(/IMTM|IBCR/g, 'EXTM') : nextInboundContainerId;
+                    sfffSetFieldValue('poshipcont_containerid__c', nextContainerId);
+                }
+            } else {
+                sfffSetFieldValue('poshipcont_containerid__c', '');
+            }
+        }
+    </script>       
+       
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+                <apex:commandbutton value="{!$Label.rstk__pocontainer_pagebtn_adddeleterequisitions}" onclick="_showDialog('ShipContpopup', '720');return false;" disabled="{!isDisableReqBtn}" rendered="{!isView && isShowReqBtn}" style="width:150px;"/>
+                <apex:commandbutton value="{!$Label.rstk__poshipcont_adddeletemtr}" onclick="_showDialog('mtrpopup', '720');return false;" style="width:150px;" rendered="{!isView && showTabButton}"/>
+                <apex:commandbutton value="{!$Label.rstk__poshipcont_pagebtn_adddeletereceptaclereturns}" onclick="_showDialog('recRetpopup', '720');return false;" style="width:170px;" rendered="{!isView && showTabButton}"/>
+                <c:nosubmitbutton onclick="blockUI();doCreateEmailTemplateInfo();" label="{!$Label.rstk__poshipcont_bookingrequestemail}" rendered="{!isView}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none"> 
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_poship__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_poship__c.label}"/>
+                    <c:selectList id="poshipcont_poship__c"  cntr="{!controller}" required="true" options="{!Poships}" disabled="{!isDisabledPoship}" tabIndex="1" onchange="return poshipChanged();" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_priority__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_priority__c.label}"/>
+                    <c:inputField id="poshipcont_priority__c" required="false" cntr="{!controller}" tabIndex="101"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_containerid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_containerid__c.label}"/>
+                    <c:inputField id="poshipcont_containerid__c" required="true" cntr="{!controller}" tabIndex="6"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_hotshipment__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_hotshipment__c.label}"/>
+                    <c:inputField id="poshipcont_hotshipment__c" required="false" cntr="{!controller}" tabIndex="106"/>
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_poconttype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_poconttype__c.label}"/>
+                    <c:selectList id="poshipcont_poconttype__c" required="true" cntr="{!controller}" options="{!Poconttypes}" tabIndex="11"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_received__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_received__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="poshipcont_received__c" value="{!o.rstk__poshipcont_received__c}"  rendered="{!AND(!isView,!o.rstk__poshipcont_received__c,!o.poshipcont_poship__r.rstk__poship_outbound__c, OR(o.poshipcont_poship__r.rstk__poship_destination__c=='WMS CS',o.poshipcont_poship__r.rstk__poship_destination__c=='WMS BB'))}" />
+                        <apex:outputField value="{!o.rstk__poshipcont_received__c}" rendered="{!OR(isView,o.rstk__poshipcont_received__c,o.poshipcont_poship__r.rstk__poship_outbound__c, AND(o.poshipcont_poship__r.rstk__poship_destination__c !='WMS CS',o.poshipcont_poship__r.rstk__poship_destination__c !='WMS BB'))}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_serialno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_serialno__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="poshipcont_serialno__c" required="false" cntr="{!controller}" tabIndex="16"/>
+                        <apex:outputText value="   *" style="font-size:125%;color:#FF0505;" rendered="{!AND(isView, pohvcontExists)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_receivedcon__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_receivedcon__c.label}"/>
+                    <apex:outputField id="poshipcont_receivedcon__c" value="{!o.rstk__poshipcont_receivedcon__c}" />
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_desc__c.label}"/>
+                    <c:inputField id="poshipcont_desc__c" required="false" cntr="{!controller}" tabIndex="21"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_itemminf__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_itemminf__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poshipcont_itemminf__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_comment__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_comment__c.label}"/>
+                    <c:inputField id="poshipcont_comment__c" required="false" cntr="{!controller}" tabIndex="26"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_itemmaxf__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_itemmaxf__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poshipcont_itemmaxf__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_bookreqstdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_bookreqstdate__c.label}"/>
+                    <c:inputField id="poshipcont_bookreqstdate__c" required="false" cntr="{!controller}" tabIndex="31"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_sugmidf__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_sugmidf__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poshipcont_sugmidf__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_collectiondate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_collectiondate__c.label}"/>
+                    <c:inputField id="poshipcont_collectiondate__c" required="false" cntr="{!controller}" tabIndex="36"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_askminf__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_askminf__c.label}"/>
+                    <c:inputField id="poshipcont_askminf__c" required="false" cntr="{!controller}" tabIndex="136"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_reeferloop__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_reeferloop__c.label}"/>
+                    <c:inputField id="poshipcont_reeferloop__c" required="false" cntr="{!controller}" tabIndex="41"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_askmaxf__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_askmaxf__c.label}"/>
+                    <c:inputField id="poshipcont_askmaxf__c" required="false" cntr="{!controller}" tabIndex="141"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_contutilization__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_contutilization__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__poshipcont_contutilization__c}" rendered="{!!isEdit}" />
+                        <apex:inputField id="poshipcont_contutilization__c" value="{!o.rstk__poshipcont_contutilization__c}"  rendered="{!isEdit}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_setpointf__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_setpointf__c.label}"/>
+                    <c:inputField id="poshipcont_setpointf__c" required="false" cntr="{!controller}" tabIndex="146"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_tempcheck__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_tempcheck__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poshipcont_tempcheck__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_datercvd__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_datercvd__c.label}"/>
+                    <c:inputField id="poshipcont_datercvd__c" required="false" cntr="{!controller}" tabIndex="147"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_class5122__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_class5122__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="poshipcont_class5122__c" value="{!o.rstk__poshipcont_class5122__c}" rendered="{!isEdit}"/>
+                        <apex:outputField value="{!o.rstk__poshipcont_class5122__c}" rendered="{!!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_pocontainer__c.inlineHelpText}" rendered="{!isView}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_pocontainer__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poshipcont_pocontainer__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!!isView}" />
+                
+               <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_restrictquay__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_restrictquay__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="poshipcont_restrictquay__c" value="{!o.rstk__poshipcont_restrictquay__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__poshipcont_restrictquay__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_poshipcont_uploaddgn}" onclick="return uploadDGN();" disabled="{!o.rstk__poshipcont_havedgn__c}" rendered="{!isView}"/>
+                    <apex:outputPanel ></apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_lowtemp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_lowtemp__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poshipcont_lowtemp__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_poshipcont_uploadcpc}" onclick="return uploadCPC();" disabled="{!o.rstk__poshipcont_havecpc__c}" rendered="{!isView}"/>
+                    <apex:outputPanel ></apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_hightemp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poshipcont_hightemp__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poshipcont_hightemp__c}" />
+                </apex:pageBlockSectionItem>
+                
+                
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_supplier" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_poshipcont_supplier}" name="tab_supplier" id="tab_suppliser">
+                    <apex:pageBlockSection id="pbs_Credit" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_povend1__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_povend1__c.label}"/>
+                            <apex:outputField value="{!o.rstk__poshipcont_povend1__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_aesnumber1__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_aesnumber1__c.label}"/>
+                            <c:inputField id="poshipcont_aesnumber1__c" required="false" cntr="{!controller}" tabIndex="251"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_povend2__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_povend2__c.label}"/>
+                            <apex:outputField value="{!o.rstk__poshipcont_povend2__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_aesnumber2__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_aesnumber2__c.label}"/>
+                            <c:inputField id="poshipcont_aesnumber2__c" required="false" cntr="{!controller}" tabIndex="256"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_povend3__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_povend3__c.label}"/>
+                            <apex:outputField value="{!o.rstk__poshipcont_povend3__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_aesnumber3__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_aesnumber3__c.label}"/>
+                            <c:inputField id="poshipcont_aesnumber3__c" required="false" cntr="{!controller}" tabIndex="261"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_povend4__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_povend4__c.label}"/>
+                            <apex:outputField value="{!o.rstk__poshipcont_povend4__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_aesnumber4__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_aesnumber4__c.label}"/>
+                            <c:inputField id="poshipcont_aesnumber4__c" required="false" cntr="{!controller}" tabIndex="266"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_povend5__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_povend5__c.label}"/>
+                            <apex:outputField value="{!o.rstk__poshipcont_povend5__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_aesnumber5__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_aesnumber5__c.label}"/>
+                            <c:inputField id="poshipcont_aesnumber5__c" required="false" cntr="{!controller}" tabIndex="271"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_povend6__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_povend6__c.label}"/>
+                            <apex:outputField value="{!o.rstk__poshipcont_povend6__c}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poshipcont_aesnumber6__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poshipcont_aesnumber6__c.label}"/>
+                            <c:inputField id="poshipcont_aesnumber6__c" required="false" cntr="{!controller}" tabIndex="276"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_poshipcont_requisitions}" name="tab_Poshipcontdtls" id="tab_Poshipcontdtls" rendered="{!isShowReqBtn}">
+                    <apex:pageBlockSection id="pbs_Poshipcontdtls" showHeader="false" title="{!$Label.rstk__requisitions}" columns="1" >
+                        <apex:pageBlockTable id="pbt_Poshipcontdtls" value="{!poshipcontdtls}" var="d">
+                            <apex:column headerValue="{!$Label.rstk__requisitionnumber}">
+                                <c:hoverDetail recId="{!d.rstk__poshipcontdtl_supreq__c}" recName="{!d.poshipcontdtl_supreq__r.Name}" />
+                            </apex:column>
+                            <apex:column headerValue="{!f_supreq.rstk__supreq_poasn__c.label}">
+                                <c:hoverDetail recId="{!d.poshipcontdtl_supreq__r.rstk__supreq_poasn__c}" recName="{!d.poshipcontdtl_supreq__r.supreq_poasn__r.Name}" />
+                            </apex:column>                            
+                            <apex:column headerValue="{!f_supreq.rstk__supreq_supitem__c.label}">
+                                <c:hoverDetail recId="{!d.poshipcontdtl_supreq__r.rstk__supreq_supitem__c}" recName="{!d.poshipcontdtl_supreq__r.supreq_supitem__r.Name}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__quantity}">
+                                <apex:outputText value="{0,number,##0.00}"> <apex:param value="{!d.poshipcontdtl_supreq__r.rstk__supreq_qtyreq__c}" /> </apex:outputText>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__dateduetowms}">
+                                <apex:outputText value="{0,date,M'/'d'/'yyyy}"> <apex:param value="{!d.poshipcontdtl_supreq__r.rstk__supreq_currwmsdate__c}" /> </apex:outputText>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__maximumtempf}">
+                                <apex:outputText value="{0,number,##0.00}"> <apex:param value="{!d.rstk__poshipcontdtl_maxf__c}" /> </apex:outputText>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__minimumtempf}">
+                                <apex:outputText value="{0,number,##0.00}"> <apex:param value="{!d.rstk__poshipcontdtl_minf__c}" /> </apex:outputText>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_poshipcont_materialtransferrequests}" name="tab_MaterialTransfer" id="tab_MaterialTransfer" rendered="{!!isNew && showTabButton}">
+                    <apex:pageBlockTable id="pbt_Poshipcontdtls_Material" value="{!shipcontdtlMaterial}" var="i">
+                        <apex:column headerValue="{!f_poshipcontdtl.rstk__poshipcontdtl_supmtr__c.label}" >
+                            <apex:outputField value="{!i.rstk__poshipcontdtl_supmtr__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_supmtr.rstk__supmtr_supitem__c.label}" >
+                            <apex:outputField value="{!i.poshipcontdtl_supmtr__r.rstk__supmtr_supitem__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__quantity}" >
+                            <apex:outputField value="{!i.poshipcontdtl_supmtr__r.rstk__supmtr_qty__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_supmtr.rstk__supmtr_lotno__c.label}" >
+                            <apex:outputField value="{!i.poshipcontdtl_supmtr__r.rstk__supmtr_lotno__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_supmtr.rstk__supmtr_povend__c.label}" >
+                            <apex:outputField value="{!i.poshipcontdtl_supmtr__r.rstk__supmtr_povend__c}"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_poshipcont_receptaclereturns}" name="tab_Receptacle_Returns" id="tab_Receptacle_Returns" rendered="{!!isNew && showTabButton}">
+                    <apex:pageBlockTable id="pbt_Poshipcontdtls_Receptacle" value="{!shipcontdtlReceptacle}" var="i">
+                        <apex:column headerValue="{!$Label.rstk__receptacletype}" >
+                            <apex:outputField value="{!i.rstk__poshipcontdtl_icreceptacle__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__returnquantity}" >
+                            <apex:outputField value="{!i.rstk__poshipcontdtl_receptqty__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__qtyatwms}" >
+                            <apex:outputField value="{!i.poshipcontdtl_icreceptacle__r.rstk__icreceptacle_wmsqty__c}"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_poshipcont_info}" name="tab_Info" id="tab_Info" rendered="{!!isNew}">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

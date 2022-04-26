@@ -1,0 +1,259 @@
+<apex:page id="pg" standardController="rstk__sormh__c" extensions="rstk.ControllerExtnRmamassprocesses,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sormh__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sormh__c.fields}" />
+    <apex:variable var="f_sorma" value="{!$ObjectType.rstk__sorma__c.fields}" />
+    <apex:variable var="f_sormadmd" value="{!$ObjectType.rstk__sormadmd__c.fields}" />
+    <apex:variable var="f_header" value="{!$ObjectType.rstk__customext__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!pageTitle}" customInclude="{!$Resource.rstk__rmamassprocesses}" enableAutocomplete="false"/>
+   	<script>
+   		var sormhid = "{!id}";
+   		var isReceipt = {!isReceipt};
+   		var isShipment = {!isShipment};
+   	</script>
+   	<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <apex:outputLink value="{!URLFOR($Action.rstk__sormh__c.View, o.id)}">&nbsp;«&nbsp;Back To RMA</apex:outputlink>
+    
+    <apex:form id="fm">
+    	<apex:actionFunction name="refreshPageMessage" action="{!refreshPageMessage}" oncomplete="unblockUI();" rerender="pageMessages"/>
+    	<apex:actionFunction name="processReceipt" action="{!processReceipt}" oncomplete="checkJobStatus()" rerender="pageMessages, op_hidden" rendered="true"/>
+    	<apex:actionFunction name="processShipment" action="{!processShipment}" oncomplete="checkJobStatus()" rerender="pageMessages, op_hidden" rendered="true"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany()" immediate="true"/>
+        <apex:actionFunction name="rmarcptlocidChanged" action="{!rmarcptlocidChanged}" oncomplete="unblockUI();" rerender="op_rmarcptdetails" immediate="false">
+        	<apex:param name="compsormaid" assignTo="{!compsormaid}" value="" />
+        </apex:actionFunction>
+                
+        <apex:outputPanel id="op_hidden">
+        	<input type="hidden" id="sormhid" value="{!id}"/>
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+       	</apex:outputPanel>
+       	
+        <apex:outputPanel style="display:none">
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb_rmareceipt" mode="detail" rendered="{!isReceipt}">
+            <apex:outputPanel id="op_rmarcptbtns">
+            	<apex:inputCheckbox id="selectAll" onclick="selectAll(this.checked);"/><apex:outputLabel value="{!$Label.rstk__selectall}"/>&nbsp;&nbsp;
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmamassprocesses_receiveselectedlines}" onclick="if(doValidateReceipt()){doSetFFCompanyAndProcess(doProcessReceipt);}"/>
+            </apex:outputPanel>
+            
+            <apex:outputPanel id="op_rmarcptdetails">
+            	<script>var rows = {}; var rcptlocnumslfldIdx = 0;</script>
+            	<apex:pageBlockTable value="{!rmarcptcomps}" var="comp">
+            		<apex:column headerValue="Selected" style="vertical-align:top;">
+                        <apex:inputCheckbox id="selected" value="{!comp.rmadtl.selected}" onclick="rowSelected('{!comp.rmadtl.sorma.id}', this.checked)" />
+            		</apex:column>
+            		<apex:column headerValue="{!f_sorma.rstk__sorma_line__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!comp.rmadtl.sorma.rstk__sorma_line__c}" rendered="{!comp.isfirst}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!f_sorma.rstk__sorma_soprod__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!comp.rmadtl.sorma.rstk__sorma_soprod__c}" rendered="{!comp.isfirst}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!f_sorma.rstk__sorma_qtyauth__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!comp.rmadtl.sorma.rstk__sorma_qtyauth__c}" rendered="{!comp.isfirst}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!f_header.rstk__rmarcpt_qtypending__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!comp.rmadtl.header.rstk__rmarcpt_qtypending__c}" rendered="{!comp.isfirst}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!f_header.rstk__rmarcpt_qty__c.label}" style="vertical-align:top;">
+            			<apex:inputField id="prodrcptqty" value="{!comp.rmadtl.header.rstk__rmarcpt_qty__c}" style="width:75px;" rendered="{!comp.isfirst}" onchange="rcptqtyChanged(this, '{!comp.rmadtl.sorma.id}')"/>
+            		</apex:column>
+            		<apex:column headerValue="{!f_header.rstk__rmarcpt_destination__c.label}" style="vertical-align:top;">
+            			<apex:inputField id="destination" value="{!comp.rmadtl.header.rstk__rmarcpt_destination__c}" rendered="{!comp.isfirst}" onchange="destinationChanged(this, '{!comp.rmadtl.sorma.id}')"/>
+            		</apex:column>
+            		<apex:column headerValue="{!f_header.rstk__rmarcpt_locid__c.label}" style="vertical-align:top;">
+            			<apex:outputText value="" rendered="{!!comp.rmadtl.rcptlocvisible}"/>
+            			<apex:outputField value="{!comp.rmadtl.header.rstk__rmarcpt_locid__c}" rendered="{!AND(comp.rmadtl.rcptlocvisible, comp.isfirst, !comp.rmadtl.rcptloceditable)}"/>
+                        <c:largeSelectList id="rcptlocid" value="{!comp.rmadtl.header.rstk__rmarcpt_locid__c}" 
+                        	useValue="true" cntr="{!controller}" width="150px" 
+                        	options="{!comp.rmadtl.Sylocids}" 
+                        	rendered="{!AND(comp.rmadtl.rcptlocvisible, comp.isfirst, comp.rmadtl.rcptloceditable)}" 
+                        	onchange="blockUI(); rmarcptlocidChanged('{!comp.rmadtl.sorma.id}')"/>
+                        <c:largeSelectList id="rcptlocid1" value="{!comp.rmadtl.header.rstk__rmarcpt_locid__c}" useValue="true" cntr="{!controller}" options="{!comp.rmadtl.Sylocids}" rendered="{!!comp.rmadtl.rcptlocvisible}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!f_header.rstk__rmarcpt_locnum__c.label}" style="vertical-align:top;">
+            			<apex:outputText value="" rendered="{!!comp.rmadtl.rcptlocvisible}"/>
+            			<apex:outputField value="{!comp.rmadtl.header.rstk__rmarcpt_locnum__c}" rendered="{!AND(comp.rmadtl.rcptlocvisible, comp.isfirst, !comp.rmadtl.rcptloceditable)}"/>
+            			<apex:inputField id="rcptlocnum" value="{!comp.rmadtl.header.rstk__rmarcpt_locnum__c}" style="width:75px;" rendered="{!AND(comp.rmadtl.rcptlocvisible, comp.isfirst, comp.rmadtl.rcptloceditable, !comp.rmadtl.sorma.sorma_site__r.rstk__sysite_sylocnum_reqind__c)}"/>
+                        <c:largeSelectList id="rcptlocnumsl" 
+                        	value="{!comp.rmadtl.header.rstk__rmarcpt_locnum__c}" 
+                        	useValue="true" cntr="{!controller}" width="100px" 
+                        	options="{!comp.rmadtl.locnums}" 
+                        	rendered="{!AND(comp.rmadtl.rcptlocvisible, comp.isfirst, comp.rmadtl.rcptloceditable, comp.rmadtl.sorma.sorma_site__r.rstk__sysite_sylocnum_reqind__c)}" />
+                        
+                        <apex:inputField id="rcptlocnum2" value="{!comp.rmadtl.header.rstk__rmarcpt_locnum__c}" style="display:none;" rendered="{!!comp.rmadtl.rcptlocvisible}"/>
+                        
+                        <apex:outputPanel layout="none" rendered="{!comp.isfirst}">
+                        <script>
+                        	rows["{!comp.rmadtl.sorma.id}"] = {
+                        		line: "{!comp.rmadtl.sorma.rstk__sorma_line__c}",
+                                maxqtyrcpt: {!comp.rmadtl.header.rstk__rmarcpt_qtypending__c},
+                                insplocid: "{!comp.rmadtl.sorma.sorma_insplocid__c}",
+                                insplocnum: "{!JSENCODE(comp.rmadtl.sorma.sorma_insplocnum__c)}",
+                                invlocid: "{!comp.rmadtl.sorma.sorma_invlocid__c}",
+                                invlocnum: "{!JSENCODE(comp.rmadtl.sorma.sorma_invlocnum__c)}",
+                                insptempl: "{!JSENCODE(comp.rmadtl.sorma.sorma_insptempl__c)}",
+                                selectedfld: document.getElementById("{!$Component.selected}"),
+                                prodrcptqtyfld: document.getElementById("{!$Component.prodrcptqty}"),
+                                destinationfld: document.getElementById("{!$Component.destination}"),
+                                rcptlocidfld: document.getElementById("{!$Component.rcptlocid}"),
+                                rcptlocid1fld: document.getElementById("{!$Component.rcptlocid1}"),
+                                rcptlocnumfld: document.getElementById("{!$Component.rcptlocnum}"),
+                                rcptlocnumslfld: jQuery('select[name*=rcptlocnumsl]')[rcptlocnumslfldIdx],
+                                rcptlocnum2fld: document.getElementById("{!$Component.rcptlocnum2}"),
+                                compcount: {!comp.rmadtl.compcount},
+                                comps: {}
+                            };
+                            rows["{!comp.rmadtl.sorma.id}"].destinationfld.remove(0);
+                            
+                            if({!comp.rmadtl.rcptlocvisible} == false) {
+                            	var rcptlocidfld = document.getElementById("{!$Component.rcptlocid1}");
+                            	if(rcptlocidfld) {
+                            		rcptlocidfld.style.display = "none";
+                            	}
+                            }
+                            
+                            if(rows["{!comp.rmadtl.sorma.id}"].rcptlocnumslfld != undefined) {
+                            	rcptlocnumslfldIdx++;
+                            }
+                           
+                        </script>
+                        </apex:outputPanel>
+            		</apex:column>
+            		<apex:column headerValue="{!f_sormadmd.rstk__sormadmd_compitem__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!comp.sormadmd.rstk__sormadmd_compitem__c}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!$Label.rstk__receiptqtyserialsnumbers}" style="vertical-align:top;">
+                        <apex:outputPanel rendered="{!!comp.issrl}">
+                            <apex:inputText id="rcptqty" value="{!comp.qty}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!comp.issrl}">
+                            <input type="button" class="btn" onclick="manualSerialEntry(event);" value="Manual Serial Entry" style="width:240px;"/><br/>
+                            <apex:selectList styleClass="serials" id="rcptsrls" value="{!comp.selectedSrls}" multiselect="true" size="5" style="width:240px;" onchange="serialsSelected('{!comp.rmadtl.sorma.id}', '{!comp.sormadmd.id}')">
+                                <apex:selectOptions value="{!comp.availableSrls}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sormadmd.rstk__sormadmd_lotno__c.label}" style="vertical-align:top;">
+                        <apex:outputField value="{!comp.sormadmd.rstk__sormadmd_lotno__c}" rendered="{!(comp.islot && comp.lotnoexists)}"/>
+                        <apex:inputField id="lotno" value="{!comp.sormadmd.rstk__sormadmd_lotno__c}" rendered="{!(comp.islot && !comp.lotnoexists)}"/>
+                        <script>
+                        	var comps = rows["{!comp.rmadtl.sorma.id}"].comps;
+                        	comps["{!comp.sormadmd.id}"] = {
+                                selectedfld: document.getElementById('{!$Component.selected}'),
+                                compname: "{!comp.sormadmd.sormadmd_compitem__r.name}",
+                                rcptqtyfld: document.getElementById("{!$Component.rcptqty}"),
+                                rcptsrlsfld: document.getElementById("{!$Component.rcptsrls}"),
+                                lotnofld: document.getElementById("{!$Component.lotno}"),
+                                qtyper: {!comp.qtyper}
+                            };
+                            if (comps["{!comp.sormadmd.id}"].rcptqtyfld != null) {
+                                comps["{!comp.sormadmd.id}"].rcptqtyfld.disabled = true;
+                            }
+                        </script>
+                    </apex:column>
+            	</apex:pageBlockTable>
+            </apex:outputPanel>
+        </apex:pageBlock>
+        
+        <apex:pageBlock id="pb_rmashipment" mode="detail" rendered="{!isShipment}">
+            <apex:outputPanel id="op_rmashipmentbtns">
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_rmamassprocesses_processmassshipmentlines}" onclick="if(doValidateShipment()){doSetFFCompanyAndProcess(doProcessShipment);}"/>
+            </apex:outputPanel>
+            
+            <apex:outputPanel id="op_rmashipments">
+            	<script>var rows = {};</script>
+            	<apex:pageBlockTable value="{!rmashipments}" var="d">
+            		<apex:column headerValue="Selected" style="vertical-align:top;">
+            			<apex:inputCheckbox id="selected" value="{!d.selected}"/>
+            		</apex:column>
+            		
+            		<apex:column headerValue="{!f_sorma.rstk__sorma_line__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!d.sorma.rstk__sorma_line__c}"/>
+            		</apex:column>
+            		
+            		<apex:column headerValue="{!f_sorma.rstk__sorma_soprod__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!d.sorma.rstk__sorma_soprod__c}"/>
+            		</apex:column>
+            		
+            		<apex:column headerValue="{!f_sorma.rstk__sorma_preshipok__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!d.sorma.rstk__sorma_preshipok__c}"/>
+            		</apex:column>
+            		
+            		<apex:column headerValue="{!f_sorma.rstk__sorma_qtyauth__c.label}" style="vertical-align:top;">
+            			<apex:outputField value="{!d.sorma.rstk__sorma_qtyauth__c}"/>
+            		</apex:column>
+            		
+           			<apex:column headerValue="{!f_sorma.rstk__sorma_qtyrec__c.label}" style="vertical-align:top;">
+            			<apex:outputText value="{!d.qtyrecplusqtyinsp}"/>
+            			<script>
+	            			rows["{!d.sorma.id}"] = {
+	                                selectedfld: document.getElementById("{!$Component.selected}")
+							};
+						</script>
+            		</apex:column>
+            	</apex:pageBlockTable>
+            </apex:outputPanel>
+		</apex:pageBlock>
+        
+        <apex:pageBlock rendered="{!isReceipt}">
+            <div id="manualSerialEntryPopup" style="display:none" styleClass="pbBody">
+                 <apex:outputPanel styleClass="popupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="modalPopup">
+                   <apex:pageBlockSection showHeader="true" collapsible="false" title="Manual Serial Entry" columns="1">
+                        <apex:pageBlockSectionItem >
+                          <c:HelpLabel helpText="Enter one or more serial Codes seperated by commas, spaces or new lines. The serial numbers will be matched against all locations available for the product."/>
+                          <TextArea id="manualSerialEntryTextArea" rows="12" cols="0" style="width:95%;" value="" tabindex="61"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection >
+                     <input type="button" class="btn" value="Ok" style="width:60px;" onclick="_closeDialog();issueManualSerials();" tabIndex="71"/>
+                     <input type="button" class="btn" value="Cancel" style="width:60px;" onclick="_closeDialog();" tabIndex="72"/>
+                    </apex:pageBlockSection>
+                 </apex:outputPanel>
+             </div>
+                    
+                    
+             <div id="manualSerialResultsPopup" style="display:none" styleClass="pbBody">
+                 <apex:outputPanel styleClass="popupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="modalPopup">
+                   <apex:pageBlockSection showHeader="true" collapsible="false" title="Manual Serial Entry Results" columns="1">
+                        <apex:pageBlockSectionItem >
+                          <table style="width:100%;border 2px solid"><tr>
+                            <td><span style="font-weight:bold;">New Serials Assigned:&nbsp;</span><span style="font-weight:bold;color:green;" id="serNumNew">0</span></td>
+                            <td><span style="font-weight:bold;">Already Assigned Serials:&nbsp;</span><span id="serNumExist">0</span></td>
+                            <td><span style="font-weight:bold;">Serials not found:&nbsp;</span><span style="font-weight:bold;color:red;" id="serNumFail">0</span></td>
+                          </tr></table>
+
+                          <table class="list" id="manualSerialResultsTable">
+                          <thead>
+                            <tr class="rowHeader">
+                              <th class="headerRow">Serial</th><th id="serStatus" class="headerRow">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                          </tbody>
+                          </table>
+                         </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection >
+                     <input type="button" class="btn" value="Ok" style="width:60px;" onclick="_closeDialog();" tabIndex="71"/>
+                    </apex:pageBlockSection>
+                 </apex:outputPanel>
+            </div>
+        </apex:pageBlock>
+    </apex:form>
+	
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    	var LABEL_RMAReceiptLocationIsRequired = "{!$Label.RMAReceiptLocationIsRequired}";
+        var LABEL_SpecifyLotNoForLotItem = "{!$Label.SpecifyLotNoForLotItem}";
+        var LABEL_ErrorWhilePerfRMAReceipt = "{!$Label.ErrorWhilePerfRMAReceipt}";
+        var LABEL_SrlsSelected_SelSrlsForComponent = "{!$Label.SrlsSelected_SelSrlsForComponent}";
+        var LABEL_QtyToProcessMustBeGreaterThan0AndCannotExceedQtyPending = "{!$Label.QtyToProcessMustBeGreaterThan0AndCannotExceedQtyPending}";
+        var LABEL_PleaseSelectAtLeastOneDetailLineForProcessing = "{!$Label.PleaseSelectAtLeastOneDetailLineForProcessing}";
+    </script>
+</apex:page>

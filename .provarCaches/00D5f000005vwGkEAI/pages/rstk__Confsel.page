@@ -1,0 +1,337 @@
+<apex:page id="pg" standardController="rstk__confsel__c" extensions="rstk.ControllerExtnConfsel" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__confsel__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__confsel__c.fields}" />
+    <apex:variable var="f_confgroup" value="{!$ObjectType.rstk__confgroup__c.fields}" />
+    <apex:variable var="f_confcomp" value="{!$ObjectType.rstk__confcomp__c.fields}" />
+    <apex:variable var="f_confexcl" value="{!$ObjectType.rstk__confexcl__c.fields}" />
+    <apex:variable var="f_confreq" value="{!$ObjectType.rstk__confreq__c.fields}" />
+    <apex:variable var="f_confrec" value="{!$ObjectType.rstk__confrec__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_confsel}" enableAutocomplete="true" customInclude="{!$Resource.rstk__confsel_cli}"/>
+    
+    <script>
+    var isNew = {!isNew};
+    var isEdit = {!isEdit};
+    var isView = {!isView};
+    var divid = "{!currDivision.id}";
+    </script>
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.rstk__busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doClone" action="{!doClone}" immediate="true" rerender="pageMessages"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="selqtyconfgroupChanged" action="{!donothing}" immediate="true" rerender="pageMessages,op_selqtyconfsel,op_selqtyconfcomp" oncomplete="selqtyconfselChanged(null);selqtyfrcompChanged();return false;" status="statusProcessing">
+            <apex:param name="selqtyconfgroup" assignTo="{!o.rstk__confsel_selqtyconfgroup__c}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="selqtyconfselChanged" action="{!donothing}" immediate="true" rerender="pageMessages,op_selqtyconfcomp" oncomplete="selqtyfrcompChanged();return false;" status="statusProcessing">
+            <apex:param name="selqtyconfsel" assignTo="{!o.rstk__confsel_selqtyconfsel__c}" value="" />
+        </apex:actionFunction>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableClone="false" disableSaveAndNew="{!!isNew}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none;">
+                <apex:inputHidden id="confsel_confgroup__c" value="{!o.rstk__confsel_confgroup__c}" rendered="{!isEdit}"/>
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection showHeader="false" columns="2" rendered="{!OR(isNew, isEdit)}">
+                <apex:pageBlockSectionItem helpText="{!f_confgroup.rstk__confgroup_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_confgroup.rstk__confgroup_div__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!customext.rstk__div__c}" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.confsel_confgroup__r.rstk__confgroup_div__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsel_confgroup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsel_confgroup__c.label}"/>
+                    <apex:outputPanel >
+                        <c:largeSelectList id="confsel_confgroup__c" cntr="{!controller}" required="true" options="{!confgroups}" rendered="{!isNew}"  tabIndex="110"/>
+                        <apex:outputField value="{!o.rstk__confsel_confgroup__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="confsel_seq__c" value="{!o.rstk__confsel_seq__c}" required="true"  taborderhint="12"/>
+                
+                <apex:inputField id="confsel_qtyinput__c" value="{!o.rstk__confsel_qtyinput__c}" taborderhint="14"/>
+                
+                <apex:inputField id="confsel_title__c" value="{!o.rstk__confsel_title__c}" required="true" taborderhint="13"/>
+                
+                <apex:inputField id="confsel_validateqty__c" value="{!o.rstk__confsel_validateqty__c}" taborderhint="15"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsel_subselgroup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsel_subselgroup__c.label}"/>
+                    <c:largeSelectList id="confsel_subselgroup__c" cntr="{!controller}" options="{!subselgroups}" tabIndex="310"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="confsel_qtydecimal__c" value="{!o.rstk__confsel_qtydecimal__c}" taborderhint="16"/>
+                
+                <apex:inputField id="confsel_subsel__c" value="{!o.rstk__confsel_subsel__c}" taborderhint="30"/>
+                
+                <apex:inputField id="confsel_minval__c" value="{!o.rstk__confsel_minval__c}" taborderhint="17"/>
+                
+                <apex:inputField id="confsel_confval__c" value="{!o.rstk__confsel_confval__c}" taborderhint="321"/>
+                
+                <apex:inputField id="confsel_maxval__c" value="{!o.rstk__confsel_maxval__c}" taborderhint="18"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsel_image__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsel_image__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="confsel_image__c" value="{!o.rstk__confsel_image__c}" style="width:300px;" taborderhint="33"/>
+                        <button type="button" class="btn" onclick="viewImage()">{!$Label.pagebtn_confsel_View}</button>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="confsel_selqtyfrcomp__c" value="{!o.rstk__confsel_selqtyfrcomp__c}" taborderhint="19"/>
+                
+                <apex:inputField id="confsel_recommend__c" value="{!o.rstk__confsel_recommend__c}" taborderhint="34"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsel_selqtyconfgroup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsel_selqtyconfgroup__c.label}"/>
+                    <c:largeSelectList id="confsel_selqtyconfgroup__c" onchange="selqtyconfgroupChanged(this.value);" cntr="{!controller}" options="{!AllConfgroups}" tabIndex="200"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="confsel_showcomps__c" value="{!o.rstk__confsel_showcomps__c}" taborderhint="35"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsel_selqtyconfsel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsel_selqtyconfsel__c.label}"/>
+                    <apex:outputPanel id="op_selqtyconfsel">
+                        <c:largeSelectList id="confsel_selqtyconfsel__c" onchange="selqtyconfselChanged(this.value);" cntr="{!controller}" options="{!Confsels}" tabIndex="210"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="confsel_selbydefault__c" value="{!o.rstk__confsel_selbydefault__c}" taborderhint="36"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confsel_selqtyconfcomp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confsel_selqtyconfcomp__c.label}"/>
+                    <apex:outputPanel id="op_selqtyconfcomp">
+                        <c:largeSelectList id="confsel_selqtyconfcomp__c" cntr="{!controller}" options="{!Confcomps}" tabIndex="220"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="confsel_selmsgactive__c" value="{!o.rstk__confsel_selmsgactive__c}" taborderhint="38"/>
+                
+                <apex:inputField id="confsel_dfltismin__c" value="{!o.rstk__confsel_dfltismin__c}" taborderhint="23"/>
+                
+                <apex:inputField id="confsel_selmessage__c" value="{!o.rstk__confsel_selmessage__c}" taborderhint="39"/>
+                
+                <apex:inputField id="confsel_priceadjust__c" value="{!o.rstk__confsel_priceadjust__c}" taborderhint="38"/>
+                
+                <apex:inputField id="confsel_required__c" value="{!o.rstk__confsel_required__c}" taborderhint="40"/>
+
+                <apex:inputField id="confsel_discmark__c" value="{!o.rstk__confsel_discmark__c}" taborderhint="38"/>   
+                
+                <apex:inputField id="confsel_helptext__c" value="{!o.rstk__confsel_helptext__c}" taborderhint="41"/>
+                
+                <apex:inputField id="confsel_fixedpct__c" value="{!o.rstk__confsel_fixedpct__c}" taborderhint="38"/>   
+                
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            <apex:pageBlockSection showHeader="false" columns="2" rendered="{!isView}">
+                <apex:outputField value="{!o.confsel_confgroup__r.rstk__confgroup_div__c}"/>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputField value="{!o.rstk__confsel_confgroup__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_seq__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_qtyinput__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_title__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_validateqty__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_subselgroup__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_qtydecimal__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_subsel__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_minval__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_confval__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_maxval__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_image__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_selqtyfrcomp__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_recommend__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_selqtyconfgroup__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_showcomps__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_selqtyconfsel__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_selbydefault__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_selqtyconfcomp__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_selmsgactive__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_dfltismin__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_selmessage__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_priceadjust__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_required__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_discmark__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_helptext__c}"/>
+                
+                <apex:outputField value="{!o.rstk__confsel_fixedpct__c}"/>
+                
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            <br />
+            <apex:tabPanel switchType="client" selectedTab="tab_Confcomps" id="theTabPanel" rendered="{!!isNew}">
+                <apex:tab label="{!$Label.rstk__pagetab_confsel_selectioncomponents}" name="tab_Confcomps">
+                    <apex:pageBlockSection id="pbs_SelectionComponents" showHeader="false" columns="1" >
+                        <c:nosubmitbutton id="new_component" label="{!$Label.rstk__pagebtn_confsel_newselectioncomponent}" onclick="window.location.replace('{!URLFOR($Action.rstk__confcomp__c.New)}{!ReturnUrlParms}')" rendered="{!o.rstk__confsel_priceadjust__c == false}" style="width:200px;"/>
+                        <apex:pageBlockTable value="{!components}" var="comp">
+                            <apex:column headerValue="{!$Label.rstk__select}">
+                                <apex:inputCheckbox value="{!comp.selected}"/>
+                            </apex:column>
+                            <apex:column headerValue="">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__confcomp__c.Edit, comp.confcomp.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confcomp.Name.label}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__confcomp__c.View, comp.confcomp.id)}{!ReturnUrlParms}">{!comp.confcomp.name}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confcomp.rstk__confcomp_qtyper__c.label}" value="{!comp.confcomp.rstk__confcomp_qtyper__c}"/>
+                            <apex:column headerValue="{!$Label.rstk__type}" value="{!comp.confcomp.rstk__confcomp_itemtype__c}"/>
+                            <apex:column headerValue="{!$Label.rstk__componententity}">
+                                <apex:outputField value="{!comp.confcomp.rstk__confcomp_soprod__c}" rendered="{!comp.confcomp.rstk__formula_isproduct__c}"/>
+                                <apex:outputField value="{!comp.confcomp.rstk__confcomp_icitem__c}" rendered="{!comp.confcomp.rstk__formula_isinventory__c}"/>
+                                <apex:outputField value="{!comp.confcomp.rstk__confcomp_soservice__c}" rendered="{!comp.confcomp.rstk__formula_isservice__c}"/>
+                                <apex:outputField value="{!comp.confcomp.rstk__confcomp_rtindoper__c}" rendered="{!comp.confcomp.rstk__formula_islabor__c}"/>
+                                <apex:outputField value="{!comp.confcomp.rstk__confcomp_item__c}" rendered="{!comp.confcomp.rstk__formula_ismisc__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confcomp.rstk__confcomp_confsel2__c.label}" value="{!comp.confcomp.rstk__confcomp_confsel2__c}"/>
+                            <apex:column headerValue="{!f_confcomp.rstk__confcomp_price__c.label}" value="{!comp.confcomp.rstk__confcomp_price__c}"/>
+                            <apex:column headerValue="{!f_confcomp.rstk__confcomp_cost__c.label}" value="{!comp.confcomp.rstk__confcomp_cost__c}"/>
+                            <apex:column headerValue="{!f_confcomp.rstk__confcomp_syuom__c.label}" value="{!comp.confcomp.rstk__confcomp_syuom__c}"/>
+                            <apex:column headerValue="{!f_confcomp.rstk__confcomp_pricemethod__c.label}" value="{!comp.confcomp.rstk__confcomp_pricemethod__c}"/>
+                            <apex:column headerValue="{!$Label.rstk__markup}" value="{!comp.confcomp.rstk__confcomp_markup__c}"/>
+                            <apex:column headerValue="{!$Label.rstk__primary}" value="{!comp.confcomp.rstk__confcomp_primary__c}"/>
+                            <apex:column headerValue="{!$Label.rstk__optional}" value="{!comp.confcomp.rstk__confcomp_optional__c}"/>
+                            <apex:column headerValue="{!f_confcomp.rstk__confcomp_seldefault__c.label}" value="{!comp.confcomp.rstk__confcomp_seldefault__c}"/>
+                            <apex:column headerValue="{!f_confcomp.rstk__confcomp_adjustqty__c.label}" value="{!comp.confcomp.rstk__confcomp_adjustqty__c}"/>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_confsel_exclusions}" name="tab_Confexcls">
+                    <apex:pageBlockSection showHeader="false" columns="1" >
+                        <c:nosubmitbutton label="{!$Label.rstk__pagebtn_confsel_newexclusion}" onclick="window.location.replace('{!URLFOR($Action.rstk__confexcl__c.New)}{!ReturnUrlParms}')" style="width:150px;"/>
+                        <apex:pageBlockTable value="{!exclusions}" var="excl">
+                            <apex:column headerValue="">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__confexcl__c.Edit, excl.confexcl.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confexcl.Name.label}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__confexcl__c.View, excl.confexcl.id)}{!ReturnUrlParms}">{!excl.confexcl.name}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confexcl.rstk__confexcl_confgroup1__c.label}" value="{!excl.confexcl.rstk__confexcl_confgroup1__c}"/>
+                            <apex:column headerValue="{!f_confexcl.rstk__confexcl_confsel1__c.label}" value="{!excl.confexcl.rstk__confexcl_confsel1__c}"/>
+                            <apex:column headerValue="{!f_confexcl.rstk__confexcl_confgroup2__c.label}" value="{!excl.confexcl.rstk__confexcl_confgroup2__c}"/>
+                            <apex:column headerValue="{!f_confexcl.rstk__confexcl_confsel2__c.label}" value="{!excl.confexcl.rstk__confexcl_confsel2__c}"/>
+                            <apex:column headerValue="{!f_confexcl.rstk__confexcl_soprod__c.label}" value="{!excl.confexcl.rstk__confexcl_soprod__c}"/>
+                            <apex:column headerValue="{!f_confexcl.rstk__confexcl_message__c.label}" value="{!excl.confexcl.rstk__confexcl_message__c}"/>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_confsel_requirements}" name="tab_Confreqs">
+                    <apex:pageBlockSection showHeader="false" columns="1" >
+                        <c:nosubmitbutton label="{!$Label.rstk__pagebtn_confsel_newrequirement}" onclick="window.location.replace('{!URLFOR($Action.rstk__confreq__c.New)}{!ReturnUrlParms}')" style="width:150px;"/>
+                        <apex:pageBlockTable value="{!requirements}" var="req">
+                            <apex:column headerValue="">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__confreq__c.Edit, req.confreq.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confreq.Name.label}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__confreq__c.View, req.confreq.id)}{!ReturnUrlParms}">{!req.confreq.name}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confreq.rstk__confreq_whengroup__c.label}" value="{!req.confreq.rstk__confreq_whengroup__c}"/>
+                            <apex:column headerValue="{!f_confreq.rstk__confreq_whenconfsel__c.label}" value="{!req.confreq.rstk__confreq_whenconfsel__c}"/>
+                            <apex:column headerValue="{!f_confreq.rstk__confreq_reqgroup__c.label}" value="{!req.confreq.rstk__confreq_reqgroup__c}"/>
+                            <apex:column headerValue="{!f_confreq.rstk__confreq_reqconfsel__c.label}" value="{!req.confreq.rstk__confreq_reqconfsel__c}"/>
+                            <apex:column headerValue="{!f_confreq.rstk__confreq_soprod__c.label}" value="{!req.confreq.rstk__confreq_soprod__c}"/>
+                            <apex:column headerValue="{!f_confreq.rstk__confreq_comment__c.label}" value="{!req.confreq.rstk__confreq_comment__c}"/>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_confsel_recommendations}" name="tab_Confrecs">
+                    <apex:pageBlockSection showHeader="false" columns="1" >
+                        <c:nosubmitbutton label="{!$Label.rstk__pagebtn_confsel_newrecommendation}" onclick="window.location.replace('{!URLFOR($Action.rstk__confrec__c.New)}{!ReturnUrlParms}')" style="width:150px;"/>
+                        <apex:pageBlockTable value="{!recommendations}" var="rec">
+                            <apex:column headerValue="">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__confrec__c.Edit, rec.confrec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confrec.Name.label}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__confrec__c.View, rec.confrec.id)}{!ReturnUrlParms}">{!rec.confrec.name}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_confrec.rstk__confrec_whengroup__c.label}" value="{!rec.confrec.rstk__confrec_whengroup__c}"/>
+                            <apex:column headerValue="{!f_confrec.rstk__confrec_whenconfsel__c.label}" value="{!rec.confrec.rstk__confrec_whenconfsel__c}"/>
+                            <apex:column headerValue="{!f_confrec.rstk__confrec_recgroup__c.label}" value="{!rec.confrec.rstk__confrec_recgroup__c}"/>
+                            <apex:column headerValue="{!f_confrec.rstk__confrec_recconfsel__c.label}" value="{!rec.confrec.rstk__confrec_recconfsel__c}"/>
+                            <apex:column headerValue="{!f_confrec.rstk__confrec_soprod__c.label}" value="{!rec.confrec.rstk__confrec_soprod__c}"/>
+                            <apex:column headerValue="{!f_confrec.rstk__confrec_comment__c.label}" value="{!rec.confrec.rstk__confrec_comment__c}"/>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_confsel_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+        <script>
+            setSelectListRequired("confsel_confgroup__c");
+        </script>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_SubSelGroupCantBeSameAsConfigGrp = "{!$Label.rstk__subselgroupcantbesameasconfiggrp}";
+        var LABEL_BaselineGrpsMayNotHaveSubSelections = "{!$Label.rstk__baselinegrpsmaynothavesubselections}";
+        var LABEL_BaselineGrpsMayOnlyHaveOneSelection = "{!$Label.rstk__baselinegrpsmayonlyhaveoneselection}";
+        var LABEL_SeqMustGrtrThan0 = "{!$Label.rstk__seqmustgrtrthan0}";
+        var LABEL_EntertQtyOnSelCantBeTrueWhenSelectionHasSubSelectionAlsoTrue = "{!$Label.rstk__entertqtyonselcantbetruewhenselectionhassubselectionalsotrue}";
+        var LABEL_QtyMustBeQholeNum = "{!$Label.rstk__qtymustbeqholenum}";
+        var LABEL_QtyCantExceedDecimals = "{!$Label.rstk__qtycantexceeddecimals}";
+    </script>
+    
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

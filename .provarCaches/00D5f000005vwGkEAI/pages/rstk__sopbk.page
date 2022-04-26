@@ -1,0 +1,151 @@
+<apex:page id="pg" standardController="rstk__sopbk__c" extensions="rstk.ControllerExtnSopbk,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sopbk__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sopbk__c.fields}"/> 
+    <apex:variable var="f_sopbkd" value="{!$ObjectType.rstk__sopbkd__c.fields}"/> 
+     
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sopbk}" displayListLink="true" customInclude="{!$Resource.rstk__sopbk_cli}" enableAutocomplete="true"/>
+    
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/> 
+    <apex:includeScript value="{!$Resource.rstk__messageformat}"/>
+
+    <script>
+        var divId = '{!o.rstk__sopbk_div__c}';
+    </script>
+ 
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" />
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+            
+            <c:division id="sopbk_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopbk_bookid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopbk_bookid__c.label}"/>
+                    <c:inputField id="sopbk_bookid__c" required="true" cntr="{!controller}" tabIndex="1001"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopbk_sycurr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopbk_sycurr__c.label}"/>
+                    <c:selectList id="sopbk_sycurr__c" cntr="{!controller}" options="{!Currencies}" required="false" tabIndex="1101"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopbk_active__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopbk_active__c.label}"/>
+                    <c:inputField id="sopbk_active__c" required="false" cntr="{!controller}" tabIndex="1002"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopbk_usedates__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopbk_usedates__c.label}"/>
+                    <c:inputField id="sopbk_usedates__c" required="false" cntr="{!controller}" tabIndex="1003"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopbk_frdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopbk_frdate__c.label}"/>
+                    <c:inputField id="sopbk_frdate__c" required="false" cntr="{!controller}" tabIndex="1004"/>
+                </apex:pageBlockSectionItem>   
+                
+                <apex:pageBlockSectionItem />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopbk_todate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopbk_todate__c.label}"/>
+                    <c:inputField id="sopbk_todate__c" required="false" cntr="{!controller}" tabIndex="1005"/>
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sopbk_comments__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sopbk_comments__c.label}"/>
+                    <c:inputTextarea id="sopbk_comments__c" required="false" cntr="{!controller}" cols="50" rows="2" tabIndex="1006"/>
+                </apex:pageBlockSectionItem>  
+            </apex:pageBlockSection>
+            <br /> 
+            <apex:tabPanel switchType="client" selectedTab="tab_PricingDetails" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_sopbk_productpricingdetails}" name="tab_PricingDetails" id="tab_PricingDetails" rendered="{!isView}">
+                    <c:PageableGrid pageSize="20" width="1150" jsController="sopbkds" data="{!pricingDetails}" editable="{!isView}" ispopup="false" disableSave="false"/>
+                    <script>
+                        sopbkds.onGridLoad = function() {
+                            self = this;
+                            this.getRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var sopbkdId = self.getRowValue(row, 'Id');
+                                if (isEmpty(sopbkdId)) sopbkdId = sopbkds.rowIds[i];
+                                if (!isEmpty(sopbkdId)) {
+                                    self.getRowObj(row, 'sopbkd_prod__c').closest('td').find('.ac_input').attr('disabled', true);
+                                }
+                                
+                                var price = self.getRowDecimal(row, 'sopbkd_price__c');
+                                if (!isEmpty(price)) {
+// RCB: RSTK-1840                                    
+                                    price = formatLocaleFloat(price, 6);
+                                    self.setRowValue(row, "price__c", price);
+                                }
+                            });
+                        }
+
+                        sopbkds.entryChanged = function(row, rowNum, name, value) {
+                            self = this;
+                            if (name == 'sopbkd_prod__c') {
+                                var prod = self.getRowValue(row, 'sopbkd_prod__c');
+                                if (!isEmpty(prod)) {
+                                    var soprodInfo = execQuery("select Id, soprod_prod__c, soprod_price__c from soprod__c where id = '" + prod + "'");      
+                                    if (soprodInfo.length > 0) {
+// RCB: RSTK-1840                                        
+                                        self.setRowValue(row, "price__c", formatLocaleFloat(parseFloat(soprodInfo[0].soprod_price__c), 6));
+                                    }
+                                } else {
+                                    self.setRowValue(row, "price__c", formatLocaleFloat(0,6));
+                                }
+                            } else if (name == 'sopbkd_price__c') {
+                                var price = self.getRowDecimal(row, 'sopbkd_price__c');
+                                if (!isEmpty(price)) {
+                                    price = formatLocaleFloat(price, 6);
+                                    self.setRowValue(row, "price__c", price);
+                                }
+                            }
+                        }
+                    </script>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_sopbk_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+    <div id="pleaseWaitPopup" style="display:none">
+        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+        <apex:outputPanel styleClass="topPopup">
+            <apex:image url="{!$Resource.rstk__busy}"/>
+        </apex:outputPanel>
+    </div>
+        
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_EndingDateCantBeLTStartingDate = "{!$Label.rstk__endingdatecantbeltstartingdate}";
+        var LABEL_ProdAlreadyInList = "{!$Label.rstk__prodalreadyinlist}";
+        var LABEL_InvalidUnitPriceAtLine = "{!$Label.rstk__invalidunitpriceatline}";
+        var LABEL_EnterReqdField_PriceBookId = "{!$Label.rstk__enterreqdfield_pricebookid}";
+        var LABEL_CantBeBlank = "{!$Label.rstk__cantbeblank}";
+    </script>
+</apex:page>

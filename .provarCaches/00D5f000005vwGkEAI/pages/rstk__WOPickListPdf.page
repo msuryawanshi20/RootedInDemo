@@ -1,0 +1,220 @@
+<apex:page Controller="rstk.ControllerWOPickListPdf" showHeader="false" renderAs="pdf" >
+    <apex:variable var="o" value="{!wocst}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__wocst__c.fields}" />
+    <apex:variable var="pf" value="{!$ObjectType.rstk__peitem__c.fields}" />
+    <apex:variable var="if" value="{!$ObjectType.rstk__icitem__c.fields}" />
+    <apex:variable var="lf" value="{!$ObjectType.rstk__icdmdpickloc__c.fields}" />
+
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__pdfstyles, 'pdf_styles.css')}" />
+
+    <apex:outputPanel layout="block" style="width:100%;text-align:center;font-weight:bold">{!$Label.rstk__wopicklistpdf_work_order_pick_list}: {!o.rstk__wocst_ordno__c}</apex:outputPanel>
+    <apex:outputPanel layout="block" styleClass="footer_left">{!$Label.rstk__wopicklistpdf_workorder}: {!o.rstk__wocst_ordno__c}</apex:outputPanel>
+    <table width="100%">
+        <apex:outputPanel rendered="{!logoUrl != 'NOLOGO'}">
+        <tr>
+            <td width="100%" align="left">
+                <apex:image width="100px" value="{!URLFOR(logoUrl)}" rendered="{!logoUrl != null}"/>
+            </td>
+        </tr>
+        </apex:outputPanel>
+        <tr >
+            <td width="100%">
+                 <apex:panelGrid columns="6" width="100%" styleClass="infobox">
+                    <apex:outputLabel value="{!f.rstk__wocst_ordno__c.label}"/>
+                    <apex:outputText value="{!o.rstk__wocst_ordno__c}" />
+                    <apex:outputLabel value="{!pf.rstk__peitem_item__c.label}" />
+                    <apex:outputText value="{!o.wocst_item__r.icitem_item__r.rstk__formula_item__c}" />
+                    <apex:outputLabel value="{!pf.rstk__peitem_descr__c.label}" />
+                    <apex:outputText value="{!o.wocst_item__r.icitem_item__r.rstk__peitem_descr__c}" />
+                    <apex:outputLabel value="{!f.rstk__wocst_qtyreq__c.label}" />
+                    <apex:outputField value="{!o.rstk__wocst_qtyreq__c}"/>
+                    <apex:outputLabel value="{!f.rstk__wocst_duedte__c.label}" />
+                    <apex:outputField value="{!o.rstk__wocst_duedte__c}" />
+                    <apex:outputLabel value="{!f.rstk__wocst_ordsts_pl__c.label}" />
+                    <apex:outputText value="{!status}"/>
+                    <apex:outputLabel value="{!f.rstk__wocst_resp__c.label}"/>
+                    <apex:outputField value="{!o.rstk__wocst_resp__c}"/>
+                    <apex:outputLabel value="{!f.rstk__wocst_proj__c.label}"/>
+                    <apex:outputField value="{!o.rstk__wocst_proj__c}"/>
+                    <apex:outputLabel value="{!f.rstk__wocst_effrev__c.label}"/>
+                    <apex:outputField value="{!o.rstk__wocst_effrev__c}"/>
+                </apex:panelGrid>
+            </td>
+        </tr>
+    </table>
+    <apex:outputPanel rendered="{!barcodeDisp}">
+        <table width="100%">
+        <tr>
+            <td style="border: 1px;overflow:hidden;text-overflow:clip;white-space:nowrap;width:30%;text-align:left;">
+                <c:RSBarcode value="{!o.rstk__wocst_ordno__c}" type="{!barcodeType}" lineSize="{!barcodewidth}" fontSize="{!barcodeTextSize}" height="{!barcodeHeight}" displayValue="{!barcodeNText}"/>
+                <!-- BarcodeZone:ACBarcodeZone value="{!o.rstk__wocst_ordno__c}" BrcdType="{!barcodeType}" BrcdHeight="{!barcodeHeight}" /-->
+            </td>
+            <td style="border: 1px;overflow:hidden;text-overflow:clip;white-space:nowrap;width:30%;text-align:left;">
+                <c:RSBarcode value="{!o.wocst_item__r.icitem_item__r.rstk__formula_item__c}" type="{!barcodeType}" lineSize="{!barcodewidth}" fontSize="{!barcodeTextSize}" height="{!barcodeHeight}" displayValue="{!barcodeNText}" />
+                <!-- BarcodeZone:ACBarcodeZone value="{!o.wocst_item__r.icitem_item__r.peitem_item__c}" BrcdType="{!barcodeType}" BrcdHeight="{!barcodeHeight}" /-->
+            </td>
+        </tr>
+        </table>
+        <br />
+    </apex:outputPanel>
+       
+    <apex:repeat value="{!pages}" var="aPage" id="theList" >
+        <div style="{!IF(aPage.page>1,'page-break-before:always','')}">
+        <!--  Main table with quote items -->
+        <table border="0" cellpadding="2" cellspacing="0" bgcolor="#ffffff" bordercolor="#eeeeee" style="font-size: 60%; width:100%;" >
+            <tr bgcolor="#eeeeee" class="tablehead">
+                <th width="210px"><br/>{!lf.icdmdpickloc_compitem__c.label}</th>
+                <th width="20px">{!$Label.WOPickList_Dmd}<br/>{!$Label.WOPickList_Line}</th>
+                <th width="30px">{!$Label.WOPickList_Pick}<br/>{!$Label.WOPickList_Qty}</th>
+                <th width="150px">{!$Label.WOPickList_Loc}<br/>{!$Label.WOPickList_ID}</th>
+                <th width="150px">{!$Label.WOPickList_Loc}<br/>{!$Label.WOPickList_No}</th>
+                <th width="30px">{!$Label.WOPickList_Loc}<br/>{!$Label.WOPickList_Qty}</th>
+                <th width="55px">{!$Label.WOPickList_Expiration}<br/>{!$Label.WOPickList_Date}</th>
+                <th width="100px">{!$Label.WOPickList_Lot_Serial_No}</th>
+                <th width="55px">{!$Label.WOPickList_Date}<br/>{!$Label.WOPickList_Required}</th>
+                <th width="170px">{!$Label.WOPickList_Issuing}<br/>{!$Label.WOPickList_Project}</th>
+                <th width="30px">{!$Label.WOPickList_Work}<br/>{!$Label.WOPickList_Center}</th>
+                <th width="20px">{!$Label.WOPickList_Inv}<br/>{!$Label.WOPickList_UOM}</th>
+                <th width="25px">{!$Label.WOPickListPDF_QtyPicked}</th>
+            </tr>
+            <apex:variable var="ln" value="{!1}"/>
+            <apex:repeat value="{!aPage.lines}" var="d" id="theLines" >
+                <apex:variable var="isEven" value="{!IF(ln == 0, true, false)}"/>
+                <tr style="{!IF(isEven, 'background-color: #E0F3FF;', 'border-bottom: 1px solid #000;')} padding: 1px 3px 1px 3px;">
+                    <td style="border: 1px;overflow:hidden;text-overflow:clip;">
+                        <apex:outputText value="{!d.p.icdmdpickloc_compitem__r.icitem_item__r.rstk__formula_item__c}" rendered="{!!barcodeDisp}"/>
+                        <c:RSBarcode value="{!d.p.icdmdpickloc_compitem__r.icitem_item__r.rstk__formula_item__c}" type="{!barcodeType}" lineSize="{!barcodewidth}" fontSize="{!barcodeTextSize}" height="{!barcodeHeight}" displayValue="{!barcodeNText}" rendered="{!barcodeDisp && d.p.rstk__icdmdpickloc_compitem__c != ''}"/>
+                        <apex:outputText value="{!d.p.rstk__icdmdpickloc_serials__c}" rendered="{!d.p.icdmdpickloc_compitem__r.rstk__icitem_picklistsrloptfrm__c}" />
+                    </td>
+                    <td>
+                        <apex:outputText value="{!d.orddmdlne}"/>
+                    </td>
+                    <td style="text-align:right;">
+                        <apex:outputText value="{!d.totqtypickreqd}"/>
+                    </td>
+                    <td style="border: 1px;overflow:hidden;text-overflow:clip;white-space:nowrap;text-align:left;">
+                        <apex:outputText value="{!d.p.icdmdpickloc_locid__r.rstk__sylocid_locid__c}" rendered="{!!barcodeDisp}"/>
+                        <c:RSBarcode value="{!d.p.icdmdpickloc_locid__r.rstk__sylocid_locid__c}" type="{!barcodeType}" lineSize="{!barcodewidth}" fontSize="{!barcodeTextSize}" height="{!barcodeHeight}" displayValue="{!barcodeNText}" rendered="{!barcodeDisp && d.p.icdmdpickloc_locid__r.rstk__sylocid_locid__c != ''}"/>
+                    </td>
+                    <td style="border: 1px;overflow:hidden;text-overflow:clip;white-space:nowrap;text-align:left;">
+                        <apex:outputField value="{!d.p.rstk__icdmdpickloc_locnum__c}" rendered="{!!barcodeDisp}"/>
+                        <c:RSBarcode value="{!d.p.rstk__icdmdpickloc_locnum__c}" type="{!barcodeType}" lineSize="{!barcodewidth}" fontSize="{!barcodeTextSize}" height="{!barcodeHeight}" displayValue="{!barcodeNText}" rendered="{!barcodeDisp && d.p.rstk__icdmdpickloc_locnum__c != ''}"/>
+                    </td>
+                    <td style="text-align:right;">
+                        <apex:outputText value="{!d.locqty}"/>
+                    </td>
+                    <td>
+                        <apex:outputField value="{!d.p.rstk__icdmdpickloc_expiredate__c}"/>
+                    </td>
+                    <td>
+                           <apex:outputField value="{!d.p.rstk__icdmdpickloc_locsec__c}"/>
+                        <!--<apex:outputField value="{!d.p.rstk__icdmdpickloc_locsec__c}" rendered="{!!d.p.icdmdpickloc_compitem__r.icitem_picklistsrloptfrm__c}" />
+                    	 <apex:outputField value="{!d.p.rstk__icdmdpickloc_serials__c}" rendered="{!d.p.icdmdpickloc_compitem__r.rstk__icitem_picklistsrloptfrm__c}" />  -->
+                    </td>
+                    <td>
+                        <apex:outputField value="{!d.p.rstk__icdmdpickloc_dtereqd__c}"/>
+                    </td>
+                    <td style=";overflow:hidden;text-overflow:clip;white-space:nowrap;">
+                        <apex:outputField value="{!d.p.rstk__icdmdpickloc_proj__c}"/>
+                    </td>
+                    <td style=";overflow:hidden;text-overflow:clip;white-space:nowrap;">
+                        <apex:outputField value="{!d.p.rstk__icdmdpickloc_wctr__c}"/>
+                    </td>
+                    <td>
+                        <apex:outputText value="{!d.p.icdmdpickloc_compitem__r.icitem_invuom__r.rstk__syuom_uom__c}"/>
+                    </td>
+                    <td rowspan="2" valign="top">
+                        <table width="100%" style="border-color: #000;border-width: 1px 1px 1px 1px;border-style: solid; margin: 0px; padding: 0px;height:20px;">
+                            <tr><td>&nbsp;</td></tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr style="{!IF(isEven, 'background-color: #E0F3FF;', 'border-bottom: 1px solid #000;')} padding: 1px 3px 1px 3px;">
+                    <td colspan="12" ><apex:outputText value="{!d.p.icdmdpickloc_compitem__r.icitem_item__r.rstk__peitem_descr__c}" /></td>
+                </tr>
+                <tr style="{!IF(d.p.icdmdpickloc_div__r.sydiv_worefdesig__c == true && d.p.icdmdpickloc_refdes__c != null, '', 'display:none;')}">
+                    <td style="{!IF(isEven, 'background-color: #E0F3FF;', 'border-bottom: 1px solid #000;')} padding: 1px 3px 1px 3px;">&nbsp;</td>
+                    <td colspan="12" style="{!IF(isEven, 'background-color: #E0F3FF;', 'border-bottom: 1px solid #000;')} padding: 1px 3px 1px 3px;">
+                        <table width="100%"><tr bgcolor="#cccccc" class="tablehead" style="{!IF(d.refdeslines.size > 0, '', 'display:none;')}"><th colspan="2" style="font-weight:bold;">Reference Designators</th></tr>
+                        <apex:repeat value="{!d.refdeslines}" var="refdes">
+                        <tr>
+                            <td>
+                            <apex:outputPanel >
+                                <table width="100%">
+                                    <apex:repeat value="{!refdes}" var="n">
+                                        <tr width="100%">
+                                            <td width="100%" style="white-space: pre;">{!n}</td>
+                                        </tr>
+                                    </apex:repeat>
+                                </table>
+                            </apex:outputPanel>
+                            </td>
+                        </tr>
+                        </apex:repeat>
+                        </table>
+                    </td>
+                </tr>
+            <apex:variable var="ln" value="{!IF(ln == 0, 1, 0)}"/>  
+            </apex:repeat>
+        </table> 
+        </div> 
+    </apex:repeat>
+    <br/>
+    
+    <apex:repeat value="{!refPages}" var="aPage" id="theRefList" >
+        <div style="{!IF(aPage.page>1,'page-break-before:always','')}">
+        <!--  Main table with quote items -->
+        <table border="0" cellpadding="2" cellspacing="0" bgcolor="#ffffff" bordercolor="#eeeeee" style="font-size: 60%; width:100%;" >
+            <tr bgcolor="#eeeeee" class="tablehead">
+                <th width="100px">{!$Label.WOPickListPDF_ItemNumber}</th>
+                <th width="100px">{!$Label.WOPickListPDF_Description}</th>
+                <th width="200px">{!$Label.WOPickList_ReferenceDesignators}</th>
+                <th width="50px">{!$Label.WOPickListPDF_Rev}</th>
+                <th width="50px">{!$Label.WOPickList_Line}</th>
+                <th width="30px">{!$Label.WOPickListPDF_QuantityPer}</th>
+                <th width="55px">{!$Label.WOPickList_UOM}</th>
+            </tr>
+            <apex:variable var="ln" value="{!1}"/>
+            <apex:repeat value="{!aPage.lines}" var="d" id="theRefLines" >
+                <apex:variable var="isEven" value="{!IF(ln == 0, true, false)}"/>
+                <tr style="{!IF(isEven, 'background-color: #E0F3FF;', 'border-bottom: 1px solid #000;')} padding: 1px 3px 1px 3px;">
+                    <td style="border: 1px;overflow:hidden;text-overflow:clip;white-space:nowrap;">
+                        <apex:outputField value="{!d.pebomOb.pebom_compitem__r.rstk__peitem_item__c}"/>
+                    </td>
+                    <td style="text-align:left;">
+                        <apex:outputText value="{!d.pebomOb.pebom_compitem__r.rstk__peitem_descr__c}"/>
+                    </td>
+                    <td style="border: 1px;overflow:hidden;text-overflow:clip;white-space:nowrap;text-align:left;">
+                        <apex:outputText value="{!d.pebomOb.rstk__pebom_refdes__c}" />
+                    </td>
+                    <td style="text-align:left;">
+                        <apex:outputText value="{!d.rev}" />
+                    </td>
+                    <td style="text-align:left;">
+                        <apex:outputText value="{!d.pebomOb.rstk__pebom_lne__c}" />
+                    </td>
+                    <td style="text-align:left;">
+                        <apex:outputText html-decimals="6" value="{!d.pebomOb.rstk__pebom_qtyper__c}" />
+                    </td>
+                    <td style="text-align:left;">
+                        <apex:outputText value="{!d.pebomOb.pebom_compitem__r.peitem_enguom__r.Name}"/>
+                    </td>
+                </tr>
+                    
+                 <tr>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                 </tr>
+                 <apex:variable var="ln" value="{!IF(ln == 0, 1, 0)}"/>
+            </apex:repeat>
+        </table> 
+        </div> 
+    </apex:repeat>
+    <br/>
+
+</apex:page>

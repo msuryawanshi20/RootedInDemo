@@ -1,0 +1,145 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_wctrdsptch}" standardController="rstk__wctrdsptch__c" extensions="rstk.ControllerExtnWctrdsptch" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__wctrdsptch__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__wctrdsptch__c.fields}" />
+    <apex:variable var="f_wopsch" value="{!$ObjectType.rstk__wopsch__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_wctrdsptch}" customInclude="{!$Resource.rstk__wctrdsptch_cli}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="reloadDispatchList" action="{!doReloadDispatchList}" oncomplete="enableFixedHeaderSort('pg:fm:pb:pbt_DispatchList');formatLocaleOutputFields();unblockUI();" rerender="op_DispatchList,pageMessages" immediate="true"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_wctrdsptch_generatedispatchlist}" onclick="if(validateFields()){blockUI();reloadDispatchList();} return false;"/>
+            <apex:commandButton value="{!$Label.rstk__export_to_excel}" onclick="openExcelWindow(); return false;"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputCheckbox id="wctrdsptch_printable__c" value="{!o.rstk__wctrdsptch_printable__c}"/>
+            <apex:inputCheckbox id="wctrdsptch_date__c" value="{!o.rstk__wctrdsptch_date__c}"/>
+            <apex:inputCheckbox id="wctrdsptch_days__c" value="{!o.rstk__wctrdsptch_days__c}"/>
+        </apex:outputPanel>
+        <c:division id="wctrdsptch_div__c" cntr="{!controller}" />
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >   
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wctrdsptch_wctr__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__wctrdsptch_wctr__c.label}"/>
+                <c:selectList id="wctrdsptch_wctr__c" required="true" cntr="{!controller}" options="{!rtwctrs}" tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wctrdsptch_hpdlab__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__wctrdsptch_hpdlab__c.label}" />
+                <c:inputText id="wctrdsptch_hpdlab__c" cntr="{!controller}" disabled="true" tabIndex="102" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wctrdsptch_date__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__wctrdsptch_date__c.label}" />
+                <c:inputField id="wctrdsptch_date__c" required="true" cntr="{!controller}" tabIndex="6" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wctrdsptch_hpdmach__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__wctrdsptch_hpdmach__c.label}" />
+                <c:inputText id="wctrdsptch_hpdmach__c" cntr="{!controller}" disabled="true" tabIndex="104" />
+            </apex:pageBlockSectionItem>
+            
+             <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wctrdsptch_inc0qtyavail__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wctrdsptch_inc0qtyavail__c.label}"/>
+                <apex:inputCheckbox id="wctrdsptch_inc0qtyavail__c" value="{!o.rstk__wctrdsptch_inc0qtyavail__c}" tabIndex="108"/>
+            </apex:pageBlockSectionItem>
+            
+        </apex:pageBlockSection>
+        <apex:pageMessages id="PageMessages"/>
+        <apex:outputPanel id="op_DispatchList" style="height:440px;overflow:auto;display:block">
+            <apex:pageBlockTable id="pbt_DispatchList" columnsWidth="50px,80px,80px,120px,120px,40px,200px,70px,50px,50px,80px,80px,80px,60px,60px,60px,60px" value="{!dispatchList}" style="table-layout:fixed;" var="rec">
+                <apex:column headerValue="{!f_wopsch.rstk__wopsch_priority__c.label}">
+                    <apex:outputText html-decimals="0" value="{!rec.priority}"/>
+                </apex:column>
+                <apex:column value="{!rec.effstartdate}" styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__scheduled}<br/>{!$Label.rstk__colhdrstartdate}</div></apex:facet>
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstk__status}" value="{!rec.operstatus}"/>
+                <apex:column headerValue="{!$Label.rstk__project}">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__pjproj__c.View, rec.projId)}{!ReturnUrlParms}">{!rec.proj}</apex:outputLink>
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstk__workorder}">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__wocst__c.View, rec.ordnoId)}{!ReturnUrlParms}">{!rec.ordno}</apex:outputLink>
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstk__oper}" value="{!rec.oper}"/>
+                <apex:column headerValue="{!$Label.rstk__item}">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__icitem__c.View, rec.itemId)}{!ReturnUrlParms}">{!rec.item}</apex:outputLink>
+                </apex:column>
+                <apex:column value="{!rec.labmachschtype}" styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__sched}<br/>{!$Label.rstk__type}</div></apex:facet>
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__qty}<br/>{!$Label.rstk__avail}</div></apex:facet>
+                    <apex:outputText html-decimals="{!rec.qtyDecimal}" value="{!rec.qtyavail}"/>
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__qty}<br/>{!$Label.rstk__remain}</div></apex:facet>
+                    <apex:outputText html-decimals="{!rec.qtyDecimal}" value="{!rec.qtyremain}"/>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__pagetab_rtindoper_setup}<br/>{!$Label.rstk__labor_grade}</div></apex:facet>
+                    <apex:outputLink value="{!URLFOR($Action.rstk__rtlabgrd__c.View, rec.setuplabgrdId)}{!ReturnUrlParms}"  rendered="{!rec.setuplabgrdId != null}">{!rec.setuplabgrd}</apex:outputLink>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__pagetab_rtindoper_run}<br/>{!$Label.rstk__labor_grade}</div></apex:facet>
+                    <apex:outputLink value="{!URLFOR($Action.rstk__rtlabgrd__c.View, rec.runlabgrdId)}{!ReturnUrlParms}" rendered="{!rec.runlabgrdId != null}">{!rec.runlabgrd}</apex:outputLink>
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__pagetab_rtindoper_machine}<br/>{!$Label.rstk__number}</div></apex:facet>
+                    <apex:outputLink value="{!URLFOR($Action.rstk__rtmach__c.View, rec.machnoId)}{!ReturnUrlParms}" rendered="{!rec.machnoId != null}" >{!rec.machno}</apex:outputLink>
+                </apex:column> 
+                <apex:column headerValue="{!f_wopsch.rstk__wopsch_qtyreq__c.label}">
+                    <apex:outputText html-decimals="{!rec.qtyDecimal}" value="{!rec.qtyreq}"/>
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__pagetab_rtindoper_setup}<br/>{!$Label.rstk__hours}</div></apex:facet>
+                    <apex:outputText html-decimals="1" value="{!rec.schsetuphrs}"/>
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__pagetab_rtindoper_run}<br/>{!$Label.rstk__hours}</div></apex:facet>
+                    <apex:outputText html-decimals="1" value="{!rec.schrunhrs}"/>
+                </apex:column>
+                <apex:column styleClass="dispOnlyCol">
+                    <apex:facet name="header"><div class="wrappingHeader">{!$Label.rstk__pagetab_rtindoper_machine}<br/>{!$Label.rstk__hours}</div></apex:facet>
+                    <apex:outputText html-decimals="1" value="{!rec.schmachhrs}"/>
+                </apex:column>
+            </apex:pageBlockTable>
+        </apex:outputPanel>
+        
+        <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sysite_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+        
+    </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        if({!isWCIdProvided == true}){
+            blockUI();
+            reloadDispatchList();
+        }
+        var EnterWC = "{!$Label.rstk__pleaseenterworkcenter}";        
+        var LABEL_SelDate = "{!$Label.rstk__seldate}";
+        var LABEL_SelWorkCenter = "{!$Label.rstk__selworkcenter}";
+    </script>
+</apex:page>

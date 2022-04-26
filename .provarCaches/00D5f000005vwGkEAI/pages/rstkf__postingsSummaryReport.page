@@ -1,0 +1,428 @@
+<apex:page id="pg" standardController="rstkf__customextf__c"  extensions="rstkf.PostingSummaryReportController,rstkf.RemoteQueryController" title="{!$Label.rstkf__postings_summary_report}"  sideBar="false" showHeader="true" action="{!doBeforePageLoad}">  
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="o_customext" value="{!customext}" />
+    <apex:sectionHeader title="{!$Label.rstkf__postings_summary_report}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__postings_summary_report}"  showHeader="false"/>
+    
+    <script>
+        function pageInit(){
+            //console.log(' Inside pageInit ');
+            var source_data_element = document.getElementById('pg:fm:pb:pbs_sub:filterSourcedata:trialbalance_sourcedata__c');
+            source_data_element.selectedIndex = 0;
+            zerobalacctChanged();
+        }
+        
+        function validatePeriod(){
+            var year = sfffGetFieldValue('trialbalance_year__c');
+            var data = sfffGetFieldValue('trialbalance_period__c');
+            
+            if(data.value < 0){
+                alert("{!$Label.NegativePeriod}");
+                data.value="";
+            }
+            if(data.value > 12){
+                alert("{!$Label.InvalidPeriod_Trailbalance}");
+            }
+        }
+        
+        function dovalidateSubsidiary(){
+        	var subsidiarycmpId = document.getElementById('pg:fm:pb:pbs_main:fllterSubsidiary:trialbalance_subsidiary__c').value;
+        	validateSubsidiary(subsidiarycmpId);
+        }
+        
+        
+        
+        function validateYear(data){
+            if(data.value.length!=4){
+                alert("{!$Label.InvalidYear}");
+                data.value="";
+            }
+        }
+        setSelectListRequired("trialbalance_year__c");
+        setSelectListRequired("trialbalance_subsidiary__c");
+        setSelectListRequired("trialbalance_period__c");
+        
+        
+        function selectdataSourceTypecheck() {
+            var source_data_element = document.getElementById('pg:fm:pb:pbs_sub:filterSourcedata:trialbalance_sourcedata__c');
+            var source_data = source_data_element.options[source_data_element.selectedIndex].text;
+            /*if(source_data != 'Full Trial Balance - Account Level Data' ){
+            	sfffDisableField('trialbalance_zerobalacct__c', true);
+            }*/
+            
+            if(source_data != "{!fullTrailBal_AcctLevelData}" ){
+            	sfffDisableField('trialbalance_zerobalacct__c', true);
+            	setValue('trialbalance_zerobalacct__c',false);
+            	setValue('trialbalance_includeinactiveacct__c',false);
+            }else{
+            	sfffDisableField('trialbalance_zerobalacct__c', false);
+            	setValue('trialbalance_zerobalacct__c',false);
+            	setValue('trialbalance_includeinactiveacct__c',false);
+            }
+            
+            selectdataSourceType(source_data);
+        }
+        
+        function proceedAction(mode) {
+        	var year = document.getElementById('pg:fm:pb:pbs_main:fllterGlYear:trialbalance_year__c').value;
+            //console.log(' year '+year);
+            
+            var period = document.getElementById('pg:fm:pb:pbs_main:fllterGlPeriod:trialbalance_period__c').value;
+            //console.log(' period '+period);
+            var source_data_element = document.getElementById('pg:fm:pb:pbs_sub:filterSourcedata:trialbalance_sourcedata__c');     
+            var source_data = source_data_element.options[source_data_element.selectedIndex].text;
+            if(subsidiarycmpId ==''){
+             subsidiarycmpId =user_lastcmp;
+            }
+        	      
+            
+            setSelectListRequired("trialbalance_year__c");
+            setSelectListRequired("trialbalance_subsidiary__c");
+            setSelectListRequired("trialbalance_period__c");
+            setSelectListRequired("trialbalance_sourcedata__c");
+            
+            if(subsidiarycmpId == '') {
+                alert("{!$Label.Please_select_Subsidiary_Company}");
+                return false;
+            } else if(year == '') {
+                alert("{!$Label.Please_select_Year}");
+                return false;
+            } else if (period == ''){
+                alert("{!$Label.Please_select_Period}");
+                return false;
+            } else if (source_data == "{!$Label.NoneOption}"){
+                alert("{!$Label.Select_source_data}");
+                return false;
+            } else {
+                var proceed = false; 
+                
+                if(source_data == "{!fullTrailBal_AcctLevelData}") {
+                    proceed = true;
+                }
+                
+                else if(source_data == "{!partTrailBal_AcctDim}") {
+                    var selectedDim = document.getElementById('pg:fm:pb:pbs_sub:selectedDimSb:selectedDim').value;
+                    //console.log(' selectedDim '+selectedDim);
+                    
+                    if(selectedDim == "") {
+                        alert("{!$Label.Select_Dimension_Number}");
+                    } else {
+                        var selectedDimValEb = document.getElementById('pg:fm:pb:pbs_sub:selectedDimValEb:selectedDimVal').value;
+                        //console.log(' selectedDimValEb '+selectedDimValEb);
+                        
+                        if(selectedDimValEb == "") {
+                            alert("{!$Label.Select_Dimension_Value}");
+                        } else {
+                            proceed = true;
+                        }
+                    }               
+                }
+                
+                else if(source_data == "{!partTrailBal_AcctDiv}") {
+                    var selectedDivSb = document.getElementById('pg:fm:pb:pbs_sub:selectedDivSb:selectedDiv').value;
+                    //console.log(' selectedDivSb '+selectedDivSb);
+                    
+                    if(selectedDivSb == "") {
+                        alert("{!$Label.Select_Divison}");
+                    } else {
+                        proceed = true;
+                    }
+                }
+                
+                else if(source_data == "{!partTrailBal_AcctDivDim}") {
+                    var selectedDivSb = document.getElementById('pg:fm:pb:pbs_sub:selectedDivSb:selectedDiv').value;
+                    //console.log(' selectedDivSb '+selectedDivSb);
+                    
+                    if(selectedDivSb == "") {
+                        alert("{!$Label.Select_Divison}");
+                    } else {            
+                        var selectedDim = document.getElementById('pg:fm:pb:pbs_sub:selectedAccDivDimNumSb:selectedAccDivDimNum').value;
+                        //console.log(' selectedDim '+selectedDim);
+                        
+                        if(selectedDim == "") {
+                            alert("{!$Label.Select_Dimension_Number}");
+                        } else {
+                            var selectedDimValEb = document.getElementById('pg:fm:pb:pbs_sub:selectedAccDivDimValSb:selectedAccDivDimVal').value;
+                            //console.log(' selectedDimValEb '+selectedDimValEb);
+                            
+                            if(selectedDimValEb == "") {
+                                alert("{!$Label.Select_Dimension_Value}");
+                            } else {
+                                proceed = true;
+                            }
+                        } 
+                    }      
+                }
+                
+                else if(source_data == "{!partTrailBal_AcctProj}") {
+                    var selectedDivSb = document.getElementById('pg:fm:pb:pbs_sub:selectedDivPrSb:selectedDivPr').value;
+                    //console.log(' selectedDivSb '+selectedDivSb);
+                    
+                    if(selectedDivSb == "") {
+                        alert("{!$Label.Select_Divison}");
+                    } else {
+                        var selectedAccProjectSb = document.getElementById('pg:fm:pb:pbs_sub:selectedAccProjectSb:selectedAccProject').value;
+                        //console.log(' selectedAccProjectSb '+selectedAccProjectSb);
+                        
+                        if(selectedAccProjectSb == "") {
+                            alert("{!$Label.Select_Project}");
+                        } else {
+                            proceed = true;
+                        }
+                    }    
+                }
+                
+                else if(source_data == "{!partTrailBal_AcctProjDim}") {
+                    var selectedDivSb = document.getElementById('pg:fm:pb:pbs_sub:selectedDivPrSb:selectedDivPr').value;
+                    //console.log(' selectedDivSb '+selectedDivSb);
+                    
+                    if(selectedDivSb == "") {
+                        alert("{!$Label.Select_Divison}");
+                    } else {
+                        var selectedAccProjectSb = document.getElementById('pg:fm:pb:pbs_sub:selectedAccProjectSb:selectedAccProject').value;
+                        //console.log(' selectedAccProjectSb '+selectedAccProjectSb);
+                        
+                        if(selectedAccProjectSb == "") {
+                            alert("{!$Label.Select_Project}");
+                        } else {
+                            var selectedDim = document.getElementById('pg:fm:pb:pbs_sub:selectedAccProjDimNumSb:selectedAccProjDimNum').value;
+                            //console.log(' selectedDim '+selectedDim);
+                            
+                            if(selectedDim == "") {
+                                alert("{!$Label.Select_Dimension_Number}");
+                            } else {
+                                var selectedDimValEb = document.getElementById('pg:fm:pb:pbs_sub:selectedAccProjDimValSb:selectedAccProjDimVal').value;
+                                //console.log(' selectedDimValEb '+selectedDimValEb);
+                                
+                                if(selectedDimValEb == "") {
+                                    alert("{!$Label.Select_Dimension_Value}");
+                                } else {
+                                    proceed = true;
+                                }
+                            } 
+                        }
+                    }    
+                }
+                
+                //console.log('mode = '+ mode + ' and proceed = '+ proceed);
+                
+                if(mode == 'PDF' && proceed == true) {
+                    //console.log('print Report is getting called ');
+                    processPostingSummaryReport('print');
+                } else if (mode == 'CSV' && proceed == true){
+                    //console.log('export Report is getting called ');
+                    processPostingSummaryReport('export');             
+                } else {
+                    //console.log('Nothing is called ');
+                    return false;
+                }
+            }       
+        }  
+        
+        function zerobalacctChanged(){
+            var val = getValue('trialbalance_zerobalacct__c');
+            if(!val){
+                setValue('trialbalance_includeinactiveacct__c',false);
+            }
+            sfffDisableField('trialbalance_includeinactiveacct__c', !val);
+        }
+        
+        function redirectToPrintorExportReport(){
+            console.log('redirectToPrintorExportReport() : report_action = '+ report_action + ' and acknowledgeMsg = '+ acknowledgeMsg);
+            if(acknowledgeMsg != ''){
+                alert(acknowledgeMsg);
+            }else{
+                if(report_action == 'export'){
+                    document.getElementById('{!$Component.pg:fm:exportCSVButtonLink}').click();
+                }else{
+                    document.getElementById('{!$Component.pg:fm:printPDFButtonLink}').click();
+                }
+            }
+        }
+        
+    </script>
+    
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstkf__BlockUI}" />
+    <apex:variable var="o" value="{!customext}" />      
+    <apex:form id="fm">
+        <apex:pageMessages id="msgs" />
+        <apex:actionFunction name="selectdataSourceType" action="{!selectdataSourceType}" immediate="false" status="pleaseWaitStatus" reRender="pbs_sub,msgs,op_processbtn" >
+        	<apex:param name="source_dataId" assignTo="{!source_dataId}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="validateSubsidiary" action="{!validateSubsidiary}" immediate="false" status="pleaseWaitStatus" reRender="pbs_sub,op_year,op_period,msgs,op_acknowledgeMsg,op_subsidiary,op_processbtn" >
+        	<apex:param name="subsidiarycmpId" assignTo="{!subsidiarycmpId}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="showDimValBasedonDimNum" action="{!showDimValBasedonDimNum}" immediate="false" status="pleaseWaitStatus" reRender="pbs_sub,msgs" />
+        <apex:actionFunction name="selectProjectBasedOnDivision" action="{!selectProjectBasedOnDivision}" immediate="false" status="pleaseWaitStatus" reRender="pbs_sub,msgs" />
+        
+        <apex:actionFunction name="processPostingSummaryReport" action="{!populateDatas}" reRender="pageMessages,op_acknowledgeMsg" immediate="false" oncomplete="redirectToPrintorExportReport(); return false;" status="pleaseWaitStatus">
+           <apex:param name="report_action" assignTo="{!report_action}" value=""/> 
+        </apex:actionFunction>
+        <apex:commandLink id="printPDFButtonLink" value="printPDF"  action="{!printReport}" style="display:none" target="_blank"/>
+        <apex:commandLink id="exportCSVButtonLink" value="exportCSV"  action="{!exportReport}" style="display:none"/>
+        <apex:actionStatus onstart="showTopDialog('pleaseWaitPopup');" onstop="closeTopDialog();" id="pleaseWaitStatus"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            
+            <apex:pageBlockButtons id="pbbtn_main" location="bottom">
+                <apex:outputPanel id="op_processbtn">
+                    <apex:commandButton id="printReport" value="{!$Label.rstkf__printreport}"  onclick="proceedAction('PDF'); return false;" disabled="{!!getButtonStatus}" style="width:120px;"/> 
+                    <apex:commandButton id="ExportReport" value="{!$Label.rstkf__exportreport}" onclick="proceedAction('CSV'); return false;" disabled="{!!getButtonStatus}" style="width:120px;" />
+                </apex:outputPanel>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel id="op_acknowledgeMsg">
+                <script>
+                    var acknowledgeMsg = "{!acknowledgeMsg}";
+                    var report_action = "{!report_action}";
+                    var user_lastcmp = "{!o_customext.rstkf__custom_glcmp__c}";
+                    var subsidiarycmpId = "{!o_customext.trialbalance_subsidiary__c}";
+                    
+                </script>
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" columns="1">
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__custom_glcmp__c.inlineHelpText}">
+                   <apex:outputLabel value="{!f_customext.rstkf__custom_glcmp__c.label}"/>
+                   <apex:outputPanel >                     
+                       <apex:outputField value="{!o_customext.rstkf__custom_glcmp__c}" />
+                   </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__trialbalance_subsidiary__c.inlineHelpText}"  id="fllterSubsidiary">
+                  <apex:outputLabel value="{!f_customext.rstkf__trialbalance_subsidiary__c.label}"/>
+                  <apex:outputPanel >
+                  	<apex:outputField value="{!o_customext.rstkf__custom_glcmp__c}" rendered="{!isSingleCmp}" />
+                    <apex:selectList id="trialbalance_subsidiary__c"  size="1" required="false" rendered="{!!isSingleCmp}" onchange="dovalidateSubsidiary();"> 
+                        <apex:selectOptions value="{!subsidiarycmps}" /> 
+                    </apex:selectList>
+                  </apex:outputPanel>
+             	</apex:pageBlockSectionItem>
+                
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__trialbalance_year__c.inlineHelpText}" id="fllterGlYear">
+                  <apex:outputLabel value="{!f_customext.rstkf__trialbalance_year__c.label}"/>
+                  <apex:outputPanel id="op_year" >
+                      <apex:selectList id="trialbalance_year__c" value="{!o.rstkf__trialbalance_year__c}" size="1" required="false" onchange="validatePeriod();"> 
+                          <apex:selectOptions value="{!fiscalyears}" /> 
+                      </apex:selectList>
+                  </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__trialbalance_period__c.inlineHelpText}" id="fllterGlPeriod">
+                  <apex:outputLabel value="{!f_customext.rstkf__trialbalance_period__c.label}"/>
+                  <apex:outputPanel id="op_period" >
+                      <apex:selectList id="trialbalance_period__c" value="{!customext.rstkf__trialbalance_period__c}" size="1" onchange="validatePeriod();" required="false"> 
+                          <apex:selectOptions value="{!periods}" /> 
+                      </apex:selectList>
+                  </apex:outputPanel>
+              </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_sub" showHeader="false" columns="1"> 
+                  <!--  <apex:pageBlockSectionItem id="filterSourcedata" helpText="{!f_customext.rstkf__trialbalance_sourcedata__c.inlineHelpText}"> 
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_sourcedata__c.label}"/>
+                      <apex:inputField id="trialbalance_sourcedata__c" value="{!customext.rstkf__trialbalance_sourcedata__c}" onchange="selectdataSourceTypecheck()"/>                         
+                  </apex:pageBlockSectionItem>-->
+                  
+                  <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__trialbalance_sourcedata__c.inlineHelpText}" id="filterSourcedata" >
+	                  <apex:outputLabel value="{!f_customext.rstkf__trialbalance_sourcedata__c.label}"/>
+	                  <apex:outputPanel >
+	                      <apex:selectList id="trialbalance_sourcedata__c" value="{!customext.rstkf__trialbalance_sourcedata__c}" size="1"  required="false" onchange="selectdataSourceTypecheck()"> 
+	                          <apex:selectOptions value="{!sourcedatas}" /> 
+	                      </apex:selectList>
+	                  </apex:outputPanel>
+	              </apex:pageBlockSectionItem>  
+                  
+                  <apex:pageBlockSectionItem rendered="{!showAccDim}" id="selectedDimSb" helpText="{!f_customext.rstkf__trialbalance_Dimension_Number__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Dimension_Number__c.label}"/>
+                      <apex:selectList id="selectedDim" value="{!selectedDim}" size="1" onchange="showDimValBasedonDimNum();"> 
+                          <apex:selectOptions value="{!dimensionNumber}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <apex:pageBlockSectionItem rendered="{!showAccDimVal}" id="selectedDimValEb" helpText="{!f_customext.rstkf__trialbalance_Dimension_Value__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Dimension_Value__c.label}"/>
+                      <apex:selectList id="selectedDimVal" value="{!selectedDimVal}" size="1"> 
+                          <apex:selectOptions value="{!dimensionValue}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <apex:pageBlockSectionItem rendered="{!showDiv}" id="selectedDivSb" helpText="{!f_customext.rstkf__trialbalance_Division__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Division__c.label}"/>
+                      <apex:selectList id="selectedDiv" value="{!selectedDiv}" size="1"> 
+                          <apex:selectOptions value="{!divisons}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <apex:pageBlockSectionItem rendered="{!showAccDivDim}" id="selectedAccDivDimNumSb" helpText="{!f_customext.rstkf__trialbalance_Account_Div_Dimension_Numbe__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Account_Div_Dimension_Numbe__c.label}"/>
+                      <apex:selectList id="selectedAccDivDimNum" value="{!selectedAccDivDimNum}" size="1" onchange="showDimValBasedonDimNum();"> 
+                          <apex:selectOptions value="{!accDivDimNumber}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <apex:pageBlockSectionItem rendered="{!showAccDivDimVal}" id="selectedAccDivDimValSb" helpText="{!f_customext.rstkf__trialbalance_Account_Div_Dimension_Value__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Account_Div_Dimension_Value__c.label}"/>
+                      <apex:selectList id="selectedAccDivDimVal" value="{!selectedAccDivDimVal}" size="1"> 
+                          <apex:selectOptions value="{!accDivDimValue}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <apex:pageBlockSectionItem rendered="{!showProjectDiv}" id="selectedDivPrSb" helpText="{!f_customext.rstkf__trialbalance_Division__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Division__c.label}"/>
+                      <apex:selectList id="selectedDivPr" value="{!selectedDivPrj}" size="1" onchange="selectProjectBasedOnDivision();"> 
+                          <apex:selectOptions value="{!divisons}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <apex:pageBlockSectionItem rendered="{!showAccproject}" id="selectedAccProjectSb" helpText="{!f_customext.rstkf__trialbalance_Project__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Project__c.label}"/>
+                      <apex:selectList id="selectedAccProject" value="{!selectedAccProject}" size="1"> 
+                          <apex:selectOptions value="{!accProject}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <apex:pageBlockSectionItem rendered="{!showAccProjDim}" id="selectedAccProjDimNumSb" helpText="{!f_customext.rstkf__trialbalance_Account_Project_Dimension_N__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Account_Project_Dimension_N__c.label}"/>
+                      <apex:selectList id="selectedAccProjDimNum" value="{!selectedAccProjDimNum}" size="1" onchange="showDimValBasedonDimNum();"> 
+                          <apex:selectOptions value="{!accProjDimensionNumber}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <apex:pageBlockSectionItem rendered="{!showAccProjDimVal}" id="selectedAccProjDimValSb" helpText="{!f_customext.rstkf__trialbalance_Account_Project_Dimension_V__c.inlineHelpText}">
+                      <apex:outputLabel value="{!f_customext.rstkf__trialbalance_Account_Project_Dimension_V__c.label}"/>
+                      <apex:selectList id="selectedAccProjDimVal" value="{!selectedAccProjDimVal}" size="1"> 
+                          <apex:selectOptions value="{!accProjDimensionValue}" /> 
+                      </apex:selectList>
+                  </apex:pageBlockSectionItem>
+                  
+                  <script>
+                     // setSelectListRequired("trialbalance_sourcedata__c");       
+                  </script>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_inclSec" showHeader="false" columns="1">
+                <apex:inputField id="trialbalance_zerobalacct__c" value="{!customext.rstkf__trialbalance_zerobalacct__c}" onchange="zerobalacctChanged(); return false;"/>
+                <apex:inputField id="trialbalance_includeinactiveacct__c" value="{!customext.rstkf__trialbalance_includeinactiveacct__c}"/>
+            </apex:pageBlockSection>
+            
+        </apex:pageBlock>
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+                <apex:image url="{!$Resource.rstkf__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>    
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        setSelectListRequired("trialbalance_year__c");
+        setSelectListRequired("trialbalance_subsidiary__c");
+        setSelectListRequired("trialbalance_period__c");
+        //setSelectListRequired("trialbalance_sourcedata__c");      
+    </script>   
+</apex:page>

@@ -1,0 +1,85 @@
+<apex:page id="pg" title="{!$Label.rstk__purchase_order_purge}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnPOPurge,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__customext__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstk__purchase_order_purge}" help="{!helpUrl}"/>
+    <c:standardHeader title="{!$Label.rstk__purchase_order_purge}" customInclude="" cntr="{!controller}" showHeader="false" enableQuickMenu="true" />  
+    
+    <script>
+        function validateCutOffDate(cutoffdate){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnPOPurge.validateCutOffDate}', //NameSpace  
+                cutoffdate,  
+                function(result, event){
+                    if (event.status) {
+                        if(result){
+                            alert(result);
+                            document.getElementById('pg:fm:pb:pbs_popurge:pbsi_cutoffdate:popurge_cutoffdate__c').value = '';
+                            document.getElementById('pg:fm:pb:pbs_popurge:pbsi_cutoffdate:popurge_cutoffdate__c').focus();
+                        }else{
+                            //date validation success
+                            purgePurchOrds();
+                        }
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.rstk__exception}", event.message);
+                    } else {
+                        alert("{!$Label.rstk__unexpectedstatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+    </script>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="purgePurchaseOrders" action="{!purgePurchaseOrders}" oncomplete="checkJobStatus();" reRender="pageMessages,op_JobStatus" immediate="false"/>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel id="op_JobStatus">
+                <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_popurge" columns="1">
+                <!-- <apex:outputField id="popurge_sycmp__c" value="{!o.popurge_sycmp__c}" /> -->
+                <apex:outputField id="popurge_sydiv__c" value="{!o.rstk__popurge_sydiv__c}" />
+                
+                <apex:pageBlockSectionItem id="pbsi_cutoffdate" helpText="{!f.rstk__popurge_cutoffdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__popurge_cutoffdate__c.label}"/>
+                    <apex:outputPanel >
+                        <div class="requiredInput">
+                            <div class="requiredBlock"></div>
+                            <apex:inputField id="popurge_cutoffdate__c" value="{!o.rstk__popurge_cutoffdate__c}" style="width:120px;" taborderhint="1"/>
+                        </div>
+                        <span>{!$Label.rstk__cutoff_date_is_compared_to_the_po_header_last_changed_date}</span>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputPanel >
+                    <c:nosubmitbutton label="{!$Label.rstk__btn_purge_purchase_orders}" onclick="validateCutoffDate(); return false;" style="width:130px;"/>
+                        <span style="color:red;">{!$Label.rstk__warning_this_process_deletes_purchase_orders_and_all_subordinate_data}</span>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>    
+            </apex:pageBlockSection>    
+        </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        function validateCutoffDate(){
+            var val = sfffGetFieldValue('popurge_cutoffdate__c');
+            //console.log('inside cutoffdateChanged() : val = '+ val);
+            validateCutOffDate(val);
+        }
+        
+        function purgePurchOrds(){
+            blockUI();
+            purgePurchaseOrders();
+        }
+        
+        function doAfterJobComplete(pl) {
+            if(pl.iserror__c){
+                unblockUI();
+            }
+            else {
+                window.parent.location.reload();
+            }
+        }
+    </script>
+</apex:page>

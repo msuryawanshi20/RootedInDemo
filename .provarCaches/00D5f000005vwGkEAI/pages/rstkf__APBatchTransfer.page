@@ -1,0 +1,228 @@
+<apex:page id="pg" title="{!$Label.rstkf__pagevalapbatchtransfer}" standardController="rstkf__apinvh__c" extensions="rstkf.ControllerExtnAPBatchTransfer" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__apinvh__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__apinvh__c.fields}" />
+    <apex:variable var="f_p" value="{!$ObjectType.rstkf__appayh__c.fields}" />
+    <apex:sectionHeader subtitle="{!$Label.rstkf__pagevalapbatchtransfer}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__pagevalapbatchtransfer}" showHeader="false"/> 
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    
+    <style>
+        input[type=checkbox][disabled]{
+          opacity: 0.4;
+        }
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+
+   
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doDisplayResults" action="{!doDisplayResults}" oncomplete="unblockUI();enableFixedHeaderSort();" rerender="pageMessages,op_batches" immediate="false"/>
+        <apex:actionFunction name="processBatches" action="{!processBatches}" immediate="false" rerender="pageMessages,op_hdrbtns,op_pbbtns,op_statuses" oncomplete="enableAll(false);setSpinners();" status="statusProcessing"/>
+
+        <apex:pageBlock id="pb_detail" mode="detail" title="{!$Label.rstkf__pagevalsearch}">
+            <apex:pageBlockButtons location="top">
+                <apex:outputPanel id="op_hdrbtns">
+                    <apex:commandButton value="{!$Label.rstkf__pagevalsearch}" onclick="blockUI(); doDisplayResults(); return false;" style="width:120px;" disabled="{!remainingCount > 0}"/>
+                </apex:outputPanel>
+            </apex:pageBlockButtons>
+
+            <apex:pageBlockSection id="pbs_details" showHeader="false" columns="4">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__apinvh_cmpno__c.inlineHelpText}" dataStyle="width:12%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__apinvh_cmpno__c.label}"/>
+                    <apex:outputLink value="{!URLFOR($Action.rstkf__glcmp__c.View, currCompany.Id)}" target="_blank">{!currCompany.Name}</apex:outputLink>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:12%" labelStyle="width:13%"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem dataStyle="width:12%" labelStyle="width:13%"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem dataStyle="width:12%" labelStyle="width:13%"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem dataStyle="width:12%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!$Label.rstkf__pagevallistvoucherbatches}"/>
+                    <apex:inputCheckbox value="{!includeVoucherBatches}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem dataStyle="width:12%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!$Label.rstkf__pagevallistquickpaymentbatches}"/>
+                    <apex:inputCheckbox value="{!includeQuickPaymentBatches}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem dataStyle="width:12%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!$Label.rstkf__pagevallistpaymentbatches}"/>
+                    <apex:inputCheckbox value="{!includePaymentBatches}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem dataStyle="width:12%" labelStyle="width:13%">
+                    <apex:outputLabel value="{!$Label.rstkf__pagevallisttermsdiscountbatches}"/>
+                    <apex:inputCheckbox value="{!includeTermsDiscountBatches}"/>
+                </apex:pageBlockSectionItem>
+
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <apex:outputPanel id="op_statuses">
+            <apex:actionPoller action="{!checkStatus}" rerender="op_statuses,op_hdrbtns,op_pbbtns" enabled="{!remainingCount > 0}" interval="5" oncomplete="updateRowStatus();"/>
+            <script>
+                var statusUpdates = '{!JSENCODE(statusUpdates)}';
+                var remainingCount = {!remainingCount};
+            </script>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_batches">
+            <apex:outputPanel rendered="{!displayResults}">
+                <apex:pageBlock id="pb_results" mode="detail" title="{!$Label.rstkf__pagevalprocess}">
+                    <apex:pageBlockButtons location="top">
+                        <apex:outputPanel id="op_pbbtns">
+                            <apex:commandButton value="{!IF(remainingCount > 0, $Label.rstkf__pagevalprocessing, $Label.rstkf__pagevaltransferselectedbatches)}" style="width:160px;" onclick="if (checkSelected()) {processBatches();} return false;" disabled="{!remainingCount > 0}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockButtons>
+                    <apex:inputCheckbox id="selectAll" onclick="markAll(this.checked)"/>&nbsp;<apex:outputLabel value="{!$Label.rstkf__pagevalselectall}"/>
+                    <apex:pageBlockSection id="pbs_results" showHeader="false" columns="1" >
+                        <apex:outputPanel id="op_gridList" style="height:390px;overflow:auto;display:block">
+                            <apex:pageBlockTable id="pbt_results" value="{!transferbatches}" var="b">
+                                <apex:column headerValue="{!$Label.rstkf__pagevalselect}" style="width:35px;">
+                                    <apex:inputCheckbox id="selected" value="{!b.isSelected}" disabled="{!remainingCount > 0}" rendered="{!!b.isTransferred}"/>
+                                </apex:column>
+                                <apex:column headerValue="{!$Label.rstkf__pagevalbatchtype}" value="{!b.batchType}"/>
+                                <apex:column headerValue="{!f.rstkf__apinvh_batchno__c.label}">
+                                    <apex:outputLink value="{!URLFOR($Action.rstkf__apinvh__c.View, b.recid)}" target="_blank" rendered="{!b.apinvh != null}">{!b.batchNo}</apex:outputLink>
+                                    <apex:outputLink value="{!URLFOR($Action.rstkf__appayh__c.View, b.recid)}" target="_blank" rendered="{!b.appayh != null}">{!b.batchNo}</apex:outputLink>
+                                </apex:column>
+                                <apex:column headerValue="{!f.rstkf__apinvh_year__c.label}" value="{!b.year}"/>
+                                <apex:column headerValue="{!f.rstkf__apinvh_period__c.label}" value="{!b.period}"/>
+                                <apex:column headerValue="{!f.rstkf__apinvh_comments__c.label}" value="{!b.comments}"/>
+                                <apex:column headerValue="{!f.rstkf__apinvh_pobatchind__c.label}" value="{!b.pobatchind}" rendered="{!includeVoucherBatches || includeTermsDiscountBatches}"/>
+                                <apex:column headerValue="{!f.rstkf__apinvh_apdebitshome__c.label}" value="{!b.apdebitshome}" rendered="{!includeVoucherBatches || includeTermsDiscountBatches}" style="text-align:right;"/>
+                                <apex:column headerValue="{!f.rstkf__apinvh_apcreditshome__c.label}" value="{!b.apcreditshome}" rendered="{!includeVoucherBatches || includeTermsDiscountBatches}" style="text-align:right;"/>
+                                <apex:column headerValue="{!f_p.rstkf__appayh_session__c.label}" value="{!b.session}" rendered="{!includePaymentBatches || includeQuickPaymentBatches}"/>
+                                <apex:column headerValue="{!f_p.rstkf__appayh_totcheckamthome__c.label}" value="{!b.totcheckamthome}" rendered="{!includePaymentBatches || includeQuickPaymentBatches}" style="text-align:right;"/>
+                                <apex:column id="status" headerValue="{!$Label.rstkf__pagevalstatus}">
+                                    <apex:outputText value="{!b.xferStatus}"/>
+                                </apex:column>
+                            </apex:pageBlockTable>
+                        </apex:outputPanel>
+                    </apex:pageBlockSection>
+                </apex:pageBlock>
+            </apex:outputPanel>
+        </apex:outputPanel>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        var tableId = 'pg:fm:pb_results:pbs_results:pbt_results';
+        var tablePrefix = tableId + ':';
+        var body = document.getElementById(tablePrefix + 'tb');
+        var spinner = "{!$Resource.busy}";
+        
+        function getRowcount() {
+            var body = document.getElementById(tablePrefix + 'tb');
+            return body.rows.length;
+        }
+        
+        function markAll(checked) {
+            var rowCount = getRowcount();
+            for(var i = 0; i < rowCount; i++) {
+                var el = document.getElementById(tablePrefix + i + ':selected');
+                if (el.style != "display:none;") {
+                    el.checked = checked;
+                }
+            }
+        }
+        
+        function enableAll(enable) {
+            var rowCount = getRowcount();
+            for(var i = 0; i < rowCount; i++) {
+                var el = document.getElementById(tablePrefix + i + ':selected');
+                if (el.style != "display:none;") {
+                    el.disabled = !enable;
+                }
+            }
+            document.getElementById('pg:fm:pb_results:selectAll').disabled = !enable;
+        }
+        
+        function setSpinners() {
+            var rowCount = getRowcount();
+            for(var i = 0; i < rowCount; i++) {
+                var cb = document.getElementById(tablePrefix + i + ':selected');
+                if (cb.checked) { 
+                    var el = document.getElementById(tablePrefix + i + ':status');
+                    el.innerHTML = '<img src="' + spinner + '" height="18" width="18">';
+                }
+            }
+        }
+        
+        function checkSelected() {
+            var rowCount = getRowcount();
+            var selectedCount = 0;
+            for(var i = 0; i < rowCount; i++) {
+                var el = document.getElementById(tablePrefix + i + ':selected');
+                if (el.checked) {
+                    selectedCount++;
+                }
+            }
+            if (selectedCount > 0) {
+                return confirm('{!$Label.pagevalTransfer} ' + selectedCount + (selectedCount > 1 ? ' {!$Label.pagevalBatches}' : ' {!$Label.pabevalBatch}'));
+            } else {
+                alert('{!$Label.pagevalPleaseSelectAtLeastOneBatch}');
+                return false;
+            }
+        }
+        
+        function enableFixedHeaderSort() {
+            var tbl = jQuery("table[id$=" + tableId + "]");
+            var sortOptions = {
+                    0: { sorter: false }
+                };
+
+            if (tbl) {
+                tbl.vfFloatingHeaders();
+                tbl.tablesorter({
+                    headers: sortOptions
+                });
+            }
+            document.getElementById('pg:fm:pb_results:selectAll').checked = false;
+        }
+        
+        function updateRowStatus() {
+            eval(statusUpdates);
+            if (remainingCount == 0) {
+                enableAll(true);
+            }
+        }
+        
+        function setRowStatus(rowNum, status, isError) {
+            var color = isError ? '#ff0000' : '#009966';
+            var statusEl = document.getElementById(tablePrefix + rowNum + ':status');
+            if (statusEl) { 
+                statusEl.innerHTML = '<span style="color:' + color + ';">' + status + '</span>';
+            }
+            if (!isError) {
+                var checkboxEl = document.getElementById(tablePrefix + rowNum + ':selected');
+                checkboxEl.checked = false;
+                checkboxEl.style = "display:none;";
+            }
+        }
+
+    </script>
+    
+</apex:page>

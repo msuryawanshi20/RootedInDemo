@@ -1,0 +1,135 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_bomcopy}" standardController="rstk__bommassadd__c" extensions="rstk.ControllerExtnBOMMassAdd,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="f" value="{!$ObjectType.rstk__bommassadd__c.fields}" />
+    <apex:variable var="f_div" value="{!$ObjectType.rstk__sydiv__c.fields}" />
+    <apex:variable var="f_peitem" value="{!$ObjectType.rstk__peitem__c.fields}" />
+    <apex:variable var="f_peitemrev" value="{!$ObjectType.rstk__peitemrev__c.fields}" />
+    <apex:variable var="f_bom" value="{!$ObjectType.rstk__pebom__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_bomcopy}" customInclude="{!$Resource.rstk__bomcopy_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}" />
+    <apex:form id="fm" rendered="{!displayPageContent}">
+         <apex:actionFunction name="onDivChangeAction" action="{!onDivChange}" immediate="true" oncomplete="unblockUI();"
+            rerender="col1, hiddenVars ">
+            <apex:param name="pohdrId" assignTo="{!pohdrId}" value="" />
+        </apex:actionFunction>
+        
+        <apex:outputPanel id="hiddenVars" style="display:none">
+            <apex:inputHidden id="effMode__c" value="{!effMode}"/>
+            <apex:inputHidden id="isCopyMode" value="{!isCopyMode}"/>
+        </apex:outputPanel>
+<style>
+.twocolfldpanel>tbody>tr>td { width:50%; }
+</style>
+<!-- RCB: RSTK-1364 -->        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons id="cmdbuttons">
+            <apex:commandButton value="{!$Label.rstk__pagebtn_bomcopy_retrievebom}" action="{!selectFromBOM}" rerender="copyButton, pageMessages, panelLineItems, pbt_lineItems"
+            status="retrieveBOMStatus" oncomplete="unblockUI();"/>
+            <apex:actionStatus id="retrieveBOMStatus" onstart="blockUI();" /> 
+            <apex:outputPanel id="copyButton">
+                <apex:commandButton action="{!copyBOM}" value="{!$Label.rstk__pagebtn_bomcopy_copyselectedcomponents}" rendered="{!copyComponents}"
+                    status="retrieveBOMStatus" oncomplete="unblockUI();" rerender="pageMessages"/>
+            </apex:outputPanel>
+        </apex:pageBlockButtons>
+        <apex:panelGrid columns="2" style="width:100%;" id="panel" styleClass="twocolfldpanel">
+            <apex:pageBlock id="col2" title="{!$Label.rstk__pagetab_bomcopy_frombom}">
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__fromdiv__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__fromdiv__c.label}"/>
+                        <c:selectList id="fromdiv__c" required="false" cntr="{!controller}" options="{!engDivs}" tabIndex="100"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__fromitem__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__fromitem__c.label}"/>
+                        <c:autocomplete id="fromitem__c" cntr="{!controller}" required="true" slDesc="{!fromItemDesc}" query="select id, name from peitem__c where id in (select pebom_item__c from pebom__c where pebom_div__c='prm')" queryParms="[['fromdiv__c','Division']]" tabIndex="110"/>
+                    </apex:pageBlockSectionItem> 
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__fromeffdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__fromeffdate__c.label}"/>
+                        <c:inputField id="fromeffdate__c" cntr="{!controller}" tabIndex="120"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__fromsts__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__fromsts__c.label}"/>
+                        <c:inputField id="fromsts__c" cntr="{!controller}" tabIndex="130"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+            <apex:pageBlock id="col1" title="{!$Label.rstk__pagetab_bomcopy_tobom}">
+                <apex:pageBlockSection columns="1">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__div__c.label}"/>
+                    <c:selectList id="div__c" required="false" cntr="{!controller}" options="{!engDivs}" tabIndex="10"/>
+                </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__item__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__item__c.label}"/>
+                        <c:autocomplete id="item__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}" query="select id, name from peitem__c where peitem_div__c=\'prm\' and id in (select peitemrev_item__c from peitemrev__c where (peitemrev_div__r.sydiv_revcntlact__c = false or peitemrev_revsts_pl__c <> 'Implemented'))" queryParms="[['div__c','Division']]" tabIndex="10"/>
+                    </apex:pageBlockSectionItem> 
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__addrev__c.inlineHelpText}" rendered="{!showRev}">
+                        <apex:outputLabel value="{!f.rstk__addrev__c.label}"/>
+                        <c:selectList id="addrev__c" cntr="{!controller}" options="{!ItemRevisions}" tabIndex="20"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__addeco__c.inlineHelpText}" rendered="{!showECO}">
+                        <apex:outputLabel value="{!f.rstk__addeco__c.label}"/>
+                        <c:selectList id="addeco__c" cntr="{!controller}" tabIndex="20"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__effdate__c.inlineHelpText}" rendered="{!showEffDate}">
+                        <apex:outputLabel value="{!f.rstk__effdate__c.label}"/>
+                        <c:inputField id="effdate__c" cntr="{!controller}" tabIndex="30"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__addsts__c.inlineHelpText}" rendered="{!showSts}">
+                        <apex:outputLabel value="{!f.rstk__addsts__c.label}"/>
+                        <c:inputField id="addsts__c" cntr="{!controller}" tabIndex="20"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+       </apex:panelGrid>
+       
+       <apex:outputPanel id="panelLineItems">
+            <apex:pageBlockSection id="pbs_lineItems" showHeader="true" columns="1" title="{!$Label.rstk__pagetab_bomcopy_selectcomponentstocopy}" collapsible="false" rendered="{!showFromComponents}">
+                <apex:outputPanel >
+                    <apex:inputCheckbox id="selectall" onchange="selectAll(this)" selected="true"/>
+                    <apex:outputLabel value="{!$Label.rstk__selectall}"/>
+                </apex:outputPanel>
+                <apex:pageBlockTable id="pbt_lineItems" value="{!srcList}" var="d" rendered="{!showFromComponents}">
+                    <apex:column headerValue="{!$Label.rstk__select}" >
+                        <apex:inputCheckbox id="isSelected" value="{!d.isSelected}" tabIndex="205"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_compitem__c.label}" style="width:220px">
+                        <apex:outputField value="{!d.compBOM.rstk__pebom_compitem__c}" style="width:220px"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_lne__c.label}" style="width:40px">
+                        <apex:outputField value="{!d.compBOM.rstk__pebom_lne__c}" style="width:40px"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__enguom}" style="width:60px">
+                        <apex:outputField value="{!d.compBOM.pebom_compitem__r.rstk__peitem_enguom__c}" style="width:60px"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_qtyper__c.label}" style="width:40px;text-align:right;">
+                        <apex:inputField value="{!d.compBOM.rstk__pebom_qtyper__c}" onkeypress="return filterNonNumeric(event, this)"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_addrev__c.label}" style="width:40px">
+                        <apex:outputField value="{!d.compBOM.pebom_addrev__r.rstk__peitemrev_rev__c}" style="width:40px"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_addsts_pl__c.label}">
+                        <apex:outputField value="{!d.compBOM.rstk__pebom_addsts_pl__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_adddate__c.label}">
+                        <apex:outputField value="{!d.compBOM.rstk__pebom_adddate__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_delrev__c.label}" style="width:40px">
+                        <apex:outputField value="{!d.compBOM.pebom_delrev__r.rstk__peitemrev_rev__c}" style="width:40px"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_delsts_pl__c.label}">
+                        <apex:outputField value="{!d.compBOM.rstk__pebom_delsts_pl__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_bom.rstk__pebom_deldate__c.label}">
+                        <apex:outputField value="{!d.compBOM.rstk__pebom_deldate__c}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+        </apex:outputPanel>
+
+    </apex:pageBlock>
+    </apex:form>
+      
+    <script>
+        {!controller.initPage}
+    </script>
+
+</apex:page>

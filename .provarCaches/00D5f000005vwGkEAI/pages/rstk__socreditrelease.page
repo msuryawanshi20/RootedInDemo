@@ -1,0 +1,179 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_socreditrelease}" standardController="rstk__sohdr__c" extensions="rstk.ControllerExtnSocreditrelease,rstk.RemoteQueryController,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sohdr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sohdr__c.fields}" />
+    <apex:variable var="f_extn" value="{!$ObjectType.rstk__sohdrextn__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_socreditrelease}" customInclude="{!$Resource.rstk__socreditrelease_cli}" enableAutocomplete="true" />
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+    	<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    	<apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="reloadSOList" action="{!doReloadSOList}" oncomplete="unblockUI(); checkHoldCheckbox();" rerender="op_SOList, pageMessages" immediate="false"/>
+        <apex:actionFunction name="releaseHold" action="{!doReleaseHold}" oncomplete="unblockUI(); checkHoldCheckbox();" rerender="op_SOList, pageMessages" immediate="false"/>
+        <apex:actionFunction name="doAutoCreateSOPicklist" id="autoCreateSOPicklist" immediate="true" action="{!autoCreateSOPicklist}" oncomplete="checkJobStatus();" rerender="pageMessages,op_JobStatus, autuCreateSoPicklistVars" >
+             <apex:param name="sohdrId" value=""/>
+        </apex:actionFunction>
+
+         <apex:outputPanel id="op_JobStatus">
+        	<input type="hidden" id="processlogId" value="{!soh.processlogId}"/>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="autuCreateSoPicklistVars">
+        	<input type="hidden" id="sopickhid" value="{!soh.sopickhid}"/>
+        	<input type="hidden" id="showPreselectedLocationsOnly" value="{!soh.showPreselectedLocationsOnly}"/>
+        	<input type="hidden" id="picklistSequence" value="{!soh.picklistSequence}"/>
+        	<input type="hidden" id="displayInPickSequence" value="{!soh.displayInPickSequence}"/>
+        	<input type="hidden" id="printSOLineInternalNotes" value="{!soh.printSOLineInternalNotes}"/>
+	       	<input type="hidden" id="printSOLineExternalNotes" value="{!soh.printSOLineExternalNotes}"/>
+        	<input type="hidden" id="printCustProdNameAndDesc" value="{!soh.printCustProdNameAndDesc}"/>
+        	<input type="hidden" id="printEnhancedCustInfoInHdr" value="{!soh.printEnhancedCustInfoInHdr}"/>
+        	<input type="hidden" id="printItemDescription" value="{!soh.printItemDescription}"/>
+        </apex:outputPanel>
+
+            <script>
+            	function doAfterJobComplete(pl) {
+					if(pl.iserror__c)
+						unblockUI();
+					else {
+						var sopickhid = document.getElementById('sopickhid').value; 
+						var icdmdpicklocs = execQuery("select id from icdmdpickloc__c where icdmdpickloc_sopickh__c = '" + sopickhid + "' Limit 1", true);
+						if(icdmdpicklocs.length > 0) {
+							doCreatePicklistReport();
+						}
+						else {
+							alert("{!$Label.No_Lines_on_the_Order_qualify_for_Picklist_Detail}");
+						}
+						unblockUI();
+					}
+				  }
+                
+				  function doCreatePicklistReport() {
+					try {
+						var sopickhid = document.getElementById('sopickhid').value;
+						var picklistSequence = document.getElementById('picklistSequence').value;
+						var printSOLineInternalNotes = document.getElementById('printSOLineInternalNotes').value;
+						var printSOLineExternalNotes = document.getElementById('printSOLineExternalNotes').value;
+						var printCustProdNameAndDesc = document.getElementById('printCustProdNameAndDesc').value;
+						var printEnhancedCustInfoInHdr = document.getElementById('printEnhancedCustInfoInHdr').value;
+						var printItemDescription = document.getElementById('printItemDescription').value;
+						
+						window.open('{!URLFOR($Page.SOPicklistPdf)}?sopickhid='+ sopickhid +'&barcode=true&picklistSequence=' + picklistSequence + 
+								'&printSOLineInternalNotes=' + printSOLineInternalNotes + 
+								'&printSOLineExternalNotes=' + printSOLineExternalNotes + 
+								'&printCustProdNameAndDesc=' + printCustProdNameAndDesc + 
+								'&printItemDescription=' + printItemDescription + 
+								'&printEnhancedCustInfoInHdr=' + printEnhancedCustInfoInHdr, 'toolbar=0,resizeable=0');
+						} catch (e) {
+							alert(e);
+						} finally {
+							return false;
+						}
+					}
+            </script>
+       
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+            
+            <c:division id="sohdr_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_order__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sohdr_order__c.label}"/>
+                    <c:inputField id="sohdr_order__c" required="false" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_otype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sohdr_otype__c.label}"/>
+                    <c:selectList id="sohdr_otype__c" required="false" cntr="{!controller}" options="{!Sootypes}" tabIndex="21"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sohdr_custno__c.label}"/>
+                    <c:autocomplete id="sohdr_custno__c" cntr="{!controller}" slDesc="{!SocustName}" tabIndex="2"
+		                	   query="select id, name from socust__c where socust_inactive__c = false" 
+		                	   queryParms="[]"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_ustat__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sohdr_ustat__c.label}"/>
+                    <apex:selectList id="sohdr_ustat__c" size="1"  style="width:200px" tabIndex="22">
+							<apex:selectOptions value="{!Soustat}"/>
+					</apex:selectlist>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_creditorg__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sohdr_creditorg__c.label}"/>
+                    <c:selectList id="sohdr_creditorg__c" required="false" cntr="{!controller}" options="{!Syorgs}" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_credithold__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sohdr_credithold__c.label}"/>
+                    <c:inputField id="sohdr_credithold__c" required="false" cntr="{!controller}" tabIndex="23"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f_extn.rstk__sohdrextn_soregion__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_extn.rstk__sohdrextn_soregion__c.label}"/>
+                    <apex:selectList id="sohdrextn_soregion__c" size="1"  style="width:200px" tabIndex="4">
+                    	<apex:selectOptions value="{!Soregions}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sohdr_hold__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sohdr_hold__c.label}"/>
+                    <c:inputField id="sohdr_hold__c" required="false" cntr="{!controller}" tabIndex="24"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+			<br />
+			<apex:commandButton value="{!$Label.rstk__pagebtn_socreditrelease_refreshdatadisplay}" onclick="blockUI(); reloadSOList(); return false;"/>
+			<br />
+			<apex:pageBlockSection id="pbs_SOList" showHeader="true" columns="1" title="{!$Label.rstk__pagetab_socreditrelease_salesorderdetails}" collapsible="false">
+           		<apex:pageMessages id="PageMessages"/>
+        	 	<apex:outputPanel id="op_SOList">
+        	 		<apex:outputPanel rendered="{!displaySos}">
+        	 			<apex:inputCheckbox id="selectAll" onclick="SelectAll(this.checked);" value="{!selectAll}"/><apex:outputLabel value="{!$Label.rstk__select_all_lines}"/>&nbsp;&nbsp;
+	        	 		<apex:commandButton id="releasebtn" value="{!$Label.rstk__pagebtn_socreditrelease_releaseselectedorders}" onclick="blockUI(); releaseHold(); return false;"/>&nbsp;&nbsp;
+	        	 		<apex:inputCheckbox id="relCreditAll" value="{!releaseCreditHold}" /><apex:outputLabel value="{!$Label.rstk__release_credit_hold}"/>&nbsp;&nbsp;
+	        	 		<apex:inputCheckbox id="relManuAll" value="{!releaseManuHold}" /><apex:outputLabel value="{!$Label.rstk__release_manual_hold}"/>
+	        	 		<apex:pageBlockTable id="pbt_soList" value="{!SOList}" var="so">
+	        	 			<apex:column headerValue="{!$Label.rstk__selected}">
+	        					<apex:inputCheckbox id="soSelected" onclick="SelectItem(this.checked);" value="{!so.selected}"/>
+	        					<apex:inputHidden id="id" value="{!so.id}"/>
+	        				</apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__salesorder}" value="{!so.salesorder}"/>
+	        				<apex:column headerValue="{!$Label.rstk__customer}" value="{!so.customer}"/>
+	        				<apex:column headerValue="{!$Label.rstk__linetotalamt}" value="{!so.discountable}"/>
+	        				<apex:column headerValue="{!$Label.rstk__ch}"><apex:inputCheckbox id="sohdr_credithold__c" value="{!so.credithold}" disabled="true" /></apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__mh}"><apex:inputCheckbox id="sohdr_hold__c" value="{!so.manuhold}" disabled="true"  /></apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__manualholdreason}" value="{!so.ManuHoldReason}"/>
+	        				<apex:column headerValue="{!$Label.rstk__creditlimit}">
+	        				    <c:outputFormattedNumber value="{!so.CreditLimit}" decimals="2"/>
+	        				</apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__arbalance}">
+	        				    <c:outputFormattedNumber value="{!so.arbalance}" decimals="2"/>
+	        				</apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__ubolimit}">
+	        					<c:outputFormattedNumber value="{!so.ubolimit}" decimals="2"/>
+	        				</apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__ubobalance}">
+	        					<c:outputFormattedNumber value="{!so.ubobalance}" decimals="2"/>
+	        				</apex:column>
+	        				<apex:column headerValue="">
+	        					<apex:commandbutton value="{!$Label.rstk__pagebtn_socreditrelease_createpicklist}" onclick="blockUI();doAutoCreateSOPicklist('{!so.salesorderId}'); return false;" rendered="{!so.showPickListButton}"/>
+	        				</apex:column>
+	        	 		</apex:pageBlockTable>
+	        	 	</apex:outputPanel>
+	        	 </apex:outputPanel>
+        	  </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

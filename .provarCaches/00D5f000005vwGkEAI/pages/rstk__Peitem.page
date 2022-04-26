@@ -1,0 +1,726 @@
+<apex:page id="pg" standardController="rstk__peitem__c" extensions="rstk.ControllerExtnPeitem,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <apex:variable var="o" value="{!rstk__peitem__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__peitem__c.fields}" />
+    <apex:variable var="f_sydiv" value="{!$ObjectType.rstk__sydiv__c.fields}" />
+    <apex:variable var="f_sycmp" value="{!$ObjectType.rstk__sycmp__c.fields}" /> 
+    <apex:variable var="f_peitemrev" value="{!$ObjectType.rstk__peitemrev__c.fields}" />
+    <apex:variable var="f_peitemfeat" value="{!$ObjectType.rstk__peitemfeat__c.fields}" />
+    <apex:variable var="f_iccomcod" value="{!$ObjectType.rstk__iccomcod__c.fields}" />
+    <apex:variable var="f_soprod" value="{!$ObjectType.rstk__soprod__c.fields}" />
+    <apex:variable var="f_socomm" value="{!$ObjectType.rstk__socomm__c.fields}" />
+    <apex:variable var="f_icitem" value="{!$ObjectType.rstk__icitem__c.fields}" />
+    <apex:variable var="f_syorg" value="{!$ObjectType.rstk__syorg__c.fields}" />
+    <apex:variable var="f_peitemmfr" value="{!$ObjectType.rstk__peitemmfr__c.fields}" />
+    <apex:variable var="f_poitem" value="{!$ObjectType.rstk__poitem__c.fields}" />
+    <apex:variable var="f_icitemcst" value="{!$ObjectType.rstk__icitemcst__c.fields}" />
+    <apex:variable var="f_pebomdisoutput" value="{!$ObjectType.rstk__pebomdisoutput__c.fields}" />
+     
+    <apex:variable var="o_icitem" value="{!divIcitem}" />
+    <apex:variable var="o_icitemcst" value="{!divIcitemcst}" />
+    <apex:variable var="o_poitem" value="{!divPoitem}" />
+    <apex:variable var="o_poicitem" value="{!puricitem}" />
+    
+    <script>
+        var allowFifoIndicatorTurnOff = {!allowFifoIndicatorTurnOff};
+        var isRevinvActive= {!isRevinvActive};
+    </script>
+    
+    <c:common_client_labels />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_peitem}" customInclude="{!$Resource.rstk__peitem_cli}" customInclude2="{!$Resource.rstk__comcod_backed_fields_cli}" enableTreeView="true" enableAutocomplete="true"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__comcodstyle, 'comcod_style.css')}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="localInvInvDivChanged" action="{!localInvInvDivChanged}" oncomplete="unblockUI(); return false;" rerender="pbs_InvParam"/>
+        <apex:actionFunction name="localPurInvDivChanged" action="{!localPurInvDivChanged}" oncomplete="unblockUI(); return false;" rerender="TabPurchasing"/>
+		<apex:actionFunction name="doRefreshFeatures" rerender="op_Features" immediate="true"/>
+        <apex:actionFunction name="doRefreshPebomdisoutput" rerender="op_Pebomdisoutput" immediate="true"/>
+
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+        </apex:pageBlockButtons>
+
+        <apex:outputPanel style="display:none">
+            <apex:inputField id="peitem_activestsdate__c" value="{!o.rstk__peitem_activestsdate__c}" />
+            <apex:inputField id="peitem_inactivests__c" value="{!o.rstk__peitem_inactivests__c}" />
+            <apex:inputHidden id="peitem_hazardmtl__c" value="{!o.rstk__peitem_hazardmtl__c}" />
+            <c:selectList id="peitem_srcdivovr__c" cntr="{!controller}" options="{!sl.sydivs}" />
+            <apex:inputHidden id="peitem_storagecode__c" value="{!o.rstk__peitem_storagecode__c}" />
+<!-- RCB: RSTK-3744 -->
+            <apex:inputHidden id="sydiv_cmpno__c" value="{!cmpno}"/>
+            <apex:inputHidden id="sycmp_engdiv__c" value="{!engdiv}"/>
+            <apex:inputCheckbox id="sycmp_engdivind__c" value="{!engdivind}"/>
+<!--            <apex:inputCheckbox id="sydiv_invdivappl__c" value="{!currDivision.sydiv_invdivappl__c}"/> -->
+
+            <apex:inputCheckbox id="peitem_disassmind__c" value="{!o.rstk__peitem_disassmind__c}" rendered="{!!isDisassemblyActive}"/>
+            <apex:inputHidden id="custpage_peitem_orig_tracksrl__c" value="{!o.rstk__peitem_tracksrl_pl__c}"/>
+            <apex:inputHidden id="custpage_peitem_orig_tracklot__c" value="{!o.rstk__peitem_tracklot_pl__c}"/>
+            <apex:inputHidden id="isFIFOActive__c" value="{!isFIFOActive}"/>
+            <apex:inputHidden id="hasNonPurchasedIcitems__c" value="{!hasNonPurchasedIcitems}"/>
+            <apex:inputHidden id="hasNonPurchasedPoitems__c" value="{!hasNonPurchasedPoitems}"/>
+            <apex:inputHidden id="hasInventoryWithCost__c" value="{!hasInventoryWithCost}"/>
+            <apex:inputHidden id="peitem_invrevmaster__c" value="{!o.rstk__peitem_invrevmaster__c}" rendered="{!isRevinvActive && !isNew}"/>
+        </apex:outputPanel>
+        
+        <c:division id="peitem_div__c" cntr="{!controller}" columns="2"/>
+       
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f_sydiv.rstk__sydiv_cmpno__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_sydiv.rstk__sydiv_cmpno__c.label}"/>
+                <apex:outputField value="{!currDivision.rstk__sydiv_cmpno__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_sycmp.rstk__sycmp_engdivind__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f_sycmp.rstk__sycmp_engdivind__c.label}" />
+                <apex:outputField value="{!currDivision.sydiv_cmpno__r.rstk__sycmp_engdivind__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_item__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_item__c.label}" />
+                <c:inputText id="peitem_item__c" cntr="{!controller}" required="true" tabIndex="3" maxlength="50"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_src_pl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_src_pl__c.label}"/>
+                <c:selectList id="peitem_src_pl__c" required="true" cntr="{!controller}" options="{!inventorySources}" tabIndex="33"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_descr__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_descr__c.label}" />
+                <c:inputText id="peitem_descr__c" cntr="{!controller}" required="true" width="400px" maxlength="100" tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_status_pl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_status_pl__c.label}"/>
+                <c:inputField id="peitem_status_pl__c" required="true" cntr="{!controller}" tabIndex="34"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_invdiv__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_invdiv__c.label}"/>
+                <c:selectList id="peitem_invdiv__c" required="true" cntr="{!controller}" options="{!invDivs}"  tabIndex="5"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_inactivests__c.inlineHelpText}" rendered="{!!isView}">
+                <apex:outputLabel value="{!f.rstk__peitem_inactivests__c.label}" />
+                <apex:inputCheckbox id="inactivests__c" value="{!inactivests}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_inactivests__c.inlineHelpText}" rendered="{!isView}">
+                <apex:outputLabel value="{!f.rstk__peitem_inactivests__c.label}" />
+                <c:outputCheckbox value="{!inactivests}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_iccomcod__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_iccomcod__c.label}"/>
+                <c:selectList id="peitem_iccomcod__c" required="true" cntr="{!controller}" options="{!invcommoditycodes}"  tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_type_pl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_type_pl__c.label}"/>
+                <c:inputField id="peitem_type_pl__c" required="true" cntr="{!controller}" tabIndex="36"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_enguom__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_enguom__c.label}"/>
+                <c:selectList id="peitem_enguom__c" required="true" cntr="{!controller}" options="{!UOMs}"  tabIndex="7"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_itemtype__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__peitem_itemtype__c.label}"/>
+                <c:inputField id="peitem_itemtype__c" required="false" cntr="{!controller}" tabIndex="37"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem id="pbsi_dfltinvuom" helpText="{!f_iccomcod.rstk__iccomcod_dfltinvuom__c.inlineHelpText}" rendered="{!isNew}">
+                <apex:outputLabel value="{!f_iccomcod.rstk__iccomcod_dfltinvuom__c.label}"/>
+                <apex:outputText id="iccomcod_dfltinvuom__c" value=""/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_peitemrev.rstk__peitemrev_rev__c.inlineHelpText}" rendered="{!!isNew && !isRevinvActive}">
+                <apex:outputLabel value="{!$Label.rstk__effectiverev}" />
+                <c:hoverDetail recId="{!effRevId}" recName="{!effRevName}" />
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!isRevinvActive}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_respeng__c.inlineHelpText}">
+                 <apex:outputLabel value="{!f.rstk__peitem_respeng__c.label}"/>
+                 <c:comcodBackedSelectList id="peitem_respeng__cc" indId="peitem_respengind__c" valId="peitem_respeng__c" ccId="iccomcod_respeng__c" options="{!engineers}" cntr="{!controller}" tabIndex="38"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <br/>
+        <apex:pageBlockSection collapsible="false" rendered="{!(showAddProductMasters || showAddMultipleInvItem)}">
+            <apex:pageBlockSectionItem rendered="{!showAddProductMasters && !isView}">
+                <apex:outputLabel value="{!addProductMastersLabel}"/>
+                <apex:inputCheckbox id="addProductMasters__c" value="{!addProductMasters}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!showAddMultipleInvItem && !isView}">
+                <apex:outputLabel value="{!$Label.rstk__addinventoryiteminmultipledivisions}"/>
+                <apex:inputCheckbox id="addMultipleInvItem__c" value="{!addMultipleInvItem}"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <br/>
+        <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_options}" name="tab_Options" id="tab_Options">
+                <apex:pageBlockSection id="pbs_Options" showHeader="false" title="{!$Label.rstk__options}" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_tracklot_pl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__peitem_tracklot_pl__c.label}"/>
+                        <c:inputField id="peitem_tracklot_pl__c" required="true" cntr="{!controller}" tabIndex="201"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_fifoind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__peitem_fifoind__c.label}" />
+                        <c:inputCheckbox id="peitem_fifoind__c" cntr="{!controller}" tabIndex="203" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_tracksrl_pl__c.inlineHelpText}" >
+                        <apex:outputLabel value="{!f.rstk__peitem_tracksrl_pl__c.label}"/>
+                        <c:inputField id="peitem_tracksrl_pl__c" required="true" cntr="{!controller}" tabIndex="202"/>
+                    </apex:pageBlockSectionItem>
+                    
+                     <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_invrevmaster__c.inlineHelpText}" rendered="{!isRevinvActive}">
+                        <apex:outputLabel value="{!f.rstk__peitem_invrevmaster__c.label}"/>
+                        <apex:outputPanel >
+                            <c:inputField id="peitem_invrevmaster__c" cntr="{!controller}" tabIndex="204" rendered="{!isNew}"/>
+                            <apex:outputField value="{!o.rstk__peitem_invrevmaster__c}" rendered="{!!isNew}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem rendered="{!isRevinvActive}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_invrevprod__c.inlineHelpText}" rendered="{!isRevinvActive}">
+                        <apex:outputLabel value="{!f.rstk__peitem_invrevprod__c.label}" />
+                        <c:inputCheckbox id="peitem_invrevprod__c" cntr="{!controller}" tabIndex="205" />
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem rendered="{!isRevinvActive}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                     <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_invrev__c.inlineHelpText}" rendered="{!isRevinvActive && isView}">
+                        <apex:outputLabel value="{!f.rstk__peitem_invrev__c.label}"/>
+                        <apex:outputField value="{!o.rstk__peitem_invrev__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem rendered="{!isRevinvActive}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_invpeitemrev__c.inlineHelpText}" rendered="{!isRevinvActive}">
+                        <apex:outputLabel value="{!f.rstk__peitem_invpeitemrev__c.label}" />
+                        <apex:outputField value="{!o.rstk__peitem_invpeitemrev__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__peitem_disassmind__c.inlineHelpText}" rendered="{!isDisassemblyActive}">
+                        <apex:outputLabel value="{!f.rstk__peitem_disassmind__c.label}"/>
+                        <c:inputCheckbox id="peitem_disassmind__c" cntr="{!controller}" tabIndex="207"/>
+                    </apex:pageBlockSectionItem>
+                    
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_inventory}" name="tab_Inventory" id="tab_Inventory" rendered="{!dispInvTab}">
+                <apex:outputPanel >
+                    <apex:outputLabel value="{!f.rstk__peitem_invdiv__c.label}" rendered="{!showInvDivinTab}" />
+                    <apex:selectList id="localinvinvdiv__c" value="{!localinvinvdiv}" size="1" onchange="return localinvdivChanged();" style="display:{!IF(showInvDivinTab, '', 'none')};">
+                        <apex:selectOptions value="{!TabInvDivs}" />
+                    </apex:selectList>
+                    <br />
+                    <apex:tabPanel switchType="client" selectedTab="stab_Inventory" id="theTabInventory"  rendered="{!!ISNULL(o_icitem)}">
+                        <apex:tab label="{!$Label.rstk__pagetab_peitem_inventoryparameters}" name="stab_InvParam" id="stab_Param">
+                            <apex:outputPanel >
+                                <apex:commandbutton value="{!$Label.rstk__pagebtn_edit}" onclick="return InvIcitemEdit();" style="min-width:120px;" />
+                                <apex:commandbutton value="{!$Label.rstk__peitem_pagebtn_summaryreview}" onclick="return InvSummaryRev();" style="min-width:50px;" />
+                                <apex:commandbutton value="{!$Label.rstk__peitem_pagebtn_detailedreview}" onclick="return InvDetailedRev();" style="min-width:120px;" />
+                                <apex:inputhidden id="icitem_id" value="{!o_icitem.id}" />
+                            </apex:outputPanel>
+                            <br />
+                            <apex:pageBlockSection id="pbs_InvParam" showHeader="false" title="{!$Label.rstk__invparams}" columns="2" >
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_div__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_div__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_div__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem >
+                                    <apex:outputLabel value="{!$Label.rstk__inventoryitem}" />
+                                     <c:hoverDetail recId="{!o_icitem.id}" recName="{!o_icitem.Name}"/>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitemcst.rstk__icitemcst_qtyoh__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitemcst.rstk__icitemcst_qtyoh__c.label}" />
+                                    <apex:outputField value="{!o_icitemcst.rstk__icitemcst_qtyoh__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_backflushpol__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_backflushpol__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_backflushpol__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitemcst.rstk__icitemcst_qtyohnn__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitemcst.rstk__icitemcst_qtyohnn__c.label}" />
+                                    <apex:outputField value="{!o_icitemcst.rstk__icitemcst_qtyohnn__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_homeprojind__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_homeprojind__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_homeprojind__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitemcst.rstk__icitemcst_qtycons__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitemcst.rstk__icitemcst_qtycons__c.label}" />
+                                    <apex:outputField value="{!o_icitemcst.rstk__icitemcst_qtycons__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_ltfrmwo__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltfrmwo__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_ltfrmwo__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_iccomcod__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_iccomcod__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_iccomcod__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_ltmfgworel__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltmfgworel__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_ltmfgworel__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_src_pl__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_src_pl__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_src_pl__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_ltmfgwopick__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltmfgwopick__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_ltmfgwopick__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_sspolqty__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_sspolqty__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_sspolqty__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_ltmfgwoshopflr__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltmfgwoshopflr__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_ltmfgwoshopflr__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_mrpminqty__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_mrpminqty__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_mrpminqty__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_ltrcvinsp__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltrcvinsp__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_ltrcvinsp__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_mrpmaxqty__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_mrpmaxqty__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_mrpmaxqty__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_ltfrmreq__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltfrmreq__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_ltfrmreq__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_orgid__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_orgid__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_orgid__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_ltvendship__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltvendship__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_ltvendship__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_dimval__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_dimval__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_dimval__c}" />
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_invuom__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f_icitem.rstk__icitem_invuom__c.label}" />
+                                    <apex:outputField value="{!o_icitem.rstk__icitem_invuom__c}" />
+                                </apex:pageBlockSectionItem>
+                            </apex:pageBlockSection>
+                        </apex:tab>
+                        
+                        <apex:tab label="{!$Label.rstk__pagetab_peitem_inventoryquantities}" name="stab_InvQty" id="stab_InvQty">
+                            <div style="height:250px; overflow:auto;">
+                                <apex:pageBlockSection id="pbs_InvIcitemQty" showHeader="false" columns="1">
+                                    <apex:outputPanel >
+                                        <apex:outputLabel value="{!$Label.rstk__totalrecords}" /> 
+                                        <apex:outputText id="invqtyRecs" value="{!$Label.rstk__totalrecords} {!invqtyRecs}" />
+                                    </apex:outputPanel>
+                                    <apex:outputPanel >
+                                        <apex:outputLink value="javascript:{}" onclick="getNextPage('first'); return false;">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                                        <apex:outputLink value="javascript:{}" onclick="getNextPage('prev'); return false;">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                                        
+                                        <apex:outputLabel value="{!$Label.rstk__page}" />
+                                        <input type="text" id="invqtyPage" onchange="getNextPage(jQuery(this).val()); return false;" value="{!invqtyPage}" maxlength="4" style="width:40px;"/> &nbsp;
+                                        <apex:outputLabel value="{!$Label.rstk__of} " />
+                                        <apex:outputText id="totPage" value="{!invqtyTotPage}"/> 
+                                        &nbsp; &nbsp;
+                                        <apex:outputLink value="javascript:{}" onclick="getNextPage('next'); return false;">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                                        <apex:outputLink value="javascript:{}" onclick="getNextPage('last'); return false;">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink>
+                                        <br />
+                                        <apex:outputPanel id="invqtyList">
+                                        </apex:outputPanel>
+                                    </apex:outputPanel>
+                                </apex:pageBlockSection>
+                            </div>
+                            <!--
+                            <apex:pageBlockSection id="pbs_InvIcitemQty" showHeader="false" title="" columns="1" >
+                                <apex:pageBlockTable value="{!divIclocitems}" var="i">
+                                <apex:column headerValue="Site" ><apex:outputField value="{!i.iclocitem_site__c}"/></apex:column>
+                                <apex:column headerValue="Loc ID" ><apex:outputText value="{!i.iclocitem_locid__r.name}"/></apex:column>
+                                <apex:column headerValue="Loc Number"><apex:outputText value="{!i.iclocitem_locnum__c}" /></apex:column>
+                                <apex:column headerValue="{!titleInvlotsec}" rendered="{!showInvlotsecCol}"><apex:outputText value="{!i.iclocitem_locsec__c}" rendered="{!showInvlotsecCol}"/></apex:column>
+                                <apex:column headerValue="Loc Type"><apex:outputText value="{!i.iclocitem_loctype_pl__c}" /></apex:column>
+                                <apex:column headerValue="Loc Qty" style="text-align:right;"><apex:outputText value="{0,number,#,##0.00}" style="width:80px"><apex:param value="{!i.iclocitem_locqty__c}" /></apex:outputText></apex:column>
+                            </apex:pageBlockTable>
+                            </apex:pageBlockSection>
+                            -->
+                        </apex:tab>
+                    </apex:tabPanel>
+                </apex:outputPanel>
+            </apex:tab>  
+             
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_purchasing}" name="tab_Purchasing" id="tab_Purchasing" rendered="{!dispPurchaseTab}">
+                <apex:outputPanel >
+                    <apex:outputLabel value="{!f.rstk__peitem_invdiv__c.label}" rendered="{!showInvDivinTab}" />
+                    <apex:selectList id="localpurinvdiv__c" value="{!localpurinvdiv}" size="1" onchange="blockUI(); localPurInvDivChanged();" rendered="{!showInvDivinTab}">
+                        <apex:selectOptions value="{!TabInvDivs}" />
+                    </apex:selectList>
+                    <br />
+                    <apex:outputPanel id="TabPurchasing">
+                        <apex:commandbutton value="{!$Label.rstk__pagebtn_edit}" onclick="return PurPoitemEdit();" style="width:75px;" />
+                        <apex:inputhidden id="poitem_id" value="{!o_poitem.id}" />
+
+                        <apex:pageBlockSection id="pbs_Purchase" showHeader="false" title="" columns="1" >
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$ObjectType.rstk__poitem__c.label}" />
+                                <apex:outputLink value="{!URLFOR($Action.rstk__poitem__c.View, o_poitem.id)}">{!o_poitem.Name}</apex:outputLink>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_comcod__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_comcod__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_comcod__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_invuom__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_icitem.rstk__icitem_invuom__c.label}" />
+                                <apex:outputField value="{!o_poicitem.rstk__icitem_invuom__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_puruom__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_puruom__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_puruom__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_umcf__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_umcf__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_umcf__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_ltreqcnvrtpo__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_ltreqcnvrtpo__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_ltreqcnvrtpo__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_ltvend__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_ltvend__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_ltvend__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_respbuyer__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_respbuyer__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_respbuyer__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_overrcptind__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_overrcptind__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_overrcptind__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_orgid__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_orgid__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_orgid__c}" />
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem helpText="{!f_poitem.rstk__poitem_dimval__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f_poitem.rstk__poitem_dimval__c.label}" />
+                                <apex:outputField value="{!o_poitem.rstk__poitem_dimval__c}" />
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:outputPanel>
+                </apex:outputPanel> 
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_sales}" name="tab_Sales" id="tab_Sales" rendered="{!dispInvTab}">
+                <apex:outputPanel >
+                    <apex:outputPanel id="TabSales" >
+                        <apex:pageBlockSection id="pbs_Sales" showHeader="false" title="" columns="1" > 
+                            <apex:pageBlockTable value="{!salesprods}" var="s">
+                                <!--RSTK-4079: Added onclick action to resolve the broken link issue in salesforce lightning mode  -->
+                                <!-- Modified by: Parthiban C -->
+                                <apex:column headerValue="{!f_sydiv.rstk__sydiv_descr__c.label}" ><apex:outputLink onclick="openLinkinNewWindow('/apex/sydiv?actionType=View&id={!s.salesdivid}');return false"><apex:outputLabel value="{!s.salesdiv}" rendered="{!s.shipdiv != null}"/></apex:outputLink></apex:column>
+                                <apex:column headerValue="{!$Label.rstk__inventorydiv}" ><apex:outputLink onclick="openLinkinNewWindow('/apex/sydiv?actionType=View&id={!s.shipdivid}');return false"><apex:outputLabel value="{!s.shipdiv}" rendered="{!s.shipdiv != null}"/></apex:outputLink></apex:column>
+                                <apex:column headerValue="{!f_soprod.rstk__soprod_prod__c.label}"><apex:outputLink onclick="openLinkinNewWindow('/apex/soprod?actionType=edit&id={!s.soprodid}');return false"><apex:outputLabel value="{!s.prodnum}" /></apex:outputLink></apex:column>
+                                <apex:column headerValue="{!f_socomm.rstk__socomm_comcod__c.label}"><apex:outputLink onclick="openProductGroup('{!s.socommid}');return false;"><apex:outputLabel value="{!s.prodgroup}" rendered="{!s.socommid != null}"/></apex:outputLink></apex:column>  
+                                <apex:column headerValue="{!f_icitem.rstk__icitem_invuom__c.label}"><apex:outputLink onclick="openLinkinNewWindow('/apex/syuom?actionType=View&id={!s.invuomid}');return false" ><apex:outputLabel value="{!s.invuom}" rendered="{!s.invuomid != null}"/></apex:outputLink></apex:column>  
+                                <apex:column headerValue="{!f_soprod.rstk__soprod_slsuom__c.label}"><apex:outputLink onclick="openLinkinNewWindow('/apex/syuom?actionType=View&id={!s.slsuomid}');return false"><apex:outputLabel value="{!s.slsuom}" rendered="{!s.slsuomid != null}"/></apex:outputLink></apex:column>  
+                                <apex:column headerValue="{!f_soprod.rstk__soprod_umcf__c.label}" style="text-align:right;"><apex:outputText value="{!s.umcf}" style="width:60px;" html-decimals="2"/></apex:column>
+                                <apex:column headerValue="{!f_soprod.rstk__soprod_leadtimeprod__c.label}" style="text-align:right;"><apex:outputText value="{!s.ltprod}" style="width:60px;" html-decimals="2"/></apex:column>
+                                <apex:column headerValue="{!f_soprod.rstk__soprod_leadtimeiss__c.label}" style="text-align:right;"><apex:outputText value="{!s.ltiss}" style="width:60px;" html-decimals="2"/></apex:column>
+                                <apex:column headerValue="{!f_soprod.rstk__soprod_leadtimepack__c.label}" style="text-align:right;"><apex:outputText value="{!s.ltpack}" style="width:60px;" html-decimals="2"/></apex:column>
+                                <apex:column headerValue="{!f_soprod.rstk__soprod_presp__c.label}"><apex:outputLink onclick="openLinkinNewWindow('/apex/syusr?actionType=View&id={!s.respid}');return false"><apex:outputLabel value="{!s.resp}" rendered="{!s.respid != null}"/></apex:outputLink></apex:column>
+                                <apex:column headerValue="{!f_syorg.rstk__syorg_orgid__c.label}"><apex:outputLink onclick="openLinkinNewWindow('/apex/syorg?actionType=View&id={!s.orgid}');return false"><apex:outputLabel value="{!s.orgname}" rendered="{!s.orgid != null}"/></apex:outputLink></apex:column>
+                                <apex:column headerValue="{!f_soprod.rstk__soprod_dimval__c.label}"><apex:outputLink onclick="openLinkinNewWindow('/apex/sydim?actionType=View&id={!s.acctdimid}');return false"><apex:outputLabel value="{!s.acctdimname}" rendered="{!s.acctdimid != null}"/></apex:outputLink></apex:column>
+                                <!--  -->
+                            </apex:pageBlockTable>
+                        </apex:pageBlockSection>
+                    </apex:outputPanel>
+                </apex:outputPanel> 
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_derivedcomponents}" name="tab_DerivedComponents" id="tab_DerivedComponents" rendered="{!showDerivedComponentsGrid}">
+                <apex:pageBlockSection showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem >
+                        <input type="button" class="btn" value="{!$Label.pagebtn_peitem_MaintainDerivedComponents}" onclick="_showDialog('derivedComponentsPopup');" />
+                    </apex:pageBlockSectionItem>
+                    <apex:outputPanel id="op_Pebomdisoutput">
+                        <apex:pageBlockTable value="{!Pebomdisoutputs}" var="rec">
+                            <apex:column headerValue="{!f_pebomdisoutput.rstk__pebomdisoutput_compitem__c.label}" value="{!rec.rstk__pebomdisoutput_compitem__c}"/>
+                            <apex:column headerValue="{!f_pebomdisoutput.rstk__pebomdisoutput_qtyper__c.label}" value="{!rec.rstk__pebomdisoutput_qtyper__c}"/>
+                            <apex:column headerValue="{!f_pebomdisoutput.rstk__pebomdisoutput_calccostpct__c.label}" value="{!rec.rstk__pebomdisoutput_calccostpct__c}"/>
+                        </apex:pageBlockTable>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_revisions}" name="tab_Revisions" id="tab_Revisions" rendered="{!actionType != 'create' && o.rstk__peitem_invrevitem__c == false}">
+                <apex:outputLink value="{!URLFOR($Action.rstk__peitemrev__c.New)}{!ReturnUrlParms}" rendered="{!showAddRevisionLink}">{!$Label.rstk__pagelink_peitem_addrevision}</apex:outputLink>
+                <apex:pageBlockSection id="pbs_Revisions" showHeader="false" columns="1">
+                    <apex:pageBlockTable value="{!revisions}" var="rev">
+                        <apex:column headerValue="{!$Label.rstk__editandview}"><apex:outputLink value="{!URLFOR($Action.rstk__peitemrev__c.Edit, rev.o.Id)}{!ReturnUrlParms}" rendered="{!rev.isEditAllowedForRev}">{!$Label.rstk__pagelink_edit}</apex:outputLink>{!IF(rev.isEditAllowedForRev,' | ','')}<apex:outputLink value="{!URLFOR($Action.rstk__peitemrev__c.View, rev.o.id)}{!ReturnUrlParms}">{!$Label.rstk__actiontitle_view}</apex:outputLink></apex:column>
+                        <apex:column headerValue="{!f_peitemrev.rstk__peitemrev_rev__c.label}" value="{!rev.o.rstk__peitemrev_rev__c}"/>
+                        <apex:column headerValue="{!f_peitemrev.rstk__peitemrev_descr__c.label}" value="{!rev.o.rstk__peitemrev_descr__c}"/>
+                        <apex:column headerValue="{!f_peitemrev.rstk__peitemrev_econo__c.label}" value="{!rev.o.rstk__peitemrev_econo__c}" rendered="{!ecoAct}"/>
+                        <apex:column headerValue="{!f_peitemrev.rstk__peitemrev_revsts_pl__c.label}" value="{!rev.o.rstk__peitemrev_revsts_pl__c}"/>
+                        <apex:column headerValue="{!f_peitemrev.rstk__peitemrev_effdate__c.label}" value="{!rev.o.rstk__peitemrev_effdate__c}"/>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_approvedmfrs}" name="tab_ApprovedMfrs" id="tab_ApprovedMfrs" rendered="{!actionType != 'create' && o.rstk__peitem_status_pl__c == 'Active'}">
+                <apex:pageBlockSection id="pbs_approvedmfr" showHeader="false" title="{!$Label.rstk__approvedmfrs}" columns="1" >
+                    <apex:outputLink value="{!URLFOR($Action.rstk__peitemmfr__c.New)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_peitem_newapprovedmfr}</apex:outputLink>
+                    <apex:pageBlockTable value="{!peitemmfrs}" var="appmfr">
+                        <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.rstk__peitemmfr__c.Edit, appmfr.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__peitemmfr__c.View, appmfr.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_approvedmfr_del}</apex:outputLink></apex:column>
+                        <apex:column headerValue="{!f_peitemmfr.name.label}" value="{!appmfr.name}" />
+                        <apex:column headerValue="{!f_peitemmfr.rstk__peitemmfr_mfrname__c.label}"><apex:outputField id="peitemmfr_mfrname__c" value="{!appmfr.rstk__peitemmfr_mfrname__c}"/></apex:column>
+                        <apex:column headerValue="{!f_peitemmfr.rstk__peitemmfr_mfritemid__c.label}"><apex:outputField id="peitemmfr_mfritemid__c" value="{!appmfr.rstk__peitemmfr_mfritemid__c}"/></apex:column>
+                        <apex:column headerValue="{!f_peitemmfr.rstk__peitemmfr_mfritemno__c.label}"><apex:outputField id="peitemmfr_mfritemno__c" value="{!appmfr.rstk__peitemmfr_mfritemno__c}"/></apex:column>
+                        <apex:column headerValue="{!f_peitemmfr.rstk__peitemmfr_mfritemdesc__c.label}"><apex:outputField id="peitemmfr_mfritemdesc__c" value="{!appmfr.rstk__peitemmfr_mfritemdesc__c}"/></apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_itemfeatures}" name="tab_ItemFeatures" id="tab_ItemFeatures" rendered="{!dispItemFeaturesTab}">
+                <apex:pageBlockSection id="pbs_ItemFeatures" showHeader="false" columns="1">
+	            	<input type="button" class="btn" value="{!$Label.pagebtn_featcat_add_delete}" onclick="_showDialog('featuresPopup');" />
+	            	<apex:outputPanel id="op_Features">
+	                    <apex:pageBlockTable value="{!peitemfeats}" var="rec">
+	                        <apex:column headerValue="{!f_peitemfeat.rstk__peitemfeat_featcat__c.label}" value="{!rec.rstk__peitemfeat_featcat__c}"/>
+	                        <apex:column headerValue="{!f_peitemfeat.rstk__peitemfeat_feature__c.label}" value="{!rec.rstk__peitemfeat_feature__c}"/>
+	                    </apex:pageBlockTable>
+					</apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_whereused}" name="tab_whereUsed" id="tab_whereUsed" rendered="{!actionType != 'create'}">
+                <apex:outputPanel id="wu_toolbar">
+                    <label id="wu_bomcount" class="labelCol">{!$Label.X0_BOMs_found}</label>
+                    <apex:commandButton onclick="loadAllWUNodes = true; initWUTreeView(); return false;" value="{!$Label.rstk__pagebtn_peitem_loadtree}"/>&nbsp;
+                    <apex:outputPanel ><div style="height:5px;"></div></apex:outputPanel>
+                </apex:outputPanel>
+                <apex:outputPanel id="op_where_used">
+                    <div id="tree_anchor_wu" style="height:300px;overflow-y:scroll;display:block">
+                    </div>
+                </apex:outputPanel>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_bomtree}" name="tab_bomTree" id="tab_bomTree" rendered="{!actionType != 'create'}">
+                <apex:commandButton onclick="refreshBomTree(); return false;" value="{!$Label.rstk__pagebtn_peitem_refreshtree}"/>&nbsp;
+                <apex:commandButton onclick="expandBomView(); return false;" value="{!$Label.rstk__pagebtn_peitem_expandview}"/>&nbsp;
+                <apex:commandButton onclick="printBom(); return false;" value="{!$Label.rstk__pagebtn_peitem_printbom}"/>&nbsp;&nbsp;&nbsp;&nbsp;
+                <label class="labelCol">{!$Label.Effective_Date}</label>
+                <apex:inputField id="effdate" value="{!inputObj.rstk__zzsobj_date__c}" onchange="refreshBomTree();"/>
+                <apex:outputPanel ><div style="height:5px;"></div></apex:outputPanel>
+                <apex:outputPanel id="op_bom_tree">
+                    <div id="tree_anchor_bom" style="height:300px;overflow-y:scroll;display:block">
+                    </div>
+                </apex:outputPanel>
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+
+            <apex:tab label="{!$Label.rstk__pagetab_peitem_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    <br />
+    <div id="invSelect" style="display:none" rendered="{!!isNew}">
+        <iframe id="bomAddFrame" src="" width="100%" height="600px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+    </div>
+    
+    <div id="pleaseWaitPopup" style="display:none">
+        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+        <apex:outputPanel styleClass="topPopup">
+           <apex:image url="{!$Resource.rstk__busy}"/>
+        </apex:outputPanel>
+    </div>
+    
+    <c:Popup popupId="derivedComponentsPopup" title="{!$Label.rstk__pagepopup_peitem_derivedcomponents}" onOk="dcs_saveAndClose();" rendered="{!showDerivedComponentsGrid}">
+            <c:PageableGrid width="1150" jsController="dcs" data="{!DerivedComponents}" pageSize="5" editable="true" ispopup="true" disableSave="false"/>
+            <script>
+                    dcs.onSaved = function(row) {
+                        doRefreshPebomdisoutput();
+                    }
+                    
+                    dcs.resetRow = function(row) {
+                        self = this;
+                        dcsHandler.prototype.resetRow.call(self, row);
+                        dcs.setRowValue(row, "pebomdisoutput_qtyper__c", 1);
+                        dcs.setRowValue(row, "pebomdisoutput_calccostpct__c", 0);
+                    }
+
+            </script>
+    </c:Popup>
+    
+    <c:Popup popupId="featuresPopup" title="{!$Label.rstk__pagetab_featcat_features}" onOk="features_saveAndClose();">
+            <c:PageableGrid width="880" jsController="features" data="{!FeatureGrid}" pageSize="15" editable="true" ispopup="true" disableSave="false"/>
+            <script>
+				function setSelectList(rowCtrl, row, fieldId, values, valueFieldId, withNone) {
+					var col = rowCtrl.getRowObj(row, fieldId);
+					var nameOf = rowCtrl.nameOf();
+					col.children().remove();
+					col.html('<select style="max-width:90%;" class="'+nameOf+'-'+rowCtrl.getRowNum(row)+'-select_'+fieldId+'" onchange="'+nameOf+'.rowChanged(event);"/>');
+					var theSel = col.find('select');
+					if (!!withNone) {
+						theSel.append('<option value="">--None--</option>');
+					}	
+					for (var i=0;i <values.length; i++) {
+					 	theSel.append('<option value="'+values[i].Id+'">'+escapeHtml(values[i].Name)+'</option>');
+					}
+					if (valueFieldId != null && valueFieldId != '') {
+						jQuery(theSel).val(rowCtrl.getRowValue(row, valueFieldId));
+						rowCtrl.setRowValue(row, valueFieldId, jQuery(theSel).val());
+					}
+				}
+                    
+				features.onGridLoad = function() {
+					console.log('onGridLoad');
+					self = this;
+                        
+					var featcatids = '';
+					features.getVisibleRows().each(function() {
+						var row = jQuery(this);
+						var featcatid = features.getRowValue(row, 'peitemfeat_featcat__c');
+						if (featcatid) {
+							featcatids += (featcatids ? "," : "") + "'" + featcatid + "'";
+						}
+					});
+			
+					var featcats = [];
+
+					if (featcatids) {
+						featcats = execQuery("select Id, (select Id, Name from features__r order by Name) from featcat__c where id in (" + featcatids + ")");
+					}
+                        
+					features.getRows().each(function() {
+						console.log('onGridLoad');
+						var row = jQuery(this);
+		    	
+				    	var featcatFeatures = [];
+				    	var featcatid = features.getRowValue(row, 'peitemfeat_featcat__c');
+				    	for (i = 0; i < featcats.length; i++) {
+				    		if (featcatid == featcats[i].Id) {
+				    			console.log(featcats[i].features__r);
+				    			if (featcats[i].features__r && featcats[i].features__r.size > 0) {
+				    				featcatFeatures = featcats[i].features__r.size > 1 ? featcats[i].features__r.records : [featcats[i].features__r.records];
+				    			}
+				    			break;
+				    		}
+				    	}
+						setSelectList(self, row, 'peitemfeat_feature__g', featcatFeatures, 'peitemfeat_feature__c', true);
+						var featureId = features.getRowValue(row, 'Id');
+						if (isEmpty(featureId)) featureId = features.rowIds[i];
+						if (!isEmpty(featureId)) {
+							features.getRowObj(row, 'peitemfeat_feature__g').attr('disabled', true);
+						}
+					});
+				}
+                    
+                features.resetRow = function(row) {
+                    self = this;
+                    featuresHandler.prototype.resetRow.call(self, row);
+                    
+                    setSelectList(this, row, 'peitemfeat_feature__g', [], 'peitemfeat_feature__c', true);
+                }
+                    
+                features.entryChanged = function(row, rowNum, name, value) {
+                	console.log(name+':'+value);
+                	console.log('name'+':'+name);
+                    if(name == 'peitemfeat_featcat__c') {
+                    	features.setRowValue(row, "peitemfeat_feature__c", '');
+                    	var featureSl = features.getRowObj(row, 'peitemfeat_feature__g').find('select')[0];
+                    	featureSl.value = '';
+                    	if(value) {
+                        	populateHtmlSelectList(featureSl, "select Id, Name from feature__c where feature_featcat__c = '" + value + "' order by Name");
+                        }
+                 } else if(name == 'select_peitemfeat_feature__g') {
+                 	features.setRowValue(row, "peitemfeat_feature__c", value);
+                    }
+                }
+        
+                features.onSaved = function(row) {
+                    doRefreshFeatures();
+                }
+            </script>
+    </c:Popup>
+    
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+     <script>
+        var POCommodity = "{!$Label.MatchingPOCommodityCodIsMissing}"; 
+        var L_Option = "{!$Label.OptionNot_Available}";     
+        var Centralized = "{!$Label.MustUseCentralizedDivision}"; 
+        var Authorized = "{!$Label.NotAuthorizedToUseCentralizedDivision}";     
+        var Inventory = "{!$Label.SelectedInventoryDivisionBelongsToAnotherCompany}"; 
+        var Source = '{!$Label.InventorySourceInterDivisionIsInvalidForNewEngItem}'; 
+        var Allowed = "{!$Label.ChangeNotAllowedFromALotToNonLotItem}";          
+        var LotItem = "{!$Label.ChangeNotAllowedFromAnonLotToLotItem}";     
+        var Serialized = "{!$Label.ChangeNotAllowedFromSerializedToNonSerializedItem}"; 
+        var NonSerialized = "{!$Label.ChangeNotAllowedFromNonSerializedToSerializedItem}";     
+        var SerialTracking = "{!$Label.CannotSetBothLotTrackingAndSerialTracking}"; 
+        var UOM = "{!$Label.UOMMustBeEachForSerializedItem}";     
+        var BOM = "{!$Label.ChangeNotAllowedItemHasBOM}"; 
+        var NetSuite = "{!$Label.ItemIsInactiveInNetSuite}";         
+        var NetSuiteItem = "{!$Label.NetSuiteItemAlreadyExistsButIsTtheWrongType}";     
+        var NetSuiteAssembly = "{!$Label.TheNetSuiteAssemblyMustBeCreated_first}"; 
+        var EngStatus = "{!$Label.EngStatusMayNotBeResetToPendingDueToExistingTxn}";     
+        var Active = "{!$Label.InventoryNotActivForThisDivision}"; 
+        var NtImplemented = "{!$Label.NotImplemented}";
+        var LABEL_You_are_clearing_the_FIFO_Costing_Method_Indicator_for_this_Item = "{!$Label.You_are_clearing_the_FIFO_Costing_Method_Indicator_for_this_Item}";
+        var LABEL_StatusMustBePendingForInventoryRevisionMasterItems = "{!$Label.StatusMustBePendingForInventoryRevisionMasterItems}";
+    	var LABEL_Not_used = "{!$Label.Not_used}";
+    	var LABEL_Site = "{!$Label.Peitem_Site}";
+    	var LABEL_Locid = "{!$Label.peitem_Loc_ID}";
+    	var LABEL_LocNumber = "{!$Label.Loc_Number}";
+    	var LABEL_LocType = "{!$Label.Loc_Type}";
+    	var LABEL_LocQty = "{!$Label.Loc_Qty}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

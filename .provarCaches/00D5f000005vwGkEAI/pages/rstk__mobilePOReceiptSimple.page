@@ -1,0 +1,404 @@
+<apex:page standardController="rstk__porcpt_ui__c" extensions="rstk.ControllerMobilePORecipt" 
+    sideBar="false" showHeader="false">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    <apex:variable var="o" value="{!porcpt}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__porcpt_ui__c.fields}" />
+    <c:common_client_labels />
+    <c:localization />
+    <apex:includeScript value="{!$Resource.rstk__jQuery_182}"/>
+    <apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+    <apex:includeScript value="{!$Resource.rstk__connection}" />
+    <apex:includeScript value="{!$Resource.rstk__sfff}" />
+    <apex:includeScript value="{!$Resource.rstk__common_client_mobile}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <script>
+        var __sfdcSessionId = '{!GETSESSIONID()}';
+        sforce.connection.sessionId = __sfdcSessionId;
+        sforce.connection.defaultNamespace = '{!namespace}';
+        var divId;
+        var disabledFields = {};
+        var __busySpinner = "/resource/1316120222000/busy";
+        
+        if (!window.console) console = {};
+        console.log = console.log || function(){};
+        console.warn = console.warn || function(){};
+        console.error = console.error || function(){};
+        console.info = console.info || function(){};
+        
+        jQuery(document).ready(function() {
+            jQuery("button[rel]").overlay({
+            
+                top: 0,
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                closeOnClick: false
+            });
+        });
+        
+        function clearDetail() {
+            jQuery('input[id*=line_itemtext__c]')[0].value = '';
+            jQuery('select[id*=line_itemselect__c]')[0].value = '';
+            setFieldText(jQuery('span[id*=line_qtyremaining__c]')[0], '');
+            jQuery('input[id*=line_qtyreceipt__c]')[0].value = '';
+            jQuery('input[id*=line_locaitonid__c]')[0].value = '';
+            jQuery('input[id*=line_locationnumber__c]')[0].value = '';
+            jQuery('input[id*=line_lotnumber__c]')[0].value = '';
+            jQuery('[id*=line_serialnos__c]')[0].value = '';
+        }
+        
+        function lineDetail(e) {
+            try {
+                divId = jQuery('input[id*=porcv_divtext__c]')[0].value;
+                if (!divId) {
+                    divId = jQuery('[id*=porcv_div__c]')[0].value;
+                }
+                
+                if (!divId || divId == '') {
+                    alert("{!$Label.rstk__specifydivision}");
+                    return false;
+                }
+                
+                console.log('div: ' + divId);
+                
+                if (jQuery('input[id*=porcv_poordno__c]')[0].value == '' || 
+                    jQuery('input[id*=porcv_packslipno__c]')[0].value == '') {
+                    alert("{!$Label.rstk__ponumandpackingslipnumarereqd}");
+                    return false;
+                }
+                
+                orderChanged();
+                clearDetail();
+                
+                jQuery(".modalbtnNewLine").click();
+                
+            } finally {
+                return false;
+            }
+        }
+        
+        function saveRecord() {
+            console.log('saveRecord...');
+            return true;
+        }
+        
+        function checkPageRequired() {
+            return true;
+        }
+        
+        function setRequired() {
+        }
+        
+        function enableAllFields() {
+        }
+        
+        function lineProcessed() {
+            clearDetail();
+        }
+        
+        function scanFocus(e, node) {
+            var keycode;
+            if (window.event) 
+                keycode = window.event.keyCode;
+            else if (e) 
+                keycode = e.which;
+            
+            if (keycode && keycode == 13) {
+                console.log('node: ' + node.id);
+                if (node.id.indexOf('porcv_divtext__c') != -1) {
+                    jQuery('input[id*=porcv_poordno__c]')[0].focus();
+                } else if (node.id.indexOf('porcv_poordno__c') != -1) {
+                    jQuery('input[id*=porcv_packslipno__c]')[0].focus();
+                } else if (node.id.indexOf('line_itemtext__c') != -1) {
+                    jQuery('input[id*=line_qtyreceipt__c]')[0].focus();
+                } else if (node.id.indexOf('line_qtyreceipt__c') != -1) {
+                    jQuery('input[id*=line_locaitonid__c]')[0].focus();
+                } else if (node.id.indexOf('line_locaitonid__c') != -1) {
+                    jQuery('input[id*=line_locationnumber__c]')[0].focus();
+                } else if (node.id.indexOf('line_locationnumber__c') != -1) {
+                    var lotNode = jQuery('input[id*=line_lotnumber__c]')[0];
+                    if (lotNode.parentNode.parentNode.style.display == '') {
+                        lotNode.focus();
+                    } else {
+                        var serialNode = jQuery('[id*=line_serialnos__c]')[0];
+                        if (serialNode.parentNode.parentNode.style.display == '') {
+                            serialNode.focus();
+                        }
+                    }
+                } else if (node.id.indexOf('line_lotnumber__c') != -1) {
+                    var serialNode = jQuery('[id*=line_serialnos__c]')[0];
+                    if (serialNode.parentNode.parentNode.style.display == '') {
+                        serialNode.focus();
+                    }
+                }
+                
+                return false;
+            }
+        }
+        
+        function processLine_complete() {
+            lineProcessed();
+            jQuery(document.getElementById('addNewLine')).unblock();
+        }
+        
+        function processLine_ok() {
+            console.log('newItem_ok');
+            if (jQuery('input[id*=line_itemtext__c]')[0].value == '' && jQuery('select[id*=line_itemselect__c]')[0].value == '') {
+                alert("{!$Label.rstk__noitemselected}");
+                return false;
+            } 
+            
+            if (jQuery('input[id*=line_qtyreceipt__c]')[0].value == '' || 
+                jQuery('input[id*=line_locaitonid__c]')[0].value == '' || 
+                jQuery('input[id*=line_locationnumber__c]')[0].value == '') {
+                alert("{!$Label.rstk__rcptqty_locidandlocnumreqd}");
+                return false;
+            }
+            
+            if (jQuery('input[id*=line_lotnumber__c]')[0].parentNode.parentNode.style.display == '' && 
+                jQuery('input[id*=line_lotnumber__c]')[0].value == '') {
+                alert("{!$Label.rstk__lotnumreqdforitem}");
+                return false;
+            }
+
+            if (jQuery('[id*=line_serialnos__c]')[0].parentNode.parentNode.style.display == '') {
+                var serials = jQuery('textarea[id*=line_serialnos__c]')[0];
+                if (serials.value == '') {
+                    alert("{!$Label.rstk__srlnumsreqdforitem}");
+                    return false;
+                } else {
+                    serials.value = serials.value.replace(/(\r\n|\n|\r)/gm, ' ');
+                }
+            }
+            
+            doSave();
+            //doPageSave();
+            //return false;
+            
+            //jQuery(".close").click();
+            jQuery(document.getElementById('addNewLine')).block({ 
+                    message: '<h1>Processing</h1>', 
+                    css: { opacity: .5, border: '3px solid #a00' } 
+            }); 
+        }
+        
+        function processLine_cancel() {
+        }
+
+        function orderChanged() {
+            console.log('orderChanged...');
+            var order = jQuery('input[id*=porcv_poordno__c]')[0].value;
+            var selectNode = jQuery('select[id*=line_itemselect__c]')[0];
+            populateHtmlSelectList(selectNode, 
+                "select Id, poline_item__r.poitem_itemno__c from poline__c " +
+                "where poline_ordno__r.pohdr_ordno__c = '" + order + "' and poline_ordno__r.pohdr_div__c ='" + divId + "' and " +
+                " (poline_ordno__r.pohdr_ordsts__c = '5-Vendor Notified' or " + 
+                "  poline_ordno__r.pohdr_ordsts__c = '7-Line Item Received') and " +
+                " (poline_ordsts__c in ('5-Vendor Notified','7-Line Item Received') or " +
+                "  (poline_overrcptind__c = true and poline_ordsts__c = '8-All Line Items Received')) and " +
+                " poline_potype__c != 'Service'", 
+                "poline_item__r.poitem_itemno__c", "poline_item__r.poitem_itemno__c");
+        }
+        
+        function roundNumber(num, length) {
+            return Math.round(num * Math.pow(10, length)) / Math.pow(10, length);
+        }
+        
+        function lineTextChanged() {
+            var item = jQuery('input[id*=line_itemtext__c]')[0].value;
+            itemChanged(item);
+        }
+        
+        function lineSelectChanged() {
+            var item = jQuery('select[id*=line_itemselect__c]')[0].value;
+            itemChanged(item);
+        }
+        
+        function itemChanged(item) {
+            if (item == '') return;
+            
+            var order = jQuery('input[id*=porcv_poordno__c]')[0].value;
+            var lineQuery = execQuery("Select Id, poline_lne__c, poline_item__c, " +
+                "poline_item__r.poitem_itemno__c, poline_item__r.poitem_item__c, " +
+                "poline_item__r.formula_qtydecimal__c, " +
+                "poline_item__r.poitem_item__r.icitem_rcptlocidind__c, " +
+                "poline_item__r.poitem_item__r.icitem_rcptlocid__c, " + 
+                "poline_item__r.poitem_item__r.icitem_rcptlocid__r.sylocid_locid__c, " +
+                "poline_item__r.poitem_item__r.icitem_rcptlocnum__c, " +
+                "poline_item__r.poitem_item__r.icitem_iccomcod__r.iccomcod_rcptlocid__c, " + 
+                "poline_item__r.poitem_item__r.icitem_iccomcod__r.iccomcod_rcptlocid__r.sylocid_locid__c, " + 
+                "poline_item__r.poitem_item__r.icitem_iccomcod__r.iccomcod_rcptlocnum__c, " +
+                "poline_item__r.poitem_item__r.icitem_shelflife__c, " +
+                "poline_item__r.poitem_item__r.formula_shelflife__c, " +
+                "poline_item__r.poitem_item__r.icitem_item__r.peitem_tracklot_pl__c, " +
+                "poline_item__r.poitem_item__r.icitem_item__r.peitem_tracksrl_pl__c, " +
+                "poline_invdiv__c, poline_invsite__c, poline_apclracct__c, " +
+                "poline_longdescr__c, poline_potype__c, poline_rcptlocid__c, " +
+                "poline_rcptlocid__r.sylocid_locid__c, " +
+                "poline_rcptlocnum__c, poline_schedrcptdte__c, poline_qtyoutstdg__c, " +
+                "poline_puruom__c, poline_puruom__r.syuom_uom__c " +
+            "From poline__c where poline_ordno__r.pohdr_ordno__c = '" + order + "' and poline_item__r.poitem_itemno__c = '" + item + "' and " +
+            " (poline_ordno__r.pohdr_ordsts__c = '5-Vendor Notified' or " + 
+                "  poline_ordno__r.pohdr_ordsts__c = '7-Line Item Received') and " +
+                " (poline_ordsts__c in ('5-Vendor Notified','7-Line Item Received') or " +
+                "  (poline_overrcptind__c = true and poline_ordsts__c = '8-All Line Items Received')) and " +
+                " poline_potype__c != 'Service'");
+        
+            if (lineQuery.length > 0) {
+                var qtyRcvd, sylocid__c, locId, locNum, isLot, lotserind, isSrl;
+                var qtyDecimal = lineQuery[0].poline_item__r.poitem_item__r.icitem_qtydecimalind__c ?
+                    lineQuery[0].poline_item__r.poitem_item__r.icitem_iccomcod__r.iccomcod_qtydecimal__c :
+                    lineQuery[0].poline_item__r.poitem_item__r.icitem_qtydecimal__c;
+                
+                qtyRcvd = qtyDecimal == null ? lineQuery[0].poline_qtyoutstdg__c : roundNumber(lineQuery[0].poline_qtyoutstdg__c, qtyDecimal);
+                
+                var isIndirectMtl = lineQuery[0].poline_potype__c == 'Indirect Material';
+                var isLocEnabled = lineQuery[0].poline_qtyoutstdg__c > 0 && !isIndirectMtl;
+                
+                if (!isIndirectMtl) {
+                    sylocid__c = lineQuery[0].poline_rcptlocid__c;
+                    locId = lineQuery[0].poline_rcptlocid__r ? lineQuery[0].poline_rcptlocid__r.sylocid_locid__c : '';
+                    locNum = lineQuery[0].poline_rcptlocnum__c ? lineQuery[0].poline_rcptlocnum__c : '';
+                    
+                    if (locId == '') {
+                        locId = lineQuery[0].poline_item__r.poitem_item__r.icitem_rcptlocidind__c == 'true' && 
+                                lineQuery[0].poline_item__r.poitem_item__r.icitem_iccomcod__r.iccomcod_rcptlocid__r ? 
+                                lineQuery[0].poline_item__r.poitem_item__r.icitem_iccomcod__r.iccomcod_rcptlocid__r.sylocid_locid__c : 
+                                lineQuery[0].poline_item__r.poitem_item__r.icitem_rcptlocid__r ?
+                                lineQuery[0].poline_item__r.poitem_item__r.icitem_rcptlocid__r.sylocid_locid__c : '';
+                        locNum = lineQuery[0].poline_item__r.poitem_item__r.icitem_rcptlocidind__c == 'true' &&
+                                lineQuery[0].poline_item__r.poitem_item__r.icitem_iccomcod__r ? 
+                                lineQuery[0].poline_item__r.poitem_item__r.icitem_iccomcod__r.iccomcod_rcptlocnum__c : 
+                                lineQuery[0].poline_item__r.poitem_item__r.icitem_rcptlocnum__c;
+                    }
+                }
+                
+                if (lineQuery[0].poline_item__r.poitem_item__r.icitem_item__r.peitem_tracklot_pl__c == 'Yes') {
+                    isLot = true;
+                    lotserind = 'L';
+                } else {
+                    isLot = false;
+                }
+                
+                if (lineQuery[0].poline_item__r.poitem_item__r.icitem_item__r.peitem_tracksrl_pl__c == 'Yes') {
+                    isSrl = true;
+                    lotserind = 'S';
+                } else {
+                    isSrl = false;
+                }
+                
+                jQuery('input[id*=line_lotnumber__c]')[0].parentNode.parentNode.style.display = isLot ? '' : 'none';
+                jQuery('[id*=line_serialnos__c]')[0].parentNode.parentNode.style.display = isSrl ? '' : 'none';
+                
+                setFieldText(jQuery('span[id*=line_qtyremaining__c]')[0], lineQuery[0].poline_qtyoutstdg__c);
+                jQuery('input[id*=line_qtyreceipt__c]')[0].value = qtyRcvd;
+                jQuery('input[id*=line_locaitonid__c]')[0].value = locId;
+                jQuery('input[id*=line_locationnumber__c]')[0].value = locNum;
+                jQuery('input[id*=line_poline__c]')[0].value = lineQuery[0].Id;
+            }
+        }
+    </script>
+    <style>
+    
+        .modal {
+                background-color:#fff;
+                display:none;
+                width:400px;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+        .bPageBlock .labelCol { font-size:11pt; }
+        .h1 { text-align: center }
+    </style>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doSave" action="{!save}" oncomplete="processLine_complete();" immediate="true"/>
+        <apex:inputHidden id="line_poline__c" />
+        
+        <button style="visibility:hidden" class="modalbtnNewLine" rel="#addNewLine"></button>
+        <div class="modal" id="addNewLine">
+            <h1>Receipt PO Line</h1>
+            <apex:pageBlock id="ovr_detail" mode="edit">
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__scanitem}"/>
+                        <apex:inputText id="line_itemtext__c" onchange="lineTextChanged();" onKeydown="return scanFocus(event, this);"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__item}"/>
+                        <apex:selectList id="line_itemselect__c" value="{!itemno}" onchange="lineSelectChanged();" size="1" style="width:240px" >
+                            <apex:selectOptions value="{!items}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__remainingqty}"/>
+                        <apex:outputText id="line_qtyremaining__c" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__receiptqty}"/>
+                        <apex:inputText id="line_qtyreceipt__c" onKeydown="return scanFocus(event, this);"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__locationid}"/>
+                        <apex:inputText id="line_locaitonid__c" onKeydown="return scanFocus(event, this);"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__locationnumber}"/>
+                        <apex:inputText id="line_locationnumber__c" onKeydown="return scanFocus(event, this);"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__lotno}"/>
+                        <apex:inputText id="line_lotnumber__c" onKeydown="return scanFocus(event, this);"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__serialnumbers1}"/>
+                        <apex:inputTextArea id="line_serialnos__c" cols="29" rows="8"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+
+            <button type="button" onclick="processLine_ok()"> {!$Label.Process_Receipt}  </button>
+            <button type="button" class="close" onclick="processLine_cancel()"> {!$Label.so_pagebtn_Cancel} </button>
+        </div>
+        
+        <apex:pageBlock >
+            <apex:pageBlockButtons >
+                <apex:commandbutton value="{!$Label.rstk__mobileporeceiptsimple_pagebtn_processreceiptline}" onclick="return lineDetail(event);"/>
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection columns="1">
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__scandivision}"/>
+                    <apex:inputText id="porcv_divtext__c" onKeydown="return scanFocus(event, this);" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__division1}"/>
+                    <apex:selectList id="porcv_div__c" value="{!o.rstk__porcv_div__c}" onchange="" size="1" style="width:240px" >
+                        <apex:selectOptions value="{!divisions}"/>
+                    </apex:selectlist>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_poordno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__porcv_poordno__c.label}"/>
+                    <apex:inputField id="porcv_poordno__c" value="{!o.rstk__porcv_poordno__c}" onKeydown="return scanFocus(event, this);" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__porcv_packslipno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__porcv_packslipno__c.label}"/>
+                    <apex:inputField id="porcv_packslipno__c" value="{!o.rstk__porcv_packslipno__c}" onKeydown="return scanFocus(event, this);"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+</apex:page>

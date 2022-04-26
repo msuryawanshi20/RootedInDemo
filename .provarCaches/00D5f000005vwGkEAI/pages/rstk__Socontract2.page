@@ -1,0 +1,309 @@
+<apex:page id="pg" standardController="rstk__socontract__c" extensions="rstk.ControllerExtnSocontract2,rstk.RemoteQueryController" 
+	action="{!doBeforePageLoad}" sideBar="false" showHeader="true">
+	<apex:variable var="o" value="{!rstk__socontract__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__socontract__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__salescontractmaintenance}" enableAutocomplete="true" customInclude="{!$Resource.rstk__socontract2_cli}"/>
+	
+    <script>
+		var isNew = {!isNew};
+		var isEdit = {!isEdit};
+		var isView = {!isView};
+		var divId = '{!o.rstk__socontract_div__c}';
+		var msarequired = '{!socntl.socntl_msarequired__c}';
+	</script>
+		
+    <apex:form id="fm" rendered="{!displayPageContent}" >
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+       		 <apex:outputPanel id="op_hidden" style="display:none">
+		           <apex:inputHidden id="socontract_socustmsa__c" value="{!o.rstk__socontract_socustmsa__c}" rendered="{!disableCust}"/>
+		           <apex:inputHidden id="socontract_soctt__c" value="{!o.rstk__socontract_soctt__c}" rendered="{!disableCust}"/>
+		           <apex:inputHidden id="socontract_sohdrcust__c" value="{!o.rstk__socontract_sohdrcust__c}" rendered="{!disableCust}"/>
+		           <apex:inputHidden id="socontract_servicecust__c" value="{!o.rstk__socontract_servicecust__c}" rendered="{!disableCust}"/>   
+		           <apex:inputHidden id="socontract_installcust__c" value="{!o.rstk__socontract_installcust__c}" rendered="{!disableCust}"/>
+		           <apex:inputHidden id="socontract_pricecust__c" value="{!o.rstk__socontract_pricecust__c}" rendered="{!disableCust}"/>
+	        </apex:outputPanel>	
+        	<apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableDelete="true" />
+	        </apex:pageBlockButtons>
+            <!-- tabIndex="30" -->
+	        
+	        <apex:pageBlockSection title="{!$Label.rstk__contractmasterdetail}" id="pbs_cmd" columns="2" rendered="{!OR(isNew,isEdit)}" collapsible="false">
+	        	<apex:outputField value="{!o.name}" rendered="{!isEdit}"/>
+	        	<apex:pageBlockSectionItem rendered="{!isNew}"/>
+	        	<apex:pageBlockSectionItem />
+	        	
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_contractid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_contractid__c.label}"/>
+                    <apex:outputPanel >
+                    <apex:outputField value="{!o.rstk__socontract_contractid__c}" rendered="{!isEdit}"/>
+                     <apex:inputField id="socontract_contractid__c" value="{!o.rstk__socontract_contractid__c}" rendered="{!isNew}"/>
+                     <apex:outputPanel rendered="{!AND(isNew, socntl.rstk__socntl_autocontract__c)}">
+                      <apex:inputCheckbox id="autoContractNumber" value="{!autoContractNumber}" 
+                      		onchange="autoContractNumberChanged(); return false;"/>
+                      {!$Label.rstk__autoassignonsave}
+                  </apex:outputPanel>
+                 </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem />
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_desc__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_desc__c.label}" />
+	                <apex:outputPanel >
+	                    <apex:inputField id="socontract_desc__c" value="{!o.rstk__socontract_desc__c}" taborderhint="2"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            <apex:outputField value="{!o.rstk__socontract_div__c}"/>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_socust__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_socust__c.label}" />
+	                <apex:outputPanel >
+	                	<c:autocomplete id="socontract_socust__c" cntr="{!controller}" slDesc="{!custDesc}" required="true" query="select id, name from socust__c where socust_inactive__c = false" queryParms="[]"  rendered="{!isNew}" tabIndex="21"/>
+	                    <apex:outputField value="{!o.rstk__socontract_socust__c}" rendered="{!isEdit}"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_type__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_type__c.label}" />
+	                <apex:outputPanel >
+	                    <apex:inputField id="socontract_type__c" value="{!o.rstk__socontract_type__c}" taborderhint="3"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_socustmsa__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_socustmsa__c.label}" />
+	                <apex:outputPanel >
+	                    <apex:selectList id="socontract_socustmsa__c" value="{!o.rstk__socontract_socustmsa__c}" size="1" style="width:250px;" rendered="{!!disableCust}"  tabIndex="22">
+                            <apex:selectOptions value="{!msa}" /> 
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__socontract_socustmsa__c}"  rendered="{!disableCust}"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rev__c.inlineHelpText}" rendered="{!isEdit}">
+	                <apex:outputLabel value="{!f.rstk__socontract_rev__c.label}" />
+	                <apex:outputField value="{!o.rstk__socontract_rev__c}" />
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem rendered="{!isNew}"/>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_soctt__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_soctt__c.label}" />
+	                <apex:outputPanel >
+	                    <apex:selectList id="socontract_soctt__c" value="{!o.rstk__socontract_soctt__c}" size="1" style="width:250px;" rendered="{!!disableCust}" tabIndex="23">
+                            <apex:selectOptions value="{!contractTemplate}" /> 
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__socontract_soctt__c}"  rendered="{!disableCust}"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_cttrev__c.inlineHelpText}" rendered="{!isEdit}">
+	                <apex:outputLabel value="{!f.rstk__socontract_cttrev__c.label}" />
+	                <apex:outputField value="{!o.rstk__socontract_cttrev__c}" />
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem rendered="{!isNew}"/>
+	            
+	            <apex:pageBlockSectionItem />
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_ctrev__c.inlineHelpText}" rendered="{!isEdit}">
+	                <apex:outputLabel value="{!f.rstk__socontract_ctrev__c.label}" />
+	                <apex:outputField value="{!o.rstk__socontract_ctrev__c}" />
+	            </apex:pageBlockSectionItem>
+	        </apex:pageBlockSection>
+	        
+	        
+	        <apex:pageBlockSection title=" {!$Label.rstk__statuses}" id="pbs_statuses" columns="2" rendered="{!isEdit}" collapsible="false">
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_constatus__c.inlineHelpText}" rendered="{!isEdit}">
+	                <apex:outputLabel value="{!f.rstk__socontract_constatus__c.label}" />
+	                <apex:inputField id="socontract_constatus__c" value="{!o.rstk__socontract_constatus__c}" taborderhint="4"/>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_approvalsts__c.inlineHelpText}" rendered="{!isEdit}">
+	                <apex:outputLabel value="{!f.rstk__socontract_approvalsts__c.label}" />
+	                <apex:inputField id="socontract_approvalsts__c" value="{!o.rstk__socontract_approvalsts__c}" taborderhint="5"/>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem />
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_custacceptsts__c.inlineHelpText}" rendered="{!isEdit}">
+	                <apex:outputLabel value="{!f.rstk__socontract_custacceptsts__c.label}" />
+	                <apex:inputField id="socontract_custacceptsts__c" value="{!o.rstk__socontract_custacceptsts__c}" taborderhint="6" />
+	            </apex:pageBlockSectionItem>
+	        </apex:pageBlockSection>
+	        
+	        
+	        <apex:pageBlockSection title="{!$Label.rstk__billingdetails}" id="pbs_billDtl" columns="2" rendered="{!OR(isNew,isEdit)}" collapsible="false">
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rcbadvance__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_rcbadvance__c.label}" />
+	                <apex:inputField id="socontract_rcbadvance__c"  value="{!o.rstk__socontract_rcbadvance__c}" taborderhint="7"/>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rcbstart__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_rcbstart__c.label}" />
+	                <apex:inputField id="socontract_rcbstart__c"  value="{!o.rstk__socontract_rcbstart__c}" taborderhint="11"/>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_term__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_term__c.label}" />
+	                <apex:inputField id="socontract_term__c"  required="true" value="{!o.rstk__socontract_term__c}" taborderhint="8"/>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rcbfirstfull__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_rcbfirstfull__c.label}" />
+	                <apex:inputField id="socontract_rcbfirstfull__c"  value="{!o.rstk__socontract_rcbfirstfull__c}" taborderhint="12"/>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_actgracedays__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_actgracedays__c.label}" />
+	                <apex:inputField id="socontract_actgracedays__c"  value="{!o.rstk__socontract_actgracedays__c}" taborderhint="9"/>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rcblastthru__c.inlineHelpText}" rendered="{!isEdit}">
+	                <apex:outputLabel value="{!f.rstk__socontract_rcblastthru__c.label}" />
+	                <apex:outputField id="socontract_rcblastthru__c"  value="{!o.rstk__socontract_rcblastthru__c}" />
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem rendered="{!isNew}"/>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rcbtaxbillto__c.inlineHelpText}" rendered="{!socntl.rstk__socntl_avatax__c}">
+	                <apex:outputLabel value="{!f.rstk__socontract_rcbtaxbillto__c.label}" />
+	                <apex:inputField id="socontract_rcbtaxbillto__c"  value="{!o.rstk__socontract_rcbtaxbillto__c}" taborderhint="10"/>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem rendered="{!!socntl.rstk__socntl_avatax__c}"/>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rcbfreq__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_rcbfreq__c.label}" />
+	                <apex:inputField id="socontract_rcbfreq__c"  value="{!o.rstk__socontract_rcbfreq__c}" taborderhint="13"/>
+	            </apex:pageBlockSectionItem>
+	            
+	        </apex:pageBlockSection>
+	        
+	        
+	        <apex:pageBlockSection title="{!$Label.rstk__pbs_salesordercontrol}" id="pbs_soc" columns="2" rendered="{!OR(isNew,isEdit)}" collapsible="false">
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_conprodonly__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_conprodonly__c.label}" />
+	                <apex:inputField id="socontract_conprodonly__c"  value="{!o.rstk__socontract_conprodonly__c}" taborderhint="14"/>
+	            </apex:pageBlockSectionItem>
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_conpriceonly__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_conpriceonly__c.label}" />
+	                <apex:inputField id="socontract_conpriceonly__c"  value="{!o.rstk__socontract_conpriceonly__c}" taborderhint="15"/>
+              </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rcbproject__c.inlineHelpText}" rendered="{!isEdit}">
+              <apex:outputLabel value="{!f.rstk__socontract_rcbproject__c.label}" />
+              <c:autocomplete id="socontract_rcbproject__c" cntr="{!controller}" query="{!projectQuery}" slDesc="{!rcbproject}" tabIndex="141" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_ppproject__c.inlineHelpText}" rendered="{!isEdit}">
+              <apex:outputLabel value="{!f.rstk__socontract_ppproject__c.label}" />
+              <c:autocomplete id="socontract_ppproject__c" cntr="{!controller}" query="{!projectQuery}" slDesc="{!ppproject}" tabIndex="151" />
+            </apex:pageBlockSectionItem>
+          </apex:pageBlockSection>
+
+	        <apex:pageBlockSection title="{!$Label.rstk__pbs_salescust}" id="pbs_sc" columns="2" rendered="{!OR(isNew,isEdit)}" collapsible="false">
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_sohdrcust__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_sohdrcust__c.label}" />
+	                <apex:outputPanel >
+	                    <c:largeSelectList id="socontract_sohdrcust__c" cntr="{!controller}" options="{!customerDetails}"  required="true" rendered="{!!disableCust}" tabIndex="161"/>
+                        <apex:outputField value="{!o.rstk__socontract_sohdrcust__c}"  rendered="{!disableCust}"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	        	<apex:pageBlockSectionItem />
+	        	
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_btaddr__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_btaddr__c.label}" />
+	                <apex:outputPanel >
+	                    <c:LocalSelect id="socontract_btaddr__c" value="{!o.rstk__socontract_btaddr__c}" loadingText="{!selectNone}" tabIndex="162"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_staddr__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_staddr__c.label}" />
+	                <apex:outputPanel >
+	                    <c:LocalSelect id="socontract_staddr__c" value="{!o.rstk__socontract_staddr__c}" loadingText="{!selectNone}" tabIndex="163"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	        </apex:pageBlockSection>
+	        
+	        
+	        <apex:pageBlockSection title="{!$Label.rstk__pbs_recurrchrgcust}" id="pbs_rcc" columns="2" rendered="{!OR(isNew,isEdit)}" collapsible="false">
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_servicecust__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_servicecust__c.label}" />
+	                <apex:outputPanel >
+	                    <c:largeSelectList id="socontract_servicecust__c" cntr="{!controller}" options="{!customerDetails}"  required="true" rendered="{!!disableCust}" tabIndex="164"/>
+                        <apex:outputField value="{!o.rstk__socontract_servicecust__c}"  rendered="{!disableCust}"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_scustbtaddr__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_scustbtaddr__c.label}" />
+	                <apex:outputPanel >
+	                    <c:LocalSelect id="socontract_scustbtaddr__c" value="{!o.rstk__socontract_scustbtaddr__c}" loadingText="{!selectNone}" tabIndex="165"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem rendered="{!isEdit}"/>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_taxloc__c.inlineHelpText}" rendered="{!isEdit}">
+					<apex:outputLabel value="{!f.rstk__socontract_taxloc__c.label}"/>
+					<apex:outputPanel >
+						<c:largeSelectList id="taxloc__c" editable="true" cntr="{!controller}" objKey="socontract__c" ref="socontract_taxloc__c" value="{!taxlocId}" options="{!Sotaxes}" width="150px" onchange="editTaxLocChanged();" tabIndex="166"/>
+      					<apex:inputText id="totalrate__c" value="{!taxRate}" style="width:50px;" disabled="true" />%
+    				</apex:outputPanel>
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem rendered="{!isEdit}"/>
+				<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rcbtaxbillto__c.inlineHelpText}" rendered="{!isEdit}">
+	                <apex:outputLabel value="{!f.rstk__socontract_rcbtaxbillto__c.label}" />
+	                <apex:inputField id="socontract_rcbtaxbillto__c"  value="{!o.rstk__socontract_rcbtaxbillto__c}" taborderhint="17"/>
+	            </apex:pageBlockSectionItem>
+          	</apex:pageBlockSection>    
+	        
+	        <apex:pageBlockSection title="{!$Label.rstk__pbs_installcust}" id="pbs_ic" columns="2" rendered="{!OR(isNew,isEdit)}" collapsible="false">
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_installcust__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_installcust__c.label}" />
+	                <apex:outputPanel >
+	                    <c:largeSelectList id="socontract_installcust__c" cntr="{!controller}" options="{!customerDetails}"  required="true" rendered="{!!disableCust}" tabIndex="171"/>
+                        <apex:outputField value="{!o.rstk__socontract_installcust__c}"  rendered="{!disableCust}"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_icustinstaddr__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_icustinstaddr__c.label}" />
+	                <apex:outputPanel >
+	                    <c:LocalSelect id="socontract_icustinstaddr__c" value="{!o.rstk__socontract_icustinstaddr__c}" loadingText="{!selectNone}" tabIndex="172"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	        </apex:pageBlockSection>
+	        
+
+	        <apex:pageBlockSection title="{!$Label.rstk__pbs_pricingcust}" id="pbs_pc" columns="2" rendered="{!OR(isNew,isEdit)}" collapsible="false">
+	        	<apex:pageBlockSectionItem helpText="{!f.rstk__socontract_pricecust__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__socontract_pricecust__c.label}" />
+	                <apex:outputPanel >
+	                    <c:largeSelectList id="socontract_pricecust__c" cntr="{!controller}" options="{!customerDetails}"  required="true" rendered="{!!disableCust}" tabIndex="173"/>
+                        <apex:outputField value="{!o.rstk__socontract_pricecust__c}"  rendered="{!disableCust}"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	        </apex:pageBlockSection>
+	        	        
+	        <apex:tabPanel switchType="client" id="theTabPanel">
+	        	<apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+					<c:customFields cntr="{!controller}" cols="2"/>
+				</apex:tab>
+	        </apex:tabPanel>
+	        
+ 		</apex:pageBlock>
+ 		<script>
+            setSelectListRequired("socontract_sohdrcust__c");
+            setSelectListRequired("socontract_btaddr__c");
+            setSelectListRequired("socontract_scustbtaddr__c");
+            setSelectListRequired("socontract_servicecust__c");
+            setSelectListRequired("socontract_staddr__c");
+            setSelectListRequired("socontract_installcust__c");
+            setSelectListRequired("socontract_icustinstaddr__c");
+            setSelectListRequired("socontract_pricecust__c");
+            
+            if(msarequired == 'true') { 
+            	setSelectListRequired("socontract_socustmsa__c");
+            }
+        </script> 
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+    	var LABEL_FleldCantBeBlank = "{!$Label.FleldCantBeBlank}";
+    	var LABEL_ContractIdalreadyexist = "{!$Label.ContractIdalreadyexist}";
+    	var LABEL_FFRBStartDateGTRBStartDate = "{!$Label.FFRBStartDateGTRBStartDate}";
+	</script>    
+</apex:page>

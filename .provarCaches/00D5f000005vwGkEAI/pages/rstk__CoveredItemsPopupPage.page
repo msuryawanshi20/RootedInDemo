@@ -1,0 +1,68 @@
+<apex:page standardController="rstk__socontent__c" extensions="rstk.ControllerExtnCoveredItemsGrid,rstk.RemoteQueryController" sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__socontent__c}" />
+	<c:standardHeader cntr="{!controller}"  showHeader="false" enableAutocomplete="true"/>
+	
+ 	<apex:includeScript value="{!$Resource.rstk__sublist}"/>
+  	<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+	
+	<apex:form id="fm">
+	<apex:pageBlock id="pb" mode="detail">
+		<c:PageableGrid pageSize="20" jsController="coveredItems" data="{!coveredItemGrid}" editable="true" ispopup="false"/>
+	    <script>
+	    	function getSoWarr(sowarrId) {
+          		if (!isEmpty(sowarrId)) {
+	            	var sowarrs = execQuery("select Id, Name, sowarr_soline__c, sowarr_residualamt__c from sowarr__c where id = " + quote(sowarrId));
+	            	if (sowarrs.length > 0) {
+	             		return sowarrs[0];
+	            	}
+          		}
+         		return null;
+        	}
+	    
+	        coveredItems.resetRow = function(row) {
+	            console.log('coveredItems.resetRow...');
+	            coveredItemsHandler.prototype.resetRow.call(this, row);
+	        }
+	        
+	        coveredItems.entryChanged = function(row, rowNum, name, value) {
+	            console.log('coveredItems.entryChanged...');
+				if (name == 'soentwarr_sowarr__c' && value) {
+					var sowarr = getSoWarr(value);
+					if (sowarr != null && sowarr.sowarr_soline__c) {
+						this.setRowValue(row, 'soentwarr_soline__c', sowarr.sowarr_soline__c);
+					}
+				}    
+	        }
+	    	
+	    	coveredItems.onGridLoad = function() {
+	         self=this;
+	         var link='<a href="/{!coveredItemSoProdId}">'+escapeHtml({!coveredItemSoProdNameJSON})+'</a>';
+	         this.getRows().each(function() {
+	             var row = jQuery(this);
+	             self.getRowObj(row, "socontent_soprod__g").after(link);
+	         });
+	     }
+	    </script>
+	</apex:pageBlock>
+	
+	<div id="pleaseWaitPopup" style="display:none">
+		 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+		 <apex:outputPanel styleClass="topPopup">
+		 	<apex:image url="{!$Resource.rstk__busy}"/>
+		 </apex:outputPanel>
+	</div>
+	</apex:form>
+	
+	<script>
+		jQuery(window).bind("load", function() {
+			coveredItems.reset();
+		});
+	</script>
+	
+	<c:footerInclude cntr="{!controller}" />
+	
+</apex:page>

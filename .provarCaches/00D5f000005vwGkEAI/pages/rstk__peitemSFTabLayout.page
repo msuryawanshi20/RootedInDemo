@@ -1,0 +1,437 @@
+<apex:page id="pg" standardController="rstk__peitem__c" extensions="rstk.ControllerExtnPeitemSFTabLayout" sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+    
+    <apex:variable var="f_icitem" value="{!$ObjectType.rstk__icitem__c.fields}" />
+    <apex:variable var="f_poitem" value="{!$ObjectType.rstk__poitem__c.fields}" />
+    <apex:variable var="f_icitemcst" value="{!$ObjectType.rstk__icitemcst__c.fields}" />
+    <apex:variable var="f_sydiv" value="{!$ObjectType.rstk__sydiv__c.fields}" />
+    <apex:variable var="f_soprod" value="{!$ObjectType.rstk__soprod__c.fields}" />
+    <apex:variable var="f_socomm" value="{!$ObjectType.rstk__socomm__c.fields}" />
+    <apex:variable var="f_syorg" value="{!$ObjectType.rstk__syorg__c.fields}" />
+    <apex:variable var="f_peitemrev" value="{!$ObjectType.rstk__peitemrev__c.fields}" />
+    <apex:variable var="f_peitemmfr" value="{!$ObjectType.rstk__peitemmfr__c.fields}" />
+    
+    <apex:variable var="o" value="{!rstk__peitem__c}" />
+    <apex:variable var="o_poitem" value="{!divPoitem}" />
+    <apex:variable var="o_poicitem" value="{!puricitem}" />
+    <apex:variable var="o_icitem" value="{!divIcitem}" />
+    <apex:variable var="o_icitemcst" value="{!divIcitemcst}" />
+    <apex:variable var="o_invQuantities" value="{!invQuantities}" />
+    
+    <c:common_client_labels />
+    <c:jquery_client_labels />
+    <apex:includeScript value="{!$Resource.rstk__connection}" />
+    <apex:includeScript value="{!$Resource.rstk__dateFormat}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery144min}"/>
+    <apex:includeScript value="{!$Resource.rstk__peitemDefaultView_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__comcod_backed_fields_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__sfff}" />
+    <apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <apex:includeScript value="{!$Resource.rstk__common_client_lib}" />
+    <apex:includeScript value="{!$Resource.rstk__common_client_lib2}" />
+    <apex:includeScript value="{!URLFOR($Resource.rstk__jstree, 'jquery.jstree.js')}"/>
+    <apex:includeScript value="{!$Resource.rstk__treesupport}"/>
+    
+    <apex:form id="fm">
+        <!-- <apex:actionFunction name="populateInvQuantities" action="{!populateInvQuantities}" immediate="true"/> -->
+        <apex:pageBlock id="pb" mode="maindetail">
+            
+            <apex:actionFunction name="getNextPageFromController" action="{!getNextPage}" rerender="pbs_InvIcitemQty" immediate="false">
+                <apex:param name="pageStatus" assignTo="{!pageStatus}" value=""/>
+                <apex:param name="invqtyPage" assignTo="{!invqtyPage}" value=""/>
+                <apex:param name="invqtyTotPage" assignTo="{!invqtyTotPage}" value=""/>
+            </apex:actionFunction>
+            
+            
+            <!-- Section for displaying Inventory Parameters Tab Details -->
+            <apex:pageBlockSection id="inventoryParameterSection" showHeader="false" title="{!$Label.rstk__pagetab_peitem_inventoryparameters}" columns="2" rendered="{!showInvParameterDetails}">
+                
+                <apex:pageBlockSectionItem id="pbsi_invParamBtn">
+                    <apex:outputPanel id="invParamBtn">
+                        <apex:commandbutton value="{!$Label.rstk__pagebtn_edit}" onclick="return InvIcitemEdit();" style="width:120px;" />
+                        <apex:commandbutton value="{!$Label.rstk__pgbtnsummaryreview}" onclick="return InvSummaryRev();" style="width:120px;" />
+                        <apex:commandbutton value="{!$Label.rstk__pgbtndetailedreview}" onclick="return InvDetailedRev();" style="width:120px;" />
+                        <apex:inputhidden id="icitem_id" value="{!o_icitem.id}" />
+                        <apex:inputhidden id="localinvinvdiv_id" value="{!localpurinvdiv}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem ></apex:pageBlockSectionItem>
+                                            
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_div__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_div__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__inventoryitem}" />
+                     <c:hoverDetail recId="{!o_icitem.id}" recName="{!o_icitem.Name}"/>
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitemcst.rstk__icitemcst_qtyoh__c.label}" />
+                     <apex:outputField value="{!o_icitemcst.rstk__icitemcst_qtyoh__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_backflushpol__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_backflushpol__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitemcst.rstk__icitemcst_qtyohnn__c.label}" />
+                     <apex:outputField value="{!o_icitemcst.rstk__icitemcst_qtyohnn__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_homeprojind__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_homeprojind__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitemcst.rstk__icitemcst_qtycons__c.label}" />
+                     <apex:outputField value="{!o_icitemcst.rstk__icitemcst_qtycons__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltfrmwo__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_ltfrmwo__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_iccomcod__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_iccomcod__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltmfgworel__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_ltmfgworel__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_src_pl__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_src_pl__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltmfgwopick__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_ltmfgwopick__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_sspolqty__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_sspolqty__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltmfgwoshopflr__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_ltmfgwoshopflr__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_mrpminqty__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_mrpminqty__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltrcvinsp__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_ltrcvinsp__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_mrpmaxqty__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_mrpmaxqty__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltfrmreq__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_ltfrmreq__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_orgid__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_orgid__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_ltvendship__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_ltvendship__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_dimval__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_dimval__c}" />
+                 </apex:pageBlockSectionItem>
+                 
+                 <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_invuom__c.label}" />
+                     <apex:outputField value="{!o_icitem.rstk__icitem_invuom__c}" />
+                 </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <!-- Section displays when no records found for Inventory Parameter Tab Details-->
+            <apex:pageBlockSection id="invParamNoRec" showHeader="false" columns="1" rendered="{!popupId =='1' && !showInvParameterDetails}">
+                <apex:outputPanel layout="block" id="norectodispforpurtab" style="font-weight:bold;color:red;text-align:center; background-color:yellow; width:100%;">  No Records to display </apex:outputPanel>
+            </apex:pageBlockSection>
+            
+            
+            <!-- Section for displaying Inventory Quantities Tab Details -->
+            <apex:pageBlockSection id="pbs_InvIcitemQty" showHeader="false" columns="1" rendered="{!showInvQuantitiesDetails}">
+                <apex:outputPanel >
+                    <apex:outputLabel value="{!$Label.rstk__totalrecords}" /> 
+                    <apex:outputText id="invqtyRecs" value="{!invqtyRecs}" />
+                </apex:outputPanel>
+                <apex:outputPanel >
+                    <apex:outputLink value="javascript:{}" onclick="getNextPage('first','{!o_invQuantities.initialPage}','{!o_invQuantities.totalPages}');">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" onclick="getNextPage('prev','{!o_invQuantities.initialPage}','{!o_invQuantities.totalPages}');">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <apex:inputText id="requestedPageNo" onchange="getNextPage('','{!o_invQuantities.initialPage}','{!o_invQuantities.totalPages}');" value="{!o_invQuantities.initialPage}" maxlength="4" style="width:40px;"/> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__of}" />
+                    &nbsp;
+                    <apex:outputText id="totPage" value="{!o_invQuantities.totalPages}"/>
+                    <apex:inputHidden id="totalPages" value="{!o_invQuantities.totalPages}"/> 
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" onclick="getNextPage('next','{!o_invQuantities.initialPage}','{!o_invQuantities.totalPages}');">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" onclick="getNextPage('last','{!o_invQuantities.initialPage}','{!o_invQuantities.totalPages}');">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink>
+                    <br />
+                    <apex:pageBlockTable id="inv_Quantities" value="{!o_invQuantities.recList}" var="recRow">
+                        <apex:column headerValue="{!$Label.site}" ><apex:outputLink value="/apex/sysite?actionType=view&id={!recRow.rstk__iclocitem_site__c}" target="_blank"><apex:outputLabel value="{!recRow.iclocitem_site__r.Name}" /></apex:outputLink></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__locid}" ><apex:outputLink value="/apex/sylocid??actionType=view&id={!recRow.rstk__iclocitem_locid__c}" target="_blank"><apex:outputLabel value="{!recRow.iclocitem_locid__r.Name}" /></apex:outputLink></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__label_loc_number}" ><apex:outputLabel value="{!recRow.rstk__iclocitem_locnum__c}" /></apex:column>
+                        <apex:column headerValue="{!o_invQuantities.trackLotSerialHeader}" rendered="{!o_invQuantities.displayTrackLotSerialTitle}"><apex:outputLabel value="{!recRow.rstk__iclocitem_locsec__c}" /></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__label_loc_type}" ><apex:outputLabel value="{!recRow.rstk__iclocitem_loctype_pl__c}" /></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__locqty}" >
+                            <apex:outputtext value="{0, number, ###,###.00}">
+                                <apex:param value="{!recRow.rstk__iclocitem_locqty__c}" />
+                            </apex:outputtext>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                    
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            
+            <!-- Section displays when no records found for Inventory Quantities Tab Details-->
+            <apex:pageBlockSection id="invQuantitiesNoRec" showHeader="false" columns="1" rendered="{!popupId =='2' && !showInvQuantitiesDetails}">
+                <apex:outputPanel layout="block" id="norectodispforpurtab" style="font-weight:bold;color:red;text-align:center; background-color:yellow; width:100%;">  No Records to display </apex:outputPanel>
+            </apex:pageBlockSection>
+                    
+                    
+            <!-- Section for displaying Purchasing Tab Details -->
+            <apex:pageBlockSection id="purchasingSection" showHeader="false" columns="1" title="{!$Label.rstk__pagetab_peitem_purchasing}" rendered="{!showPurchasingDetails}">
+                
+                <apex:pageBlockSectionItem id="pbsi_purSec">
+                    <apex:commandbutton value="{!$Label.rstk__pagebtn_edit}" onclick="return PurPoitemEdit();" style="width:75px;" />
+                    <apex:inputhidden id="poitem_id" value="{!o_poitem.id}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem ></apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$ObjectType.rstk__poitem__c.label}" />
+                    <apex:outputLink value="{!URLFOR($Action.rstk__poitem__c.View, o_poitem.id)}">{!o_poitem.Name}</apex:outputLink>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_comcod__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_comcod__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_icitem.rstk__icitem_invuom__c.label}" />
+                    <apex:outputField value="{!o_poicitem.rstk__icitem_invuom__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_puruom__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_puruom__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_umcf__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_umcf__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_ltreqcnvrtpo__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_ltreqcnvrtpo__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_ltvend__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_ltvend__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_respbuyer__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_respbuyer__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_overrcptind__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_overrcptind__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_orgid__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_orgid__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_poitem.rstk__poitem_dimval__c.label}" />
+                    <apex:outputField value="{!o_poitem.rstk__poitem_dimval__c}" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <!-- Section displays when no records found for Purchasing Tab Details-->
+            <apex:pageBlockSection id="purchasingSectionNoRec" showHeader="false" columns="1" rendered="{!popupId =='3' && !showPurchasingDetails}">
+                <apex:outputPanel layout="block" id="norectodispforpurtab" style="font-weight:bold;color:red;text-align:center; background-color:yellow; width:100%;">  No Records to display </apex:outputPanel>
+            </apex:pageBlockSection>
+            
+            
+            <!-- Section for displaying Sales Tab Details -->
+            <apex:pageBlockSection id="salesTab" showHeader="false" title="" columns="1" rendered="{!showSalesDetails}"> 
+                <apex:pageBlockTable value="{!salesprods}" var="s">
+                    <apex:column headerValue="{!f_sydiv.rstk__sydiv_descr__c.label}" ><apex:outputLink value="/apex/sydiv?actionType=View&id={!s.salesdivid}" target="_blank"><apex:outputLabel value="{!s.salesdiv}" rendered="{!s.shipdiv != null}"/></apex:outputLink></apex:column>
+                    <apex:column headerValue="{!$Label.rstk__inventorydiv}" ><apex:outputLink value="/apex/sydiv?actionType=View&id={!s.shipdivid}" target="_blank"><apex:outputLabel value="{!s.shipdiv}" rendered="{!s.shipdiv != null}"/></apex:outputLink></apex:column>
+                    <apex:column headerValue="{!f_soprod.rstk__soprod_prod__c.label}"><apex:outputLink value="/apex/soprod?actionType=edit&id={!s.soprodid}" target="_blank"><apex:outputLabel value="{!s.prodnum}" /></apex:outputLink></apex:column>
+                    <apex:column headerValue="{!f_socomm.rstk__socomm_comcod__c.label}"><apex:outputLink onclick="openProductGroup('{!s.socommid}');return false;"><apex:outputLabel value="{!s.prodgroup}" rendered="{!s.socommid != null}"/></apex:outputLink></apex:column>  
+                    <apex:column headerValue="{!f_icitem.rstk__icitem_invuom__c.label}"><apex:outputLink value="/apex/syuom?actionType=View&id={!s.invuomid}" target="_blank"><apex:outputLabel value="{!s.invuom}" rendered="{!s.invuomid != null}"/></apex:outputLink></apex:column>  
+                    <apex:column headerValue="{!f_soprod.rstk__soprod_slsuom__c.label}"><apex:outputLink value="/apex/syuom?actionType=View&id={!s.slsuomid}" target="_blank"><apex:outputLabel value="{!s.slsuom}" rendered="{!s.slsuomid != null}"/></apex:outputLink></apex:column>  
+                    <apex:column headerValue="{!f_soprod.rstk__soprod_umcf__c.label}" style="text-align:right;"><apex:outputText value="{0,number,#,##0.00}" style="width:60px;" ><apex:param value="{!s.umcf}" /></apex:outputText></apex:column>
+                    <apex:column headerValue="{!f_soprod.rstk__soprod_leadtimeprod__c.label}" style="text-align:right;"><apex:outputText value="{0,number,#,##0.00}" style="width:60px;" ><apex:param value="{!s.ltprod}" /></apex:outputText></apex:column>
+                    <apex:column headerValue="{!f_soprod.rstk__soprod_leadtimeiss__c.label}" style="text-align:right;"><apex:outputText value="{0,number,#,##0.00}" style="width:60px;" ><apex:param value="{!s.ltiss}" /></apex:outputText></apex:column>
+                    <apex:column headerValue="{!f_soprod.rstk__soprod_leadtimepack__c.label}" style="text-align:right;"><apex:outputText value="{0,number,#,##0.00}" style="width:60px;" ><apex:param value="{!s.ltpack}" /></apex:outputText></apex:column>
+                    <apex:column headerValue="{!f_soprod.rstk__soprod_presp__c.label}"><apex:outputLink value="/apex/syusr?actionType=View&id={!s.respid}" target="_blank"><apex:outputLabel value="{!s.resp}" rendered="{!s.respid != null}"/></apex:outputLink></apex:column>
+                    <apex:column headerValue="{!f_syorg.rstk__syorg_orgid__c.label}"><apex:outputLink value="/apex/syorg?actionType=View&id={!s.orgid}" target="_blank"><apex:outputLabel value="{!s.orgname}" rendered="{!s.orgid != null}"/></apex:outputLink></apex:column>
+                    <apex:column headerValue="{!f_soprod.rstk__soprod_dimval__c.label}"><apex:outputLink value="/apex/sydim?actionType=View&id={!s.acctdimid}" target="_blank"><apex:outputLabel value="{!s.acctdimname}" rendered="{!s.acctdimid != null}"/></apex:outputLink></apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+            
+            <!-- Section displays when no records found for Sales Tab Details-->
+            <apex:pageBlockSection id="salesTabNoRec" showHeader="false" columns="1" rendered="{!popupId =='4' && !showSalesDetails}">
+                <apex:outputPanel layout="block" id="norectodispforpurtab" style="font-weight:bold;color:red;text-align:center; background-color:yellow; width:100%;">  No Records to display </apex:outputPanel>
+            </apex:pageBlockSection>
+            
+            <!-- Section for displaying Revision Tab Details -->
+            <apex:pageBlockSection id="revisionTab" showHeader="false" title="" columns="1" rendered="{!showRevisionDetails}">
+                 <apex:pageBlockSectionItem rendered="{!showAddRevisionLink}">
+                    <apex:outputLink value="{!URLFOR($Action.rstk__peitemrev__c.New)}{!ReturnUrlParms}" target="_blank">{!$Label.rstk__pagelink_peitem_addrevision}</apex:outputLink>
+                 </apex:pageBlockSectionItem>
+                 <c:EditableGrid width="1550" jsController="revisionGrid" data="{!revisionsGrid}" editable="true" disableAdd="true" ispopup="false"/>
+                 <script>
+                    revisionGrid.validate = function() {
+                        self = this;
+                        var isvalid = true;
+                        this.getVisibleRows().each(function (index, el) {
+                            var row = jQuery(this);
+                            var decription = revisionGrid.getRowValue(row, 'peitemrev_descr__c');
+                            var startDate = revisionGrid.getRowValue(row, 'peitemrev_effdate__c');
+                            if (!startDate) {
+                                alert('Please enter a value for the required field : Start Date');
+                                revisionGrid.getRowObj(row, 'peitemrev_effdate__c').focus();
+                                isvalid = false;
+                                return false;
+                            }
+                        });
+                         return isvalid;
+                     }
+                </script>     
+            </apex:pageBlockSection>
+            
+            <!-- Section for displaying Approved Mfrs Tab Details -->
+            <apex:pageBlockSection id="approvedMFRSTab" showHeader="false" title="" columns="1" rendered="{!showApprovedMfrsDetails}">
+                <apex:pageBlockSectionItem >
+                    <apex:outputLink value="{!URLFOR($Action.rstk__peitemmfr__c.New)}{!ReturnUrlParms}" target="_blank">{!$Label.rstk__pagelink_peitem_newapprovedmfr}</apex:outputLink>
+                </apex:pageBlockSectionItem>
+                <c:EditableGrid width="1550" jsController="approvedMFRSGrid" data="{!approvedMFRSGrid}" editable="true" disableAdd="true" ispopup="false"/>
+                <script>
+                    approvedMFRSGrid.validate = function() {
+                        self = this;
+                        var isvalid = true;
+                        this.getVisibleRows().each(function (index, el) {
+                            var row = jQuery(this);
+                            var manItemNo = approvedMFRSGrid.getRowValue(row, 'peitemmfr_mfritemno__c');
+                            var manMfrId  = approvedMFRSGrid.getRowValue(row, 'peitemmfr_mfritemid__c');
+                            if(!manMfrId) {
+                                isvalid = false;
+                                alert('Please enter a value for the required field : Mfr Id');
+                                return false;
+                            }
+                            if(!manItemNo) {
+                                isvalid = false;
+                                alert('Please enter a value for the required field : Manufacturer Item No');
+                                return false;
+                            }
+                        });
+                         return isvalid;
+                     }
+                </script>
+            </apex:pageBlockSection>
+            
+            <!-- Section for displaying Where Used Tab Details -->
+            <apex:pageBlockSection id="whereUsedTab" showHeader="false" title="" columns="1" rendered="{!showWhereUsedDetails}">
+                <apex:outputPanel id="wu_toolbar">
+                    <label id="wu_bomcount" class="labelCol">{!$Label.bomsfound0}</label>
+                    <apex:commandButton onclick="loadAllWUNodes = true; initWUTreeView(); return false;" value="{!$Label.rstk__pagebtn_peitem_loadtree}"/>&nbsp;
+                    <apex:outputPanel ><div style="height:5px;"></div></apex:outputPanel>
+                </apex:outputPanel>
+                <apex:outputPanel id="op_where_used">
+                    <div id="tree_anchor_wu" style="height:300px;overflow-y:scroll;display:block">
+                    </div>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            
+            <!-- Section for displaying BOM Tree Tab Details -->
+            <apex:pageBlockSection id="bomTreeTab" showHeader="false" title="" columns="1" rendered="{!showBOMTreeDetails}">
+                <apex:pageBlockSectionItem id="pbsItem">
+                    <apex:outputPanel id="op_bomcommbtn" layout="block">
+                        <apex:commandButton onclick="refreshBomTree(); return false;" value="{!$Label.rstk__pagebtn_peitem_refreshtree}"/>&nbsp;
+                        <apex:commandButton onclick="expandBomView(); return false;" value="{!$Label.rstk__pagebtn_peitem_expandview}"/>&nbsp;
+                        <apex:commandButton onclick="printBom(); return false;" value="{!$Label.rstk__pagebtn_peitem_printbom}"/>
+                        <label class="labelCol">{!$Label.rstk__peitem_effectivedate}</label>
+                        <apex:inputField id="effdate" value="{!inputObj.rstk__zzsobj_date__c}" onchange="refreshBomTree();"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputPanel ><div style="height:5px;"></div></apex:outputPanel>
+                    <apex:outputPanel id="op_bom_tree">
+                        <div id="tree_anchor_bom" style="height:300px;overflow-y:scroll;display:block;">
+                        </div>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>  
+        
+    </apex:form>
+    <script type="text/javascript">var __sfdcSessionId = '{!GETSESSIONID()}';</script>
+    <script type="text/javascript">var __iconpath = "{!URLFOR($Resource.rstk__treeIcons)}";</script>
+    <script>
+        // jquery code to add javascript code lines to the page before loading the page
+        var j$ = jQuery.noConflict();
+        j$(document).ready(function(){
+                var createBOmTree = {!showWhereUsedDetails || showBOMTreeDetails|| showInvParameterDetails};
+                if(createBOmTree){
+                    //include javascript code to create BOM tree
+                    {!initPage}
+                }
+        });
+        function getNextPage(pageStatus)
+        {
+             var reqPage = document.getElementById('pg:fm:pb:pbs_InvIcitemQty:requestedPageNo').value;
+             var totalPages = document.getElementById('pg:fm:pb:pbs_InvIcitemQty:totalPages').value;
+             getNextPageFromController(pageStatus,reqPage,totalPages);
+        }
+        
+    </script>
+</apex:page>

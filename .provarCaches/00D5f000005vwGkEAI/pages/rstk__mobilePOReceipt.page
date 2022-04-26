@@ -1,0 +1,277 @@
+<apex:page sideBar="false" showHeader="false" standardStylesheets="false" showChat="false">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<apex:stylesheet value="{!URLFOR($Resource.rstk__jquery_mobile_1_4_5, '/jquery.mobile-1.4.5.css')}" />
+	<c:common_client_labels />
+	<apex:includeScript value="{!$Resource.rstk__alert_prototype_cli}" />
+	<apex:includeScript value="{!$Resource.rstk__jQuery_182}"/>
+	<apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+	<apex:includeScript value="{!URLFOR($Resource.rstk__jquery_mobile_1_4_5, '/jquery.mobile-1.4.5.js')}" />
+	<apex:includeScript value="{!$Resource.rstk__mobilePOReceipt_cli}" />
+	<apex:includeScript value="{!$Resource.rstk__connection}" />
+	<apex:includeScript value="{!$Resource.rstk__common_client_mobile}" />
+	<apex:includeScript value="{!$Resource.rstk__sfff}" />
+	
+	<script>
+		var __siteUrlPrefix = '{!$Site.Prefix}';
+		var __sfdcSessionId = '{!GETSESSIONID()}';
+		sforce.connection.sessionId = __sfdcSessionId;
+		
+		var userId = '{!$User.Id}';
+		var scriptSrc = jQuery('script')[1].src;
+		if (scriptSrc.indexOf("__") > 0) {
+			sforce.connection.defaultNamespace = scriptSrc.substring(scriptSrc.lastIndexOf("/") + 1).split("__")[0];
+		}
+		
+		var gradeA = jQuery.support.htmlSerialize;
+		// gradeA = jQuery.mobile.gradeA();
+		
+		jQuery(document).ready(function() {
+			//var serialbox = jQuery('textarea[id*=line_serialnos__c]');
+			//serialbox.prop('disabled', true);
+			
+			var nextLink = jQuery('a[id*=nextLink]');
+			var backLinkSerial = jQuery('#backLinkSerial');
+			
+			if (gradeA) {
+				nextLink[0].href = '#serialPage';
+				backLinkSerial[0].href = '#main';
+				jQuery('.divnavb').remove();
+				jQuery('#serial_count_label').addClass('ui-input-text'); 
+			} else {
+				nextLink[0].href = 'javascript:invokeSerialPage()';
+				backLinkSerial[0].href = 'javascript:invokeMainPage()';
+				jQuery('.ah').remove();
+				jQuery('.divnava').remove();
+				var serialPage = jQuery('#serialPage');
+				serialPage.hide();
+			}
+			
+			setDefaults();
+		});
+	</script>
+	<style>
+		.leftItem {
+		    clear: both;
+		    float: left;
+		    width: 30%;
+		}
+		 
+		.rightItem {
+		    float: left;
+		    width: 65%
+		}
+		
+		.abnb { 
+			font-size: 20px !important; 
+			color: #99862F;
+			font-weight: bold;
+		}
+		
+		label.ui-input-text {
+			font-size: 20px !important;
+			font-weight: bold;
+			text-align: right;
+			width: 80% !important;
+		}
+		
+		textarea {
+			font-weight: bold;
+		}
+		
+		textarea.ui-input-text {
+		    height : 350px;
+		}
+		
+		.abna .ui-btn-inner {
+			font-size: 18px !important;
+		}
+		
+		bottom_div {
+			position:absolute;
+		    bottom:0;
+		}
+	</style>
+ </head>
+ <body>
+	<div data-role="page" id="main">
+		<div data-theme="a" data-role="header">
+			<h3>{!$Label.PO_Receipt}</h3>
+			<a class="ah ui-btn-right" data-icon="home" href="javascript:invokeMobileMenu()" rel="external">{!$Label.mobileInventoryTransfer_Home}</a>
+		</div>
+		<div data-role="content">
+			<div data-role="navbar" data-iconpos="bottom" data-position="fixed">
+				<div class="divnava">
+					<ul>
+						<li>
+							<a class="abna" href="javascript:invokeMobileMenu()" id="backLink" data-transition="fade" data-theme="" data-inline="true"  data-icon="">{!$Label.Back}</a>
+						</li>
+		               <li>
+							<a class="abna" href="javascript:callDoReceipt()" id="nextLink" data-transition="fade" data-theme="" data-inline="true"  data-icon="">{!$Label.pagebtn_poreceipt_PerformReceipt}</a>
+						</li>
+					</ul>
+				</div>
+				<div class="divnavb ui-grid-a">
+					<div class="ui-block-a"><a href="javascript:invokeMobileMenu()" class="abnb" id="backLink" data-transition="fade" data-theme="" data-inline="true" >{!$Label.Back}</a></div>
+					<div class="ui-block-b"><a href="javascript:invokeMobileMenu()" class="abnb" id="homeLink" data-transition="fade" data-theme="" data-inline="true" >{!$Label.mobileInventoryTransfer_Home}</a></div>
+				</div>
+			</div>
+			
+			<form action="">
+			<div >
+				<div class="leftItem">
+					<label for="porcv_divtext__c">{!$Label.mobileporeceipt_Division}</label>
+				</div>
+				<div class="rightItem">
+					<input id="porcv_divtext__c" placeholder="Scan Division" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="divChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="porcv_poordno__c">{!$Label.mobileporeceipt_OrderNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="porcv_poordno__c" placeholder="Scan Order Number" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="orderChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="porcv_packslipno__c">{!$Label.mobileporeceipt_PackSlipNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="porcv_packslipno__c" placeholder="Scan Slip Number" type="text" 
+						onKeydown="return scanFocus(event, this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="line_itemtext__c">{!$Label.mobileporeceipt_LineNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="line_itemtext__c" placeholder="Scan Line No" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="lineChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="line_qtyreceipt__c">{!$Label.mobileporeceipt_ReceiptQty}</label>
+				</div>
+				<div class="rightItem">
+					<input id="line_qtyreceipt__c" placeholder="Scan Quantity" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="qtyChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="line_locationid__c">{!$Label.mobileporeceipt_LocationId}</label>
+				</div>
+				<div class="rightItem">
+					<input id="line_locationid__c" placeholder="Scan Loc ID" type="text" 
+						onKeydown="return scanFocus(event, this);"  onchange="locIdChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="line_locationnumber__c">{!$Label.mobileporeceipt_LocationNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="line_locationnumber__c" placeholder="Scan Loc No" type="text"
+						onKeydown="return scanFocus(event, this);" onchange="locNumChanged(this);" />
+				</div>
+			</div>
+		</form>
+		</div>
+		
+		<br></br>
+		<div class="divnavb bottom_div"><a href="javascript:callDoReceipt()" class="abnb" id="nextLink" data-transition="fade" data-theme="" data-inline="true" >{!$Label.pagebtn_poreceipt_PerformReceipt}</a></div>
+	</div>
+	
+	<div data-role="page" id="serialPage">
+		<div data-theme="a" data-role="header">
+			<h3>{!$Label.PO_Receipt}</h3>
+			<a class="ah ui-btn-right" data-icon="home" href="javascript:invokeMobileMenu()" rel="external">{!$Label.mobileInventoryTransfer_Home}</a>
+		</div>
+		<div data-role="content">
+			<div data-role="navbar" data-iconpos="bottom" data-position="fixed">
+				<div class="divnava">
+					<ul>
+						<li>
+							<a class="abna" href="#main" id="backLinkSerial" data-transition="fade" data-theme="" data-icon="">{!$Label.Back}</a>
+						</li>
+		               <li>
+							<a class="abna" href="javascript:callDoReceipt()" id="nextLinkSerial" data-transition="fade" data-theme="" data-icon="">{!$Label.pagebtn_poreceipt_PerformReceipt}</a>
+						</li>
+					</ul>
+				</div>
+				<div class="divnavb ui-grid-a">
+					<div class="ui-block-a"><a href="javascript:invokeMainPage()" class="abnb" id="backLink" data-transition="fade" data-theme="" data-inline="true" >{!$Label.Back}</a></div>
+					<div class="ui-block-b"><a href="javascript:invokeMobileMenu()" class="abnb" id="homeLink" data-transition="fade" data-theme="" data-inline="true" >{!$Label.mobileInventoryTransfer_Home}</a></div>
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="line_lotnumber__c">{!$Label.mobileporeceipt_LotNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="line_lotnumber__c" placeholder="Scan Lot No" type="text" 
+						onKeydown="return scanFocus(event, this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="serial">{!$Label.mobileporeceipt_Serial}</label>
+				</div>
+				<div class="rightItem">
+					<input id="serial" placeholder="Scan Serial" type="text" 
+						onKeydown="return scanFocus(event, this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="line_serialnos__c">{!$Label.mobileporeceipt_SerialNos}</label>
+				</div>
+				<div class="rightItem">
+					<textarea cols="30" rows="20" name="line_serialnos__c" id="line_serialnos__c"
+						onKeydown="return scanFocus(event, this);" onchange="serialsChanged(this)" ></textarea>
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label id="serial_count_label" width="100%" for="serial_count">{!$Label.mobileporeceipt_SerialsEntered}</label>
+				</div>
+				<div class="rightItem">
+					<span id="serial_count">0</span>
+				</div>
+			</div>
+		</div>
+		
+		<br></br>
+		<div class="divnavb bottom_div"><a href="javascript:callDoReceipt()" class="abnb" id="nextLinkSerial" data-transition="fade" data-theme="" data-inline="true" >{!$Label.pagebtn_poreceipt_PerformReceipt}</a></div>
+	</div>
+</body>
+
+<script>
+	var LABEL_OrdNumIsNotValid_MakeSureItdInDivAboveAndWithReceiptableOrdStatus = "{!$Label.OrdNumIsNotValid_MakeSureItdInDivAboveAndWithReceiptableOrdStatus}";
+	var LABEL_LineMustBeNumericVal = "{!$Label.LineMustBeNumericVal}";
+	var LABEL_LineNumNotValid = "{!$Label.LineNumNotValid}";
+	var LABEL_NoOutstandingQtysExistOnSpecLine = "{!$Label.NoOutstandingQtysExistOnSpecLine}";
+	var LABEL_InvalidLocIdForPOLineInventoryDiv = "{!$Label.InvalidLocIdForPOLineInventoryDiv}";
+	var LABEL_CantEnterMoreSrlsThanReceiptQty = "{!$Label.CantEnterMoreSrlsThanReceiptQty}";
+	var LABEL_Div_PkngSlip_Item_ReceiptQty_LocIdAndLocNumCantBeEmpty = "{!$Label.Div_PkngSlip_Item_ReceiptQty_LocIdAndLocNumCantBeEmpty}";
+	var LABEL_LotNumNeedToBeSpecForReceipt = "{!$Label.LotNumNeedToBeSpecForReceipt}";
+	var LABEL_SrlNumsNeedToBeSpecForReceipt = "{!$Label.SrlNumsNeedToBeSpecForReceipt}";
+	var LABEL_ErrorInProcessReceipt = "{!$Label.ErrorInProcessReceipt}";
+	var LABEL_POReceiptCompletedSuccessfully = "{!$Label.POReceiptCompletedSuccessfully}";
+	var LABEL_ErrorinProcessReceipt_ChkEmailForErorLog = "{!$Label.ErrorinProcessReceipt_ChkEmailForErorLog}";
+	var LABEL_DivNotValid = "{!$Label.DivNotValid}";
+	var LABEL_DupSrlsFoundAndRemoved = "{!$Label.DupSrlsFoundAndRemoved}";
+	var LABEL_ErrorInProcessingReceipt = "{!$Label.ErrorInProcessingReceipt}";
+	var LABEL_LocNumNotValidForLocId = "{!$Label.LocNumNotValidForLocId}";
+	var LABEL_SrlALreadyEntered = "{!$Label.SrlALreadyEntered}";
+	var LABEL_SrlNumEnteredLTReceiptQty_EnterMoreSrls = "{!$Label.SrlNumEnteredLTReceiptQty_EnterMoreSrls}";
+	var LABEL_SrlNumEnteredMoreThanReceiptQty_RemoveSrlsNums = "{!$Label.SrlNumEnteredMoreThanReceiptQty_RemoveSrlsNums}";
+</script>
+</apex:page>

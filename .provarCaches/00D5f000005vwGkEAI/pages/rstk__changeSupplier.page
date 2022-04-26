@@ -1,0 +1,109 @@
+<apex:page id="pg" standardController="rstk__supitem__c" extensions="rstk.ControllerExtnChangeSupplier,rstk.RemoteQueryController" sidebar="true" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__supitem__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__supitem__c.fields}" />
+ 	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__change_supplier}" />
+ 	<script>
+ 		function createFieldChangeHandlers() {
+		 	fieldChangeHandlers['supitem_part__c'] = partNumChanged;
+		 	fieldChangeHandlers['supitem_povend__c'] = povendChanged;
+		 	
+		}
+ 		function pageInit() {
+ 			sfffDisableField('supitem_povend_old__c', true);
+ 		}
+ 		function partNumChanged(){
+ 			sfffDisableField('supitem_povend_old__c', false);
+ 			var partNum = sfffGetFieldValue('supitem_part__c');
+ 			if(partNum){
+ 				var supitems = execQuery("select supitem_povend__c from supitem__c where id = '" + partNum + "'",true);
+ 				if(supitems.length > 0){
+					sfffSetFieldValue('supitem_povend_old__c',supitems[0].supitem_povend__c);
+					var povends = execQuery("select Id, Name from povend__c  where  povend_onetimeind__c <> true and  id != '" + supitems[0].supitem_povend__c + "' order by name",true);
+					populateSelectList('supitem_povend__c',povends);
+					sfffSetFieldValue('supitem_povend__c','');
+					sfffDisableField('supitem_povend_old__c', true);
+					var facilityfld = getFmFld('supitem_facility__c');
+					facilityfld.options.length = 0;
+					facilityfld.options[0] = new Option("--None--", "");
+				}
+ 			}else{
+ 				sfffSetFieldValue('supitem_povend_old__c','');
+ 				sfffDisableField('supitem_povend_old__c', true);
+ 				var povendfld = getFmFld('supitem_povend__c');
+				povendfld.options.length = 0;
+				povendfld.options[0] = new Option("--None--", "");
+				var facilityfld = getFmFld('supitem_facility__c');
+				facilityfld.options.length = 0;
+				facilityfld.options[0] = new Option("--None--", "");
+ 			}
+ 			
+ 		}
+ 		
+ 		function povendChanged(){
+ 			var povend = sfffGetFieldValue('supitem_povend__c');
+ 			if(povend){
+ 				populateSelectList('supitem_facility__c', "select Id, Name from povendpoaddr__c  where povendpoaddr_vendno__c = '" + povend + "' order by name");
+ 			}else{
+ 				var facilityfld = getFmFld('supitem_facility__c');
+				facilityfld.options.length = 0;
+				facilityfld.options[0] = new Option("--None--", "");
+ 			}
+ 		} 
+ 		function saveRecord() {
+			var suppart = sfffGetFieldValue('supitem_part__c');
+			var vendor = sfffGetFieldValue('supitem_povend__c');
+			var facility = sfffGetFieldValue('supitem_facility__c');
+			if(!suppart || !vendor || !facility ){
+				alert("{!$Label.Please_specify_required_information_before_processing}");
+				return false;
+			}else{
+				blockUI();
+				changeSup();
+			}
+		}
+ 		
+ 	</script>
+ 	
+ 	<apex:form id="fm">
+ 		<apex:actionFunction name="changeSup" action="{!changeSup}" oncomplete="unblockUI();" rerender="pageMessages"/>
+ 		<apex:pageblock id="pb" mode="detail">
+ 			<apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+ 				<apex:outputField value="{!o.rstk__supitem_div__c}"/>
+ 				
+ 				<apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__supplier_part}" />
+                    <c:largeSelectList id="supitem_part__c" value="{!supitemPart}" useValue="true" cntr="{!controller}" options="{!supitems}"  required="true"/>
+                </apex:pageBlockSectionItem>
+ 				
+ 				<apex:pageBlockSectionItem helptext="{!f.rstk__supitem_povend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__current_supplier}" />
+                    <c:largeSelectList id="supitem_povend_old__c" value="{!supitemPovendOld}" useValue="true"  cntr="{!controller}" options="{!supplier}" />
+                </apex:pageBlockSectionItem>
+                
+ 				
+ 				<apex:pageBlockSectionItem helptext="{!f.rstk__supitem_povend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__new_supplier}" />
+                    <c:largeSelectList id="supitem_povend__c" value="{!o.rstk__supitem_povend__c}" cntr="{!controller}" options="{!supplier}" required="true" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_facility__c.inlineHelpText}">
+                   <apex:outputLabel value="{!f.rstk__supitem_facility__c.label}" />
+                   <apex:outputPanel >
+                       <apex:selectList id="supitem_facility__c" value="{!o.rstk__supitem_facility__c}" size="1" style="width:250px;" >
+                           <apex:selectOptions value="{!supplierFacility}" />
+                       </apex:selectList>
+                   </apex:outputPanel>
+               </apex:pageBlockSectionItem>
+                
+ 			
+ 			</apex:pageBlockSection>
+ 			<apex:pageBlockSection showHeader="false" columns="1">
+	            <c:nosubmitbutton label="{!$Label.rstk__change_supplier}" onclick="saveRecord();" style="width:160px;" />
+	       </apex:pageBlockSection>
+ 		</apex:pageblock>
+ 		<script>
+            setSelectListRequired("supitem_facility__c");
+       </script>
+ 	</apex:form>
+ <c:footerInclude cntr="{!controller}" />
+</apex:page>

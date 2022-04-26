@@ -1,0 +1,289 @@
+<apex:page id="pg" standardController="rstkf__povendcmpno__c" extensions="rstkf.ControllerExtnPovendcmpnoAcctInquiry" sideBar="true" action="{!doBeforePageLoad}">
+	<script>function setFocusOnLoad() {}</script>
+	<apex:variable var="f" value="{!$ObjectType.rstk__povend__c.fields}" />
+    <apex:variable var="f_povendcmpno" value="{!$ObjectType.rstkf__povendcmpno__c.fields}" />
+    <apex:variable var="f_customextf" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="f_pohdr" value="{!$ObjectType.rstk__pohdr__c.fields}" />
+    <apex:variable var="f_porcptap" value="{!$ObjectType.rstk__porcptap__c.fields}" />
+    <apex:variable var="f_poline" value="{!$ObjectType.rstk__poline__c.fields}" />
+    <apex:variable var="f_povendpoaddr" value="{!$ObjectType.rstk__povendpoaddr__c.fields}" />
+    <apex:variable var="f_apinvtxn" value="{!$ObjectType.rstkf__apinvtxn__c.fields}" />
+    <apex:variable var="f_appayd" value="{!$ObjectType.rstkf__appayd__c.fields}" />
+    <apex:variable var="f_payoff" value="{!$ObjectType.rstkf__apoffsettxn__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__title_vendoracctinquiry}"/>
+    <style>
+	    .Processing
+	    {
+	        position: fixed;
+	        background: url({!$Resource.busy});
+	        background-repeat: no-repeat;
+	        background-position: center;
+	        width: 100%;
+	        height: 100%;
+	        z-index: 2004;
+	        left: 0%;
+	        top: 0%;
+	    }
+	</style>
+
+	<script>
+		var povendid = '{!povendid}';
+	</script>
+	
+	<apex:form id="fm">
+    	<apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+		<apex:actionFunction name="glcmpChanged" action="{!glcmpChanged}" oncomplete="unblockUI();" rerender="op_main_info, op_tabs, pageMessages" immediate="false"/>
+		<apex:actionFunction name="RefreshApinvtxns" action="{!doRefreshApinvtxns}" oncomplete="unblockUI();" rerender="op_apinvtxns, pageMessages" immediate="false"/>
+		<apex:actionFunction name="RefreshAppayds" action="{!doRefreshAppayds}" oncomplete="unblockUI();" rerender="op_appayds, pageMessages" immediate="false"/>
+		<apex:actionFunction name="RefreshPaymentOffsets" action="{!doRefreshPaymentOffsets}" oncomplete="unblockUI();" rerender="op_PaymentOffsets, pageMessages" immediate="false"/>
+		<apex:actionFunction name="getApapplicRecs" action="{!getApapplicRecs}" 
+                             oncomplete="unblockUI();showPopup('#popApapplics', 800, 510);" 
+                             rerender="op_apapplics, pageMessages" immediate="false">
+        	<apex:param name="selectedAppaydId" assignTo="{!selectedAppaydId}" value="" />
+        </apex:actionFunction>
+		
+		
+		<apex:pageBlock id="pb" mode="detail">
+        	<apex:pageBlockSection id="pbs_company" showHeader="false" title="{!$Label.rstkf__company}" columns="1" >
+            	<apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__custom_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customextf.rstkf__custom_glcmp__c.label}" />
+                        <apex:outputPanel >
+                            <apex:selectList id="glcmpList__c" value="{!customextf.rstkf__custom_glcmp__c}" 
+                            		size="1" style="width:250px;" tabindex="1" 
+                            		onchange="blockUI();glcmpChanged();"> 
+                                <apex:selectOptions value="{!glcmps}" /> 
+                            </apex:selectList>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+			</apex:pageBlockSection>
+                
+			<apex:outputPanel id="op_main_info" >
+				<apex:pageBlockSection id="pbs_Main" rendered="{!!ISBLANK(povendcmpnoid)}" columns="1" showHeader="false" title="{!$Label.rstkf__information}">
+					<apex:pageBlockSectionItem helpText="{!f.rstk__povend_vendno__c.inlineHelpText}">
+                    	<apex:outputLabel value="{!f.rstk__povend_vendno__c.label}"/>
+                   		<apex:outputField value="{!povendcmpno.povendcmpno_vendno__r.rstk__povend_vendno__c}"/>
+                	</apex:pageBlockSectionItem>
+                	
+                	<apex:pageBlockSectionItem helpText="{!f.rstk__povend_sf_account__c.inlineHelpText}">
+                    	<apex:outputLabel value="{!f.rstk__povend_sf_account__c.label}"/>
+                   		<apex:outputField value="{!povendcmpno.povendcmpno_vendno__r.rstk__povend_sf_account__c}"/>
+                	</apex:pageBlockSectionItem>
+                	
+                	<apex:pageBlockSectionItem helpText="{!f.rstk__povend_vendcurr__c.inlineHelpText}">
+                    	<apex:outputLabel value="{!f.rstk__povend_vendcurr__c.label}"/>
+                   		<apex:outputField value="{!povendcmpno.povendcmpno_vendno__r.rstk__povend_vendcurr__c}"/>
+                	</apex:pageBlockSectionItem>
+                	
+                	<apex:pageBlockSectionItem helpText="{!f.rstk__povend_maintcurrind__c.inlineHelpText}">
+                    	<apex:outputLabel value="{!f.rstk__povend_maintcurrind__c.label}"/>
+                   		<apex:outputField value="{!povendcmpno.povendcmpno_vendno__r.rstk__povend_maintcurrind__c}"/>
+                	</apex:pageBlockSectionItem>
+				</apex:pageBlockSection>
+			</apex:outputpanel>
+			
+			<apex:outputPanel id="op_tabs">
+            <apex:tabPanel switchType="client" selectedTab="tab_PurchOrders" id="theTabPanel" rendered="{!!ISBLANK(povendcmpnoid)}">
+        		<apex:tab label="{!$Label.rstkf__title_purchaseorders}" name="tab_PurchOrders" id="tab_PurchOrders">
+                    <apex:pageBlockSection id="pbs_pohdrs" showHeader="false" title="{!$Label.rstkf__information}" columns="1" >
+                        <input type="button" value="{!$Label.btn_NewPurchOrd}" class="btn" onclick="addPO();return false;"/>
+                        <apex:pageBlockTable value="{!pohdrs}" var="po">
+                            <apex:column headerValue="Action"><apex:outputLink value="{!URLFOR($Action.rstk__pohdr__c.View, po.id)}{!ReturnUrlParms}">View</apex:outputLink> |&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__pohdr__c.Edit, po.id)}{!ReturnUrlParms}">Edit</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_pohdr.Name.label}"><apex:outputLink value="{!URLFOR($Action.rstk__pohdr__c.View, po.id)}{!ReturnUrlParms}"><apex:outputField id="pohdr_name" value="{!po.name}"/></apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_pohdr.rstk__pohdr_div__c.label}"><apex:outputField id="pohdr_div__c" value="{!po.rstk__pohdr_div__c}"/></apex:column>
+                            <apex:column headerValue="{!f_pohdr.rstk__pohdr_ordno__c.label}"><apex:outputField id="pohdr_ordno__c" value="{!po.rstk__pohdr_ordno__c}"/></apex:column>
+                            <apex:column headerValue="{!f_pohdr.rstk__pohdr_ordsts__c.label}"><apex:outputField id="pohdr_ordsts__c" value="{!po.rstk__pohdr_ordsts__c}"/></apex:column>
+                            <apex:column headerValue="{!f_pohdr.rstk__pohdr_totamt__c.label}"><apex:outputText id="pohdr_totamt__c" html-decimals="2" value="{!po.rstk__pohdr_totamt__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+				</apex:tab>
+				
+				<apex:tab label="{!$Label.rstkf__title_purchordrcpts}" name="tab_PurchOrderRcpts" id="tab_PurchOrderRcpts">
+                    <apex:pageBlockSection id="pbs_porcptap" showHeader="false" title="{!$Label.rstkf__information}" columns="1" >
+                        <apex:pageBlockTable value="{!porcptaps}" var="po">
+                            <apex:column headerValue="{!f_porcptap.Name.label}"><apex:outputLink value="{!URLFOR($Action.rstk__porcptap__c.View, po.id)}{!ReturnUrlParms}"><apex:outputField id="porcptap_name" value="{!po.name}"/></apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_porcptap.rstk__porcptap_lne__c.label}"><apex:outputField id="porcptap_lne__c" value="{!po.rstk__porcptap_lne__c}"/></apex:column>
+                            <apex:column headerValue="{!f_porcptap.rstk__porcptap_rcptno__c.label}"><apex:outputField id="porcptap_rcptno__c" value="{!po.rstk__porcptap_rcptno__c}"/></apex:column>
+                            <apex:column headerValue="{!f_porcptap.rstk__porcptap_rcptdate__c.label}"><apex:outputField id="porcptap_rcptdate__c" value="{!po.rstk__porcptap_rcptdate__c}"/></apex:column>
+                            <apex:column headerValue="{!f_poline.rstk__poline_item__c.label}"><apex:outputField id="poline_item__c" value="{!po.rstk__porcptap_poline__r.rstk__poline_item__c}"/></apex:column>
+                            <apex:column headerValue="{!f_porcptap.rstk__porcptap_qtycomp__c.label}"><apex:outputField id="porcptap_qtycomp__c" value="{!po.rstk__porcptap_qtycomp__c}"/></apex:column>
+                            <apex:column headerValue="{!f_porcptap.rstk__porcptap_packslipno__c.label}"><apex:outputField id="porcptap_packslipno__c" value="{!po.rstk__porcptap_packslipno__c}"/></apex:column>
+                            <apex:column headerValue="{!f_porcptap.rstk__porcptap_ttaphdr__c.label}"><apex:outputField id="porcptap_ttaphdr__c" value="{!po.rstk__porcptap_ttaphdr__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+				</apex:tab>
+				
+				<apex:tab label="{!$Label.rstkf__tab_addresses}" name="tab_VendAddress" id="tab_VendAddress">
+                    <apex:pageBlockSection id="pbs_VendAddr" showHeader="false" title="{!$Label.rstkf__information}" columns="1" >
+                        <apex:commandLink onclick="addVendAddr(); return false;" value="New Vendor Address" id="newVendAddrCmdLink"/>
+                        <apex:pageBlockTable value="{!povendpoaddrs}" var="a">
+                            <apex:column headerValue="{!$Label.rstkf__action}" rendered="{!!Addresspolicy}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__povendpoaddr__c.Edit, a.id)}{!ReturnUrlParms}">Edit</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__povendpoaddr__c.View, a.id)}{!ReturnUrlParms}">Del</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="Action" rendered="{!Addresspolicy}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__povendpoaddr__c.View, a.id)}{!ReturnUrlParms}">View</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstkf__seq}"><apex:outputField id="povendpoaddr_seq__c" value="{!a.rstk__povendpoaddr_seq__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_street__c.label}"><apex:outputField id="povendpoaddr_street__c" value="{!a.rstk__povendpoaddr_street__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_city__c.label}"><apex:outputField id="povendpoaddr_city__c" value="{!a.rstk__povendpoaddr_city__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_stateprov__c.label}"><apex:outputField id="povendpoaddr_stateprov__c" value="{!a.rstk__povendpoaddr_stateprov__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_zippostalcode__c.label}"><apex:outputField id="povendpoaddr_zipostalcode__c" value="{!a.rstk__povendpoaddr_zippostalcode__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_country__c.label}"><apex:outputField id="povendpoaddr_country__c" value="{!a.rstk__povendpoaddr_country__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_phone__c.label}"><apex:outputField id="povendpoaddr_phone__c" value="{!a.rstk__povendpoaddr_phone__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_contactemail__c.label}"><apex:outputField id="povendpoaddr_contactemail__c" value="{!a.rstk__povendpoaddr_contactemail__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstkf__asmailto}"><apex:outputField id="povendpoaddr_useasmailto__c" value="{!a.rstk__povendpoaddr_useasmailto__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstkf__dfltmailto}"><apex:outputField id="povendpoaddr_defaultmailto__c" value="{!a.rstk__povendpoaddr_defaultmailto__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstkf__asbillto}"><apex:outputField id="povendpoaddr_useasbillto__c" value="{!a.rstk__povendpoaddr_useasbillto__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstkf__dfltbillto}"><apex:outputField id="povendpoaddr_defaultbillto__c" value="{!a.rstk__povendpoaddr_defaultbillto__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstkf__tab_apinvoices}" id="tab_apinvtxn" name="tab_apinvtxn" >
+                	<apex:pageBlockSection id="pbs_apinvtxns" showHeader="false" columns="1">
+        				<apex:outputPanel id="op_apinvtxns">
+							<apex:outputLabel value="{!f_customextf.rstkf__pai_apinvtxndisplayoptions__c.label}"/>&nbsp; 
+                            <apex:selectList id="sel_dispOpts" size="1" value="{!customextf.rstkf__pai_apinvtxndisplayoptions__c}">
+                                <apex:selectOptions value="{!apinvtxnDisplayOptions}"/>
+                            </apex:selectList>
+        					&nbsp; &nbsp;
+                            
+        					<apex:commandButton id="apinvtxn_button" value="{!$Label.rstkf__btn_refreshinvoices}" onclick="blockUI(); RefreshApinvtxns(); return false;"/>
+		        	 		<br />
+        					<br />
+        					<div style="overflow: scroll; height: 500px;">
+        					<apex:pageBlockTable id="pbt_apinvtxns" value="{!apinvtxns}" var="a">       	 			
+		        	 			<apex:column headerValue="{!f_apinvtxn.rstkf__apinvtxn_apinvh__c.label}" value="{!a.rstkf__apinvtxn_apinvh__c}"/>
+                                <apex:column headerValue="{!f_apinvtxn.rstkf__apinvtxn_trantype__c.label}" value="{!a.rstkf__apinvtxn_trantype__c}"/>
+                                <apex:column headerValue="{!f_apinvtxn.rstkf__apinvtxn_disptxnamt__c.label}" value="{!a.rstkf__apinvtxn_disptxnamt__c}"/>
+                                <apex:column headerValue="{!f_apinvtxn.rstkf__apinvtxn_dispopenamt__c.label}" value="{!a.rstkf__apinvtxn_dispopenamt__c}"/>
+                                <apex:column headerValue="{!f_apinvtxn.rstkf__apinvtxn_trandate__c.label}" value="{!a.rstkf__apinvtxn_trandate__c}"/>
+                                <apex:column headerValue="{!f_apinvtxn.rstkf__apinvtxn_agedate__c.label}" value="{!a.rstkf__apinvtxn_agedate__c}"/>
+                                <apex:column headerValue="{!f_apinvtxn.rstkf__apinvtxn_terms__c.label}" value="{!a.rstkf__apinvtxn_terms__c}"/>
+                                <apex:column headerValue="{!f_apinvtxn.rstkf__apinvtxn_docno__c.label}" value="{!a.rstkf__apinvtxn_docno__c}"/>
+		        	 		</apex:pageBlockTable>
+		        	 		</div>
+		        	 	</apex:outputPanel>
+        			</apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstkf__tab_payments}" id="tab_appayd" name="tab_appayd" >
+                	<apex:pageBlockSection id="pbs_appayds" showHeader="false" columns="1">
+        				<apex:outputPanel id="op_appayds">
+							<apex:outputLabel value="{!f_customextf.rstkf__pai_appayddisplayoptions__c.label}"/>&nbsp; 
+                            <apex:selectList id="sel_dispOpts" size="1" value="{!customextf.rstkf__pai_appayddisplayoptions__c}">
+                                <apex:selectOptions value="{!appaydDisplayOptions}"/>
+                            </apex:selectList>
+        					&nbsp; &nbsp;
+                            
+        					<apex:commandButton id="appayd_button" value="{!$Label.rstkf__btn_refreshpayments}" onclick="blockUI(); RefreshAppayds(); return false;"/>
+		        	 		<br />
+        					<br />
+        					<div style="overflow: scroll; height: 500px;">
+        					<apex:pageBlockTable id="pbt_appayds" value="{!appayds}" var="a">       	 			
+		        	 			<apex:column headerValue="{!$Label.rstkf__appaydpaymentdate}" value="{!a.rstkf__appayd_trandate__c}"/>
+		        	 			<apex:column headerValue="{!f_appayd.rstkf__appayd_checknumber__c.label}" value="{!a.rstkf__appayd_checknumber__c}"/>
+		        	 			<apex:column headerValue="{!$Label.rstkf__appaydpaymentamount}" value="{!a.rstkf__appayd_payamt__c}"/>
+		        	 			<apex:column headerValue="{!$Label.rstkf__appaydtransactiontype}" value="{!a.rstkf__appayd_trantype__c}"/>
+		        	 			<apex:column headerValue="{!f_appayd.rstkf__appayd_refno__c.label}" value="{!a.rstkf__appayd_refno__c}"/>
+		        	 			<apex:column headerValue="{!$Label.rstkf__appaydvoid}" value="{!a.rstkf__appayd_voidind__c}"/>
+		        	 			<apex:column headerValue="{!$Label.rstkf__paymentdetail}">
+                                	<apex:commandLink value="{!$Label.rstkf__paymentdetail}" status="statusProcessing" onclick="blockUI();getApapplicRecs('{!a.Id}'); return false;" />
+                                </apex:column>
+		        	 		</apex:pageBlockTable>
+		        	 		</div>
+		        	 	</apex:outputPanel>
+        			</apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstkf__tab_paymentoffsets}" id="tab_PaymentOffsets" name="tab_PaymentOffsets"  rendered="{!isPayOffset}">
+                	<apex:pageBlockSection id="pbs_PaymentOffsets" showHeader="false" columns="1">
+        				<apex:outputPanel id="op_PaymentOffsets">
+        					<apex:commandButton id="paymentOffsets_button" value="{!$Label.rstkf__btn_refreshpaymentoffsets}" onclick="blockUI(); RefreshPaymentOffsets(); return false;"/>
+		        	 		<br />
+        					<br />
+							<div style="overflow: scroll; height: 500px;">
+        					<apex:pageBlockTable id="pbt_offsets" value="{!paymentOffsets}" var="p">       	 			
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_socustcmpno__c.label}" value="{!p.rstkf__apoffsettxn_socustcmpno__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_paydate__c.label}" value="{!p.rstkf__apoffsettxn_paydate__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_arbalance__c.label}" value="{!p.rstkf__apoffsettxn_arbalance__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_apbalance__c.label}" value="{!p.rstkf__apoffsettxn_apbalance__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_appayamt__c.label}" value="{!p.rstkf__apoffsettxn_appayamt__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_aramatdue__c.label}" value="{!p.rstkf__apoffsettxn_aramatdue__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_apinvtxn__c.label}" value="{!p.rstkf__apoffsettxn_apinvtxn__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_arinvtxn__c.label}" value="{!p.rstkf__apoffsettxn_arinvtxn__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_appayd__c.label}" value="{!p.rstkf__apoffsettxn_appayd__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_basisdate__c.label}" value="{!p.rstkf__apoffsettxn_basisdate__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_apcutoffdate__c.label}" value="{!p.rstkf__apoffsettxn_apcutoffdate__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_arcutoffdate__c.label}" value="{!p.rstkf__apoffsettxn_arcutoffdate__c}"/>
+		        	 			<apex:column headerValue="{!f_payoff.rstkf__apoffsettxn_preview__c.label}" value="{!p.rstkf__apoffsettxn_preview__c}"/>
+		        	 		</apex:pageBlockTable>
+		        	 		</div>
+		        	 	</apex:outputPanel>
+        			</apex:pageBlockSection>
+                </apex:tab>
+            </apex:tabPanel>
+			</apex:outputPanel>
+		</apex:pageBlock> 
+		
+		<div id="popApapplics" style="display:none; z-index: 10;">
+            <apex:pageBlock title="{!$Label.rstkf__paymentdetail}" id="pb_apapplics" mode="detail" >
+                <apex:pageBlockButtons location="top">
+                    <apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="unblockUI();return false;"/>
+                </apex:pageBlockButtons>    
+                <apex:outputPanel id="op_apapplics">
+                	<div style="overflow: scroll; height: 450px;">                    
+                    <apex:pageBlockTable value="{!apapplics}" var="rec" id="pbt_apapplics">
+                        <apex:column headerValue="{!$Label.rstkf__invoiceormemo}" value="{!rec.rstkf__apapplic_drapinvtxn__c}" />
+                        <apex:column headerValue="{!$Label.rstkf__amount}" value="{!rec.rstkf__apapplic_payamt__c}" />
+                    </apex:pageBlockTable>
+                    </div>
+                </apex:outputPanel>
+            </apex:pageBlock>   
+        </div>   
+	</apex:form>
+    
+	<script>
+		function showPopup(popName, popWidth, popHeight) {
+		    var top = ((jQuery(window).height() - popHeight) / 2);
+		    var width = jQuery(window).width();
+		    var left = (width - popWidth) / 2;
+		    if (popWidth > width) {
+		        left = 0;
+		    } else {
+		        width = popWidth;
+		    }
+		    
+		    jQuery.blockUI({
+		        message: jQuery(popName),
+		        baseZ: 1,
+		        css: {
+		            backgroundColor:'#fff',
+		            left: (left + 'px'),
+		            top: (top + 'px'),
+		            width:(width + 'px'),
+		            height:(popHeight + 'px'),
+		            padding:'15px',
+		            textAlign:'left',
+		            fontSize:'1em',
+		            border:'2px solid #333',
+		            
+		            opacity:'1.0',
+		            '-moz-border-radius':'6px',
+		            '-webkit-border-radius':'6px',
+		            '-moz-box-shadow': '0 0 50px #ccc',
+		            '-webkit-box-shadow': '0 0 50x #ccc'
+		        }
+		    });
+		}
+		
+		function addPO() {
+			window.open('/apex/rstk__PurchOrd?fromRecord=rstk__povend__c&fromRecordId=' + povendid);
+		}
+		
+		function addVendAddr() {
+			window.open('/apex/rstk__povendpoaddr?fromRecord=rstk__povend__c&fromRecordId=' + povendid);
+		}
+	</script>
+	
+</apex:page>

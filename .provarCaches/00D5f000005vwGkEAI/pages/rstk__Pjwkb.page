@@ -1,0 +1,660 @@
+<apex:page id="pg" standardController="rstk__pjwkb__c" extensions="rstk.ControllerExtnPjwkb" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__pjwkb__c}" />
+    <apex:variable var="cst" value="{!pjprojcst}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__pjwkb__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_pjwkb}" customInclude="{!$Resource.rstk__pjwkb_cli}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" /> 
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_pager}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    
+    <script>
+        jQuery(document).ready(function() {
+            console.log('ready');
+            initHoverPopups(jQuery("#bodyTable"), { displayUp:true });
+            
+            jQuery.tablesorter.addParser({
+                id: "fancyNumber",
+                is: function(s) {
+                    return /^[0-9]?[0-9,\.]*$/.test(s);
+                },
+                format: function(s) {
+                return jQuery.tablesorter.formatFloat( s.replace(/,/g,'') );
+                },
+                type: "numeric"
+            });
+        });
+    </script>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <!-- apex:actionFunction name="renderRelatedLists" action="{!renderRelatedLists}" oncomplete="onRenderRelatedListsComplete();" rerender="op_RelatedLists"/-->
+        <!-- apex:actionFunction name="pageLimitChanged" action="{!doPageLimitChanged}" oncomplete="unblockUI(); return false;" rerender="pageMessages, pb_RelatedLists" immediate="false" / -->  
+        <!--  
+        <apex:actionFunction name="txnsNextPage" action="{!doTxnsNextPage}" oncomplete="unblockUI(); return false;" rerender="pageMessages, pbs_Transactions" immediate="false">
+            <apex:param name="txnsPageStatus" assignTo="{!txnsPageStatus}" value="" />
+        </apex:actionFunction>
+        -->
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <!-- c:standardButtons cntr="{!controller}"/-->
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputHidden id="pjwkb_div__c" value="{!o.rstk__pjwkb_div__c}"/>
+            <apex:inputHidden id="pjwkb_proj__c" value="{!o.rstk__pjwkb_proj__c}"/>
+            <apex:inputHidden id="pjwkb_proj_master__c" value="{!o.rstk__pjwkb_proj_master__c}"/> 
+            <!-- apex:inputHidden id="InvTxns" value="{!Transactions}"/-->
+        </apex:outputPanel>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjwkb_div__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__pjwkb_div__c.label}"/>
+                <apex:outputField value="{!o.rstk__pjwkb_div__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjwkb_div__c.inlineHelpText}" >
+                <apex:outputLink value="{!URLFOR($Action.rstk__pjprojcst__c.Edit, o.rstk__pjwkb_proj__c)}{!ReturnUrlParms}"><apex:outputLabel value="Edit Budget Detail" /></apex:outputLink>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjwkb_proj_master__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__pjwkb_proj_master__c.label}" />
+                <apex:outputField value="{!o.rstk__pjwkb_proj_master__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__totalopenpos}" />
+                <apex:outputPanel >
+                    <apex:outputText html-decimals="2" id="openPoTotal" value="{!openPoTotal}"/>
+                    <!--  <apex:outputText value="{0,number,#,##0.00}" styleClass="rl-rightalign"><apex:param value="{!openPoTotal}"/></apex:outputText> -->
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <!--  
+            <apex:pageBlockSectionItem helpText="{!f.pjwkb_proj__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.pjwkb_proj__c.label}" />
+                <apex:outputField value="{!o.rstk__pjwkb_proj__c}"/>
+            </apex:pageBlockSectionItem>
+            -->
+        </apex:pageBlockSection>
+        <br />
+        
+        <div class="overlayStyle" id="hover_revenue" style="padding-top:7px;width:800px;">
+            <apex:outputPanel id="hoverRevenue">
+            <apex:pageBlock id="pb_Revenue">
+                <table width="100%">
+                    <tr>
+                        <th width="20%"><b> </b></th>
+                        <th width="27%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__actualtodate}" /></b></th>
+                        <th width="26%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__budget}" /></b></th>
+                        <th width="27%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__variance}" /></b></th>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__productsales}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_actprodrevenue__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budprodrevenue__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_prodrevenue__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__servicessales}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_actservrevenue__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budservrevenue__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_servrevenue__c}"/></td>
+                    </tr>
+                </table>
+            </apex:pageBlock>
+            <a class='close' href="#">close</a>
+            </apex:outputPanel>
+        </div>
+        
+        <div class="overlayStyle" id="hover_overhead" style="padding-top:7x;width:800px;">
+            <apex:outputPanel id="hoverOverhead">
+            <apex:pageBlock id="pb_Overhead">
+                <table width="100%">
+                    <tr>
+                        <th width="20%"><b> </b></th>
+                        <th width="27%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__costtodate}" /></b></th>
+                        <th width="26%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__budget}" /></b></th>
+                        <th width="27%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__variance}" /></b></th>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__materialohd}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_ohd_mtl__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_ohd_mtl__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_ohd_mtl__c}"/></td>
+                    </tr>           
+                    <tr>
+                        <td style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__laborohd}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_ohd_lab__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_ohd_lab__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_ohd_lab__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__fringe}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_ohd_fringe__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_ohd_fringe__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_ohd_fringe__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__machineohd}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_ohd_mach__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_ohd_mach__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_ohd_mach__c}"/></td>
+                    </tr>
+                </table>
+            </apex:pageBlock>
+            <a class='close' href="#">close</a>
+            </apex:outputPanel>
+        </div>
+        
+        <div class="overlayStyle" id="hover_subcontract" style="padding-top:7px;width:800px;" >
+            <apex:outputPanel id="hoverSubcontract">
+            <apex:pageBlock id="pb_Subcontract">
+                <table width="100%">
+                    <tr>
+                        <th width="20%"><b> </b></th>
+                        <th width="27%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__costtodate}" /></b></th>
+                        <th width="26%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__budget}" /></b></th>
+                        <th width="27%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__variance}" /></b></th>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__subcontractmaterial}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_sub_mtl__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_sub_mtl__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_sub_mtl__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;word-wrap:no;"><b><apex:outputLabel value="{!$Label.rstk__subcontractlabor}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_sub_lab__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_sub_lab__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_sub_lab__c}"/></td>
+                    </tr>
+                </table>
+            </apex:pageBlock>
+            <a class='close' href="#">close</a>
+            </apex:outputPanel>
+        </div>
+        
+        <div class="overlayStyle" id="hover_othDirect" style="padding-top:7px;width:800px;">
+            <apex:outputPanel id="hoverothDirect">
+            <apex:pageBlock id="pb_othDirect">
+                <table width="100%">
+                    <tr>
+                        <th width="20%"><b> </b></th>
+                        <th width="27%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__costtodate}" /></b></th>
+                        <th width="26%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__budget}" /></b></th>
+                        <th width="27%" style="text-align:right;word-wrap:normal;"><b><apex:outputLabel value="{!$Label.rstk__variance}" /></b></th>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__indirectodc}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_odc_indirect__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_odc_indirect__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_odc_indirect__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__miscodc}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_odc_misc__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_odc_misc__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_odc_misc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__serviceodc}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_odc_service__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_odc_service__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_odc_service__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__travelodc}" /></b></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_cost_odc_travel__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_odc_travel__c}"/></td>
+                        <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_ohd_travel__c}"/></td>
+                    </tr>
+                </table>
+            </apex:pageBlock>
+            <a class='close' href="#">close</a>
+            </apex:outputPanel>
+        </div>
+ 
+        <apex:pageBlockSection id="pbs_subtotal" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+            <apex:pageBlockSectionItem >
+                <apex:outputPanel >
+                    <center>
+                    <table width="80%">
+                        <tr>
+                            <th width="10%"><b></b></th>
+                            <th width="30%" style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__actualtodate}" /></b></th>
+                            <th width="30%" style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__budget}" /></b></th>
+                            <th width="30%" style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__variance}" /></b></th>
+                        </tr>
+                        <tr>
+                            <td style="text-align:right;"><b><a rel="#hover_revenue" href="javascript:{}"><apex:outputLabel value="{!$Label.rstk__revenue}" /></a></b></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_acttotrevenue__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budtotrevenue__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_revenue__c}"/></td>
+                        </tr>
+                        <tr><td colspan="4"><hr /></td></tr>
+                        <tr>
+                            <td style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__totalcosts}" /></b></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_costs_subtot__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_subtot__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_subtot__c}"/></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__material}" /></b></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_costs_subtot_mtl__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_subtot_mtl__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_subtot_mtl__c}"/></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:right;"><b><apex:outputLabel value="{!$Label.rstk__labor}" /></b></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_costs_subtot_lab__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_subtot_lab__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_subtot_lab__c}"/></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:right;"><b><a rel="#hover_overhead" href="javascript:{}"><apex:outputLabel value="{!$Label.rstk__overhead}" /></a></b></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_costs_subtot_ohd__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_subtot_ohd__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_subtot_ohd__c}"/></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:right;"><b><a rel="#hover_subcontract" href="javascript:{}"><apex:outputLabel value="{!$Label.rstk__subcontract}" /></a></b></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_costs_subtot_sub__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budget_subtot_sub__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_subtot_sub__c}"/></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:right;"><b><a rel="#hover_othDirect" href="javascript:{}"><apex:outputLabel value="{!$Label.rstk__otherdirect}" /></a></b></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_actothdirect__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_budothdirect__c}"/></td>
+                            <td style="text-align:right;"><apex:outputField value="{!o.rstk__pjwkb_var_othdirect__c}"/></td>
+                        </tr>
+                    </table>
+                    </center>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        
+        <br />
+        
+        <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sysite_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+        
+    </apex:pageBlock>
+    </apex:form>
+    
+    <apex:pageBlock id="pb_RelatedLists">
+    <apex:pageBlockSection id="pbs_RelatedLists" showHeader="true" title="{!$Label.rstk__pagetab_pjwkb_inventory_ordersandtransactions}" columns="1">
+    <apex:outputPanel id="op_RelatedLists" style="display:none;">
+    <script>var op_RelatedLists = document.getElementById("{!$Component.op_RelatedLists}");</script>
+    <apex:tabPanel switchType="client" selectedTab="tab_Components" id="theTabPanel2">
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_inventory}" name="tab_Inventory" id="tab_Inventory">
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_Inventory" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!invRecs > 0}">
+                    <div id="pagerInvTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispInvLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="invList" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!invRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_requisitions}" name="tab_PORequisitions" id="tab_PORequisitions">
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_PORequisitions" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!reqRecs > 0}">
+                    <div id="pagerReqTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispReqLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="reqList" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!reqRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_purchaseorders}" name="tab_PurchaseOrder" id="tab_PurchaseOrder" >
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_PurchaseOrder" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!poRecs > 0}">
+                    <div id="pagerPOTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispPoLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="poList" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!poRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_workorders}" name="tab_WorkOrders" id="tab_WorkOrders" >
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_WorkOrders" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!woRecs > 0}">
+                    <div id="pagerWOTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispWoLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="woList" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!woRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_salesorders}" name="tab_SalesOrders" id="tab_SalesOrders" >
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_SalesOrders" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!soRecs > 0}">
+                    <div id="pagerSOTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispSoLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="soList" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!soRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_forecasts}" name="tab_Forecasts" id="tab_Forecasts" >
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_Forecasts" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!fctRecs > 0}">
+                    <div id="pagerFctTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispFctLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="fctList" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!fctRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_inventorytxns}" name="tab_Transactions" id="tab_Transactions">
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_Transactions" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!invTxnsRecs > 0}">
+                    <div id="pagerTxnsTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispInvTxnsLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="invTxns" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!invTxnsRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_labortxns}" name="tab_Labor" id="tab_Labor" >
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_Labor" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!lbTxnsRecs > 0}">
+                    <div id="pagerLaborTxnsTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!displbTxnsLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="laborTxns" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!lbTxnsRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+        
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_othertxns}" name="tab_OtherTxns" id="tab_OtherTxns" >
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_OtherTxns" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!otherTxnsRecs > 0}">
+                    <div id="pagerOtherTxnsTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispotxnsLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="otherTxns" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!otherTxnsRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+                    
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_importedothertxns}" name="tab_importOtherTxns" id="tab_importOtherTxns" >
+            <div style="height:300px; overflow:auto;">
+            <apex:pageBlockSection id="pbs_importOtherTxns" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!importOtherTxnsRecs > 0}">
+                    <div id="pagerImportedOtherTxnsTable" class="pager">
+                    <apex:outputLink value="javascript:{}" styleclass="first">{!$Label.rstk__pglink_first}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="prev">{!$Label.rstk__pgllink_previous}</apex:outputLink> &nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__page}" />
+                    <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+                    &nbsp; &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="next">{!$Label.rstk__pglink_next}</apex:outputLink> &nbsp;
+                    <apex:outputLink value="javascript:{}" styleclass="last">{!$Label.rstk__pagelink_peitem_last}</apex:outputLink> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+                    <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+                    <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+                    <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!dispimportotxnsLargeLabel}"/>
+                    </div>
+                    <br />
+                    <apex:outputPanel id="importOtherTxns" style="height:240px;overflow:auto;display:block">
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                
+                <apex:outputPanel rendered="{!importOtherTxnsRecs == 0}">
+                    <apex:outputLabel value="{!$Label.rstk__norecordstodisplay}" />
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+        </apex:tab>
+                    
+        <apex:tab label="{!$Label.rstk__pagetab_pjwkb_notesandattachments}" name="tab_NotesAttachments" id="tab_NotesAttachments">
+            <div style="height:250px; overflow:auto;">
+                <apex:relatedList list="NotesAndAttachments" subject="{!o.id}"/>
+            </div>
+        </apex:tab>
+    </apex:tabPanel>
+
+    </apex:outputPanel>
+    </apex:pageBlockSection>
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true" />
+    <script>
+        var LABEL_pjwkb_Item_No = "{!$Label.rstk__pjwkb_item_no}";
+        var LABEL_pjwkb_Qty_On_Hand = "{!$Label.rstk__pjwkb_qty_on_hand}";
+        var LABEL_pjwkb_Qty_On_Hold = "{!$Label.rstk__pjwkb_qty_on_hold}";
+        var LABEL_pjwkb_Unit_Cost = "{!$Label.rstk__pjwkb_unit_cost}";
+        var LABEL_pjwkb_Value = "{!$Label.rstk__pjwkb_value}";
+        var LABEL_pjwkb_Inventory_Acct = "{!$Label.rstk__pjwkb_inventory_acct}";
+        var LABEL_Edit_View = "{!$Label.rstk__edit_view}";
+        var LABEL_Req_No = "{!$Label.rstk__req_no}";
+        var LABEL_pjwkb_Status = "{!$Label.rstk__pjwkb_status}";
+        var LABEL_pjwkb_Release_Date = "{!$Label.rstk__pjwkb_release_date}";
+        var LABEL_pjwkb_Planner = "{!$Label.rstk__pjwkb_planner}";
+        var LABEL_pjwkb_Order_Qty = "{!$Label.rstk__pjwkb_order_qty}";
+        var LABEL_Converted_Qty = "{!$Label.rstk__converted_qty}";
+        var LABEL_Remaining_Qty = "{!$Label.rstk__remaining_qty}";
+        var LABEL_pjwkb_View = "{!$Label.rstk__pjwkb_view}";
+        var LABEL_pjwkb_Order_No = "{!$Label.rstk__pjwkb_order_no}";
+        var LABEL_pjwkb_Line = "{!$Label.rstk__pjwkb_line}";
+        var LABEL_pjwkb_Item = "{!$Label.rstk__pjwkb_item}";
+        var LABEL_Dock_Date = "{!$Label.rstk__dock_date}";
+        var LABEL_pjwkb_Vendor = "{!$Label.rstk__pjwkb_vendor}";
+        var LABEL_pjwkb_Received = "{!$Label.rstk__pjwkb_received}";
+        var LABEL_Place_Date = "{!$Label.rstk__place_date}";
+        var LABEL_pjwkb_Accept_Qty = "{!$Label.rstk__pjwkb_accept_qty}";
+        var LABEL_Reject_Qty = "{!$Label.rstk__reject_qty}";
+        var LABEL_WIP_Qty = "{!$Label.rstk__wip_qty}";
+        var LABEL_pjwkb_Customer = "{!$Label.rstk__pjwkb_customer}";
+        var LABEL_pjwkb_Order_Number = "{!$Label.rstk__pjwkb_order_number}";
+        var LABEL_pjwkb_Product = "{!$Label.rstk__pjwkb_product}";
+        var LABEL_pjwkb_Due_Date = "{!$Label.rstk__pjwkb_due_date}";
+        var LABEL_pjwkb_Price = "{!$Label.rstk__pjwkb_price}";
+        var LABEL_Qty_Ordered = "{!$Label.rstk__qty_ordered}";
+        var LABEL_Qty_Shipped = "{!$Label.rstk__qty_shipped}";
+        var LABEL_Booked_Amount = "{!$Label.rstk__booked_amount}";
+        var LABEL_Shipped_Amt = "{!$Label.rstk__shipped_amt}";
+        var LABEL_Start_Date = "{!$Label.rstk__start_date}";
+        var LABEL_pjwkb_End_Date = "{!$Label.rstk__pjwkb_end_date}";
+        var LABEL_pjwkb_Quantity = "{!$Label.rstk__pjwkb_quantity}";
+        var LABEL_Date_Time = "{!$Label.rstk__date_time}";
+        var LABEL_pjwkb_Type = "{!$Label.rstk__pjwkb_type}";
+        var LABEL_pjwkb_Qty_Impact = "{!$Label.rstk__pjwkb_qty_impact}";
+        var LABEL_pjwkb_Debit_Acct = "{!$Label.rstk__pjwkb_debit_acct}";
+        var LABEL_Credit_Acct = "{!$Label.rstk__credit_acct}";
+        var LABEL_pjwkb_Employee = "{!$Label.rstk__pjwkb_employee}";
+        var LABEL_Department = "{!$Label.rstk__department}";
+        var LABEL_Work_Center = "{!$Label.rstk__work_center}";
+        var LABEL_pjwkb_Order = "{!$Label.rstk__pjwkb_order}";
+        var LABEL_pjwkb_Comments = "{!$Label.rstk__pjwkb_comments}";
+        var LABEL_pjwkb_Hours = "{!$Label.rstk__pjwkb_hours}";
+        var LABEL_pjwkb_Cost = "{!$Label.rstk__pjwkb_cost}";
+        var LABEL_ODC_ID = "{!$Label.rstk__odc_id}";
+        var LABEL_Transaction_Date = "{!$Label.rstk__transaction_date}";
+        var LABEL_Indirect_ODC_Amount = "{!$Label.rstk__indirect_odc_amount}";
+        var LABEL_Misc_ODC_Amount = "{!$Label.rstk__misc_odc_amount}";
+        var LABEL_Service_ODC_Amount = "{!$Label.rstk__service_odc_amount}";
+        var LABEL_Travel_ODC_Amount = "{!$Label.rstk__travel_odc_amount}";
+        var LABEL_ODC_Code = "{!$Label.rstk__odc_code}";
+        var LABEL_Vendor_Reference = "{!$Label.rstk__vendor_reference}";
+        var LABEL_pjwkb_Description = "{!$Label.rstk__pjwkb_description}";
+    </script>
+</apex:page>

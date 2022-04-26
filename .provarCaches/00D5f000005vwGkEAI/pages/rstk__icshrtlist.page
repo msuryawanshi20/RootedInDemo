@@ -1,0 +1,196 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_icshrtlist}" standardController="rstk__icshrtlist__c" extensions="rstk.ControllerExtnIcshrtlist,rstk.RemoteQueryController,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__icshrtlist__c}" />
+	<apex:variable var="f" value="{!$ObjectType.rstk__icshrtlist__c.fields}" />
+
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icshrtlist}"
+		customInclude="{!$Resource.rstk__icshrtlist_cli}" enableAutocomplete="true" />
+	<apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+	<apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+	<apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_pager}" />
+	<apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+
+	<script>
+		var userid = '{!o.rstk__icshrtlist_usrno__c}';
+        jQuery(document).ready(function() {
+        
+            jQuery.tablesorter.addParser({
+				id: "fancyNumber",
+				is: function(s) {
+					return /^[0-9]?[0-9,\.]*$/.test(s);
+				},
+				format: function(s) {
+				return jQuery.tablesorter.formatFloat( s.replace(/,/g,'') );
+				},
+				type: "numeric"
+			});
+        });
+    </script>
+	<!--  
+    <apex:includeScript value="{!$Resource.jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.hover_popup}" />
+     
+    <script>
+		jQuery(document).ready(function() {
+			jQuery(".wrappingHeader").parent().css('background-size','2px 120px');
+	    	initHoverPopups(jQuery("#bodyTable"), {manualLoad:false, displayUp:true});
+	    });
+	    
+    </script>
+	-->
+	<apex:form id="fm" rendered="{!displayPageContent}">
+		<apex:actionFunction name="doGenerateOptChanged" action="{!doGenerateOptChanged}" oncomplete="unblockUI(); return false;" immediate="false" />
+		<apex:actionFunction name="doGenerateReport" action="{!doGenerateReport}" oncomplete="unblockUI(); return false;" immediate="false" />
+
+		<apex:pageBlock id="pb" mode="detail">
+			<apex:pageBlockButtons >
+				<apex:commandButton id="generateReportBtn" value="{!$Label.rstk__pagebtn_icshrtlist_submit}" style="width:150px;" onclick="return submitBtnClicked();" />
+			</apex:pageBlockButtons>
+
+			<apex:outputPanel style="display:none">
+				<apex:inputhidden id="icshrtlist_ordtyp__c" value="{!o.rstk__icshrtlist_ordtyp__c}" />
+				<apex:outputField id="icshrtlist_usrno__c" value="{!o.rstk__icshrtlist_usrno__c}" />
+				<apex:inputhidden id="icshrtlist_site__c" value="{!o.rstk__icshrtlist_site__c}" />
+			</apex:outputPanel>
+
+			<c:division id="icshrtlist_div__c" cntr="{!controller}" />
+			<apex:pageBlockSection id="pbs_Main" showHeader="false"	title="{!$Label.rstk__information}" columns="2">
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_site__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__icshrtlist_site__c.label}" />
+                    <apex:outputField id="icshrtlist_site" value="{!o.rstk__icshrtlist_site__c}" />
+<!--  RSTK-10096                  <c:selectList id="icshrtlist_site__c" cntr="{!controller}" options="{!Sites}" tabIndex="15" /> -->
+                </apex:pageBlockSectionItem>
+
+				<apex:pageBlockSectionItem />
+
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!$Label.rstk__processingoptions}" />
+					<apex:selectList id="procopt__c" value="{!procopt}" size="1" tabIndex="1">
+						<apex:selectOptions value="{!ProcessOpts}" />
+					</apex:selectList>
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!$Label.rstk__shortagereportlist}" />
+					<apex:selectList id="reportList__c" value="{!icshrtlistId}" size="1" style="width:300px;" tabIndex="11">
+						<apex:selectOptions value="{!Reportlist}" />
+					</apex:selectList>
+				</apex:pageBlockSectionItem>
+			
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_genopt__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__icshrtlist_genopt__c.label}" />
+					<c:selectList id="icshrtlist_genopt__c" cntr="{!controller}" options="{!GenerateOpts}" width="300px" tabIndex="2" />
+				</apex:pageBlockSectionItem>
+
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_item__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__icshrtlist_item__c.label}" />
+					<apex:outputPanel >
+						<apex:outputPanel rendered="{!!isView}">
+							<c:autocomplete id="icshrtlist_item__c" cntr="{!controller}"
+								slDesc="{!ItemName}"
+								query="select icitemcst_item__c, icitemcst_item__r.name from icitemcst__c where icitemcst_div__c = 'prm'"
+								queryParms="[['icshrtlist_div__c','Division']]"
+								codeColumn="icitemcst_item__c"
+								descColumn="icitemcst_item__r.name" width="200px" tabIndex="21" />
+						</apex:outputPanel>
+						<apex:outputField value="{!o.rstk__icshrtlist_item__c}"
+							rendered="{!isView}" />
+					</apex:outputPanel>
+				</apex:pageBlockSectionItem>
+
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_dmdthrudate__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__icshrtlist_dmdthrudate__c.label}" />
+					<c:inputField id="icshrtlist_dmdthrudate__c" cntr="{!controller}" tabIndex="31" />
+				</apex:pageBlockSectionItem>
+
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_ordno__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__icshrtlist_ordno__c.label}" />
+					<apex:outputPanel >
+						<apex:outputPanel rendered="{!!isView}">
+							<c:autocomplete id="icshrtlist_ordno__c" cntr="{!controller}"
+								slDesc="{!Orderno}" query="{!orderQuery}"
+								queryParms="[['icshrtlist_site__c','Site']]"
+								codeColumn="{!codeCol}" descColumn="{!descCol}" displayColumn="{!displayCol}"
+								tabIndex="71" />
+						</apex:outputPanel>
+						<apex:outputField value="{!o.rstk__icshrtlist_ordno__c}"
+							rendered="{!isView}" />
+					</apex:outputPanel>
+				</apex:pageBlockSectionItem>
+
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_supcovopt__c.inlineHelpText}">
+					<apex:outputLabel value="{!$Label.rstk__considersuppliesthroughdemandthrudateassupplycover}" />
+					<c:inputCheckbox id="icshrtlist_supcovopt__c" cntr="{!controller}" tabIndex="76" />
+				</apex:pageBlockSectionItem>
+
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_ordlne__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__icshrtlist_ordlne__c.label}" />
+					<c:selectList id="icshrtlist_ordlne__c" cntr="{!controller}" options="{!Linenos}" tabIndex="72" />
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem />
+
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_proj__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__icshrtlist_proj__c.label}" />
+					<c:autocomplete id="icshrtlist_proj__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_div__c = '{!o.rstk__icshrtlist_div__c}'" slDesc="{!projectDesc}" tabIndex="22"/>
+				</apex:pageBlockSectionItem>
+
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!$Label.rstk__deleteoptions}" />
+					<apex:selectList id="delopt__c" value="{!delopt}" size="1" style="width:400px;" tabIndex="3">
+						<apex:selectOptions value="{!DeleteOpts}" />
+					</apex:selectList>
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem helpText="Delete Options will only apply to records prior to this number of days in the past.">
+					<apex:outputLabel value="{!$Label.rstk__numberofdaystopreserveshortagereportlists}" />
+					<apex:inputText id="deldays__c" value="{!deldays}" onkeypress="if (window.filterNonNumeric) {return filterNonNumeric(event, this);} else {return true;}"/>
+				</apex:pageBlockSectionItem>
+
+			</apex:pageBlockSection>
+
+			<apex:pageBlockSection id="pbs_Comm" showHeader="false"
+				title="{!$Label.rstk__information}" columns="1">
+				<apex:pageBlockSectionItem helpText="{!f.rstk__icshrtlist_comments__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__icshrtlist_comments__c.label}" />
+					<c:inputField id="icshrtlist_comments__c" cntr="{!controller}" width="700px" tabIndex="101" />
+				</apex:pageBlockSectionItem>
+			</apex:pageBlockSection>
+			<br />
+			<apex:pageBlockSection id="pbs_reportDetails" showHeader="true" columns="1" title="{!$Label.rstk__pagetab_icshrtlist_reportdetails}" collapsible="false">
+				<apex:outputPanel id="noRecord" style="display:none;">
+					<apex:outputLabel value="{!$Label.rstk__noshortagereportfortheseoptions}" />
+				</apex:outputPanel>
+				<apex:outputPanel id="ReportDetail" style="display:none;">
+					<div style="height: 300px; overflow: auto;">
+						<div id="pagerhdrTable" class="pager">
+							<apex:outputLink value="javascript:{}" styleclass="first">First</apex:outputLink>&nbsp; 
+							<apex:outputLink value="javascript:{}" styleclass="prev">Previous</apex:outputLink>&nbsp;
+					 		<apex:outputLabel value="{!$Label.rstk__page}" /> 
+					 		<input type="text" id="poPage" class="pagedisplay" disabled="true" style="width: 50px;" /> &nbsp; &nbsp; &nbsp; 
+							<apex:outputLink value="javascript:{}" styleclass="next">Next</apex:outputLink> &nbsp;
+							<apex:outputLink value="javascript:{}" styleclass="last">Last</apex:outputLink> &nbsp;&nbsp; &nbsp; 
+							<apex:outputLabel value="{!$Label.rstk__gotopage}" /> 
+							<input type="text" class="gotoPage" maxLength="4" style="width: 40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" /> 
+							<input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+							<apex:outputLabel id="largeRecLabel" value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" style="dispaly:none;" />
+						</div>
+						<br />
+						
+						<apex:outputPanel id="hdrList" style="height:240px;overflow:auto;display:block">
+							<apex:outputLabel value="{!$Label.rstk__contexthere}"/>
+						</apex:outputPanel>
+					</div>
+				</apex:outputPanel>
+			</apex:pageBlockSection>
+		</apex:pageBlock>
+	</apex:form>
+
+	<c:footerInclude cntr="{!controller}" />
+	
+	<script>
+		var LABEL_InvalidValForNumOfDaysToPreserveShortageReportLists = "{!$Label.InvalidValForNumOfDaysToPreserveShortageReportLists}";
+		var LABEL_ItemNoMustBeBlankWhenGenerateNotForSingleItem = "{!$Label.ItemNoMustBeBlankWhenGenerateNotForSingleItem}";
+		var LABEL_DemandThruDateCantBeLessThanToday = "{!$Label.DemandThruDateCantBeLessThanToday}";
+		var LABEL_ProcessLogEntryFound = "{!$Label.ProcessLogEntryFound}";
+	</script>
+</apex:page>

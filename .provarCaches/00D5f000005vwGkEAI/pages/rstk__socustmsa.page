@@ -1,0 +1,174 @@
+<apex:page id="pg" standardController="rstk__socustmsa__c" extensions="rstk.ControllerExtnSocustmsa,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__socustmsa__c}" />
+    <apex:variable var="f_socustmsa" value="{!$ObjectType.rstk__socustmsa__c.fields}" />
+
+    <script>
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+        
+        function compareDate(firstDate,lastDate,resetfield){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnSocustmsa.verifyDate}', //NameSpace  
+                firstDate,lastDate,   
+                function(result, event){
+                    if (event.status) {
+                        if(result){
+                            alert("{!$Label.rstk__lstefctdtcntbelessthnfstefctdte}");
+                            sfffSetFieldValue(resetfield,'', false);
+                            return true;
+                        }
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.rstk__exception1}" + event.message);
+                    } else {
+                        alert("{!$Label.rstk__unexpectedstatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+    </script>
+    
+    <c:standardHeader cntr="{!controller}" enableAutocomplete="true" customInclude="{!$Resource.rstk__socustmsa_cli}"/>
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableDelete="{!isDisableDelete}"/>
+            </apex:pageBlockButtons>
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="2" rendered="{!OR(isNew,isEdit)}" >
+                <apex:outputField value="{!o.rstk__socustmsa_div__c}" />
+                <apex:pageBlockSectionItem />
+            
+                <apex:pageBlockSectionItem helpText="{!f_socustmsa.rstk__socustmsa_socust__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_socustmsa.rstk__socustmsa_socust__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField id="custlink" value="{!o.rstk__socustmsa_socust__c}" rendered="{!!isNew}"/>
+                        <c:autocomplete id="socustmsa_socust__c" cntr="{!controller}" slDesc="{!custName}" required="true" tabIndex="1"
+                            query="select id, name from socust__c where socust_inactive__c = false" queryParms="[]"  rendered="{!isNew}" width="200px;"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f_socustmsa.rstk__socustmsa_resp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_socustmsa.rstk__socustmsa_resp__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="socustmsa_resp__c" value="{!o.rstk__socustmsa_resp__c}" size="1" style="width:200px;" tabIndex="41">
+                            <apex:selectOptions value="{!respUsers}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_socustmsa.rstk__socustmsa_somsa__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_socustmsa.rstk__socustmsa_somsa__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="socustmsa_somsa__c" value="{!o.rstk__socustmsa_somsa__c}" required="true" size="1" style="width:200px;" rendered="{!isNew}" tabIndex="2">
+                            <apex:selectOptions value="{!somsas}"/>
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__socustmsa_somsa__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="socustmsa_active__c" value="{!o.rstk__socustmsa_active__c}" taborderhint="5"/>
+                                
+                <apex:inputField id="socustmsa_msarev__c" value="{!o.rstk__socustmsa_msarev__c}" style="width:200px;"/>
+                <apex:outputField value="{!o.rstk__socustmsa_currev__c}" />
+                
+                <apex:inputField id="socustmsa_title__c" value="{!o.rstk__socustmsa_title__c}" style="width:200px;" required="true" taborderhint="3"/>
+                <apex:outputField value="{!o.rstk__socustmsa_revdate__c}" />
+                
+                <apex:inputField id="socustmsa_desc__c" value="{!o.rstk__socustmsa_desc__c}" style="width:300px; height: 100px;" taborderhint="4"/>
+                <apex:pageBlockSectionItem helpText="{!f_socustmsa.rstk__socustmsa_approvalcont__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_socustmsa.rstk__socustmsa_approvalcont__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="socustmsa_approvalcont__c" value="{!o.rstk__socustmsa_approvalcont__c}" size="1" style="width:200px;" tabIndex="41">
+                            <apex:selectOptions value="{!contacts}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="socustmsa_startdate__c" value="{!o.rstk__socustmsa_startdate__c}"  taborderhint="5"/>
+                <apex:inputField id="socustmsa_capprovalsts__c" value="{!o.rstk__socustmsa_capprovalsts__c}" taborderhint="4"/>
+                
+                <apex:inputField id="socustmsa_enddate__c" value="{!o.rstk__socustmsa_enddate__c}" taborderhint="6"/>
+                <apex:inputField id="socustmsa_capprovaldate__c" value="{!o.rstk__socustmsa_capprovaldate__c}" taborderhint="4"/>
+                
+                
+                <apex:inputField id="socustmsa_term__c" value="{!o.rstk__socustmsa_term__c}" taborderhint="7"/>
+                <apex:inputField id="socustmsa_iapprovalsts__c" value="{!o.rstk__socustmsa_iapprovalsts__c}" taborderhint="4"/>
+                
+                <apex:pageBlockSectionItem />
+                <apex:inputField id="socustmsa_iapprovaldate__c" value="{!o.rstk__socustmsa_iapprovaldate__c}" taborderhint="4"/>
+                
+                
+                                
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_Main2" columns="2" rendered="{!isView}" >
+                <apex:outputField value="{!o.rstk__socustmsa_div__c}" />
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputField value="{!o.rstk__socustmsa_socust__c}" />
+                <apex:outputField value="{!o.rstk__socustmsa_resp__c}" />
+                
+                <apex:outputField value="{!o.rstk__socustmsa_somsa__c}" />
+                <apex:outputField value="{!o.rstk__socustmsa_active__c}" />
+                
+                <apex:outputField value="{!o.rstk__socustmsa_msarev__c}" />
+                <apex:outputField value="{!o.rstk__socustmsa_currev__c}" />
+                
+                <apex:outputField value="{!o.rstk__socustmsa_title__c}" />
+                <apex:outputField value="{!o.rstk__socustmsa_revdate__c}" />
+                
+                <apex:outputField value="{!o.rstk__socustmsa_desc__c}" />
+                <apex:outputField value="{!o.rstk__socustmsa_approvalcont__c}" />
+                
+                <apex:outputField value="{!o.rstk__socustmsa_startdate__c}" />
+                <apex:outputField value="{!o.rstk__socustmsa_capprovalsts__c}" />
+                
+                <apex:outputField value="{!o.rstk__socustmsa_enddate__c}" />
+                <apex:outputField value="{!o.rstk__socustmsa_capprovaldate__c}" />
+                
+                <apex:outputField value="{!o.rstk__socustmsa_term__c}" />
+                <apex:outputField value="{!o.rstk__socustmsa_iapprovalsts__c}" />
+                
+                <apex:pageBlockSectionItem />
+                <apex:outputField value="{!o.rstk__socustmsa_iapprovaldate__c}" />
+                
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection columns="1" rendered="{!OR(isEdit,isView)}">     
+                <apex:tabPanel switchType="client" selectedTab="tab_Info" id="theTabPanel">
+                    <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                        <c:customFields cntr="{!controller}" cols="2"/>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__info}" name="tab_Info" id="tab_Info">
+                        <c:infoSection cntr="{!controller}" showHeader="false"/>
+                    </apex:tab>
+                </apex:tabPanel>
+            </apex:pageBlockSection>    
+        </apex:pageBlock>
+    </apex:form>
+    
+    <apex:pageBlock id="pb2" rendered="{!isView}">
+        <apex:pageBlockSection columns="1">     
+            <apex:tabPanel switchType="client" selectedTab="clauses" id="theTabPanel">
+                    <apex:tab label="{!$Label.rstk__clauses}" name="tab_Clauses" id="tab_Clauses">
+                        <apex:outputPanel id="op_Clauses">
+                            <apex:relatedList list="socustmsacs__r"/>
+                        </apex:outputPanel>
+                    </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlockSection>    
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        setSelectListRequired("socustmsa_somsa__c");
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

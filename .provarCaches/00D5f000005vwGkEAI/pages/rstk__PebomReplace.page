@@ -1,0 +1,80 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_pebomreplace}" standardController="rstk__pebom__c" extensions="rstk.ControllerExtnPebomReplace,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__pebom__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__pebom__c.fields}" /> 
+    <apex:variable var="f_div" value="{!$ObjectType.rstk__sydiv__c.fields}" />
+    <apex:variable var="f_peitem" value="{!$ObjectType.rstk__peitem__c.fields}" />
+    <apex:variable var="f_peitemrev" value="{!$ObjectType.rstk__peitemrev__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_pebomreplace}" enableAutocomplete="true"/>
+    <script>
+    	function createFieldChangeHandlers(){
+			fieldChangeHandlers['pebom_item__c'] = onExistItemChanged;
+		}
+		function onExistItemChanged() {
+			var itemId = sfffGetFieldValue('pebom_item__c');
+			
+			var syuomName = '';
+			if (!isEmpty (itemId)) {
+				var peitems = execQuery("select id, peitem_enguom__r.Name from Peitem__c where Id = '"+itemId+"'");
+				var syuomName = peitems[0].peitem_enguom__r.Name;
+			}
+			document.getElementById ('pg:fm:pb:pbs_Main:pbsi_enguom:enguom__c').innerHTML = syuomName;
+		}
+    </script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/> 
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="massReplace" action="{!doMassReplace}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_pebomreplace_performmassreplace}" onclick="blockUI();massReplace(); return false;" style="width:150px;" />
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            
+        </apex:outputPanel>
+        
+        <c:division id="pebom_div__c" cntr="{!controller}" disabled="false"/>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__existingitem}"/>
+                <c:autocomplete id="pebom_item__c" cntr="{!controller}" query="select id, name from peitem__c where peitem_inactivests__c != 'I' and peitem_div__c = 'prm'" queryParms="[['pebom_div__c','Division']]" tabIndex="2"/>
+            </apex:pageBlockSectionItem>  
+            
+            <apex:pageBlockSectionItem id="pbsi_enguom" helpText="{!f_peitem.rstk__peitem_enguom__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__enguom}"/>
+                <apex:outputText id="enguom__c" value=""/>
+            </apex:pageBlockSectionItem>     
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_compitem__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__replacewithitem}"/>
+                <c:autocomplete id="pebom_compitem__c" cntr="{!controller}" query="select id, name from peitem__c where peitem_inactivests__c != 'I' and peitem_div__c = 'prm'" queryParms="[['pebom_div__c','Division']]" tabIndex="3"/>
+            </apex:pageBlockSectionItem>   
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_adddate__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__effectivedate}"/>
+                <c:inputField id="pebom_adddate__c" cntr="{!controller}" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+            
+			<apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pebom_addsts_pl__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__status}"/>
+                <c:inputField id="pebom_addsts_pl__c" cntr="{!controller}" tabIndex="8"/>
+            </apex:pageBlockSectionItem>
+
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:form>
+      
+    <script>
+        {!controller.initPage}
+    </script>
+
+</apex:page>

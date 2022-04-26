@@ -1,0 +1,132 @@
+<apex:page id="pg" standardController="rstk__soinv__c" extensions="rstk.ControllerExtnMakeSalesCommPayments,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__soinv__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soinv__c.fields}" />
+    <apex:variable var="f_isales" value="{!$ObjectType.rstk__soisales__c.fields}"/>
+    <apex:variable var="f_isalespay" value="{!$ObjectType.rstk__soisalespay__c.fields}"/>
+    <apex:variable var="f_soinvline" value="{!$ObjectType.rstk__soinvline__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_makesalescommpayments}" customInclude="{!$Resource.rstk__makeSalesCommPayments_cli}" enableAutocomplete="true"/>
+	<apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+	<apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+
+	<script>
+		jQuery(document).ready(function() {
+	    	initHoverPopups(jQuery("table[id$=':pbt_paymentDetails']"), {manualLoad:false, displayUp:true});
+	    });
+    </script>
+	
+    <apex:form id="fm" rendered="{!displayPageContent}">
+		<apex:actionFunction name="filterChanged" action="{!filterChanged}" 
+			oncomplete="formatLocaleOutputFields();restoreFieldLocaleFormatting(); unblockUI();" rerender="pageMessages, pbt_paymentDetails" immediate="false"/>
+		<apex:actionFunction name="allchecknoEntried" action="{!allchecknoEntried}" 
+			oncomplete="formatLocaleOutputFields();restoreFieldLocaleFormatting();unblockUI();" rerender="pageMessages, pbt_paymentDetails" immediate="false"/>
+		<apex:actionFunction name="allvouchernoEntried" action="{!allvouchernoEntried}" 
+			oncomplete="formatLocaleOutputFields();restoreFieldLocaleFormatting();unblockUI();" rerender="pageMessages, pbt_paymentDetails" immediate="false"/>
+		<apex:actionFunction name="paySelectedCommissions" action="{!paySelectedCommissions}" 
+			oncomplete="formatLocaleOutputFields();restoreFieldLocaleFormatting();unblockUI();" rerender="pageMessages, pbt_paymentDetails" immediate="false"/>
+		
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f_isales.rstk__soisales_spersn__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_isales.rstk__soisales_spersn__c.label}"/>
+                    <apex:outputPanel layout="block">
+					    <input type="text" name="salespersonid__c_autocomplete" id="salespersonid__c_autocomplete" class="ac_input" style="width:300px;" tabindex="2" value="{!Salesperson}" />
+					    <apex:inputText id="salespersonid__c" value="{!sosalesId}" style="display:none"/>
+					    <script>autocompleteParms["salespersonid__c"] = {query:"select Id, Name from sosales__c", queryParms:[], codeColumn:"Id", descColumn:"Name"};</script>
+				    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_year__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_year__c.label}"/>
+                    <apex:inputText id="salesyear__c" value="{!salesyear}" maxlength="4" size="10" tabindex="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_isalespay.rstk__soisalespay_checkno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__checknumberforallpayments}"/>
+                    <apex:inputText id="allcheckno__c" value="{!allcheckno}" tabindex="52"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_period__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_period__c.label}"/>
+                    <apex:selectList id="salesperiod__c" value="{!salesperiod}" size="1" tabIndex="3">
+            			<apex:selectOptions value="{!Salesperiods}"/>
+        			</apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_isalespay.rstk__soisalespay_voucher__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__vouchernumberforallpayments}"/>
+                    <apex:inputText id="allvoucherno__c" value="{!allvoucherno}" tabindex="53"/>
+                </apex:pageBlockSectionItem>
+ 			</apex:pageBlockSection>
+ 			<br />
+ 			
+ 			<apex:pageBlockSection id="pbs_PaymentDetails" showHeader="false" columns="1" title="{!$Label.rstk__paymentdetails}" collapsible="false">
+        	 	<apex:outputPanel id="op_PaymentDetails">
+        	 		<apex:outputPanel >
+        	 			<apex:inputCheckbox id="selectAll" onclick="SelectAll(this.checked);" value="{!selectAll}"/><apex:outputLabel value="{!$Label.rstk__selectalllines}"/>&nbsp;&nbsp;&nbsp;&nbsp; 
+	        	 		<apex:commandButton id="paySelectCommBtn" value="{!$Label.rstk__pagebtn_makesalescommpayments_payselectedcommissions}" onclick="return paidCommission();"/>&nbsp;&nbsp;&nbsp;&nbsp; 
+	        	 		<apex:outputLabel value="{!$Label.rstk__comments}" /> &nbsp;
+	        	 		<apex:inputText id="comments__c" value="{!payComments}" style="width:250px;" />
+	        	 		<br />
+	        	 		<apex:pageBlockTable id="pbt_paymentDetails" value="{!SpersnPayDetails}" var="sp">
+	        	 			<apex:column headerValue="{!$Label.rstk__selected}" style="width:50px;" >
+	        	 				<apex:inputCheckbox id="iSelected" value="{!sp.selected}"/>
+	        					<apex:inputHidden id="id__c" value="{!sp.ispersnId}"/>
+	        				</apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__payamount}" style="width:210px;">
+	        					<apex:inputText html-decimals="2" styleclass="localeTextField" id="payment" value="{!sp.payamt}" style="text-align:right;width:200px;" onchange="return payAmtChanged('{!sp.ispersnId}');" />  
+	        				</apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__checkno}" style="width:100px;"><apex:inputText value="{!sp.checkno}" /></apex:column>
+	        				<apex:column headerValue="{!$Label.rstk__voucherno}" style="width:100px;"><apex:inputText value="{!sp.voucherno}" /></apex:column> 
+	        				<apex:column headerValue="{!$Label.rstk__invoice1}"><c:hoverDetail recId="{!sp.invId}" recName="{!sp.invNo}" /></apex:column>
+	        				<apex:column headerValue="{!f_soinvline.rstk__soinvline_invline__c.label}">
+	        				  <apex:outputText html-decimals="0" value="{!sp.invline}" />
+	        				</apex:column>
+	        				<apex:column headerValue="{!f.rstk__soinv_cashreceived__c.label}"><apex:inputCheckbox value="{!sp.cashchk}" disabled="true" /></apex:column>
+	        				<apex:column headerValue="{!f_isales.rstk__soisales_dueatinv__c.label}" style="text-align:right;width:150px;">
+	        				  <apex:outputText html-decimals="2" value="{!sp.dueatinv}" />
+	        				</apex:column>
+	        				<apex:column headerValue="{!f_isales.rstk__soisales_dueatcash__c.label}" style="text-align:right;width:150px;">
+	        				  <apex:outputText html-decimals="2" value="{!sp.dueatcash}" />
+	        				</apex:column>
+	        				<apex:column headerValue="{!f_isales.rstk__soisales_paidamountrs__c.label}" style="text-align:right;width:150px;">
+	        					<a rel="#paidlnk{!sp.ispersnId}" href="javascript:{}">
+	        						<c:outputFormattedNumber value="{!sp.paidamt}" decimals="2"/>
+	        					</a>
+	        					<div class="overlayStyle" id="paidlnk{!sp.ispersnId}" style="text-align:center; margin-top:250px;">
+	        						<apex:pageBlockTable id="spersnPaidAmt_details" value="{!sp.spersnpaies}" var="p">
+		            					<apex:column headerValue="{!f_isalespay.rstk__soisalespay_paiddate__c.label}" value="{!p.rstk__soisalespay_paiddate__c}" style="width:75px;text-align:right;">
+					            		</apex:column>
+					            		<apex:column headerValue="{!f_isalespay.rstk__soisalespay_paidamount__c.label}" style="width:120px;text-align:right;">
+					            			<c:outputFormattedNumber value="{!p.rstk__soisalespay_paidamount__c}" decimals="2"/>
+					            		</apex:column>
+					            		<apex:column headerValue="{!f_isalespay.rstk__soisalespay_checkno__c.label}" style="width:100px;text-align:right;">
+					            			<apex:outputLabel value="{!p.rstk__soisalespay_checkno__c}" />
+					            		</apex:column>
+		            				</apex:pageBlockTable>
+	        					</div>
+	        				</apex:column>
+	        	 		</apex:pageBlockTable>
+	        	 	</apex:outputPanel>
+	        	</apex:outputPanel>
+        	</apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    	var LABEL_InvalidPayAmountatLine = "{!$Label.InvalidPayAmountatLine}";
+		var LABEL_PayAmtCantBeMoreThan = "{!$Label.PayAmtCantBeMoreThan}";
+		var LABEL_PayAmtMustBeGrtrThan0AtLine = "{!$Label.PayAmtMustBeGrtrThan0AtLine}";
+	</script>
+
+</apex:page>

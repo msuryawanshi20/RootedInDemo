@@ -1,0 +1,151 @@
+<apex:page id="pg" standardController="rstk__sydivaddr__c" extensions="rstk.ControllerExtnSydivaddr,rstk.GeoServicesHelper" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sydivaddr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sydivaddr__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sydivaddr}" /> 
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__geoservices_cli}"/>
+    
+    <script>
+        var divId = "{!divId}";
+        var addressVerificationEnabled = {!geoStatus.addressVerification};
+        var taxLookupEnabled = {!geoStatus.taxLookup};
+        var taxLookupAuto = {!geoStatus.auto};
+        var validateAddr = new GeoService();
+        validateAddr.init(divId, 'sydivaddr');
+        
+        function getValidationData() {
+            return {
+                customerCode: 'NO_CUSTOMER',
+                taxExempt: '',
+                docCode: 'DIVADDR'
+            };
+        }
+        jQuery(document).ready(function() {
+            if (addressVerificationEnabled) { jQuery("input.addressField").change(function(){ sfffSetFieldValue('sydivaddr_verified__c', 0); }); }
+        });
+    </script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+        
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+            <c:division id="sydivaddr_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >             
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_type__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_type__c.label}" />
+                    <c:inputField id="sydivaddr_type__c" required="true" cntr="{!controller}" tabIndex="2" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_street__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_street__c.label}" />
+                    <c:inputTextarea sclass="addressField" id="sydivaddr_street__c" required="true" cntr="{!controller}" cols="45" rows="3" tabIndex="3" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_city__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_city__c.label}" />
+                    <c:inputText sclass="addressField" id="sydivaddr_city__c" required="false" cntr="{!controller}" tabIndex="5" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_stateprov__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_stateprov__c.label}" />
+                    <c:inputText sclass="addressField" id="sydivaddr_stateprov__c" required="false" cntr="{!controller}" tabIndex="6" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_zippostalcode__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_zippostalcode__c.label}" />
+                    <c:inputText sclass="addressField" id="sydivaddr_zippostalcode__c" required="{!isZipCodeRequired}" cntr="{!controller}" tabIndex="7" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_country__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_country__c.label}" />
+                    <apex:panelGrid columns="2">
+                    	<c:inputText sclass="addressField" id="sydivaddr_country__c" required="false" cntr="{!controller}" tabIndex="8" />
+                        <!--c:inputField id="sydivaddr_isocountry__c" cntr="{!controller}" onchange="isocountryChanged();" /-->
+                        <apex:inputField id="sydivaddr_isocountry__c" value="{!o.rstk__sydivaddr_isocountry__c}" rendered="{!!isView}" onchange="isocountryChanged();"/>
+                    </apex:panelGrid>    
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_phone__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_phone__c.label}" />
+                    <c:inputText id="sydivaddr_phone__c" required="false" cntr="{!controller}" tabIndex="9" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_fax__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_fax__c.label}" />
+                    <c:inputText id="sydivaddr_fax__c" required="false" cntr="{!controller}" tabIndex="10" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_website__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_website__c.label}" />
+                    <c:inputText id="sydivaddr_website__c" required="false" cntr="{!controller}" tabIndex="11" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_contactemail__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_contactemail__c.label}" />
+                    <c:inputText id="sydivaddr_contactemail__c" required="false" cntr="{!controller}" tabIndex="12" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sydivaddr_sozone__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sydivaddr_sozone__c.label}"/>
+                    <apex:outputPanel >
+                        <c:selectList id="sydivaddr_sozone__c" required="false" cntr="{!controller}" options="{!Sozones}" tabIndex="13"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection id="validation" rendered="{!geoStatus.addressVerification}">
+                    <apex:pageBlockSectionItem helpText="Validate Address" rendered="{!OR(isNew,isEdit)}">
+                        <apex:outputLabel value=""/>
+                        <input type="button" id="validate__c" value="{!$Label.pagebtn_sydivaddr_Validate}" onclick="validateAddr.doValidateAddress(null, false, getValidationData());"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputPanel layout="none">
+                            <apex:inputfield id="sydivaddr_verified__c" value="{!o.rstk__sydivaddr_verified__c}" />
+                            <script>jQuery(function() { setTimeout(function() { jQuery(document.getElementById("{!$Component.sydivaddr_verified__c}")).attr('disabled', 'disabled'); }, 100); })</script>
+                        </apex:outputPanel> 
+                        <apex:outputLabel value="{!f.rstk__sydivaddr_verified__c.label}"/>
+                    </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_sydivaddr_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+
+            <c:GeoDialogs validationObj="validateAddr" includePleaseWait="true"/>
+
+        </apex:pageBlock>
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+       	 function isocountryChanged(type, name)
+    	{
+            var isocountry = sfffGetFieldValue('sydivaddr_isocountry__c');
+            console.log('isocountry '+isocountry);
+            sfffSetFieldValue('sydivaddr_country__c', isocountry);
+        
+    	}
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

@@ -1,0 +1,422 @@
+<apex:page id="pg" standardController="rstk__sormh__c" extensions="rstk.ControllerExtnSormamassentry,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__sormh__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sormh__c.fields}" />
+    <apex:variable var="relFlag" value="{!sormhreleasedFlag}" />
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__rma_detail_maintenance_grid}" enableAutocomplete="true"/>
+    <apex:outputLink value="{!returnURL}" rendered="{!!ISNULL(returnURL)}">&nbsp;«&nbsp;Go Back</apex:outputlink>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <script>
+    	var usesQueryParmInGrid = true;
+    </script>
+    <apex:form id="fm">
+    	<apex:pageBlock id="pb" mode="detail">
+    		<c:EditableGrid jsController="newRmaDetail" data="{!rmaDetailGrid}" editable="true" ispopup="false" disableSave="false"/>
+    			<script>
+					 var autoCompleteRefs = {};
+					 var sormhrelflag = {!relFlag};
+					 var LABEL_QtyAuthorizedCantBeChangedToValLessThanCurrVal = "{!$Label.QtyAuthorizedCantBeChangedToValLessThanCurrVal}";
+					 function serialDetails(rowId){
+					 	window.open('/apex/Rmaserialdetails?id='+rowId);
+					 	return false;
+					 }
+					 
+					 function setSelectList(rowCtrl, row, fieldId, values, valueFieldId, withNone) {
+						var col = rowCtrl.getRowObj(row, fieldId);
+					 	var nameOf = rowCtrl.nameOf();
+					 	col.children().remove();
+					 	col.html('<select style="max-width:90%;" name="'+nameOf+'-'+rowCtrl.getRowNum(row)+'-select_'+fieldId+'"  class="'+nameOf+'-'+rowCtrl.getRowNum(row)+'-select_'+fieldId+'" onchange="'+nameOf+'.rowChanged(event);"/>');
+					 	var theSel = col.find('select');
+					 	if (!!withNone) {
+					 		theSel.append('<option value="">--None--</option>');
+					 	}	
+					 	var oldDivId = rowCtrl.getRowValue(row, valueFieldId);
+					 	for (var i=0;i <values.length; i++) {
+							theSel.append('<option value="'+values[i].divid+'">'+escapeHtml(values[i].divname)+'</option>');
+						}
+					 	if (valueFieldId != null && valueFieldId != '') {
+					 		jQuery(theSel).val(rowCtrl.getRowValue(row, valueFieldId));
+						 	rowCtrl.setRowValue(row, valueFieldId, jQuery(theSel).val());
+					 	}
+					}
+					 
+					 newRmaDetail.onGridLoad = function() {
+	          			   self = this;
+	          			   var productids = '';
+                           this.getVisibleRows().each(function (index, el) {
+	                          	var row = jQuery(this);
+	                          	var rowId = self.getRowValue(row, 'Id');
+	                          	if (isEmpty(rowId)) rowId = newRmaDetail.rowIds[index];
+	                          	if (!isEmpty(rowId)) {
+									self.getRowObj(row, 'serialDet__g').html('<button type="button" class="btn" onclick="serialDetails(\'' + rowId + '\');">Serial Detail</button>');
+							  	}
+							  
+							  	var prodID = newRmaDetail.getRowObj(row, 'sorma_soprod__c')[0].value;
+								if (prodID) {
+									productids += (productids ? "," : "") + "'" + prodID + "'";
+								}
+							  
+	                          if(sormhrelflag){
+	                          	  self.getAutocompleteTextField(row, 'sorma_soline__c').attr('disabled', true);
+	                          	  //self.getRowObj(row, 'sorma_invdiv__c').attr('disabled', true);
+	                          	  self.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', true);
+	                          	  self.getAutocompleteTextField(row, 'sorma_project__c').attr('disabled', true);
+	                          }
+	                      });	
+	                      
+	                      if(productids){
+	                      	  var invDivs = execQuery("select sopdiv_shipdiv__c divid, sopdiv_shipdiv__r.Name divname from sopdiv__c where sopdiv_soprod__c IN (" 
+	                   								  + productids + ") group by sopdiv_shipdiv__c, sopdiv_shipdiv__r.Name order by sopdiv_shipdiv__r.Name");
+		                     
+		                      if(invDivs.length > 0){
+			                      	this.getRows().each(function(){
+				                      	 var row = jQuery(this);
+			                      		 var rowId = self.getRowValue(row, 'Id');
+			                      		 
+			                          	 if (!isEmpty(rowId)) {
+			                          	 	setSelectList(self, row, 'sorma_invdiv__g', invDivs, 'sorma_invdiv__c', true);
+				                      	 	if(sormhrelflag){
+				                      	 		self.getRowObj(row, 'sorma_invdiv__g').attr('disabled', true);
+				                      	 	}
+				                      	 }
+				                      	 else {
+				                      	 	setSelectList(self, row, 'sorma_invdiv__g', invDivs, 'sorma_invdiv__c', true);
+				                      	 	self.getAutocompleteTextField(row, 'sorma_soline__c').attr('disabled', false);
+				                          	self.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', false);
+				                          	self.getAutocompleteTextField(row, 'sorma_project__c').attr('disabled', false);
+				                      	 }
+				                      	 
+				                      	var invdivfld = newRmaDetail.getRowObj(row, 'sorma_invdiv__g').find('select')[0];
+										var sysitefld = newRmaDetail.getRowObj(row, 'sorma_site__c')[0];
+										var projectfld = newRmaDetail.getRowObj(row, 'sorma_project__c')[0];
+										var soprodfld = newRmaDetail.getRowObj(row, 'sorma_soprod__c')[0];
+										var solinefld = newRmaDetail.getRowObj(row, 'sorma_soline__c')[0];
+										var soshiplinefld = newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0];
+										
+										if (sysitefld && invdivfld) {
+											sysitefld.setAttribute('sorma_invdiv__c_fieldid', invdivfld.name);
+										}
+										
+										if(projectfld && invdivfld) {
+											projectfld.setAttribute('sorma_invdiv__c_fieldid', invdivfld.name);
+										}
+										
+										if (solinefld && solinefld.getAttribute('sorma_soprod__c_fieldid') == null) {
+				                   			solinefld.setAttribute('sorma_soprod__c_fieldid', soprodfld.id);
+				                   		}
+				                      	
+				                      	if (soshiplinefld && soshiplinefld.getAttribute('sorma_soline__c_fieldid') == null) {
+											soshiplinefld.setAttribute('sorma_soline__c_fieldid', solinefld.id);
+										} 
+				                    });
+		                       }
+	                      }
+	                  }
+	                      
+	                    newRmaDetail.resetRow = function(row) {
+                            self = this;
+                            newRmaDetailHandler.prototype.resetRow.call(self, row);
+                            setSelectList(this, row, 'sorma_invdiv__g', [], 'sorma_invdiv__c', true);
+                        }  
+	                      
+	                    newRmaDetail.addRow = function(rowCallback) {
+	                    	self = this;
+	                    	newRmaDetailHandler.prototype.addRow.call(self, rowCallback);
+	                    	var row1 = jQuery(this);
+	                   		setSelectList(this, row1, 'sorma_invdiv__g', [], 'sorma_invdiv__c', true);
+	                   		this.getVisibleRows().each(function (index, el) {
+	                     	    var row = jQuery(this);
+	                     		var rowId = self.getRowValue(row, 'Id');
+	                   			if(rowId == ''){
+	                   				var soprodfld = newRmaDetail.getRowObj(row, 'sorma_soprod__c')[0];
+	                   				if (!soprodfld.value) {
+				                   		var solinefld = newRmaDetail.getRowObj(row, 'sorma_soline__c')[0];
+				                   		var invdivfld = newRmaDetail.getRowObj(row, 'sorma_invdiv__g').find('select')[0];
+				                   		var projectfld = newRmaDetail.getRowObj(row, 'sorma_project__c')[0];
+				                   		var soshiplinefld = newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0];
+				                   		var sysitefld = newRmaDetail.getRowObj(row, 'sorma_site__c')[0];
+				                   		
+				                   		if (solinefld && solinefld.getAttribute('sorma_soprod__c_fieldid') == null) {
+				                   			solinefld.setAttribute('sorma_soprod__c_fieldid', soprodfld.id);
+				                   		}
+				                   		if (projectfld && projectfld.getAttribute('sorma_invdiv__c_fieldid') == null) {
+				                   			projectfld.setAttribute('sorma_invdiv__c_fieldid', invdivfld.name);
+				                   		}
+				                   		if (soshiplinefld && soshiplinefld.getAttribute('sorma_soline__c_fieldid') == null) {
+				                   			soshiplinefld.setAttribute('sorma_soline__c_fieldid', solinefld.id);
+				                   		}
+				                   		
+				                   		if (sysitefld && sysitefld.getAttribute('sorma_invdiv__c_fieldid') == null) {
+				                   			sysitefld.setAttribute('sorma_invdiv__c_fieldid', invdivfld.name);
+				                   		}
+				                   		
+		                    			newRmaDetail.setRowValue(row, 'sorma_qtyauth__c', 1);
+		                    			
+			                    		//clearing Inventory Division list
+		                    			/*
+		                    			newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0].length = 0;
+			                    		newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0].options[0] = new Option("--None--", ""); */
+			                    			
+		                    			if(newRmaDetail.getRowValue(row, 'sorma_div__c') == '') {
+			                    			newRmaDetail.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', true);
+			                    		}
+			                    	}
+	                   			}
+	                    	}); 
+	                   	}
+	                   	
+	                    newRmaDetail.validate = function() {
+	                 	self = this;
+	                 	var isvalid = true;
+	                 	this.getVisibleRows().each(function (index, el) {
+	                  		var row = jQuery(this);
+	                  		var product = self.getRowValue(row, 'sorma_soprod__c');
+	                  		var authQty = self.getRowValue(row, 'sorma_qtyauth__c');
+	                  		var date = self.getRowValue(row, 'sorma_date__c');
+	                  		var invDiv = self.getRowValue(row, 'sorma_invdiv__c');
+	                  		var project = self.getRowValue(row, 'sorma_project__c');
+	                  		var recToSite = self.getRowValue(row, 'sorma_site__c');
+	                  		var soline = self.getRowValue(row, 'sorma_soline__c');
+	                  		var soshipline = self.getRowValue(row, 'sorma_soshipline__c');
+	                  		
+	                  		if(!product){
+	                  			alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelproduct}");
+	                  			newRmaDetail.getRowObj(row, 'sorma_soprod__c').focus();
+	                  			isvalid = false;
+	                          	return false;
+	                  		}
+	                  		if(!authQty || authQty == '0'){
+	                  			alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelquantityauthorized}");
+	                  			newRmaDetail.getRowObj(row, 'sorma_qtyauth__c').focus();
+	                  			isvalid = false;
+	                          	return false;
+	                  		}
+	                  		if(!date){
+	                  			alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labeldateIssued}");
+	                  			newRmaDetail.getRowObj(row, 'sorma_date__c').focus();
+	                  			isvalid = false;
+	                          	return false;
+	                  		}
+	                  		if(!invDiv){
+	                  			alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelinvdiv}");
+	                  			isvalid = false;
+	                          	return false;
+	                  		}
+	                  		if(!recToSite){
+	                  			alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelreceivetosite}");
+	                  			isvalid = false;
+	                          	return false;
+	                  		}
+	                  		if(!soline && soshipline){
+	                   			alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelsoline}");
+	                   			isvalid = false;
+	                           	return false;
+	                  		}
+	                  		if(soline && !soshipline){
+	                   			alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelshipperline}");
+	                   			isvalid = false;
+	                           	return false;
+	                  		}
+	                  		if(!project){
+	                  			alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelproject}");
+	                  			newRmaDetail.getRowObj(row, 'sorma_project__c').focus();
+	                  			isvalid = false;
+	                          	return false;
+	                  		}
+	                  	}); 
+	                  return isvalid;
+	                   }
+	                   
+	                   newRmaDetail.entryChanged = function(row, rowNum, name, value) {
+	                   	
+                   	    var soprodfld = newRmaDetail.getRowObj(row, 'sorma_soprod__c')[0];
+                   		var solinefld = newRmaDetail.getRowObj(row, 'sorma_soline__c')[0];
+                   		var invdivfld = newRmaDetail.getRowObj(row, 'sorma_invdiv__g').find('select')[0];
+                   		var projectfld = newRmaDetail.getRowObj(row, 'sorma_project__c')[0];
+                   		var soshiplinefld = newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0];
+                   		var sysitefld = newRmaDetail.getRowObj(row, 'sorma_site__c')[0];
+                   		
+                   		if (solinefld && solinefld.getAttribute('sorma_soprod__c_fieldid') == null) {
+                   			solinefld.setAttribute('sorma_soprod__c_fieldid', soprodfld.id);
+                   		}
+                   		if (projectfld && projectfld.getAttribute('sorma_invdiv__c_fieldid') == null) {
+                   			projectfld.setAttribute('sorma_invdiv__c_fieldid', invdivfld.name);
+                   		}
+                   		if (soshiplinefld && soshiplinefld.getAttribute('sorma_soline__c_fieldid') == null) {
+                   			soshiplinefld.setAttribute('sorma_soline__c_fieldid', solinefld.id);
+                   		}
+                   		
+                   		if (sysitefld && sysitefld.getAttribute('sorma_invdiv__c_fieldid') == null) {
+                   			sysitefld.setAttribute('sorma_invdiv__c_fieldid', invdivfld.name);
+                   		}
+	                   	
+	                   	if(name == 'sorma_soprod__c'){
+	                   		var productId = soprodfld.value;
+	                   		
+							//re-initialize soline when product changes
+							newRmaDetail.getAutocompleteTextField(row, 'sorma_soline__c').attr('disabled', false);
+							newRmaDetail.setRowValue(row, 'sorma_soline__c', '');
+							newRmaDetail.getRowObj(row, 'select_sorma_invdiv__g').attr('disabled', false);
+							
+							// re-initialize Soshipline autocomplete list based on product value
+	                   		newRmaDetail.setRowValue(row, 'sorma_soshipline__c', '');
+	                   		
+	                   		var divfld = newRmaDetail.getRowObj(row, 'sorma_invdiv__g').find('select')[0];
+                           	divfld.value = '';
+                           	if(productId){
+                           		populateHtmlSelectList(divfld, "select sopdiv_shipdiv__c divid, sopdiv_shipdiv__r.Name divname from sopdiv__c where sopdiv_soprod__c =  '" 
+	                   								  + productId + "' " +" group by sopdiv_shipdiv__c, sopdiv_shipdiv__r.Name order by sopdiv_shipdiv__r.Name",'divid','divname',false);
+                           	}
+                           	
+	                   		// based on inventory division re-populate receive site to select list and project list.
+							var selectedInvDivFld = newRmaDetail.getRowObj(row, 'sorma_invdiv__g').find('select')[0];
+							var selectedInvDiv = selectedInvDivFld.value;
+							newRmaDetail.getAutocompleteTextField(row, 'sorma_project__c').attr('disabled', false);
+							if(selectedInvDiv){
+								newRmaDetail.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', false);
+								
+								//re-initialize project list when inventory division changes
+								newRmaDetail.getAutocompleteTextField(row, 'sorma_project__c').attr('disabled', false);
+								newRmaDetail.setRowValue(row, 'sorma_project__c', '');
+							}else{
+								newRmaDetail.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', true);
+							}
+							
+	                   	}//end of product change condition
+	                   
+	                   	if(name == 'sorma_soline__c'){
+	                   		var solines = execQuery("select Id, soline_shipdiv__c, soline_project__c from soline__c where id = '" + solinefld.value + "'");
+	                   		
+	                   		// re-initialize Soshipline autocomplete list based on Soline value
+	                   		newRmaDetail.setRowValue(row, 'sorma_soshipline__c', '');
+	                   		var divfld = newRmaDetail.getRowObj(row, 'sorma_invdiv__g').find('select')[0];
+                           	divfld.value = '';
+                           	if(solines.length > 0){
+								populateHtmlSelectList(divfld, "select sopdiv_shipdiv__c divid, sopdiv_shipdiv__r.Name divname from sopdiv__c where sopdiv_soprod__c =  '" 
+	                   								  + soprodfld.value + "' " +" and sopdiv_shipdiv__c = '"+ solines[0].soline_shipdiv__c +"' group by sopdiv_shipdiv__c, sopdiv_shipdiv__r.Name order by sopdiv_shipdiv__r.Name",'divid','divname',true);
+							
+								// based on inventory division re-populate receive site to select list and project list.
+								var selectedInvDiv = divfld.value;
+								newRmaDetail.setRowValue(row, 'sorma_invdiv__c', selectedInvDiv);
+								newRmaDetail.getRowObj(row, 'select_sorma_invdiv__g').attr('disabled', true);
+								if(selectedInvDiv){
+									newRmaDetail.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', false);
+								}else{
+									newRmaDetail.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', true);
+								}
+								
+								//reinitializes the project value
+								var projfldacobj = newRmaDetail.getAutocompleteTextField(row, 'sorma_project__c')[0];
+		                   		var updatedProjQry = "select Name "+
+	                     						 "from pjproj__c "+
+	                     						 "where pjproj_sochrgallowind__c = true "+
+	                     						 "and pjproj_soshipallowind__c = true "+
+	                     						 "and pjproj_div__c = '"+selectedInvDiv+"' "+
+	                     						 "and pjproj_completed__c = false "+
+	                     						 "and id = '" +solines[0].soline_project__c+"'";
+		                   		
+		                   		projfldacobj.value = execQuery(updatedProjQry)[0].Name;
+	                            newRmaDetail.setRowValue(row, 'sorma_project__c', solines[0].soline_project__c);
+		                   		newRmaDetail.getAutocompleteTextField(row, 'sorma_project__c').attr('disabled', true);
+							}else{
+								newRmaDetail.getRowObj(row, 'select_sorma_invdiv__g').attr('disabled', false);
+								var productId = soprodfld.value;
+								if(productId){
+	                           		populateHtmlSelectList(divfld, "select sopdiv_shipdiv__c divid, sopdiv_shipdiv__r.Name divname from sopdiv__c where sopdiv_soprod__c =  '" 
+			                   								  + productId + "' " +" group by sopdiv_shipdiv__c, sopdiv_shipdiv__r.Name order by sopdiv_shipdiv__r.Name",'divid','divname',false);
+		                           	
+		                           	newRmaDetail.getAutocompleteTextField(row, 'sorma_project__c').attr('disabled', false);
+		                           	newRmaDetail.setRowValue(row, 'sorma_project__c', '');
+	                           	}
+	                        }
+						}//end of soline change
+	                   	
+	                   	
+	                   	//If inventory division changes, re-populate site list and project list
+	                   	//if(name == 'sorma_invdiv__c'){
+	                   	if(name == 'select_sorma_invdiv__g') {
+	                   		newRmaDetail.setRowValue(row, 'sorma_invdiv__c', value);
+	                   		newRmaDetail.setRowValue(row, 'sorma_insplocid__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_insplocnum__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_scraplocid__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_scraplocnum__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_invlocid__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_invlocnum__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_insptempl__c', '');
+	                   		//var invdivfld = newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0];
+	                   		
+	                   		/*var invdivfld = newRmaDetail.getRowObj(row, 'sorma_invdiv__c');
+	                   		var soInvDiv = invdivfld.value;
+	                   		if(soInvDiv){*/
+	                   		var soInvDiv = value;
+	                   		
+	                   		if(soInvDiv){
+	                   			// on change of inventory division, re-populate site list
+	                   			newRmaDetail.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', false);
+	                   			newRmaDetail.setRowValue(row, 'sorma_site__c', '');
+	                   			var selectedDiv = execQuery("select Id, sydiv_mainsite__c, sydiv_mainsite__r.Name from sydiv__c where Id =  '" + soInvDiv + "' " +" order by name");
+								if(selectedDiv && selectedDiv.length > 0) {
+									newRmaDetail.setRowValue(row, 'sorma_site__c', selectedDiv[0].sydiv_mainsite__c);
+									newRmaDetail.setRowAutoValue(row, 'sorma_site__c', selectedDiv[0].sydiv_mainsite__r.Name);
+								}
+								
+								//re-initialize project list when inventory division changes
+								newRmaDetail.setRowValue(row, 'sorma_project__c', '');
+	                   		}else{
+	                   			//disabling receive site to list 
+	                   			newRmaDetail.getAutocompleteTextField(row, 'sorma_site__c').attr('disabled', true);
+	                   			newRmaDetail.setRowValue(row, 'sorma_site__c', '');
+	                   		}
+	                   	}
+	                   	
+	                   	if(name == 'sorma_site__c') {
+	                   		newRmaDetail.setRowValue(row, 'sorma_insplocid__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_insplocnum__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_scraplocid__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_scraplocnum__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_invlocid__c', '');
+	                   		newRmaDetail.setRowValue(row, 'sorma_invlocnum__c', '');
+	                   	}
+                           
+                        if(name == 'sorma_reason__c') {
+                            var sorma_reason = newRmaDetail.getRowValue(row, 'sorma_reason__c');
+                            console.log('sorma_reason ',sorma_reason);
+                            var reasons = execQuery("select soreason_rmaadjacct__c from soreason__c where id =  '" + sorma_reason + "' ");
+                            console.log('reasons ',reasons);
+                            if(reasons && reasons.length > 0) {
+                                newRmaDetail.setRowValue(row, 'sorma_adjacct__c', reasons[0].soreason_rmaadjacct__c);
+                            }
+                        }    
+	                   	//if quantity authorized changes, checks should not be less than previous value
+	                   	if(name == 'sorma_qtyauth__c'){
+	                   		var currauthQty = newRmaDetail.getRowValue(row, 'sorma_qtyauth__c');
+	                   		var lineSeq = newRmaDetail.getRowObj(row, 'sorma_line__c')[0].value;
+	                   		var sormhId = newRmaDetail.getRowObj(row, 'sorma_sormh__c')[0].value;
+	                   		var oldqtyauthval = 1;
+	                   		//console.log('sorma_qtyauth__c entry changed lineSeq ='+lineSeq);
+	                   		if(lineSeq != null && lineSeq > '0'){
+	                   			oldqtyauthval = execQuery("Select sorma_qtyauth__c from sorma__c where sorma_line__c = "+lineSeq+" and sorma_sormh__c = '"+sormhId+"'")[0].sorma_qtyauth__c; 
+		                   	}
+	                   		//console.log('lineSeq = '+lineSeq + ' and sormhId = '+ sormhId+ ' and currauthQty = '+currauthQty + ' and oldqtyauthval = '+oldqtyauthval);
+	                   		if(parseFloat(oldqtyauthval) >= 0){
+	                  			if(parseFloat(currauthQty) < parseFloat(oldqtyauthval)) {
+									alert(LABEL_QtyAuthorizedCantBeChangedToValLessThanCurrVal,oldqtyauthval);
+									newRmaDetail.setRowValue(row, 'sorma_qtyauth__c', oldqtyauthval); 
+									newRmaDetail.getRowObj(row, 'sorma_qtyauth__c').focus();
+									return;
+		                  		}
+	                  		}
+	                   	}
+					}//end of newRmaDetail.entryChanged
+				</script>
+    	</apex:pageBlock>
+    	
+    	<div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+</apex:page>

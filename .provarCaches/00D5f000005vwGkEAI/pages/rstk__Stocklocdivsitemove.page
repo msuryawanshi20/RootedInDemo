@@ -1,0 +1,309 @@
+<apex:page id="pg" title="{!pageTitle}" standardController="rstk__locadd__c" extensions="rstk.ControllerExtnStocklocdivsitemove,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__locadd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__locadd__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!pageTitle}" customInclude="{!$Resource.rstk__locdivmove_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}" />
+    <style>
+        .dontShowMe{display : none;}
+    </style>    
+    <script>
+    var invdivdiv = {!invdivdiv};
+    var invsitesite = {!invsitesite};
+    var fromDivId = "{!o.rstk__locmove_fromdiv__c}";
+    </script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="false"/>
+        <apex:actionFunction name="doSave" action="{!save}" immediate="false"/>
+        <apex:actionFunction name="searchLocmoves" action="{!searchLocmoves}" oncomplete="locmovesearchCompleted();" rerender="pageMessages, op_locmoveentries"/>
+        <apex:actionFunction name="moveSelectedItems" action="{!moveSelectedItems}" oncomplete="checkJobStatus();" rerender="pageMessages, op_JobStatus, op_locmoveentries" immediate="false"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputHidden id="locmove_selecteditemslist__c" value="{!o.rstk__locmove_selecteditemslist__c}"/>
+            <c:selectList id="locmove_todiv__c" cntr="{!controller}" options="{!tosydivs}" rendered="{!invsitesite}"/>
+            <apex:inputHidden id="tracksrl__c"/>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            <input type="hidden" id="validationError" value="{!errorFound}"/>
+        </apex:outputPanel>
+        
+        <script>
+				j$ = jQuery.noConflict();
+	    </script>
+            
+
+        <apex:pageBlockSection showHeader="false" columns="2">
+            <apex:pageBlockSectionItem >
+                <apex:outputPanel >
+                    <c:division id="locmove_fromdiv__c" cntr="{!controller}" disabled="false"/>
+                    <apex:pageBlockSection showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_fromsite__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__locmove_fromsite__c.label}"/>
+                            <c:selectList id="locmove_fromsite__c" cntr="{!controller}" options="{!sysites}" tabIndex="2" required="true" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_serialitems__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__locmove_serialitems__c.label}"/>
+                            <c:inputField id="locmove_serialitems__c" cntr="{!controller}" tabIndex="3"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_icitem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!$Label.rstk__searchitem}"/>
+                            <c:autocomplete id="locmove_icitem__c" cntr="{!controller}" query="select icitemsite_icitem__c, icitemsite_icitem__r.name from icitemsite__c where icitemsite_div__c = 'prm' and icitemsite_site__c = 'prm' and icitemsite_icitem__r.icitem_item__r.peitem_tracksrl_pl__c = 'prm'" codeColumn="icitemsite_icitem__c" descColumn="icitemsite_icitem__r.name" queryParms="[['locmove_fromdiv__c','From Division'],['locmove_fromsite__c','From Site'],['tracksrl__c','']]" minChars="{!minCharForAutoComplete}" tabIndex="4"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:outputLabel value="{!$Label.rstk__inventorylocation}"/>
+                            <apex:selectList id="fromlocation__c" size="1" style="width:330px;" tabIndex="5">
+                                <apex:selectOptions value="{!empty}"/>
+                            </apex:selectList>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_selecteditems__c.inlineHelpText}">
+                            <apex:commandButton value="{!$Label.rstk__pagebtn_stocklocdivsitemove_clearall}" onclick="clearAllSelected({!invsitesite}); return false;" style="width:100px;" immediate="true" tabIndex="0"/>
+                            <c:selectList id="locmove_selecteditems__c" cntr="{!controller}" options="{!empty}" size="3" width="500px" disabled="true"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem >
+                            <apex:outputPanel id="op_serials1">
+                                <apex:commandButton value="{!$Label.rstk__pagebtn_stocklocdivsitemove_selectserials}" onclick="selectSerials(); return false;" style="width:100px;" immediate="true" tabIndex="0"/>
+                                <br/><br/><apex:outputLabel value="{!$Label.rstk__serialcount}"/>
+                                <br/><apex:inputText id="serialcount__c" disabled="true" size="4"/>
+                                <script>var op_serials1 = document.getElementById("{!$Component.op_serials1}");</script>
+                            </apex:outputPanel>
+                            <apex:outputPanel id="op_serials2" style="vertical-align:middle;">
+                                <apex:selectList id="available_serials__c" multiselect="true" size="4" style="width:250px;" rendered="true">
+                                    <apex:selectOptions value="{!empty}"/>
+                                </apex:selectList>
+                                &nbsp;<apex:inputTextarea id="locmove_selectedserials__c" value="{!o.rstk__locmove_selectedserials__c}" rows="4" cols="43" />
+                                <script>var op_serials2 = document.getElementById("{!$Component.op_serials2}");</script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputPanel >
+                    <apex:pageBlockSection showHeader="false" columns="1">
+                    	<apex:pageBlockSection id="locmove_todiv_block" >
+	                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_todiv__c.inlineHelpText}">
+	                            <apex:outputLabel value="{!f.rstk__locmove_todiv__c.label}"/>
+	                            <apex:outputPanel >
+	                                <c:selectList id="locmove_todiv__c" cntr="{!controller}" options="{!tosydivs}" tabIndex="11" required="true" rendered="{!invdivdiv}"/>
+	                                <apex:outputField value="{!o.rstk__locmove_todiv__c}" rendered="{!invsitesite}"/>
+	                            </apex:outputPanel>
+	                        </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                        <apex:pageBlockSection id="locmove_tosite_block">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_tosite__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f.rstk__locmove_tosite__c.label}"/>
+                            <c:selectList id="locmove_tosite__c" cntr="{!controller}" options="{!tosysites}" tabIndex="12" required="true"/>
+                        </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                        <apex:pageBlockSection id="locmove_tolocid_block">
+	                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_tolocid__c.inlineHelpText}" dataStyleClass="padding:0px;">
+	                            <apex:outputLabel id="locmove_tolocid_label" value="{!f.rstk__locmove_tolocid__c.label}"/>
+	                            <apex:outputPanel >
+	                                <c:largeSelectList id="locmove_tolocid__c" cntr="{!controller}" options="{!tosylocids}" tabIndex="13" required="false"/>
+	                                <script>var tolocidField = document.getElementById("{!$Component.locmove_tolocid__c}");</script>
+	                                <script>var tolocidBlock = document.getElementById("{!$Component.locmove_tolocid_block}");</script>
+	                            </apex:outputPanel>
+	                        </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                        <apex:pageBlockSection id="locmove_tolocnum_block">
+	                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_tolocnum__c.inlineHelpText}" >
+	                            <apex:outputLabel id="locmove_tolocnum_label" value="{!f.rstk__locmove_tolocnum__c.label}"/>
+	                            <apex:outputPanel style="display: inline-block;">
+	                                <c:inputField id="locmove_tolocnum__c" cntr="{!controller}" tabIndex="14"/>
+	                                <select id="locmove_tolocnumsl__c" size="1" style="width:100px;" onchange="setLocNum(this);"/>
+	                                <script>var tolocnumField = document.getElementById("{!$Component.locmove_tolocnum__c}");</script>
+	                                <script>var tolocnumslField = document.getElementById("locmove_tolocnumsl__c");</script>
+	                                <script>var tolocnumLabel = document.getElementById("{!$Component.locmove_tolocnum_label}");</script>
+	                                <script>var tolocnumBlock = document.getElementById("{!$Component.locmove_tolocnum_block}");</script>
+	                            </apex:outputPanel>
+	                        </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                        <apex:pageBlockSection id="locmove_toproj_block">
+	                        <apex:pageBlockSectionItem helpText="{!IF(invsitesite,'',f.rstk__locmove_toproj__c.inlineHelpText)}" >
+	                            <apex:outputLabel value="{!f.rstk__locmove_toproj__c.label}" style="display:{!IF(invsitesite,'none','inline')};"/>
+	                            <apex:outputPanel style="display:{!IF(invsitesite,'none','inline')};">
+	                                <c:autocomplete id="locmove_toproj__c" required="true" slDesc="{!projectDesc}" cntr="{!controller}" 
+	                                    query="select id, name from pjproj__c where pjproj_div__c = {!IF(o.rstk__locmove_todiv__c==null, 'null', '\'' & o.rstk__locmove_todiv__c & '\'')} and pjproj_completed__c = false"
+	                                    tabIndex="15"/>
+	                            </apex:outputPanel>
+	                        </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                        <apex:pageBlockSection id="locmove_moveoption_block">
+	                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_moveoption__c.inlineHelpText}" >
+	                            <apex:outputLabel id="locmove_moveoption_label" value="{!f.rstk__locmove_moveoption__c.label}"/>
+	                            <apex:outputPanel >
+	                                <apex:inputField id="locmove_moveoption__c" value="{!o.rstk__locmove_moveoption__c}" required="true"/>
+	                                <script>var moveoptionBlock = document.getElementById("{!$Component.locmove_moveoption_block}");</script>
+	                                <script>var moveoptionField = document.getElementById("{!$Component.locmove_moveoption__c}");</script>
+	                                <!--script>var moveoptionLabel = document.getElementById("{!$Component.locmove_moveoption_label}");</script-->
+	                            </apex:outputPanel>
+	                        </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSection>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        
+        <apex:outputPanel id="op_search">
+            <apex:commandButton id="searchButton" value="{!IF(invdivdiv, $Label.rstk__display_div_move_entries, $Label.rstk__display_site_move_entries)}" onclick="return doSearchlocmoves();" style="width:150px;"/>&nbsp;
+            <script>var searchButton = document.getElementById("{!$Component.searchButton}");</script>
+        </apex:outputPanel>
+        <apex:outputPanel id="op_moveselected">
+            <apex:commandButton id="moveButton" value="{!$Label.rstk__pagebtn_stocklocdivsitemove_moveselecteditems}" onclick="if(doValidate()){doSetFFCompanyAndProcess(doLocmove);} return false;" style="width:200px;display:none;"/>
+            <script>var moveButton = document.getElementById("{!$Component.moveButton}");</script>
+        </apex:outputPanel>
+    </apex:pageBlock>
+    
+    <apex:outputPanel id="op_locmoveentries">
+    <apex:pageBlock id="pb_locmoveentries" mode="detail" rendered="{!displayLocmoveentries}">
+        <apex:pageBlockSection id="pbs_locmoveentries" showHeader="false" title="{!$Label.rstk__locationmoveentries}" columns="1" collapsible="false">
+            <apex:outputPanel >
+                &nbsp;&nbsp;&nbsp;
+                &nbsp;&nbsp;<apex:outputPanel rendered="{!errorFound}"><apex:outputText value="{!$Label.rstk__clickon} " style="color:red;font-weight:bold;"/>&nbsp;<apex:image url="{!URLFOR($Resource.rstk__rstkimages, 'error.png')}" height="18" width="18"/>&nbsp;<apex:outputText value=" for details" style="color:red;font-weight:bold;"/></apex:outputPanel>
+            </apex:outputPanel>
+            <script>var rows = [];</script>
+            <apex:repeat value="{!fromlocEntries}" var="d">
+            <apex:pageBlock mode="edit">
+                <apex:pageBlockSection showHeader="false" columns="3">
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_icitem__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__locmove_icitem__c.label}" style="white-space:nowrap;"/>
+                                <apex:outputField value="{!d.fromiclocitem.rstk__iclocitem_icitem__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_fromsite__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__locmove_fromsite__c.label}" style="white-space:nowrap;"/>
+                                <apex:outputField value="{!d.fromiclocitem.rstk__iclocitem_site__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_fromproj__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__locmove_fromproj__c.label}" style="white-space:nowrap;"/>
+                                <apex:outputField value="{!d.fromiclocitem.rstk__iclocitem_proj__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_fromlocid__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__locmove_fromlocid__c.label}" style="white-space:nowrap;" />
+                                <apex:outputField value="{!d.fromiclocitem.rstk__iclocitem_locid__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_fromlocnum__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__locmove_fromlocnum__c.label}" style="white-space:nowrap;" />
+                                <apex:outputText value="{!d.fromiclocitem.rstk__iclocitem_locnum__c}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:pageBlockSection columns="1">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_qtyavail__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__locmove_qtyavail__c.label}" style="white-space:nowrap;" />
+                                <apex:outputText value="{!d.qtyavail}" html-decimals="{!d.qtydecimals}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                
+                <apex:pageBlockTable id="pbt_locmoveentries" value="{!d.locmoveentries}" var="d2" columnsWidth="50px,100px,50px,50px,50px,50px,100px,100px,100px">
+                    <apex:column headerValue="{!f.rstk__locmove_selected__c.label}">
+                        <apex:inputCheckbox id="locmove_selected__c" value="{!d2.locmove.rstk__locmove_selected__c}"/>
+                        <apex:outputPanel id="errorMessage"><c:errorimage rendered="{!d2.locmove.rstk__locmove_errormessage__c != null}" title="{!d2.locmove.rstk__locmove_errormessage__c}"/></apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__locmove_tolocid__c.label}">
+                        <apex:outputField value="{!d2.toiclocitem.rstk__iclocitem_locid__c}" style="width:100px;" rendered="{!!d2.toNewloc}"/>
+                        <c:largeSelectList id="locmove_tolocid__c" value="{!d2.locmove.rstk__locmove_tolocid__c}" useValue="true" cntr="{!controller}" width="150px" options="{!d2.toLocidOptions}" rendered="{!d2.toNewloc}" onchange="locidChanged(this, '{!$Component.locmove_selected__c}', 'sl_tolocnums_{!d2.uniquekey}');"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__locmove_tolocnum__c.label}">
+                        <apex:outputPanel id="op_locnum">
+                            <apex:outputText value="{!d2.toiclocitem.rstk__iclocitem_locnum__c}" style="width:75px;" rendered="{!!d2.toNewloc}"/>
+                            <apex:inputText id="locmove_tolocnum__c" value="{!d2.locmove.rstk__locmove_tolocnum__c}" style="width:75px;display:{!IF(usesSylocnum,'none','inline')};" size="10" maxlength="10" rendered="{!d2.toNewloc}" />
+                            <apex:outputPanel layout="none" rendered="{!AND(d2.toNewloc, usesSylocnum)}">
+                                <select id="sl_tolocnums_{!d2.uniquekey}" size="1" style="width:100px;" onchange="setLocNumFromSl(this, '{!$Component.locmove_tolocnum__c}');"/>
+                                <script>
+                                    populateLocnumsSl("{!d2.locmove.rstk__locmove_tolocid__c}", "sl_tolocnums_{!d2.uniquekey}");
+                                    document.getElementById("sl_tolocnums_{!d2.uniquekey}").value = "{!JSENCODE(d2.locmove.locmove_tolocnum__c)}";
+                                </script>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!CurrentQtyLabel}"> 
+                        <apex:outputText value="{!d2.tolocqty}" style="display:{!IF(d2.toNewloc,'none','inline')};" html-decimals="{!d2.qtydecimals}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__locadd_lotno__c.label}" value="{!d2.fromiclocitem.rstk__iclocitem_locsec__c}"/>
+                    <apex:column headerValue="{!f.rstk__locmove_moveqty__c.label}">
+                        <apex:inputField id="locmove_moveqty__c" value="{!d2.locmove.rstk__locmove_moveqty__c}" style="width:50px;" rendered="{!!d2.isSrl}" onchange="setSelected(this, '{!$Component.locmove_selected__c}');" onkeypress="return filterNonNumeric(event, this)"/>
+                        <apex:outputText value="{!d2.locmove.rstk__locmove_moveqty__c}" rendered="{!d2.isSrl}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__locmove_doc__c.label}">
+                        <apex:inputText id="locmove_doc__c" value="{!d2.locmove.rstk__locmove_doc__c}" style="width:100px;" />
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__locmove_txncomment__c.label}">
+                        <apex:inputText id="locmove_txncomment__c" value="{!d2.locmove.rstk__locmove_txncomment__c}" style="width:100px;" />
+                    </apex:column>
+                    <apex:column headerValue="{!f.rstk__locmove_toloccomment__c.label}">
+                        <apex:inputText id="locmove_toloccomment__c" value="{!d2.locmove.rstk__locmove_toloccomment__c}" style="width:100px;" />
+                        <apex:outputPanel layout="none">
+						<script>
+							rows.push({
+								selectfld: document.getElementById("{!$Component.locmove_selected__c}"),
+								isinspection: {!d.isinspection}
+							});
+						</script>
+						</apex:outputPanel>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlock>
+            </apex:repeat>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:outputPanel>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    <script>
+        var LABEL_ThisWillClearCurrItemSel_WantToContinue = "{!$Label.rstk__thiswillclearcurritemsel_wanttocontinue}";
+        var LABEL_AllSelInventoryLocsMustBelongToSameProjAsTheToProj = "{!$Label.rstk__allselinventorylocsmustbelongtosameprojasthetoproj}";
+        var LABEL_ANonBFStockLocNotFoundInToDiv = "{!$Label.rstk__anonbfstocklocnotfoundintodiv}";
+        var LABEL_NoInventoryLocationsFoundForThisItem_SelectADifferentItem = "{!$Label.rstk__noinventorylocationsfoundforthisitem_selectadifferentitem}";
+        var LABEL_NoInvLocsFoundForItem_SelDiffItem = "{!$Label.rstk__noinvlocsfoundforitem_seldiffitem}";
+        var LABEL_NonBackFlushStockLocNotFoundInToSite = "{!$Label.rstk__nonbackflushstocklocnotfoundintosite}";
+        var LABEL_InventoryItemWasNotFoundForItemsInTgtDiv = "{!$Label.rstk__inventoryitemwasnotfoundforitemsintgtdiv}";
+        var LABEL_InventoryLocMustBeSpecifiedBeforeSpecToSite = "{!$Label.rstk__inventorylocmustbespecifiedbeforespectosite}";
+        var LABEL_SelAtleastOneItemToMove = "{!$Label.rstk__selatleastoneitemtomove}";
+        var LABEL_NoCorrespondanceItemInToDiv = "{!$Label.rstk__nocorrespondanceitemintodiv}";
+        var LABEL_InvalidSrlsSpec = "{!$Label.rstk__invalidsrlsspec}";
+        var LABEL_SelAtleastOneSrlToBeMoved = "{!$Label.rstk__selatleastonesrltobemoved}";
+        var LABEL_FromSiteReqdForSearchingItem = "{!$Label.rstk__fromsitereqdforsearchingitem}";
+        var LABEL_FromSite_ToDivAndToSiteReqdForSearchingItem = "{!$Label.rstk__fromsite_todivandtositereqdforsearchingitem}";
+        var LABEL_EnterAValueForTheFollowingRequiredFields = "{!$Label.rstk__enteravalueforthefollowingrequiredfields}";
+        var LABEL_SelectAtLeastOneItemForTheTransfer = "{!$Label.rstk__selectatleastoneitemforthetransfer}";
+        var LABEL_SelAtleastOneItemForTransfer = "{!$Label.rstk__selatleastoneitemfortransfer}";
+        var LABEL_ThisWillClearCurrItemSel_WantToContinue = "{!$Label.rstk__thiswillclearcurritemsel_wanttocontinue}";
+        var LABEL_ForSrlItems_OnlyOneInvLocCanBeSelAtTime = "{!$Label.rstk__forsrlitems_onlyoneinvloccanbeselattime}";
+        var LABEL_One_or_more_source_inventory_locations_are_designated_as_Inspection_locations = "{!$Label.rstk__one_or_more_source_inventory_locations_are_designated_as_inspection_locations}";
+        var LABEL_To_Loc_No_is_required_when_Location_Number_Required_Ind_is_set_for_the_To_Site = "{!$Label.rstk__to_loc_no_is_required_when_location_number_required_ind_is_set_for_the_to_site}";
+        var LABEL_MoLocEntriesSelForMove = "{!$Label.rstk__molocentriesselformove}";
+        var LABEL_Lot_Serial_options_must_be_the_same_for_both_the_From_and_To_Items = "{!$Label.rstk__lot_serial_options_must_be_the_same_for_both_the_from_and_to_items}";
+    </script>
+</apex:page>

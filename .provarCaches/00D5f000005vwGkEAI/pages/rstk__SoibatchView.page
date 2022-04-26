@@ -1,0 +1,276 @@
+<apex:page id="pg" standardController="rstk__soibatch__c" extensions="rstk.ControllerExtnViewSoibatch,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__soibatch__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soibatch__c.fields}" />
+    <apex:variable var="f_soinv" value="{!$ObjectType.rstk__soinv__c.fields}" /> 
+    <apex:variable var="f_socntl" value="{!$ObjectType.rstk__socntl__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__salesorderinvoicebatch}"/> 
+     
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__messageformat}" />
+    <apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <script>
+        function confirmTransferPrinted() {
+            if (confirm("{!$Label.rstk__warning_batchnotyetprinted_clkoktocontwithtransfertoar}")) {
+                blockUI();
+                setTimeout(doForceTransferBatch, 10);
+            }
+        }
+        var operationInProgress = null;
+        function checkInvoiceBatchStatus(opType) {
+            operationInProgress = opType;
+            var isBackground = (document.getElementById('isBackground') && document.getElementById('isBackground').value == 'true');
+            if (isBackground) {
+                blockUI();
+                checkJobStatus();
+            }
+        }
+        function doAfterJobComplete(processlog) {
+            if(processlog.iserror__c)
+                unblockUI();
+            else {
+                console.log(' operationInProgress '+operationInProgress);
+                if (operationInProgress != 1) {
+                    blockUI();
+                    approveBatchCompleted();
+                } else {
+                    unblockUI();
+                }    
+                operationInProgress = null;
+            }
+        }
+        
+    </script>
+    
+    <apex:form id="frm">
+        <apex:actionFunction name="doForceTransferBatch" action="{!forceTransferBatch}" rerender="pbMain, pb2, pageMessages" oncomplete="unblockUI();"/>
+        <apex:actionFunction name="transferBatchCompleted" action="{!transferBatchCompleted}" rerender="pbMain, pb2, pageMessages" oncomplete="unblockUI();reloadPage();"/>
+        <apex:actionFunction name="approveBatch" action="{!approveBatch}" rerender="pbMain, pb2, pageMessages" oncomplete="unblockUI();"/>
+        <apex:actionFunction name="approveBatchCompleted" action="{!approveBatchCompleted}" rerender="pbMain, pb2, pageMessages" oncomplete="reloadPage();"/>
+        <apex:actionFunction name="deapproveBatch" action="{!deapproveBatch}" rerender="pbMain, pb2, pageMessages" oncomplete="unblockUI();"/>
+        
+        <apex:outputPanel id="batchFns">
+          <script>
+            var isInvoiceRootDoxPrint = {!isInvoiceRootDoxPrint};
+            var isCreditMemoRootDoxPrint = {!isCreditMemoRootDoxPrint};
+            var templateOverride = {!templateOverride};
+            var defaultTemplate = '{!JSENCODE(defaultTemplate)}';
+    	    var creditTemplateOverride = {!creditTemplateOverride};
+	        var defaultCreditTemplate = '{!JSENCODE(defaultCreditTemplate)}';
+            var isInvoicesforPrint = {!isInvoicesforPrint};
+            var isCRMemosforPrint = {!isCRMemosforPrint};
+            var maxLines = {!maxLines};
+            
+            function openBatchWindow()
+            {
+                if (maxLines && !isInvoiceRootDoxPrint) {
+                    if (!confirm("{!$Label.Total_number_of_invoice_lines_may_cause_CPU_Timeout}")) return false;
+                }
+                if (templateOverride || creditTemplateOverride) {
+                    if (defaultTemplate) {
+                        jQuery('select[id$=selected_template__c]').val(defaultTemplate);
+                    }
+                    if (defaultCreditTemplate) {
+                        jQuery('select[id$=selected_credittemplate__c]').val(defaultCreditTemplate);
+                    }
+                    
+                    if (!templateOverride) {
+	                    jQuery("[id$=selected_template__c]").closest('tr').hide();
+	                }
+	                if (!creditTemplateOverride) {
+	                    jQuery("[id$=selected_credittemplate__c]").closest('tr').hide();
+	                }
+                    _showDialog('selectEmailTemplate');
+                    return false;
+                } else {
+                     goToBatchWindow(defaultTemplate,defaultCreditTemplate);
+                }
+            }
+    
+            function template_ok() {
+                var theTemplate = jQuery('select[id$=selected_template__c]').val();
+                var theCreditTemplate = jQuery('select[id$=selected_credittemplate__c]').val();
+                goToBatchWindow(theTemplate, theCreditTemplate);
+            }
+    
+            function goToBatchWindow(templateId, creditTemplate) {
+            	if(isInvoiceRootDoxPrint && isInvoicesforPrint){
+                	window.open(getbatchProcessingDoxURL(templateId, ''));
+                }
+                if(isCreditMemoRootDoxPrint && isCRMemosforPrint){
+                	window.open(getbatchProcessingDoxURL('', creditTemplate));    
+                }
+                if(!isInvoiceRootDoxPrint && !isCreditMemoRootDoxPrint){
+                	if(isInvoicesforPrint || isCRMemosforPrint){
+                	window.open(getBatchProcessingURL(templateId, creditTemplate));
+                }
+                }
+                if(!isInvoiceRootDoxPrint && isCreditMemoRootDoxPrint && isCRMemosforPrint){
+                	window.open(getBatchProcessingURL(templateId, ''));
+                }
+                if(isInvoiceRootDoxPrint && isInvoicesforPrint && !isCreditMemoRootDoxPrint){
+                	window.open(getBatchProcessingURL('', creditTemplate));
+                }
+                
+               if(!isCRMemosforPrint && !isInvoicesforPrint){
+           			alert("{!$Label.There_is_no_Invoice_or_Credit_Memo_for_print}");
+           			return false;
+           		}
+            }
+            function getBatchProcessingURL(templateId, creditTemplate) {
+              var batchProcessingURL = "{!batchProcessingURL}";
+              if (isEmpty(templateId)) {
+                templateId = '';
+              }
+              if (isEmpty(creditTemplate)) {
+                creditTemplate = '';
+              }
+              return batchProcessingURL.replace('[ET]', templateId).replace('[CT]', creditTemplate);
+            }
+            
+            function getbatchProcessingDoxURL(templateId, creditTemplate) {
+              var batchProcessingURL = "{!batchProcessingDoxURL}";
+              if (isEmpty(templateId)) {
+                templateId = '';
+              }
+              if (isEmpty(creditTemplate)) {
+                creditTemplate = '';
+              }
+              return batchProcessingURL.replace('[ET]', templateId).replace('[CT]', creditTemplate);
+            }
+          </script>
+          
+          <script>
+            showInvoices_isloading = false;
+            addToBatch_isloading = false;
+            removeFromBatch_isloading = false;
+            
+            function reloadPage() {
+                window.location.replace(window.location);
+            }
+            
+            function reloadParent() {
+                window.location.reload();
+            }
+            
+            function openShowInvoicesPopup() {
+                if (!_isDialogOpen()) {
+                    _showDialog('showInvoicesPopup',1300);
+                    showInvoices_load();
+                }
+            }
+            
+            function openAddToBatchPopup() {
+                if('{!o.rstk__soibatch_closed__c}' == 'true') {
+                    alert("{!$Label.Cannot_add_to_batch_for_closed_batches}");
+                    return;
+                }
+                if (!_isDialogOpen()) {
+                    _showDialog('addToBatchPopup',1300);
+                    addToBatch_load();
+                }
+            }
+            
+            function openRemoveFromBatchPopup() {
+                if('{!o.rstk__soibatch_closed__c}' == 'true') {
+                    alert("{!$Label.Cannot_remove_from_closed_batches}");
+                    return;
+                }
+                if (!_isDialogOpen()) {
+                    _showDialog('removeFromBatchPopup',1300);
+                    removeFromBatch_load();
+                }
+            }
+        </script>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pbMain">
+            <apex:outputPanel id="jsPanel"> <script>setTimeout(function() { {!jsToExecute} }, 10);</script> </apex:outputPanel>
+            <apex:actionStatus id="submitStatus" onstart="blockUI();" onstop="unblockUI()"/>
+            <apex:actionStatus id="submitStatus2" onstart="blockUI();" />
+            <script>try {unblockUI();} catch (e){}</script>
+            <apex:outputPanel id="op_JobStatus">
+                <input type="hidden" id="processlogId" value="{!processlogId}"/>
+                <input type="hidden" id="isBackground" value="{!isBackground}"/>
+            </apex:outputPanel>
+            <span style="display:none;" id='popStatus1'/>
+            
+            <apex:pageBlockSection id="headerdetail" columns="2" >
+                <apex:outputField value="{!o.rstk__soibatch_div__c}" />
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputField value="{!o.rstk__soibatch_invbatch__c}" />
+                <apex:outputField value="{!o.rstk__soibatch_dateadded__c}" />
+                
+                <apex:outputField value="{!o.rstk__soibatch_closed__c}" />
+                <apex:outputField value="{!o.rstk__soibatch_dateclosed__c}" />
+                
+                <apex:outputField value="{!o.rstk__soibatch_approved__c}" />
+                <apex:outputField value="{!o.rstk__soibatch_dateapproved__c}" />
+                
+                <apex:outputField value="{!o.rstk__soibatch_printed__c}" />
+                <apex:outputField value="{!o.rstk__soibatch_dateprinted__c}" />
+                
+                <apex:outputField value="{!o.rstk__soibatch_transferred__c}" />
+                <apex:outputField value="{!o.rstk__soibatch_datetransfer__c}" />
+                
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <apex:pageBlock id="pb2">
+            <apex:outputPanel >
+                 <c:nosubmitbutton label="{!$Label.rstk__pagebtn_soinvbatchprocessing_showinvoices}" onclick="openShowInvoicesPopup();" />
+                 <c:nosubmitbutton label="{!$Label.rstk__pagebtn_soinvbatchprocessing_addtobatch}" onclick="openAddToBatchPopup();"/>
+                 <c:nosubmitbutton label="{!$Label.rstk__pagebtn_soinvbatchprocessing_removefrombatch}" onclick="openRemoveFromBatchPopup();"/>
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_soinvbatchprocessing_approvebatch}" onclick="blockUI();approveBatch();" disabled="{!o.rstk__soibatch_approved__c}" />
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_soinvbatchprocessing_de_approvebatch}" onclick="blockUI();deapproveBatch();" disabled="{!OR(!o.rstk__soibatch_approved__c, o.rstk__soibatch_transferred__c)}" />
+                <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_closebatch}" action="{!closeBatch}" disabled="{!o.rstk__soibatch_closed__c}" rerender="pbMain, pb2, pageMessages, batchFns" status="submitStatus" />
+                <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_re_openbatch}" action="{!reopen}" disabled="{!OR(!o.rstk__soibatch_closed__c, o.rstk__soibatch_approved__c)}" rerender="pbMain, pb2, pageMessages, batchFns" status="submitStatus" />
+                <apex:commandButton value="{!$Label.rstk__pagebtn_soinvbatchprocessing_transferbatch}" action="{!transferBatch}" disabled="{!OR(!o.rstk__soibatch_approved__c, o.rstk__soibatch_transferred__c, isQB, isWorkDay)}" rerender="pbMain, pb2, pageMessages, batchFns" status="submitStatus2" />
+                  <apex:commandButton value="{!$Label.rstk__pagebtn_soibatchview_printinvoicebatch}" action="{!printInvoiceBatch}" rerender="pageMessages,batchFns" oncomplete="openBatchWindow();" disabled="{!!o.rstk__soibatch_approved__c}"/>
+                 <apex:commandButton value="{!$Label.rstk__pagebtn_soibatchview_emailinvoicebatch}" action="{!emailInvoiceBatch}"  rerender="pageMessages,batchFns" oncomplete="openBatchWindow();" disabled="{!!o.rstk__soibatch_approved__c}" rendered="{!AND(!isInvoiceRootDoxPrint,!isCreditMemoRootDoxPrint)}"/> 
+            </apex:outputPanel>
+         </apex:pageBlock>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+                <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+        
+        <c:Popup popupId="showInvoicesPopup" onCancel="reloadParent();" cancelCaption="{!$Label.rstk__salesorder_pagebtn_close}">
+            <c:FrameGrid height="425px" preLoad="false" jsController="showInvoices" page="/apex/SoibatchGrid" rootId="{!rstk__soibatch__c.Id}" addnlParms="gridType=showInvoices"/>
+        </c:Popup>
+        <c:Popup popupId="addToBatchPopup" onCancel="reloadParent();" cancelCaption="{!$Label.rstk__salesorder_pagebtn_close}">
+            <c:FrameGrid height="425px" preLoad="false" jsController="addToBatch" page="/apex/SoibatchGrid" rootId="{!rstk__soibatch__c.Id}" addnlParms="gridType=addToBatch"/>
+        </c:Popup>
+        <c:Popup popupId="removeFromBatchPopup" onCancel="reloadParent();" cancelCaption="{!$Label.rstk__salesorder_pagebtn_close}">
+            <c:FrameGrid height="425px" preLoad="false" jsController="removeFromBatch" page="/apex/SoibatchGrid" rootId="{!rstk__soibatch__c.Id}" addnlParms="gridType=removeFromBatch"/>
+        </c:Popup>
+        
+        <c:Popup popupId="selectEmailTemplate" title="{!$Label.rstk__select_email_template}" onOk="_closeDialog(); template_ok();">
+            <apex:pageBlockSection columns="1" >
+            <apex:pageBlockSectionItem id="emailTemplate">
+				<apex:outputLabel value="{!f_socntl.rstk__socntl_soinvtemplate__c.label}"/>
+	            <apex:selectList id="selected_template__c" style="width:300px" multiselect="false" size="1" value="{!defaultTemplate}">
+	                <apex:selectOptions value="{!EmailTemplates}"/>
+	            </apex:selectList>
+	            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem id="creditEmailTemplate">
+				<apex:outputLabel value="{!f_socntl.rstk__socntl_socredittemplate__c.label}"/>
+            	<apex:selectList id="selected_credittemplate__c" style="width:300px" multiselect="false" size="1" value="{!defaultCreditTemplate}">
+                	<apex:selectOptions value="{!CreditEmailTemplates}"/>
+            	</apex:selectList>
+            </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </c:Popup>
+    </apex:form>
+    
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+</apex:page>

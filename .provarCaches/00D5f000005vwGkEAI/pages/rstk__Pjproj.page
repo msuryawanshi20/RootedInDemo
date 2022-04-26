@@ -1,0 +1,196 @@
+<apex:page id="pg" cache="true" standardController="rstk__pjproj__c" extensions="rstk.ControllerExtnPjproj,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">>
+    <apex:variable var="o" value="{!rstk__pjproj__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__pjproj__c.fields}" />
+
+    <script>
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+        var isView = {!isView};
+        var isNullProject = {!IsNullProject};
+    </script>
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_pjproj}" customInclude="{!$Resource.rstk__pjproj_cli}" enableAutocomplete="true"/>
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doClone" action="{!doProjClone}" />
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons location="top">
+            <c:standardButtons cntr="{!controller}"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_clone}" onclick="doClone();return false;" immediate="true" style="width:70px" disabled="{!!dispCloneBtn}" rendered="{!!isNew}" />
+        </apex:pageBlockButtons>
+        
+        
+        <apex:outputPanel style="display:none">            
+            <c:inputText id="pjproj_invacct__c" cntr="{!controller}" />
+            <apex:inputHidden id="pjproj_id__c" value="{!o.id}" rendered="{!isEdit}" />
+        </apex:outputPanel>
+        
+        <c:division id="pjproj_div__c" cntr="{!controller}" disabled="false" columns="2"/>
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="2">  
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_proj__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__pjproj_proj__c.label}"/>
+                <c:inputText id="pjproj_proj__c" maxlength="20" cntr="{!controller}" tabIndex="1"/>
+            </apex:pageBlockSectionItem>
+                
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_pjstatus__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__pjproj_pjstatus__c.label}"/>
+                <c:selectList id="pjproj_pjstatus__c" cntr="{!controller}" options="{!Pjstatus}" tabIndex="3"/>
+            </apex:pageBlockSectionItem>
+                
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_descr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__pjproj_descr__c.label}"/>
+                <c:inputText id="pjproj_descr__c" maxlength="50" cntr="{!controller}" tabIndex="2"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_jobcodeact__c.inlineHelpText}" rendered="{!isJobCodeActive}">
+                <apex:outputLabel value="{!f.rstk__pjproj_jobcodeact__c.label}"/>
+                <c:inputField id="pjproj_jobcodeact__c" cntr="{!controller}" tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!!isJobCodeActive}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                        
+            <apex:pageBlockSectionItem rendered="{!PjprojcstId != null}">
+                <apex:outputLabel />
+                <apex:outputLink value="{!URLFOR($Action.rstk__pjprojcst__c.View, PjprojcstId)}" >{!$Label.rstk__pagelink_pjproj_projectbudget_cost}</apex:outputLink>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!PjprojcstId = null}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_wbsact__c.inlineHelpText}" rendered="{!isChargeCodeActive}">
+                <apex:outputLabel value="{!f.rstk__pjproj_wbsact__c.label}"/>
+                <c:inputField id="pjproj_wbsact__c" cntr="{!controller}" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+			<apex:pageBlockSectionItem rendered="{!!isChargeCodeActive}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_socontract__c.inlineHelpText}" rendered="{!o.rstk__pjproj_socontract__c != null}">
+                <apex:outputLabel value="{!f.rstk__pjproj_socontract__c.label}"/>
+                <apex:outputField value="{!o.rstk__pjproj_socontract__c}"/>
+            </apex:pageBlockSectionItem>
+
+        </apex:pageBlockSection>
+            <apex:tabPanel switchType="client" selectedTab="tab_Details" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_pjproj_details}" name="tab_Details" id="tab_Details">
+                    <apex:pageBlockSection id="pbs_Details" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_invnegvaracct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_invnegvaracct__c.label}"/>
+                            <c:largeSelectList id="pjproj_invnegvaracct__c" cntr="{!controller}" options="{!syaccsinventorynegativevariance}" tabIndex="103"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_completed__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_completed__c.label}"/>
+                            <c:inputField id="pjproj_completed__c" cntr="{!controller}" tabIndex="153"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_adjclracct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_adjclracct__c.label}"/>
+                            <c:largeSelectList id="pjproj_adjclracct__c" cntr="{!controller}" options="{!syaccsinventoryadjustment}" tabIndex="104"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_mrpbypass__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_mrpbypass__c.label}"/>
+                            <c:inputField id="pjproj_mrpbypass__c" cntr="{!controller}" tabIndex="154"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_invacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_invacct__c.label}"/>
+                            <c:largeSelectList id="pjproj_invacct__c" cntr="{!controller}" options="{!syaccsinventory}" tabIndex="105"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_pochrgallowind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_pochrgallowind__c.label}"/>
+                            <c:inputCheckbox id="pjproj_pochrgallowind__c" cntr="{!controller}" tabIndex="155"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_invnnacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_invnnacct__c.label}"/>
+                            <c:largeSelectList id="pjproj_invnnacct__c" cntr="{!controller}" options="{!syaccsnonnettable}" tabIndex="106"/>
+                        </apex:pageBlockSectionItem>
+                                                
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_wochrgallowind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_wochrgallowind__c.label}"/>
+                            <c:inputCheckbox id="pjproj_wochrgallowind__c" cntr="{!controller}" tabIndex="156"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_wipacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_wipacct__c.label}"/>
+                            <c:largeSelectList id="pjproj_wipacct__c" cntr="{!controller}" options="{!syaccswip}" tabIndex="107"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_sochrgallowind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_sochrgallowind__c.label}"/>
+                            <c:inputCheckbox id="pjproj_sochrgallowind__c" cntr="{!controller}" tabIndex="157"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_woscrapacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_woscrapacct__c.label}"/>
+                            <c:largeSelectList id="pjproj_woscrapacct__c" cntr="{!controller}" options="{!syaccsgeneralscrap}" tabIndex="108"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_soshipallowind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_soshipallowind__c.label}"/>
+                            <c:inputCheckbox id="pjproj_soshipallowind__c" cntr="{!controller}" tabIndex="158"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_wovaracct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_wovaracct__c.label}"/>
+                            <c:largeSelectList id="pjproj_wovaracct__c" cntr="{!controller}" options="{!syaccswovariance}" tabIndex="109"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_pjproj__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_pjproj__c.label}"/>
+                            <c:autocomplete id="pjproj_pjproj__c" cntr="{!controller}" query="select id, name from pjproj__c where Id != '{!o.Id}' and pjproj_div__c = 'prm' and pjproj_completed__c = false" queryParms="[['pjproj_div__c','Division']]" slDesc="{!projectDesc}" tabIndex="159"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_dimval__c.inlineHelpText}">
+                             <apex:outputLabel value="{!f.rstk__pjproj_dimval__c.label}" />
+                                <apex:outputPanel >
+                                    <c:autocomplete id="pjproj_dimval__c" cntr="{!controller}" slDesc="{!sydimDesc}" 
+                                        query="" 
+                                        queryParms="[]"  
+                                        useCustomAutocomplete="true" 
+                                        autocompleteController="ControllerExtnPjproj"
+                                        autocompleteMethodParms="fieldId=pjproj_dimval__c;divID={!divIDValue}"
+                                        tabIndex="110"/>
+                             </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__pjproj_sogateway__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__pjproj_sogateway__c.label}"/>
+                            <c:largeSelectList id="pjproj_sogateway__c" cntr="{!controller}" options="{!sogateways}" tabIndex="160"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_pjproj_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>      
+        </apex:pageBlock>
+    </apex:form>
+
+    <apex:relatedList id="sendemails" list="sendemails__r" rendered="{!isView}" subject="{!o.id}"/>
+
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        var Project = "{!$Label.rstk__projectsnotallowedforthisdivisions}";     
+        var WOWI = "{!$Label.rstk__wowipacctandinventoryacctcannotbethesame}"; 
+        var WOWIPAcct = "{!$Label.rstk__wowipacctandwovaracctcannotbesame}";     
+        var NegVarAcct = "{!$Label.rstk__negvaracctandinventoryacctcannotbesame}";       
+        var InvAdjustAcct = "{!$Label.rstk__invadjustacctandinventoryacctcannotbesame}";     
+        var PPVAcct = "{!$Label.rstk__ppvacctandinventoryacctcannotbesame}"; 
+        var MtlOhdAcct = "{!$Label.rstk__mtlohdacctandinventoryacctcannotbesame}";     
+        var InvScrapAcct = "{!$Label.rstk__invscrapacctandinventoryacctcannotsame}";        
+        var InvScrap = "{!$Label.rstk__invscrapacctandwowipacctcannotsame}";     
+        var COSAcct = "{!$Label.rstk__invscrapacctandcosacctcannotsame}";
+        var LABEL_UnableToRetrieveNextProjNum_MakeSureOrdNoRecSetup = "{!$Label.rstk__unabletoretrievenextprojnum_makesureordnorecsetup}";
+        var LABEL_FieldNotModifiable = "{!$Label.rstk__fieldnotmodifiable}";                      
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

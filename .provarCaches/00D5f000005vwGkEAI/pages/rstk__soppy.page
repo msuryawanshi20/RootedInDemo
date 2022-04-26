@@ -1,0 +1,388 @@
+<apex:page id="pg" standardController="rstk__soppy__c" extensions="rstk.ControllerExtnSoppy,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+       
+    <script>
+        setTimeout(function() {
+           renderList();
+           }, 250); 
+       
+       </script>
+       
+    <apex:variable var="o" value="{!rstk__soppy__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soppy__c.fields}" />
+    <apex:variable var="fdim" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <apex:variable var="f_soppya" value="{!$ObjectType.rstk__soppya__c.fields}" />
+     
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_soppy}" customInclude="{!$Resource.rstk__soppy_cli}" enableAutocomplete="true"/>
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.rstk__busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <script>
+            var ffEnabled = {!isFF};
+            var isEdit = {!isEditable};
+            var isReleased = {!o.rstk__soppy_released__c};
+            var minSohdrChars={!SohdrMinCharForAutoComplete};
+        </script>
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doSetCompanyAndReleasePPY" action="{!updateCompany}" oncomplete="doReleasePPY();"  immediate="true"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        <apex:actionFunction name="doReleasePPY" action="{!doReleasePPY}" oncomplete="unblockUI();"  immediate="false" rerender="pageMessages, soppyAmtapplSection"/>
+        <apex:actionFunction name="doCreateCreditCloseOut" action="{!doCreateCreditCloseOut}" immediate="false"/>
+        <apex:actionFunction name="doRefreshAddrSeq" rerender="op_addrseq,pageMessages" oncomplete="postCustnoChanged();" immediate="true" status="statusProcessing">
+            <apex:param name="custno" assignTo="{!o.soppy_custno__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:actionFunction action="{!renderList}" reRender="docTabPanel" name="renderList" id="renderList"/>
+
+        <apex:pageBlock id="pb" mode="detail"> 
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+            <apex:commandbutton value="{!$Label.rstk__pagebtn_soppy_closeoutppycreditbalance}" onclick="return createCreditCloseOut();" rendered="{!closeOutPPYEnabled  && !!isView}" />
+        </apex:pageBlockButtons>
+        <apex:outputPanel style="display:none">
+            <apex:inputhidden id="soppy_id__c" value="{!o.id}" />
+        </apex:outputPanel>
+        
+        <c:division id="soppy_div__c" cntr="{!controller}" />
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >            
+           <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_ppynumber__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_ppynumber__c.label}" />
+                <apex:outputPanel >
+                    <apex:outputText html-decimals="0" rendered="{!!isNew}" value="{!o.rstk__soppy_ppynumber__c}" />
+                    <apex:outputText rendered="{!isNew}" value="{!$Label.rstk__autoassignonsave}" />
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+ 
+            <apex:pageBlockSectionItem rendered="{! not(releasePPYDisp) }">&nbsp;</apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_addinvtobatch__c.inlineHelpText}" rendered="{! releasePPYDisp }">
+                <apex:outputLabel value="{!f.rstk__soppy_addinvtobatch__c.label}"/>
+                <apex:outputPanel >
+                    <apex:inputCheckbox id="addInvBatch__c" value="{!o.rstk__soppy_addinvtobatch__c}" disabled="{! o.soppy_released__c == true || o.soppy_invoice__c != null || o.soppy_cctxn__c == true}"/><br/>
+                    <apex:commandButton value="{!releasePPYBtnTtl}" onclick="blockUI(); return ReleasePPY();" immediate="true"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+           
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_custno__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_custno__c.label}"/>
+                <c:autocomplete id="soppy_custno__c" required="true" cntr="{!controller}" slDesc="{!custName}" 
+                      query="select id, name from socust__c " 
+                      minChars="{!CustMinCharForAutoComplete}" tabIndex="2"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_reldate__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_reldate__c.label}"/>
+                <apex:outputPanel >
+                    <apex:outputField id="soppy_reldate__c" value="{!o.rstk__soppy_reldate__c}" /> &nbsp; 
+                    <apex:outputField id="soppy_released__c" value="{!o.rstk__soppy_released__c}" />{!$Label.rstk__released}
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_addrseq__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_addrseq__c.label}"/>
+                <apex:outputPanel id="op_addrseq">
+                    <c:selectList id="soppy_addrseq__c" required="true" cntr="{!controller}" options="{!Socaddrs}" tabIndex="3" />
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem id="soppyAmtapplSection" helpText="{!f.rstk__soppy_amtappl__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_amtappl__c.label}" />
+                <apex:outputPanel >
+                    <div>
+                        <apex:outputText html-decimals="2" value="{!o.rstk__soppy_amtappl__c}" />
+                        &nbsp; &nbsp; &nbsp;<apex:outputField id="soppy_completed__c" value="{!o.rstk__soppy_completed__c}" /> {!$Label.rstk__fully_applied}
+                    </div>
+                 </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_amount__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_amount__c.label}" />
+                <c:inputField id="soppy_amount__c" cntr="{!controller}" tabIndex="4" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!isNew}" />
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_cctxn__c.inlineHelpText}" rendered="{!!isNew}" >
+                <apex:outputLabel value="{!f.rstk__soppy_cctxn__c.label}" />
+                <apex:outputField value="{!o.rstk__soppy_cctxn__c}" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_type__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_type__c.label}" />
+                <c:inputField id="soppy_type__c" cntr="{!controller}" tabIndex="5" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!isNew}" />
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_cctxnid__c.inlineHelpText}" rendered="{!!isNew}">
+                <apex:outputLabel value="{!f.rstk__soppy_cctxnid__c.label}" />
+                <apex:outputField value="{!o.rstk__soppy_cctxnid__c}" />
+            </apex:pageBlockSectionItem>
+            
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_sohdrcust__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_sohdrcust__c.label}"/>
+                <c:autocomplete id="soppy_sohdrcust__c" required="false" cntr="{!controller}" slDesc="{!sohdrCustName}" 
+                      query="select id, name from socust__c where socust_fincust__c = null" 
+                      minChars="{!CustMinCharForAutoComplete}" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_invcustovr__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_invcustovr__c.label}"/>
+                <c:inputCheckbox id="soppy_invcustovr__c" cntr="{!controller}" tabIndex="61" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_appmethod__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_appmethod__c.label}" />
+                <c:inputField id="soppy_appmethod__c" cntr="{!controller}" tabIndex="9" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_order__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_order__c.label}"/>
+                <apex:outputPanel >
+                    <c:autocomplete id="soppy_order__c" cntr="{!controller}" editable="true" width="250px" slDesc="{!salesOrderName}" minChars="{!SohdrMinCharForAutoComplete}"
+                     query="select id, sohdr_order__c, name from sohdr__c where Id=null" descColumn="sohdr_order__c" displayColumn="sohdr_order__c" tabIndex="7"  rendered="{!isEditable}"/>
+                    <apex:outputField value="{!o.rstk__soppy_order__c}" rendered="{!!isEditable}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_pct__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_pct__c.label}" />
+                <c:inputField id="soppy_pct__c" cntr="{!controller}" tabIndex="10" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_project__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_project__c.label}"/>
+                <c:autocomplete id="soppy_project__c" required="false" slDesc="{!projectDesc}" cntr="{!controller}" 
+                    query="select id, name from pjproj__c where pjproj_div__c = '{!o.rstk__soppy_div__c}' and pjproj_completed__c = false"
+                    tabIndex="8" minChars="{!MinCharForProjAutoComplete}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_ppyvat__c.inlineHelpText}" rendered="{!askVat}" >
+                <apex:outputLabel value="{!f.rstk__soppy_ppyvat__c.label}"/>
+                <c:inputCheckbox id="soppy_ppyvat__c" cntr="{!controller}" tabIndex="61" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!!askVat}" />
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_ppyacct__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_ppyacct__c.label}"/>
+                <c:selectList id="soppy_ppyacct__c" required="true" cntr="{!controller}" options="{!UneRevenueSyaccs}" tabIndex="58" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_moveatcr__c.inlineHelpText}" rendered="{!askVat}" >
+                <apex:outputLabel value="{!f.rstk__soppy_moveatcr__c.label}"/>
+                <c:inputCheckbox id="soppy_moveatcr__c" cntr="{!controller}" tabIndex="61" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!!askVat}" />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_invoice__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_invoice__c.label}"/>
+                <apex:outputField id="soppy_invoice__c" value="{!o.rstk__soppy_invoice__c}" />
+            </apex:pageBlockSectionItem>
+            
+<!--RSTK-5536
+            <apex:pageBlockSectionItem helpText="{!f.soppy_giftcertkey__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.soppy_giftcertkey__c.label}" />
+                <c:inputField id="soppy_giftcertkey__c" cntr="{!controller}" tabIndex="57" />
+            </apex:pageBlockSectionItem>
+-->
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_sotax__c.inlineHelpText}" rendered="{!askVat}" >
+                <apex:outputLabel value="{!f.rstk__soppy_sotax__c.label}"/>
+                <c:autocomplete id="soppy_sotax__c" required="false" slDesc="{!sotaxDesc}" cntr="{!controller}" 
+                    query="select id, name from sotax__c where sotax_syvatclass__c != null" tabIndex="8"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!!askVat}" />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_crmemo__c.inlineHelpText}" rendered="{!isView}" >
+                <apex:outputLabel value="{!f.rstk__soppy_crmemo__c.label}"/>
+                <apex:outputField id="soppy_crmemo__c" value="{!o.rstk__soppy_crmemo__c}" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!!isView}" />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_defsalesacct__c.inlineHelpText}" rendered="{!askVat}" >
+                <apex:outputLabel value="{!f.rstk__soppy_defsalesacct__c.label}"/>
+                <c:autocomplete id="soppy_defsalesacct__c" required="false" slDesc="{!syacDesc}" cntr="{!controller}" 
+                    query="select id, name from syacc__c where syacc_gltype_pl__c = 'Unearned Revenue' and syacc_div__c = '{!o.rstk__soppy_div__c}'"
+                    tabIndex="8"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!!askVat}" />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_reversed__c.inlineHelpText}" rendered="{!FFInt}">
+                <apex:outputLabel value="{!f.rstk__soppy_reversed__c.label}"/>
+                <apex:outputPanel >
+                <apex:outputField id="soppy_reversed__c" value="{!o.rstk__soppy_reversed__c}" />
+                &nbsp;
+                <apex:outputLink id="soppy_creditno__c" value="/{!o.rstk__soppy_creditno__c}">{!creditName}</apex:outputLink>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        
+        <apex:pageBlockSection id="pbs_Comments" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_intcomment__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_intcomment__c.label}" />
+                <apex:outputPanel >
+                    <div style="width:750px;">
+                        <apex:inputTextarea id="soppy_intcomment__c" value="{!o.rstk__soppy_intcomment__c}" rows="4" richtext="true" disabled="{!actionType == 'view'}" tabIndex="10" />
+                    </div>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            <br />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__soppy_extcomment__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__soppy_extcomment__c.label}" />
+                <apex:outputPanel >
+                    <div style="width:750px;">
+                        <apex:inputTextarea id="soppy_extcomment__c" value="{!o.rstk__soppy_extcomment__c}" rows="4" richtext="true" disabled="{!actionType == 'view'}" tabIndex="60" />
+                    </div>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <br />
+        
+        <apex:tabPanel switchType="client" selectedTab="tab_Details" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_soppy_details}" name="tab_Details" id="tab_Details" rendered="{!actionType != 'create'}">
+                <apex:pageBlockSection id="pbs_Details" showHeader="false" columns="1">
+                    <apex:pageBlockTable value="{!soppyas}" var="a">
+                        <apex:column headerValue="{!$Label.rstk__seq}"><apex:outputField id="soppya_seq__c" value="{!a.rstk__soppya_seq__c}" /></apex:column>
+                        <apex:column headerValue="{!f_soppya.rstk__soppya_amtappl__c.label}" style="text-align:right;width:100px;"><apex:outputText html-decimals="2" value="{!a.rstk__soppya_amtappl__c}" /></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__invoice1}" style="width:150px;"><apex:outputField id="soppya_appliedto__c" value="{!a.rstk__soppya_appliedto__c}" /></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__salesorder}" style="width:150px;"><apex:outputField id="soppya_order__c" value="{!a.rstk__soppya_order__c}" /></apex:column>
+                        <apex:column headerValue="{!f_soppya.rstk__soppya_ppyacct__c.label}"><apex:outputField id="soppya_ppyacct__c" value="{!a.rstk__soppya_ppyacct__c}" /></apex:column>
+                        <apex:column headerValue="{!f_soppya.rstk__soppya_appmethod__c.label}"><apex:outputField id="soppya_appmethod__c" value="{!a.rstk__soppya_appmethod__c}" /></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__percentaage}" style="text-align:right;width:60px;"><apex:outputField value="{!a.rstk__soppya_pct__c}" /></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__ovr}"><apex:outputField id="soppya_manover__c" value="{!a.rstk__soppya_manover__c}" /></apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_soppy_dimensions}" name="Dimensions" id="Dimensions" rendered="{!AND(actionType != 'create', o.soppy_dimvals__r != null)}">
+                <apex:pageBlockSection id="pbs_Dimensions" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval1__c.inlineHelpText}">
+                            <apex:outputLabel value="{!fdim.rstk__dimval1__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.soppy_dimvals__r.rstk__dimval1__c}" rendered="{!!isEditable}" />
+                                <c:largeSelectList useValue="true" id="modal_dimvals_dimval1__c" value="{!o.soppy_dimvals__r.rstk__dimval1__c}" rendered="{!isEditable}"
+                                    options="{!dimValsOptions1}" cntr="{!controller}" width="400px" />
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval2__c.inlineHelpText}">
+                            <apex:outputLabel value="{!fdim.rstk__dimval2__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.soppy_dimvals__r.rstk__dimval2__c}" rendered="{!!isEditable}" />
+                                <c:largeSelectList useValue="true" id="modal_dimvals_dimval2__c" value="{!o.soppy_dimvals__r.rstk__dimval2__c}" rendered="{!isEditable}"
+                                    options="{!dimValsOptions2}" cntr="{!controller}" width="400px" />
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval3__c.inlineHelpText}">
+                            <apex:outputLabel value="{!fdim.rstk__dimval3__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.soppy_dimvals__r.rstk__dimval3__c}" rendered="{!!isEditable}" />
+                                <c:largeSelectList useValue="true" id="modal_dimvals_dimval3__c" value="{!o.soppy_dimvals__r.rstk__dimval3__c}" rendered="{!isEditable}"
+                                    options="{!dimValsOptions3}" cntr="{!controller}" width="400px" />
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval4__c.inlineHelpText}">
+                            <apex:outputLabel value="{!fdim.rstk__dimval4__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.soppy_dimvals__r.rstk__dimval4__c}" rendered="{!!isEditable}" />
+                                <c:largeSelectList useValue="true" id="modal_dimvals_dimval4__c" value="{!o.soppy_dimvals__r.rstk__dimval4__c}" rendered="{!isEditable}"
+                                    options="{!dimValsOptions4}" cntr="{!controller}" width="400px" />
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval5__c.inlineHelpText}">
+                            <apex:outputLabel value="{!fdim.rstk__dimval5__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.soppy_dimvals__r.rstk__dimval5__c}" rendered="{!!isEditable}" />
+                                <c:largeSelectList useValue="true" id="modal_dimvals_dimval5__c" value="{!o.soppy_dimvals__r.rstk__dimval5__c}" rendered="{!isEditable}"
+                                    options="{!dimValsOptions5}" cntr="{!controller}" width="400px" />
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval6__c.inlineHelpText}">
+                            <apex:outputLabel value="{!fdim.rstk__dimval6__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.soppy_dimvals__r.rstk__dimval6__c}" rendered="{!!isEditable}" />
+                                <c:largeSelectList useValue="true" id="modal_dimvals_dimval6__c" value="{!o.soppy_dimvals__r.rstk__dimval6__c}" rendered="{!isEditable}"
+                                    options="{!dimValsOptions6}" cntr="{!controller}" width="400px" />
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval7__c.inlineHelpText}">
+                            <apex:outputLabel value="{!fdim.rstk__dimval7__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.soppy_dimvals__r.rstk__dimval7__c}" rendered="{!!isEditable}" />
+                                <c:largeSelectList useValue="true" id="modal_dimvals_dimval7__c" value="{!o.soppy_dimvals__r.rstk__dimval7__c}" rendered="{!isEditable}"
+                                    options="{!dimValsOptions7}" cntr="{!controller}" width="400px" />
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval8__c.inlineHelpText}">
+                            <apex:outputLabel value="{!fdim.rstk__dimval8__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!o.soppy_dimvals__r.rstk__dimval8__c}" rendered="{!!isEditable}" />
+                                <c:largeSelectList useValue="true" id="modal_dimvals_dimval8__c" value="{!o.soppy_dimvals__r.rstk__dimval8__c}" rendered="{!isEditable}"
+                                    options="{!dimValsOptions8}" cntr="{!controller}" width="400px" />
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_soppy_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <apex:tabPanel id="docTabPanel" selectedTab="docdetails">
+	      <apex:tab title="Upload files" label="Upload Document" id="docdetails">
+				<apex:relatedList list="AttachedContentDocuments" subject="{!id}" rendered="{!(isView && renderedValue)}"/>
+				<apex:relatedList list="CombinedAttachments" subject="{!id}" rendered="{!isView}"/>
+		  </apex:tab>
+	</apex:tabPanel>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+        var LABEL_CustHasNoBillToAddr = "{!$Label.rstk__custhasnobilltoaddr}";
+        var LABEL_PrepaymentAmtMustGrtrThan0 = "{!$Label.rstk__prepaymentamtmustgrtrthan0}";
+        var LABEL_FieldMustFrom0To100 = "{!$Label.rstk__fieldmustfrom0to100}";
+        var LABEL_Warning_PrepaymentBeingReleasedAheadOfSched = "{!$Label.rstk__warning_prepaymentbeingreleasedaheadofsched}";
+        var LABEL_Invalidvaluefor = "{!$Label.rstk__invalidvaluefor}";
+        var LABEL_EnterReqdField = "{!$Label.rstk__enterreqdfield}";
+        var LABEL_CustHasNoBillToAddr = "{!$Label.rstk__custhasnobilltoaddr}";
+        var LABEL_OvrReqCust = "{!$Label.rstk__ovrreqcust}";
+        var LABEL_OvrReqCustInv = "{!$Label.rstk__ovrreqcustinv}";
+        var LABEL_Tax_Location_Division_must_match_Prepayment_Division = "{!$Label.rstk__tax_location_division_must_match_prepayment_division}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

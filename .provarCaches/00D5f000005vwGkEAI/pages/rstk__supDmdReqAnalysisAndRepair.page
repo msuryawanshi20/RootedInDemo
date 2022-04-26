@@ -1,0 +1,163 @@
+<apex:page id="pg" title="{!$Label.rstk__indexanalysisandrepair}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnSupDmdReqAnalysisRepair,rstk.ControllerJobStatus" action="{!doBeforePageLoad}">
+<apex:variable var="o" value="{!rstk__customext__c}" />
+<apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+<apex:variable var="f_syresult" value="{!$ObjectType.rstk__syresult__c.fields}" />
+<script>
+	function scheduleAnalysisCheck(){
+		var schedName = document.getElementById('pg:fm:pb1:pbs_schedule:schedName:schedName').value;
+		var cronExpr = document.getElementById('pg:fm:pb1:pbs_schedule:cronExprSecItem:cronExpr').value;
+		
+		if(schedName == '') {
+			alert("{!$Label.Please_Enter_Schedule_Name}");
+			return false;
+		}
+		
+		if(cronExpr == ''){
+		 	alert("{!$Label.Please_Enter_Cron_Expresion}");
+			return false;
+		}
+		scheduleAnalysis();
+	}
+</script>
+<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__indexanalysisandrepair}"/>
+<apex:form id="fm">
+	<apex:panelGroup id="pgCriticalErrMsg" rendered="{!renderSchedule}">
+        <apex:pageMessage severity="{!CritErr.severity}" strength="{!CritErr.strength}" title="{!CritErr.title}" summary="{!CritErr.summary}"></apex:pageMessage>
+    </apex:panelGroup>
+	<apex:actionFunction name="startAnalysisAndRepair" action="{!startAnalysisAndRepair}" oncomplete="checkJobStatus();" reRender="op_JobStatus,pageMessages" immediate="false"/>		
+	<apex:actionFunction name="getSyresults" action="{!getSyresults}" reRender="resultDisplay" immediate="false"/>
+	<apex:actionFunction name="scheduleAnalysis" action="{!scheduleAnalysis}" immediate="false">
+		<apex:param name="cronExpr" assignTo="{!cronExpr}" value=""/>
+	    <apex:param name="schedName" assignTo="{!schedName}" value=""/>	           	
+	</apex:actionFunction>
+		<apex:pageBlock id="pb1" mode="detail">
+			<apex:outputPanel id="op_JobStatus">
+	        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+	        </apex:outputPanel>	   	    
+	
+			<apex:pageBlockSection id="pbs_Main1" showHeader="false" title="{!$Label.rstk__information}" columns="1" >				                
+                <apex:outputField value="{!o.rstk__div__c}"/>                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__iarpurchaserequisitionsupply__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__iarpurchaserequisitionsupply__c.label}"/>                    	
+                    <apex:inputField id="PurchaseRequisitionSupply" value="{!o.rstk__iarpurchaserequisitionsupply__c}"/>
+                </apex:pageBlockSectionItem>  
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__iarposupply__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__iarposupply__c.label}"/>                    	
+                    <apex:inputField id="POSupply" value="{!o.rstk__iarposupply__c}"/>
+                </apex:pageBlockSectionItem>  
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__iarworkordersupply__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__iarworkordersupply__c.label}"/>                    	
+                    <apex:inputField id="WorkOrderSupply" value="{!o.rstk__iarworkordersupply__c}"/>
+                </apex:pageBlockSectionItem>  
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__iarforecastdemand__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__iarforecastdemand__c.label}"/>                    	
+                    <apex:inputField id="ForecastDemand" value="{!o.rstk__iarforecastdemand__c}" />
+                </apex:pageBlockSectionItem>  
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__iarsalesorderdemand__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__iarsalesorderdemand__c.label}"/>                    	
+                    <apex:inputField id="SalesOrderDemand" value="{!o.rstk__iarsalesorderdemand__c}" />
+                </apex:pageBlockSectionItem>  
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__iarwodemand__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__iarwodemand__c.label}"/>                    	
+                    <apex:inputField id="WODemand" value="{!o.rstk__iarwodemand__c}" />
+                </apex:pageBlockSectionItem>  
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__iarsubcontractpodemand__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__iarsubcontractpodemand__c.label}"/>                    	
+                    <apex:inputField id="SubcontractPODemand" value="{!o.rstk__iarsubcontractpodemand__c}" />
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__iarrepairbadmissingindexes__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__iarrepairbadmissingindexes__c.label}"/>                    	
+                    <apex:inputField id="repairbadmissingindexes" value="{!o.rstk__iarrepairbadmissingindexes__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__create_detail_for_errors}"/>                    	
+                    <apex:inputField id="createDetailforErrors" value="{!o.rstk__custom_checkbox__c}" />
+                </apex:pageBlockSectionItem>               
+            </apex:pageBlockSection>     
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" columns="1">			
+				<apex:pageBlockSectionItem id="perform_Analysis_btn">
+					<c:nosubmitbutton label="{!$Label.rstk__performanalysis}" onclick="validateStartAnalysisAndRepair();"/>
+				</apex:pageBlockSectionItem>				
+			</apex:pageBlockSection>   
+			<apex:pageBlockSection />
+			<apex:pageBlockSection />
+			<apex:PageBlockSection id="pbs_schedule" title="{!$Label.rstk__schedule_analysis}" >  
+                <apex:pageBlockSectionItem helpText="{!$Label.rstk__schedule_name}" Id="schedName">
+                    <apex:outputLabel value="{!$Label.rstk__schedule_name}" for="{!$Label.rstk__schedule_name}" title="{!$Label.rstk__schedule_name}"/>
+                    <apex:inputText id="schedName" value="{!schedName}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!$Label.rstk__the_schedule_for_which_job_needs_to_be_run_provide_values_as_seconds_minutes}" Id="cronExprSecItem">
+                    <apex:outputLabel value="{!$Label.rstk__cron_expression}" for="{!$Label.rstk__cron_expression}" title="{!$Label.rstk__cron_expression}"/>
+                    <apex:inputText id="cronExpr" value="{!cronExpr}"/>
+                </apex:pageBlockSectionItem>    
+            </apex:PageBlockSection>
+            <apex:pageBlockSection id="pbs_main2" showHeader="false" columns="1">			
+				<apex:pageBlockSectionItem id="perform_Analysis_btn">
+					<c:nosubmitbutton label="{!$Label.rstk__pagebtn_supdmdreqanalysisandrepair_scheduleanalysis}" onclick="scheduleAnalysisCheck();"/>
+				</apex:pageBlockSectionItem>				
+			</apex:pageBlockSection> 
+			<apex:outputPanel id="resultDisplay">
+				<apex:pageBlockTable id="pbt_resultDisplay" value="{!resultList}" var="d" rendered="{!showResultDisplay}">
+					<apex:column headerValue="{!$Label.rstk__type}" style="width:220px">
+                        <apex:outputField value="{!d.rstk__syresult_desc__c}" style="width:220px"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstk__goodindexes}" style="width:220px">
+                        <apex:outputText value="{0,number,###,###,###,##0}"> 
+                      		<apex:param value="{!d.rstk__syresult_number01__c}"/>
+                    	</apex:outputText>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstk__missingindexes}" style="width:220px">
+                        <apex:outputText value="{0,number,###,###,###,##0}"> 
+                      		<apex:param value="{!d.rstk__syresult_number02__c}"/>
+                    	</apex:outputText>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstk__incorrectindexes}" style="width:220px">
+                        <apex:outputText value="{0,number,###,###,###,##0}"> 
+                      		<apex:param value="{!d.rstk__syresult_number03__c}"/>
+                    	</apex:outputText>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstk__extraindexes}" style="width:220px">
+                        <apex:outputText value="{0,number,###,###,###,##0}"> 
+                      		<apex:param value="{!d.rstk__syresult_number04__c}"/>
+                    	</apex:outputText>
+                    </apex:column> 
+                    
+                    <apex:column headerValue="{!$Label.rstk__duplicateindexes}" style="width:220px">
+                        <apex:outputText value="{0,number,###,###,###,##0}"> 
+                      		<apex:param value="{!d.rstk__syresult_number05__c}"/>
+                    	</apex:outputText>
+                    </apex:column>                     
+            	</apex:pageBlockTable>        
+			</apex:outputPanel>
+			
+                
+		 </apex:pageBlock>       			
+	</apex:form>
+	<script>
+		function validateStartAnalysisAndRepair() {
+			blockUI();
+			startAnalysisAndRepair();
+		}
+		
+		function doAfterJobComplete(processlog) {
+			unblockUI();
+			if(processlog && !processlog.iserror__c) {
+				getSyresults();
+			}
+		}
+	</script>	
+	<c:footerInclude cntr="{!controller}" />
+</apex:page>

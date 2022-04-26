@@ -1,0 +1,626 @@
+<apex:page id="pg" standardController="rstk__icitem__c" extensions="rstk.ControllerExtnIcitem,rstk.RemoteQueryController" sideBar="true" 
+ action="{!doBeforePageLoad}">
+
+<apex:variable var="o" value="{!rstk__icitem__c}" />
+<apex:variable var="f" value="{!$ObjectType.rstk__icitem__c.fields}" />
+<apex:variable var="f_sycmp" value="{!$ObjectType.rstk__sycmp__c.fields}" />
+<apex:variable var="f_supitem" value="{!$ObjectType.rstk__supitem__c.fields}" />
+
+<c:common_client_labels />
+<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_icitem}" customInclude="{!$Resource.rstk__icitem_cli}" customInclude2="{!$Resource.rstk__comcod_backed_fields_cli}"  enableAutocomplete="true"/>
+<apex:stylesheet value="{!URLFOR($Resource.rstk__comcodstyle, 'comcod_style.css')}" />
+<script>
+    var isCsg = {!isCsg};
+    var isBoc = {!isBoc};
+    var srcPL = {!isEdit}?'{!o.rstk__icitem_src_pl__c}':'';
+    var costMethod = {!isEdit}?'{!JSENCODE(o.icitem_div__r.rstk__sydiv_costtype_pl__c)}':''; 
+    var editMode = {!isEdit};
+    var cname;
+    if(editMode){
+        cname = '{!o.icitem_iccomcod__r.iccomcod_dimval__r.Name}';
+    }
+    var isDisassemblyItem = {!o.rstk__formula_disassmind__c};
+    var iccommMetadata = new MetaData({!iccommMetadata});
+    var isChargeCodeActive = {!isChargeCodeActive};
+</script>
+<apex:form id="fm" rendered="{!displayPageContent}">
+<apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+<apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+<apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+<apex:actionFunction name="doListview" action="{!doListView}" immediate="true"/>
+<apex:actionFunction name="doSave" action="{!save}"/>
+<apex:pageBlock id="pb" mode="detail">
+    <apex:pageBlockButtons >
+        <c:standardButtons cntr="{!controller}"/>
+    </apex:pageBlockButtons>
+
+    <apex:outputPanel style="display:none">
+        <input type="hidden" id="sydiv_cmpno__c" value="{!currDivision.sydiv_cmpno__c}" />
+        <input type="hidden" id="sycmp_engdivind__c" value="{!IF(currDivision.sydiv_cmpno__r.sycmp_engdivind__c,'1','0')}"/>
+        <input type="hidden" id="sycmp_engdiv__c" value="{!currDivision.sydiv_cmpno__r.sycmp_engdiv__c}"/>
+        <input type="hidden" id="sycmp_buydiv__c" value="{!currDivision.sydiv_cmpno__r.sycmp_buydiv__c}"/>
+        <input type="hidden" id="sydiv_advoptsubcntrct__c" value="{!currDivision.sydiv_advoptsubcntrct__c}"/>
+        <input type="hidden" id="sydiv_projact__c" value="{!IF(true,'1','0')}"/>
+        <input type="hidden" id="sydiv_invdivappl__c" value="{!IF(currDivision.sydiv_invdivappl__c,'1','0')}"/>
+        <input type="hidden" id="sydiv_costtype_pl__c" value="{!currDivision.sydiv_costtype_pl__c}"/>
+        <apex:inputhidden id="icitem_inspcode__c" value="{!o.rstk__icitem_inspcode__c}" />
+        <apex:inputhidden id="icitem_handlcode__c" value="{!o.rstk__icitem_handlcode__c}" />
+        <c:comcodBackedLocField id="icitem_disgoodloc__ccloc" indId="icitem_disgoodlocidind__c" valId="icitem_disgoodlocid__c" locNumId="icitem_disgoodlocnum__c" ccId="iccomcod_disgoodlocid__c" ccLocNumId="iccomcod_disgoodlocnum__c" options="{!disRcvLocs}" cntr="{!controller}" rendered="{!!IsDisassemblyAllowed}"/>
+        
+    </apex:outputPanel>
+
+    <c:division id="icitem_div__c" cntr="{!controller}"/>
+    
+    <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="2">
+        <apex:pageBlockSectionItem helpText="{!f_sycmp.rstk__sycmp_engdivind__c.inlineHelpText}">
+            <apex:outputLabel value="{!f_sycmp.rstk__sycmp_engdivind__c.label}"/>
+            <apex:outputField value="{!currDivision.sydiv_cmpno__r.rstk__sycmp_engdivind__c}"/>
+        </apex:pageBlockSectionItem>
+    
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_engdivovr__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_engdivovr__c.label}"/>
+            <c:selectList id="icitem_engdivovr__c" cntr="{!controller}" options="{!sl.sydivs}" tabIndex="10"/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_item__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_item__c.label}"/>
+            <c:autocomplete id="icitem_item__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}" 
+                query="select id, name from peitem__c where (peitem_div__c = '{!o.rstk__icitem_div__c}' or peitem_div__c = '{!o.rstk__icitem_engdivovr__c}') and id not in (select icitem_item__c from icitem__c where icitem_div__c = '{!o.rstk__icitem_div__c}')" 
+                queryParms="[]"  tabIndex="2"/>
+        </apex:pageBlockSectionItem>
+    
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_buydiv__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_buydiv__c.label}"/>
+            <c:selectList id="icitem_buydiv__c" cntr="{!controller}" options="{!sl.sydivs}" tabIndex="12"/>
+        </apex:pageBlockSectionItem>
+    
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_descr__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_descr__c.label}"/>
+            <c:inputText id="icitem_descr__c" cntr="{!controller}" tabIndex="4"/>
+        </apex:pageBlockSectionItem>
+    
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_invuom__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_invuom__c.label}"/>
+            <c:selectList id="icitem_invuom__c" cntr="{!controller}" options="{!sl.syuoms}" tabIndex="14"/>
+        </apex:pageBlockSectionItem>
+    
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_iccomcod__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_iccomcod__c.label}"/>
+            <c:selectList id="icitem_iccomcod__c" cntr="{!controller}" options="{!iccomcods}" tabIndex="6" required="true"/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_icitemstd__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_icitemstd__c.label}"/>
+            <apex:outputField value="{!o.rstk__icitem_icitemstd__c}" />
+        </apex:pageBlockSectionItem>
+    
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_src_pl__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_src_pl__c.label}"/>
+            <c:selectList id="icitem_src_pl__c" cntr="{!controller}" options="{!inventorySources}" tabIndex="8"/>
+        </apex:pageBlockSectionItem>
+    
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_icitemcst__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_icitemcst__c.label}"/>
+            <apex:outputField value="{!o.rstk__icitem_icitemcst__c}" />
+        </apex:pageBlockSectionItem>
+
+        <apex:pageBlockSectionItem />
+        
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_icitemacc__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_icitemacc__c.label}"/>
+            <apex:outputField value="{!o.rstk__icitem_icitemacc__c}" />
+        </apex:pageBlockSectionItem>
+          
+        <!-- <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_dimval__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__icitem_dimval__c.label}"/>
+            <c:selectList id="icitem_dimval__c" cntr="{!controller}" options="{!Sydims}" tabIndex="130"/>
+        </apex:pageBlockSectionItem>-->
+    </apex:pageBlockSection>
+    <apex:tabPanel switchType="client" selectedTab="tab_MRP_Policies" id="theTabPanel">
+        <apex:tab label="{!$Label.rstk__pagetab_icitem_mrppolicies}" name="tab_MRP_Policies" id="tab_MRP_Policies">
+            <apex:pageBlockSection id="pbs_MRP_Policies" showHeader="false" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_mrpplanpolind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_mrpplanpol__c.label}"/>
+                    <c:comcodBackedSelectList id="icitem_mrpplanpol__cc" indId="icitem_mrpplanpolind__c" valId="icitem_mrpplanpol__c" ccId="iccomcod_mrpplanpol_pl__c" cntr="{!controller}" tabIndex="102" options="{!mrpPlanPolicies}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_sspolqtyind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_sspolqty__c.label}"/>
+                    <c:comcodBackedField id="icitem_sspolqty__cc" indId="icitem_sspolqtyind__c" valId="icitem_sspolqty__c" ccId="iccomcod_sspolqty__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="124"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_mrppolqtyind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_mrppolqty__c.label}"/>
+                    <c:comcodBackedField id="icitem_mrppolqty__cc" indId="icitem_mrppolqtyind__c" valId="icitem_mrppolqty__c" ccId="iccomcod_mrppolqty__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="104"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_scrapfctr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_scrapfctr__c.label}"/>
+                    <c:inputField id="icitem_scrapfctr__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="126"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_mrpmaxqtyind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_mrpmaxqty__c.label}"/>
+                    <c:comcodBackedField id="icitem_mrpmaxqty__cc" indId="icitem_mrpmaxqtyind__c" valId="icitem_mrpmaxqty__c" ccId="iccomcod_mrpmaxqty__c" filterNonNumeric="true"  cntr="{!controller}" tabIndex="106"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_usageforecast__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_usageforecast__c.label}" />
+                    <c:inputField id="icitem_usageforecast__c" cntr="{!controller}" tabIndex="127" />
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_mrpminqtyind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_mrpminqty__c.label}"/>
+                    <c:comcodBackedField id="icitem_mrpminqty__cc" indId="icitem_mrpminqtyind__c" valId="icitem_mrpminqty__c" ccId="iccomcod_mrpminqty__c" filterNonNumeric="true"  cntr="{!controller}" tabIndex="122"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_summicixr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_summicixr__c.label}" />
+                    <c:inputField id="icitem_summicixr__c" cntr="{!controller}" tabIndex="128" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_supplymultiplierind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_supplymultiplier__c.label}"/>
+                    <c:comcodBackedField id="icitem_supplymultiplier__cc" indId="icitem_supplymultiplierind__c" valId="icitem_supplymultiplier__c" ccId="iccomcod_supplymultiplier__c" filterNonNumeric="true"  cntr="{!controller}" tabIndex="123"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_icitem_leadtimes}" name="tab_Lead_Times" id="tab_Lead_Times">
+            <apex:pageBlockSection id="pbs_Lead_Times" showHeader="false" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltfrmwoind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltfrmwo__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltfrmwo__cc" indId="icitem_ltfrmwoind__c" valId="icitem_ltfrmwo__c" ccId="iccomcod_ltfrmwo__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="202"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltvendshipind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltvendship__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltvendship__cc" indId="icitem_ltvendshipind__c" valId="icitem_ltvendship__c" ccId="iccomcod_ltvendship__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="222"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltmfgworelind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltmfgworel__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltmfgworel__cc" indId="icitem_ltmfgworelind__c" valId="icitem_ltmfgworel__c" ccId="iccomcod_ltmfgworel__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="204"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltrcvinspind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltrcvinsp__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltrcvinsp__cc" indId="icitem_ltrcvinspind__c" valId="icitem_ltrcvinsp__c" ccId="iccomcod_ltrcvinsp__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="224"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltmfgwopickind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltmfgwopick__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltmfgwopick__cc" indId="icitem_ltmfgwopickind__c" valId="icitem_ltmfgwopick__c" ccId="iccomcod_ltmfgwopick__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="206"/>
+                </apex:pageBlockSectionItem>
+                
+                <!--  
+
+                <apex:pageBlockSectionItem helpText="{!f.icitem_ltdiswaitind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.icitem_ltdiswait__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltdiswait__cc" indId="icitem_ltdiswaitind__c" valId="icitem_ltdiswait__c" ccId="iccomcod_ltdiswait__c" cntr="{!controller}" tabIndex="226"/>
+                </apex:pageBlockSectionItem>
+                -->
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltmfgwoshopflrind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltmfgwoshopflr__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltmfgwoshopflr__cc" indId="icitem_ltmfgwoshopflrind__c" valId="icitem_ltmfgwoshopflr__c" ccId="iccomcod_ltmfgwoshopflr__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="208"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltshipcompind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltshipcomp__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltshipcomp__cc" indId="icitem_ltshipcompind__c" valId="icitem_ltshipcomp__c" ccId="iccomcod_ltshipcomp__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="228"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltfrmreqind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltfrmreq__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltfrmreq__cc" indId="icitem_ltfrmreqind__c" valId="icitem_ltfrmreq__c" ccId="iccomcod_ltfrmreq__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="210"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltexpireind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltexpire__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltexpire__cc" indId="icitem_ltexpireind__c" valId="icitem_ltexpire__c" ccId="iccomcod_ltexpire__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="230"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ltintrsitetxfrind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ltintrsitetxfr__c.label}"/>
+                    <c:comcodBackedField id="icitem_ltintrsitetxfr__cc" indId="icitem_ltintrsitetxfrind__c" valId="icitem_ltintrsitetxfr__c" ccId="iccomcod_ltintrsitetxfr__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="212"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_icitem_disassembly}" name="tab_Disassembly" id="tab_Disassembly" rendered="{!IsDisassemblyAllowed}">
+            <apex:pageBlockSection id="pbs_Disassembly" showHeader="false" columns="1">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__formula_disassmind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__formula_disassmind__c.label}"/>
+                    <apex:outputField value="{!o.rstk__formula_disassmind__c}"/>
+                </apex:pageBlockSectionItem>
+        
+                <apex:pageBlockSectionItem id="pbs_disrcvloc" helpText="{!f.rstk__icitem_disrcvlocidind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_disgoodlocid__c.label}"/>
+                    <c:comcodBackedLocField id="icitem_disgoodloc__ccloc" indId="icitem_disgoodlocidind__c" valId="icitem_disgoodlocid__c" locNumId="icitem_disgoodlocnum__c" ccId="iccomcod_disgoodlocid__c" ccLocNumId="iccomcod_disgoodlocnum__c" options="{!disRcvLocs}" cntr="{!controller}" tabIndex="302"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_icitem_miscccoverrides}" name="tab_Misc_CC_Overrides" id="tab_Misc_CC_Overrides">
+            <apex:pageBlockSection id="pbs_Misc_CC_Overrides" showHeader="false" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_backflushpolind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_backflushpol__c.label}"/>
+                    <c:comcodBackedSelectList id="icitem_backflushpol__cc" indId="icitem_backflushpolind__c" valId="icitem_backflushpol__c" ccId="iccomcod_backflushpol_pl__c" cntr="{!controller}" tabIndex="400" options="{!backflushIndicators}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_ohdmtlrateind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_ohdmtlrate__c.label}"/>
+                    <c:comcodBackedField id="icitem_ohdmtlrate__cc" indId="icitem_ohdmtlrateind__c" valId="icitem_ohdmtlrate__c" ccId="iccomcod_ohdmtlrate__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="450"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_homeprojindind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_homeprojind__c.label}"/>
+                    <c:comcodBackedSelectList id="icitem_homeprojind__cc" indId="icitem_homeprojindind__c" valId="icitem_homeprojind__c" ccId="iccomcod_dflthomeprojind_pl__c" cntr="{!controller}" tabIndex="402" options="{!homeProjectIndicators}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_allocpolind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_allocpol__c.label}"/>
+                    <c:comcodBackedField id="icitem_allocpol__cc" indId="icitem_allocpolind__c" valId="icitem_allocpol__c" ccId="iccomcod_allocpol__c" cntr="{!controller}" tabIndex="452"/>
+                </apex:pageBlockSectionItem>
+    
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_respinv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_respinv__c.label}"/>
+                    <c:comcodBackedSelectList id="icitem_respinv__cc" indId="icitem_respinvind__c" valId="icitem_respinv__c" ccId="iccomcod_respinv__c" options="{!planners}" cntr="{!controller}" tabIndex="404"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_qtydecimal__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_qtydecimal__c.label}"/>
+                    <c:comcodBackedField id="icitem_qtydecimal__cc" indId="icitem_qtydecimalind__c" valId="icitem_qtydecimal__c" ccId="iccomcod_qtydecimal__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="454"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_shelflife__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_shelflife__c.label}"/>
+                    <c:comcodBackedField id="icitem_shelflife__cc" indId="icitem_shelflifeind__c" valId="icitem_shelflife__c" ccId="iccomcod_shelflife__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="406"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_dimval__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_dimval__c.label}"/>
+                    <!-- <c:comcodBackedSelectList id="icitem_dimval__cc" indId="icitem_dimvalind__c" valId="icitem_dimval__c" ccId="iccomcod_dimval__c" cntr="{!controller}" options="{!Sydims}" tabIndex="456"/> -->
+                   <apex:outputPanel layout="block">
+                        <apex:inputField id="icitem_dimvalind__c" value="{!o.rstk__icitem_dimvalind__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__icitem_dimvalind__c}" rendered="{!isView}"/>
+                        <apex:outputPanel rendered="{!!isView}">
+                            <apex:outputPanel id="CCOverrideFlag" style="display:inline">
+                                <apex:outputPanel id="dimvalPanel" styleClass="overridePanel" >
+                                    <c:autocomplete id="icitem_dimval__c" cntr="{!controller}" slDesc="{!sydimDesc}" width="150px"
+                                            query="" 
+                                            queryParms="[]"  
+                                            useCustomAutocomplete="true" 
+                                            autocompleteController="ControllerExtnIcitem"
+                                            autocompleteMethodParms="fieldId=icitem_dimval__c;divID={!divIDValue}"
+                                            tabIndex="78"/>
+                                    <apex:outputLabel value="{!$Label.rstk__ccoverrideflag}" styleClass="overrideFlag" style="padding-left:10px"/>
+                                </apex:outputPanel>
+                             </apex:outputPanel>    
+                             <apex:outputPanel id="CCComcodFlag" style="display:inline">
+                                <apex:inputText id="CCComcodName__c" value="{!ComcodName}" rendered="{!OR(isNew,isEdit)}"/>
+                                <apex:outputLabel value="{!$Label.rstk__cccomcodflag}" styleClass="comcodeFlag" style="padding-left:10px"/>
+                             </apex:outputPanel>
+                         </apex:outputPanel>
+                         <apex:outputPanel rendered="{!isView}">
+                            <apex:outputField value="{!o.rstk__icitem_dimval__c}" rendered="{!!o.rstk__icitem_dimvalind__c}"/>
+                            <apex:outputField value="{!o.icitem_iccomcod__r.rstk__iccomcod_dimval__c}" rendered="{!o.rstk__icitem_dimvalind__c}"/>
+                            <apex:outputLabel value="{!$Label.rstk__ccoverrideflag}" styleClass="overrideFlag" style="padding-left:10px" rendered="{!!o.rstk__icitem_dimvalind__c}"/>
+                            <apex:outputLabel value="{!$Label.rstk__cccomcodflag}" styleClass="comcodeFlag" style="padding-left:10px" rendered="{!o.rstk__icitem_dimvalind__c}"/>
+                         </apex:outputPanel>     
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_shipsrlno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_shipsrlno__c.label}"/>
+                    <c:comcodBackedField id="icitem_shipsrlno__cc" indId="icitem_shipsrlnoind__c" valId="icitem_shipsrlno__c" ccId="iccomcod_shipsrlno__c" cntr="{!controller}" tabIndex="408"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_orgid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_orgid__c.label}"/>
+                    <c:comcodBackedSelectList id="icitem_orgid__cc" indId="icitem_orgidind__c" valId="icitem_orgid__c" ccId="iccomcod_orgid__c" cntr="{!controller}" options="{!Syorgs}" tabIndex="458"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_worcptlot__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_worcptlot__c.label}"/>
+                    <c:comcodBackedField id="icitem_worcptlot__cc" indId="icitem_worcptlotind__c" valId="icitem_worcptlot__c" ccId="iccomcod_worcptlot__c" cntr="{!controller}" tabIndex="410"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_labeltemplate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_labeltemplate__c.label}"/>
+                    <c:comcodBackedSelectList id="icitem_labeltemplate__cc" indId="icitem_labeltemplateind__c" valId="icitem_labeltemplate__c" ccId="iccomcod_labeltemplate__c" cntr="{!controller}" options="{!Labeltemplates}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_validatelot__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_validatelot__c.label}"/>
+                    <c:comcodBackedField id="icitem_validatelot__cc" indId="icitem_validatelotind__c" valId="icitem_validatelot__c" ccId="iccomcod_validatelot__c" cntr="{!controller}" tabIndex="412"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_expdatereqdind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_expdatereqd__c.label}"/>
+                    <c:comcodBackedField id="icitem_expdatereqd__cc" indId="icitem_expdatereqdind__c" valId="icitem_expdatereqd__c" ccId="iccomcod_expdatereqd__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="459"/>
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_picklistsrlopt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_picklistsrlopt__c.label}"/>
+                    <c:comcodBackedField id="icitem_picklistsrlopt__cc" indId="icitem_picklistsrloptind__c" valId="icitem_picklistsrlopt__c" ccId="iccomcod_picklistsrlopt__c" cntr="{!controller}" tabIndex="412"/>
+                </apex:pageBlockSectionItem>
+                                
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_icitem_locations}" name="tab_Locations" id="tab_Locations">
+            <apex:pageBlockSection id="pbs_Location" showHeader="false" columns="1">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_rcptlocid__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icitem_rcptlocid__c.label}"/>
+                    <c:comcodBackedLocField id="icitem_rcptloc__ccloc" indId="icitem_rcptlocidind__c" valId="icitem_rcptlocid__c" locNumId="icitem_rcptlocnum__c" ccId="iccomcod_rcptlocid__c" ccLocNumId="iccomcod_rcptlocnum__c" options="{!rcptLocIds}" cntr="{!controller}" tabIndex="500"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_wmslocid__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icitem_wmslocid__c.label}"/>
+                    <c:comcodBackedLocField id="icitem_wmsloc__ccloc" indId="icitem_wmslocidind__c" valId="icitem_wmslocid__c" locNumId="icitem_wmslocnum__c" ccId="iccomcod_wmslocid__c" ccLocNumId="iccomcod_wmslocnum__c" options="{!WmsLocids}" cntr="{!controller}" tabIndex="501"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_icitem_cyclecount}" name="tab_Misc_Mfg" id="tab_Misc_Mfg">
+            <apex:pageBlockSection id="pbs_Misc_Mfg" showHeader="false" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_abcdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_abcdate__c.label}"/>
+                    <c:inputField id="icitem_abcdate__c" cntr="{!controller}" tabIndex="600"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_prevabc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_prevabc__c.label}"/>
+                    <c:inputText id="icitem_prevabc__c" cntr="{!controller}" tabIndex="610"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_reclass__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_reclass__c.label}"/>
+                    <c:inputCheckbox id="icitem_reclass__c" cntr="{!controller}" tabIndex="602"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_abc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_abc__c.label}"/>
+                    <c:inputText id="icitem_abc__c" cntr="{!controller}" tabIndex="612"/>
+                </apex:pageBlockSectionItem>
+                
+                <!-- apex:pageBlockSectionItem helpText="{!f.icitem_msds__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.icitem_msds__c.label}"/>
+                    <c:inputText id="icitem_msds__c" cntr="{!controller}" tabIndex="1120"/>
+                </apex:pageBlockSectionItem> -->
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_icitem_attributes}" name="tab_Attributes" id="tab_Attributes">
+            <apex:pageBlockSection id="pbs_Attributes" showHeader="false" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_weight__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_weight__c.label}"/>
+                    <c:inputField id="icitem_weight__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="700"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_relateditem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_relateditem__c.label}"/>
+                    <c:autocomplete id="icitem_relateditem__c" cntr="{!controller}" required="false" slDesc="{!o.icitem_relateditem__r.name}" 
+                        query="select id, name from icitem__c where icitem_item__r.peitem_inactivests__c != 'I' and (icitem_div__c = '{!o.rstk__icitem_div__c}' and id != '{!o.Id}')" 
+                        queryParms="[]"  tabIndex="710"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_length__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_length__c.label}"/>
+                    <c:inputField id="icitem_length__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="702"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_invstate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_invstate__c.label}"/>
+                    <c:inputField id="icitem_invstate__c" cntr="{!controller}" tabIndex="712"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_height__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_height__c.label}"/>
+                    <c:inputField id="icitem_height__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="704"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_di__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_di__c.label}"/>
+                    <c:inputField id="icitem_di__c" cntr="{!controller}" tabIndex="714"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_width__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_width__c.label}"/>
+                    <c:inputField id="icitem_width__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="706"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_udimethod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_udimethod__c.label}"/>
+                    <c:comcodBackedField id="icitem_udimethod__cc" indId="icitem_udimethodind__c" valId="icitem_udimethod__c" ccId="iccomcod_udimethod__c" cntr="{!controller}" tabIndex="716"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem ></apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_statnum__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_statnum__c.label}"/>
+                    <c:inputField id="icitem_statnum__c" filterNonNumeric="true" cntr="{!controller}" tabIndex="708"/>
+                </apex:pageBlockSectionItem>
+
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+            <c:customFields cntr="{!controller}" cols="2"/>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_icitem_info}" name="tab_Info" id="tab_Info">
+            <apex:pageBlockSection id="pbs_Info" showHeader="false" columns="2">
+                <!-- apex:pageBlockSectionItem helpText="{!f.icitem_handlcode__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.icitem_handlcode__c.label}"/>
+                    <c:selectList id="icitem_handlcode__c" cntr="{!controller}" options="{!sl.syhands}" tabIndex="960"/>
+                </apex:pageBlockSectionItem>
+        
+                <apex:pageBlockSectionItem helpText="{!f.icitem_inspcode__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.icitem_inspcode__c.label}"/>
+                    <c:selectList id="icitem_inspcode__c" cntr="{!controller}" options="{!sl.syinsps}" tabIndex="970"/>
+                </apex:pageBlockSectionItem>
+        
+                <apex:pageBlockSectionItem helpText="{!f.icitem_poitem_ui__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.icitem_poitem_ui__c.label}"/>
+                    <c:selectList id="icitem_poitem_ui__c" cntr="{!controller}" options="{!sl.poitems}" tabIndex="1040"/>
+                </apex:pageBlockSectionItem> -->
+            </apex:pageBlockSection>
+            <c:infoSection cntr="{!controller}" showHeader="false"/>
+         </apex:tab>
+         <apex:tab label="{!$Label.rstk__pagetab_icitem_supplieritem}" name="tab_SupplierItem" id="tab_SupplierItem" rendered="{!isBoc}" html-tablabel="Supplier Item">
+            <apex:pageBlockSection id="pbs_SupplierItem" showHeader="false" columns="2" rendered="{!!isView}">
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__supplieritem}"/>
+                    <apex:outputLink value="{!URLFOR($Action.rstk__supitem__c.Edit, supitem.id)}{!ReturnUrlParms}" rendered="{!supitem.id != null}">{!supitem.Name}</apex:outputLink>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_supitem.rstk__supitem_povend__c.label}"/>
+                    <apex:outputLink value="{!URLFOR($Action.rstk__povend__c.Edit, supitem.rstk__supitem_povend__c)}{!ReturnUrlParms}" rendered="{!supitem.rstk__supitem_povend__c != null}">{!supitem.supitem_povend__r.Name}</apex:outputLink>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="icitem_doi__c" value="{!o.rstk__icitem_doi__c}" taborderhint="100"/>
+                <apex:inputField id="icitem_shiptempmaxc__c" value="{!o.rstk__icitem_shiptempmaxc__c}" taborderhint="109"/>
+                <apex:inputField id="icitem_daysusage__c" value="{!o.rstk__icitem_daysusage__c}" taborderhint="101"/>
+                <apex:inputField id="icitem_shiptempmaxf__c" value="{!o.rstk__icitem_shiptempmaxf__c}" taborderhint="110"/>
+                <apex:inputField id="icitem_transittype__c" value="{!o.rstk__icitem_transittype__c}" taborderhint="102"/>
+                <apex:inputField id="icitem_shiptempminc__c" value="{!o.rstk__icitem_shiptempminc__c}" taborderhint="111"/>
+                <apex:pageBlockSectionItem helptext="{!f.rstk__icitem_povendpoaddr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_povendpoaddr__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="icitem_povendpoaddr__c" value="{!o.rstk__icitem_povendpoaddr__c}" size="1" style="width:250px;" tabIndex="1030">
+                            <apex:selectOptions value="{!vendorAddress}" />
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="icitem_shiptempminf__c" value="{!o.rstk__icitem_shiptempminf__c}" taborderhint="112"/>
+                <apex:pageBlockSectionItem helptext="{!f.rstk__icitem_poconttype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_poconttype__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="icitem_poconttype__c" value="{!o.rstk__icitem_poconttype__c}" size="1" style="width:250px;" tabIndex="1040">
+                            <apex:selectOptions value="{!containerType}" />
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="icitem_storetempmaxc__c" value="{!o.rstk__icitem_storetempmaxc__c}" taborderhint="113"/>
+                <apex:inputField id="icitem_contpct__c" value="{!o.rstk__icitem_contpct__c}" taborderhint="105"/>
+                <apex:inputField id="icitem_storetempmaxf__c" value="{!o.rstk__icitem_storetempmaxf__c}" taborderhint="114"/>
+                <apex:inputField id="icitem_wmsunits__c" value="{!o.rstk__icitem_wmsunits__c}" taborderhint="107"/>
+                <apex:inputField id="icitem_storetempminc__c" value="{!o.rstk__icitem_storetempminc__c}" taborderhint="115"/>
+                <apex:inputField id="icitem_normplanpol__c" value="{!o.rstk__icitem_normplanpol__c}" taborderhint="108"/>
+                <apex:inputField id="icitem_storetempminf__c" value="{!o.rstk__icitem_storetempminf__c}" taborderhint="116"/>
+                <apex:inputField id="icitem_supreqmult__c" value="{!o.rstk__icitem_supreqmult__c}" taborderhint="109"/>
+                <apex:inputField id="icitem_stageqty__c" value="{!o.rstk__icitem_stageqty__c}" taborderhint="117"/>
+                
+           </apex:pageBlockSection>
+           <apex:pageBlockSection id="pbs_SupplierItem_View" showHeader="false" columns="2" rendered="{!isView}">
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__supplieritem}"/>
+                    <apex:outputLink value="{!URLFOR($Action.rstk__supitem__c.Edit, supitem.id)}{!ReturnUrlParms}" rendered="{!supitem.id != null}">{!supitem.Name}</apex:outputLink>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!f_supitem.rstk__supitem_povend__c.label}"/>
+                    <apex:outputLink value="{!URLFOR($Action.rstk__povend__c.Edit, supitem.rstk__supitem_povend__c)}{!ReturnUrlParms}" rendered="{!supitem.rstk__supitem_povend__c != null}">{!supitem.supitem_povend__r.Name}</apex:outputLink>
+                </apex:pageBlockSectionItem>
+                <apex:outputField value="{!o.rstk__icitem_doi__c}"/>
+                <apex:outputField value="{!o.rstk__icitem_shiptempmaxc__c}" />
+                <apex:outputField value="{!o.rstk__icitem_daysusage__c}" />
+                <apex:outputField value="{!o.rstk__icitem_shiptempmaxf__c}" />
+                <apex:outputField value="{!o.rstk__icitem_transittype__c}"/>
+                <apex:outputField value="{!o.rstk__icitem_shiptempminc__c}" />
+                <apex:outputField value="{!o.rstk__icitem_povendpoaddr__c}" />
+                <apex:outputField value="{!o.rstk__icitem_shiptempminf__c}" />
+                <apex:outputField value="{!o.rstk__icitem_poconttype__c}"/>
+                <apex:outputField value="{!o.rstk__icitem_storetempmaxc__c}" />
+                <apex:outputField value="{!o.rstk__icitem_contpct__c}" />
+                <apex:outputField value="{!o.rstk__icitem_storetempmaxf__c}"/>
+                <apex:outputField value="{!o.rstk__icitem_wmsunits__c}" />
+                <apex:outputField value="{!o.rstk__icitem_storetempminc__c}" />
+                <apex:outputField value="{!o.rstk__icitem_normplanpol__c}" />
+                <apex:outputField value="{!o.rstk__icitem_storetempminf__c}" />
+                <apex:outputField value="{!o.rstk__icitem_supreqmult__c}" />
+                <apex:outputField value="{!o.rstk__icitem_stageqty__c}" />
+           </apex:pageBlockSection>
+        </apex:tab>
+    </apex:tabPanel>
+</apex:pageBlock>
+</apex:form>
+
+<c:footerInclude cntr="{!controller}" />
+<script>
+	var Source = "{!JSENCODE($Label.InterDivisionSourceIsNotPermitted)}";
+	var Phantom = "{!JSENCODE($Label.SourceMustBeManufacturedIfEngItemTypeIsPhantom)}";        
+	var Buying = "{!JSENCODE($Label.CannotSetBuyingDivisionUntilDivisionIsSet)}"; 
+	var Division = "{!JSENCODE($Label.BuyingDivisionMustBeWithinTheSameCompanyAsDivision)}";          
+	var Item = "{!JSENCODE($Label.CannoSetBuyingDivisionUntilItemIsSelected)}"; 
+	var POItem = "{!JSENCODE($Label.POItemForThisItemMustExistWithinBuyingDivision)}";       
+	var MaximumQty = "{!JSENCODE($Label.MaximumQtyCannotBeLessThanMinimumQty)}";        
+	var UOM = "{!JSENCODE($Label.PleasEnterAnInventoryUOM)}"; 
+	var EngItem = "{!JSENCODE($Label.EngItemDivisionFilterAltered)}";        
+	var POReceipt = "{!JSENCODE($Label.POReceiptRouting)}"; 
+	var Div = "{!JSENCODE($Label.PleaseEnterADivision)}";          
+	var MainSite = "{!JSENCODE($Label.MainSiteMustBeSetOnDivisionRecord)}"; 
+	var Value = "{!JSENCODE($Label.PleaseEnterAValueForQtyDecimals)}";       
+	var Qty = "{!JSENCODE($Label.MRPPolicyQtyMusBeGreaterThanZero)}";       
+	var SafetyStock = "{!JSENCODE($Label.SafetyStockQtyMustBeGreaterThanZero)}";          
+	var Disassembly = "{!JSENCODE($Label.DisassemblyCannotBeCheckedUnlessDisassemblyInd)}"; 
+	var LocationNo = "{!JSENCODE($Label.DisassemblyGoodLocationNo)}";       
+	var NCM = "{!JSENCODE($Label.DisassemblyNCMLocationNo)}";        
+	var Scrap = "{!JSENCODE($Label.DisassemblyScrapLocationNo)}";       
+	var Backflushing = "{!JSENCODE($Label.BackflushingNotAllowed)}";       
+	var YieldFactor = "{!JSENCODE($Label.YieldFactoMustBeGreaterThanOrEqualToZero)}";          
+	var Home = "{!JSENCODE($Label.ReorderPointAllowedOnlyIfHomeProjectInd)}";        
+	var ABCSegment = "{!JSENCODE($Label.ABCSegmentNumberInTheRangeZeroTo99)}";       
+	var Loc = "{!JSENCODE($Label.PleaseEnterAnDisassemblyReceivingLocation)}";       
+	var OnhandDisassembly = "{!JSENCODE($Label.PleaseEnterAnOnhandDisassemblyReceivingLocations)}";          
+	var LocationDivisions = "{!JSENCODE($Label.EnterDisassemblyReceivingLocationForDivisions)}"; 
+	var Manufactured = "{!JSENCODE($Label.APhantomItemMustHaveSourceManufactured)}";       
+	var Engineering = "{!JSENCODE($Label.ThisIsCentralizedEngineeringDivision)}";        
+	var Purchased = "{!JSENCODE($Label.SourceMustBePurchasedWhenDisassemblyChecked)}";       
+	var NetSuite = "{!JSENCODE($Label.InvalidNetSuiteItemID)}";       
+	var Disposition = "{!JSENCODE($Label.ReceivingLocationWithReceiptDispositionTypeOfInReceiving)}";          
+	var ReceivingLocation = "{!JSENCODE($Label.ReceivingLocationForDivision)}"; 
+	var OptionNt = "{!JSENCODE($Label.OptionNtAvailable)}";      
+	var LABEL_MustBeGTE0 = "{!JSENCODE($Label.MustBeGTE0)}";
+	var LABEL_FieldCantBeChangedOnItemsSrlControlledInInventory = "{!JSENCODE($Label.FieldCantBeChangedOnItemsSrlControlledInInventory)}";
+	var LABEL_PleaseenterItemNumber = "{!JSENCODE($Label.PleaseenterItemNumber)}";
+	var LABEL_StandardCostswillbeIncorrect = "{!JSENCODE($Label.StandardCostswillbeIncorrect)}";
+	var LABEL_Consolidated_Requirements_cannot_be_used_when_Project_Charge_Codes_are_active = "{!JSENCODE($Label.Consolidated_Requirements_cannot_be_used_when_Project_Charge_Codes_are_active)}";
+	var LABEL_ChangingSourceWillCauseTheCostMasterToBeIncorrect = "{!JSENCODE($Label.ChangingSourceWillCauseTheCostMasterToBeIncorrect)}";
+     
+	function addIcItemCCBackedFieldDefs(type) {
+		initComcodBackedFields(type, 'icitem', 'iccomcod', iccommMetadata);
+		addComcodBackedField('icitem_backflushpol__cc', '{!f.rstk__icitem_backflushpol__c.label}', true, 'icitem_backflushpol__c', 'iccomcod_backflushpol_pl__c');
+		addComcodBackedField('icitem_homeprojind__cc', '{!f.rstk__icitem_homeprojind__c.label}', true, 'icitem_homeprojind__c', 'iccomcod_dflthomeprojind_pl__c');
+		addComcodBackedField('icitem_ltfrmreq__cc', '{!f.rstk__icitem_ltfrmreq__c.label}', true);
+		addComcodBackedField('icitem_ltfrmwo__cc', '{!f.rstk__icitem_ltfrmwo__c.label}', true);
+		addComcodBackedField('icitem_ltintrsitetxfr__cc', '{!f.rstk__icitem_ltintrsitetxfr__c.label}', true);
+		addComcodBackedField('icitem_ltmfgwopick__cc', '{!f.rstk__icitem_ltmfgwopick__c.label}', true);
+		addComcodBackedField('icitem_ltmfgworel__cc', '{!f.rstk__icitem_ltmfgworel__c.label}', true);
+		addComcodBackedField('icitem_ltmfgwoshopflr__cc', '{!f.rstk__icitem_ltmfgwoshopflr__c.label}', true);
+		addComcodBackedField('icitem_ltrcvinsp__cc', '{!f.rstk__icitem_ltrcvinsp__c.label}', true);
+		addComcodBackedField('icitem_ltshipcomp__cc', '{!f.rstk__icitem_ltshipcomp__c.label}', true);
+		addComcodBackedField('icitem_ltvendship__cc', '{!f.rstk__icitem_ltvendship__c.label}', true);
+		addComcodBackedField('icitem_mrpmaxqty__cc', '{!f.rstk__icitem_mrpmaxqty__c.label}', true);
+		addComcodBackedField('icitem_mrpminqty__cc', '{!f.rstk__icitem_mrpminqty__c.label}', true);
+		addComcodBackedField('icitem_supplymultiplier__cc', '{!f.rstk__icitem_supplymultiplier__c.label}', false);
+		addComcodBackedField('icitem_mrpplanpol__cc', '{!f.rstk__icitem_mrpplanpol__c.label}', true, 'icitem_mrpplanpol__c', 'iccomcod_mrpplanpol_pl__c');
+		addComcodBackedField('icitem_mrppolqty__cc', '{!f.rstk__icitem_mrppolqty__c.label}', true);
+		addComcodBackedField('icitem_ohdmtlrate__cc', '{!f.rstk__icitem_ohdmtlrate__c.label}', true);
+		addComcodBackedField('icitem_sspolqty__cc', '{!f.rstk__icitem_sspolqty__c.label}', true);
+		addComcodBackedField('icitem_respinv__cc', '{!f.rstk__icitem_respinv__c.label}', false);
+		addComcodBackedField('icitem_allocpol__cc', '{!f.rstk__icitem_allocpol__c.label}', true);
+		addComcodBackedField('icitem_qtydecimal__cc', '{!f.rstk__icitem_qtydecimal__c.label}', true);
+		addComcodBackedField('icitem_shelflife__cc', '{!f.rstk__icitem_shelflife__c.label}', false);
+		addComcodBackedField('icitem_dimval__cc', '{!f.rstk__icitem_dimval__c.label}', false);
+		addComcodBackedField('icitem_orgid__cc', '{!f.rstk__icitem_orgid__c.label}', false);
+		addComcodBackedField('icitem_labeltemplate__cc', '{!f.rstk__icitem_labeltemplate__c.label}', false);
+		addComcodBackedField('icitem_shipsrlno__cc', '{!f.rstk__icitem_shipsrlno__c.label}', false);
+		addComcodBackedField('icitem_disgoodloc__ccloc', '{!f.rstk__icitem_disgoodlocid__c.label}', false);
+		addComcodBackedField('icitem_rcptloc__ccloc', '{!f.rstk__icitem_rcptlocid__c.label}', false);
+		addComcodBackedField('icitem_wmsloc__ccloc', '{!f.rstk__icitem_wmslocid__c.label}', false);
+		addComcodBackedField('icitem_worcptlot__cc', '{!f.rstk__icitem_worcptlot__c.label}', true);
+		addComcodBackedField('icitem_validatelot__cc', '{!f.rstk__icitem_validatelot__c.label}', true);
+		addComcodBackedField('icitem_udimethod__cc', '{!f.rstk__icitem_udimethod__c.label}', false);
+		addComcodBackedField('icitem_picklistsrlopt__cc', '{!f.rstk__icitem_picklistsrlopt__c.label}', false);
+        addComcodBackedField('icitem_ltexpire__cc', '{!f.rstk__icitem_ltexpire__c.label}', false);
+        addComcodBackedField('icitem_expdatereqd__cc', '{!f.rstk__icitem_expdatereqd__c.label}', false); 
+	}
+     
+</script>
+<apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>  
+</apex:page>

@@ -1,0 +1,223 @@
+<apex:page id="pg" standardController="rstk__soshipline__c" extensions="rstk.ControllerExtnShipperlineserials,rstk.ControllerJobStatus" sideBar="false" showHeader="false" 
+    standardStylesheets="true" title="{!$Label.rstk__shipperlineserialdetails}">
+     <apex:variable var="f_soshipsrl" value="{!$ObjectType.rstk__soshipsrl__c.fields}" />
+    <c:popupPageHeader enableAutocomplete="false"/>
+
+    <!-- Includes -->
+    <apex:stylesheet value="{!$Resource.rstk__rootstockstyle}"/>
+    <apex:includeScript value="{!$Resource.rstk__sfff}" />
+    
+    <apex:pageMessages id="pageMessages"/>
+    
+    <script>
+    	var batchMode = null;
+        function doSaveDetails() {
+            blockUI('Saving serial details...');
+            saveDetails(); 
+            return false;
+        }
+        function doClearAutoSetNumbers() {
+            blockUI('Clearing auto-set numbers...');
+            batchMode = 'ClearAutoSetNumbers';
+            clearAutoSetNumbers(); 
+            return false;
+        }
+        function doAcceptAutoSetNumbers() {
+            blockUI('Accepting auto-set numbers...');
+            batchMode = 'AcceptAutoSetNumbers';
+            acceptAutoSetNumbers(); 
+            return false;
+        }
+        function doUpdateSrlNums() {
+            blockUI('Updating Serial numbers...');
+            batchMode = 'UpdateSrlNums';
+            updateSrlNums(); 
+            return false;
+        }
+        function doAfterJobComplete(processlog) {
+        	if (batchMode == 'UpdateSrlNums') {
+	        	doAfterUpdateSrls();
+	        }
+        	unblockUI();
+        	batchMode = null;
+        }
+    </script>
+    
+    <apex:form id="fm">
+        <apex:outputPanel id="op_updateSrls">
+        	<input type="hidden" id="updateSuccessfull" value="{!updateSuccessfull}"/>
+        </apex:outputPanel>
+
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+		</apex:outputPanel>
+		
+		<apex:actionFunction name="saveDetails" action="{!saveDetails}" oncomplete="unblockUI();" rerender="pageMessages, pb_main, op_JobStatus" immediate="false" />
+        <apex:actionFunction name="clearAutoSetNumbers" action="{!clearAutoSetNumbers}" oncomplete="checkJobStatus();" rerender="pageMessages, pb_main, op_JobStatus" immediate="false" />
+        <apex:actionFunction name="acceptAutoSetNumbers" action="{!acceptAutoSetNumbers}" oncomplete="checkJobStatus();" rerender="pageMessages, pb_main, op_JobStatus" immediate="false" />
+        <apex:actionFunction name="updateSrlNums" action="{!updateSrlNums}" oncomplete="checkJobStatus();" rerender="pageMessages, pbs_comps, op_updateSrls, op_JobStatus" immediate="false" />
+        
+        <apex:pageBlock id="pb_main">
+            <apex:pageBlockButtons location="top">      
+                <apex:commandButton value="{!$Label.rstk__pagebtn_shipperlineserials_saveserialdetails}" onclick="return doSaveDetails();" style="width:125px;" disabled="{!!allowEdit}"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_shipperlineserials_clearauto_setnumbers}" onclick="return doClearAutoSetNumbers();" style="width:150px;" disabled="{!!hasAutoNumberedSerials}"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_shipperlineserials_acceptauto_setnumbers}" onclick="return doAcceptAutoSetNumbers();" style="width:150px;" disabled="{!!hasAutoNumberedSerials}"/>
+                <apex:outputPanel id="btn_updateSrls" rendered="{!showBulkSerialAssignment}">
+                	<input type="button" value="{!$Label.BulkSerialAssignment}" onclick="return doBulkSerialAssignment();" style="width:150px;" />
+                </apex:outputPanel>
+            </apex:pageBlockButtons>
+            
+            <div Id="bulkSrlAssgnPanel" style="display:none">
+            <apex:pageBlockSection id="pbs_bulkSrlAssgn" columns="1" collapsible="false" title="{!$Label.rstk__shipperlineserials_serial_numbers}">
+            	<apex:pageBlockSectionItem >
+	                <apex:outputLabel value="{!$Label.rstk__start}" />
+	                <apex:inputText id="start_srlno__c"  size="31" maxlength="30"/>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem >
+	                <apex:outputLabel value="{!$Label.rstk__end}" />
+	                <apex:inputText id="end_srlno__c"  size="31" maxlength="30"/>
+	            </apex:pageBlockSectionItem>	            
+	            
+	            <apex:pageBlockSectionItem >
+	                <apex:inputTextarea id="rcvln_srlnums__c" value="{!srlNums}" rows="10" cols="50" onfocus="createSrlNoRange('start_srlno__c', 'end_srlno__c', 'rcvln_srlnums__c', {!soshipline.rstk__soshipline_qtypackage__c});"/>
+	            </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:outputPanel id="buttons">
+                <input type="button" value="{!$Label.ShipperLineSerials_Generate}" onclick="createSrlNoRange('start_srlno__c', 'end_srlno__c', 'rcvln_srlnums__c', {!soshipline.rstk__soshipline_qtypackage__c});"/>
+                <input type="button" value="{!$Label.Assign}" onclick="blockUI(); doUpdateSrlNums();"/>
+                <input type="button" value="{!$Label.ShipperLineSerials_Close}" onclick="closeSrlAssgn();"/>
+	         </apex:outputPanel>
+            </div>
+            
+            <apex:pageBlockSection Id="pbs_comps" showHeader="false" columns="1" collapsible="false">
+                <apex:repeat value="{!compsLists}" var="cList">
+	                <apex:repeat value="{!cList}" var="dmd">
+	                    <div style="width:250px;">
+	                    <apex:pageBlock >
+	                        <apex:pageBlockSection showHeader="false" columns="1"  rendered="{!!dmd.allowEdit}">
+	                            <div>
+	                              <apex:outputField value="{!dmd.soshipdmd.rstk__soshipdmd_compitem__c}"/> 
+	                              <span style="color:red;font-size=80%;">{!dmd.message}</span>
+	                            </div>
+	                            <apex:repeat value="{!dmd.soshipsrlsLists}" var="sList">
+		                            <apex:pageBlockTable value="{!sList}" var="srl">
+		                                <apex:column headerValue="{!f_soshipsrl.rstk__soshipsrl_srlno__c.label}" width="200px">
+		                                    <apex:outputField value="{!srl.rstk__soshipsrl_srlno__c}"/>
+		                                </apex:column>
+		                            </apex:pageBlockTable>
+		                        </apex:repeat>
+	                        </apex:pageBlockSection>
+	                        <apex:pageBlockSection showHeader="false" columns="1"  rendered="{!dmd.allowEdit}">
+	                            <div>
+	                              <apex:outputField value="{!dmd.soshipdmd.rstk__soshipdmd_compitem__c}"/> 
+	                              <span style="color:red;font-size=80%;">{!dmd.message}</span>
+	                            </div>
+	                            <apex:repeat value="{!dmd.soshipsrlsLists}" var="sList">
+		                            <apex:pageBlockTable value="{!sList}" var="srl">
+		                                <apex:column headerValue="{!f_soshipsrl.rstk__soshipsrl_srlno__c.label}" width="200px">
+		                                    <apex:inputField value="{!srl.rstk__soshipsrl_srlno__c}"/>
+		                                </apex:column>
+		                            </apex:pageBlockTable>
+		                        </apex:repeat>
+	                        </apex:pageBlockSection>
+	                    </apex:pageBlock>
+	                    </div>
+	                </apex:repeat>
+                </apex:repeat>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <script>
+        	function doBulkSerialAssignment() {
+        		document.getElementById('bulkSrlAssgnPanel').style.display='block';
+        	}
+        	
+        	function doAfterUpdateSrls() {
+        		var updateSuccessfull = document.getElementById('updateSuccessfull').value;
+        		if(updateSuccessfull == 'true') {
+        			closeSrlAssgn();
+        		}
+        	}
+        	
+        	function closeSrlAssgn() {
+        		document.getElementById('bulkSrlAssgnPanel').style.display='none';
+        	}
+        
+        	function createSrlNoRange(startSrlnoId, endSrlnoId, srlnosId, qtyrcvd) {
+				var startSrlNo = sfffGetFieldValue(startSrlnoId);
+				var endSrlNo = sfffGetFieldValue(endSrlnoId);
+				if (isEmpty(startSrlNo) /*|| isNaN(startSrlNo) || (!isEmpty(endSrlNo) && isNaN(endSrlNo))*/) return;
+				if(isEmpty(qtyrcvd) && isEmpty(endSrlNo)) return;
+				
+				var fnumstr = extractFirstNumber(startSrlNo);
+				if(fnumstr == null) return;
+				var fnumstr1;
+				var fnumstr2;
+				if(fnumstr.length > 10) {
+					fnumstr1 = fnumstr.substring(0, (fnumstr.length - 10));
+					fnumstr2 = fnumstr.substring((fnumstr.length - 10));
+				} else {
+					fnumstr1 = '';
+					fnumstr2 = fnumstr;
+				}
+				
+				var fnumstrwithoutleadingzeros = fnumstr2;
+				var pfx = fnumstr.match(/^[0]+/);
+				if(pfx != null) {
+					fnumstrwithoutleadingzeros = fnumstrwithoutleadingzeros.replace(pfx, '');
+				}
+				var lnumstr;
+				var lnumstr1;
+				var lnumstr2;
+				if(!isEmpty(endSrlNo)) {
+					lnumstr = extractFirstNumber(endSrlNo);
+					if(lnumstr != null) {
+						if(startSrlNo.replace(fnumstr,'') != endSrlNo.replace(lnumstr,'')) {
+							alert(LABEL_InvalidEndNumSpecified);
+							return;
+						}
+						if(lnumstr.length > 10) {
+							lnumstr1 = lnumstr.substring(0, (lnumstr.length - 10));
+							lnumstr2 = lnumstr.substring((lnumstr.length - 10));
+						} else {
+							lnumstr1 = '';
+							lnumstr2 = lnumstr;
+						}
+					}
+				}
+				var fnum = ensureInt(fnumstrwithoutleadingzeros);
+				var lnum = lnumstr2 == null ? null : ensureInt(lnumstr2);
+				if(lnum != null && !isEmpty(qtyrcvd)) {
+					lnum = Math.min(lnum, (fnum + ensureInt(qtyrcvd) - 1));
+				}
+				var startNum = fnum;
+				var endNum = lnum ? lnum : (startNum + ensureInt(qtyrcvd) - 1);
+				var srlNos = '';
+				var delim = '';
+				for (var i = startNum; i<=endNum; i++ ) {
+					srlNos += delim + startSrlNo.replace(fnumstr, (fnumstr1 + leftPad((i+''), '0', fnumstr2.length)));
+					delim = '\n';
+				}
+				sfffSetFieldValue(srlnosId, srlNos);
+			}
+			
+			function extractFirstNumber(s) {
+				var m = s.match(/[\d]+/g);
+				if(m && m.length > 0) {
+					return m[0];
+				}
+				return null;
+			}
+			
+			function leftPad( val, ch, len ) {
+				while (val.length<len) {
+					val = ch+val;
+				}
+				return val;
+			}						
+        </script>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+</apex:page>

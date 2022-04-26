@@ -1,0 +1,146 @@
+<apex:page id="pg" standardController="rstkf__glfstmplt6__c" extensions="rstkf.ControllerExtnGlfstmplt6" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    
+    <apex:variable var="o" value="{!rstkf__glfstmplt6__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__glfstmplt6__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__external_data_for_financial_reports}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" customInclude="{!$Resource.rstkf__glfstmplt6_cli}" showHeader="false"/>
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        
+        <apex:actionFunction name="loadExternalDataLabels" action="{!showExternalDataLabels}" immediate="false" reRender="pageMessages,op_glfstmplt6LabelDisplay" status="statusProcessing">
+            <apex:param name="selExternalLabelVal" assignTo="{!selExternalLabelVal}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="addNewExternalLabel" action="{!addNewLabel}" immediate="false" reRender="pageMessages,op_glfstmplt6Popup" oncomplete="showPopup('#glfstmplt6PopupDiv', 820, 380); return false;" status="statusProcessing"/>
+        <apex:actionFunction name="addNewGlfstmplt6Rec" action="{!addNewExtDataForFinStmt}" immediate="false" reRender="pageMessages,op_glfstmplt6Popup" oncomplete="showPopup('#glfstmplt6PopupDiv', 820, 380); return false;" status="statusProcessing"/>
+        <apex:actionFunction name="editGlfstmplt6Rec" action="{!editExtDataForFinStmt}" immediate="false" reRender="pageMessages,op_glfstmplt6Popup" oncomplete="showPopup('#glfstmplt6PopupDiv', 820, 380); return false;" status="statusProcessing">
+            <apex:param name="recordId" assignTo="{!recordId}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="delGlfstmplt6Rec" action="{!delExtDataForFinStmt}" immediate="false" reRender="pageMessages" oncomplete="postDelete(); return false;" status="statusProcessing">
+            <apex:param name="recordId" assignTo="{!recordId}" value=""/>
+        </apex:actionFunction>
+            
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel id="op_pbsMain" >
+                <apex:pageBlockSection id="pbs_main" columns="1" rendered="{!!isView}">
+                    <apex:outputField value="{!o.rstkf__glfstmplt6_cmpno__c}"/>
+                    <apex:inputField id="glfstmplt6_labelOpt__c" value="{!o.rstkf__glfstmplt6_labelopt__c}" style="width:100px;" taborderhint="1"/>
+                    <apex:pageBlockSectionItem id="pbsi_glfstmplt6_label__c" helpText="{!f.rstkf__glfstmplt6_label__c.inlineHelpText}" >
+                       <apex:outputLabel value="{!f.rstkf__glfstmplt6_label__c.label}"/>
+                       <apex:outputPanel id="op_glfstmplt6_label__c" >
+                           <apex:selectList id="glfstmplt6_label__c" value="{!o.rstkf__glfstmplt6_label__c}" size="1" style="width:180px;" tabindex="20"> 
+                               <apex:selectOptions value="{!extDataLabels}"/> 
+                           </apex:selectList>
+                           &nbsp;
+                           <apex:commandButton id="addLabel" onclick="addNewExternalLabel(); return false;" value="{!$Label.rstkf__btn_addexternaldatalabel}" styleclass="btn"/>    
+                       </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_main2" columns="1" rendered="{!isView}" >
+                <apex:outputField value="{!o.rstkf__glfstmplt6_cmpno__c}"/>
+                <apex:outputField value="{!o.rstkf__glfstmplt6_label__c}"/>
+                <apex:outputField value="{!o.rstkf__glfstmplt6_fromyear__c}"/>
+                <apex:outputField value="{!o.rstkf__glfstmplt6_fromperiod__c}"/>
+                <apex:outputField value="{!o.rstkf__glfstmplt6_thruyear__c}"/>
+                <apex:outputField value="{!o.rstkf__glfstmplt6_thruperiod__c}"/>
+                <apex:outputField value="{!o.rstkf__glfstmplt6_scale__c}"/>
+                <apex:outputField value="{!o.rstkf__glfstmplt6_currencyval__c}"/>
+                <apex:outputField value="{!o.rstkf__glfstmplt6_generalval__c}"/>
+           </apex:pageBlockSection> 
+                
+        </apex:pageBlock>
+        
+        <apex:outputPanel id="op_glfstmplt6LabelDisplay" rendered="{!!isView}">
+            <apex:pageBlock title="{!$Label.rstkf__externaldataforfinancialstatements}" id="glfstmplt6Labels" mode="detail" rendered="{!showGlfstmplt6Table}">
+                <apex:outputPanel id="op_glfstmplt6Labelbtns">                  
+                    <input type="button" id="addEntry" value="{!$Label.newexternaldataforfinancialstatement}" class="btn" onclick="addNewGlfstmplt6Rec(); return false;"/>  
+                </apex:outputPanel>  
+                <apex:pageblocksection >
+                    <apex:pageBlockSectionItem />
+                </apex:pageblocksection>
+                <apex:pageBlockTable id="pbt_glfstmplt6Label" value="{!extDataForFinstmts}" var="rec" rendered="{!hasGlfstmplt6Data}">
+                    <apex:column headerValue="{!$Label.rstkf__pagevalaction}">
+                        <apex:outputLink value="" id="editRec" onclick="editGlfstmplt6Rec('{!rec.id}'); return false;">{!$Label.rstkf__edit}</apex:outputLink>&nbsp;|&nbsp;
+                        <apex:outputLink value="" id="deleteRec" onclick="deleteRecord('{!rec.id}'); return false;">{!$Label.rstkf__delete}</apex:outputLink>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstkf__startofeffectiveyearrange}">
+                        <apex:outputField value="{!rec.rstkf__glfstmplt6_fromyear__c}" />
+                    </apex:column>
+                       
+                    <apex:column headerValue="{!$Label.rstkf__startofeffectiveperiodrange}">
+                        <apex:outputField value="{!rec.rstkf__glfstmplt6_fromperiod__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstkf__endofeffectiveyearrange}">
+                        <apex:outputField value="{!rec.rstkf__glfstmplt6_thruyear__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstkf__endofeffectiveperiodrange}">
+                        <apex:outputField value="{!rec.rstkf__glfstmplt6_thruperiod__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstkf__scaleofdecimalprecision}">
+                        <apex:outputField value="{!rec.rstkf__glfstmplt6_scale__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstkf__currencyamount}">
+                        <apex:outputField value="{!rec.rstkf__glfstmplt6_currencyval__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstkf__noncurrencyamount}">
+                        <apex:outputField value="{!rec.rstkf__glfstmplt6_generalval__c}"/>
+                    </apex:column>
+                </apex:pageBlockTable> 
+                <apex:panelGrid columns="6" rendered="{!hasGlfstmplt6Data}">
+                    <apex:commandButton status="fetchStatus2" reRender="pbt_glfstmplt6Label" value="|<" action="{!extDataLabelCon.first}" disabled="{!!extDataLabelCon.hasPrevious}" title="{!$Label.rstkf__labelfirstpage}"/>
+                    <apex:commandButton status="fetchStatus2" reRender="pbt_glfstmplt6Label" value="<" action="{!extDataLabelCon.previous}" disabled="{!!extDataLabelCon.hasPrevious}" title="{!$Label.rstkf__labelpreviouspage}"/>
+                    <apex:commandButton status="fetchStatus2" reRender="pbt_glfstmplt6Label" value=">" action="{!extDataLabelCon.next}" disabled="{!!extDataLabelCon.hasNext}" title="{!$Label.rstkf__labelnextpage}"/>
+                    <apex:commandButton status="fetchStatus2" reRender="pbt_glfstmplt6Label" value=">|" action="{!extDataLabelCon.last}" disabled="{!!extDataLabelCon.hasNext}" title="{!$Label.rstkf__labellastpage}"/>
+                    <apex:outputText >{!(extDataLabelCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((extDataLabelCon.pageNumber * recsPerPage)>totRecs, totRecs,(extDataLabelCon.pageNumber * recsPerPage))} of {!totRecs}</apex:outputText>
+                    <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                    <apex:actionStatus id="fetchStatus2" startText="Fetching..." stopText=""/>
+                    </apex:outputPanel>
+                </apex:panelGrid>
+            </apex:pageBlock>
+        </apex:outputPanel>
+
+    </apex:form>
+ 
+    <apex:outputPanel id="op_glfstmplt6Popup">
+        <div id="glfstmplt6PopupDiv" style="display:none">
+            <apex:outputPanel id="op_glfstmplt6" rendered="{!showGlfstmplt6Popup}">
+                <apex:iframe src="{!popupPageUrl}" id="glfstmplt6PopupId" width="820px" height="360px" scrolling="true" frameborder="true"/>
+                <apex:outputPanel >                  
+                    <input type="button" id="close" value="{!$Label.pagevalClose}" class="btn" onclick="unblockUI(); return false;"/>  
+                </apex:outputPanel> 
+            </apex:outputPanel>
+        </div>
+    </apex:outputPanel>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+        var Label_entervaluefor = "{!$Label.pleaseentervaluefor}";
+        var Label_externalDataLabel = "{!f.rstkf__glfstmplt6_label__c.label}";
+        var Label_warningMsg = "{!$Label.warnIfrecorddeleteditwillimpossibletoshowcorrectpriordata}";
+        var company = "{!o.rstkf__glfstmplt6_cmpno__c}";
+        var Label_alreadyexistsforthecompany = "{!$Label.alreadyexistsforthecompany}";
+    </script>
+    
+</apex:page>

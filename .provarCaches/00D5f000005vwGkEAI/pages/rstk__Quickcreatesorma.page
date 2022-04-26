@@ -1,0 +1,212 @@
+<apex:page id="pg" standardController="rstk__sormh__c" extensions="rstk.ControllerExtnQuickcreatesorma,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sormh__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sormh__c.fields}" />
+    <apex:variable var="f_soinv" value="{!$ObjectType.rstk__soinv__c.fields}" />
+    <apex:variable var="f_soship" value="{!$ObjectType.rstk__soship__c.fields}" />
+    <apex:variable var="f_soshipline" value="{!$ObjectType.rstk__soshipline__c.fields}" />
+    <apex:variable var="f_soline" value="{!$ObjectType.rstk__soline__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstk__customext__c.fields}" />
+    <apex:variable var="f_soinvline" value="{!$ObjectType.rstk__soinvline__c.fields}" />
+    
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_quickcreatesorma}" customInclude="{!$Resource.rstk__quickcreatesorma}" enableAutocomplete="true"/>
+    <apex:outputLink value="{!retUrl}" rendered="{!!ISNULL(retUrl)}">&nbsp;«&nbsp;{!$Label.Go_Back}</apex:outputlink>
+    <apex:form id="fm">
+        <apex:actionFunction name="populateDetails" action="{!populateDetails}" oncomplete="unblockUI();" rerender="pageMessages, op_soinvline,  op_hidden, op_details, op_btns"/>
+        <apex:actionFunction name="populateDetailsbyLine" action="{!populateDetailsbyLine}" oncomplete="unblockUI();" rerender="pageMessages, op_soinvline,  op_hidden, op_details, op_btns"/>
+        <apex:actionFunction name="createSormas" action="{!createSormas}" oncomplete="createSormasCompleted();" rerender="pageMessages, op_hidden"/>
+        <apex:pageBlock id="pb" mode="detail">
+            <script>var sormhId; var errorFound = false;</script>
+            <apex:outputPanel id="op_hidden" style="display:none">
+                <script>
+                    sormhId = "{!sormh.id}";
+                    errorFound = {!errorFound};
+                </script>
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_div__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_div__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_rmano__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_rmano__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_rmano__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_date__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_date__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_date__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_custno__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_custno__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_released__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_released__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_released__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_reason__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_reason__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_reason__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_advreplace__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_advreplace__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_advreplace__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_action__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_action__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_action__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_returnonly__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_returnonly__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_returnonly__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_closed__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_closed__c.label}"/>
+                    <apex:outputField value="{!sormh.rstk__sormh_closed__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <script>
+            var invoicefld; var shipperfld; var rows;
+        </script>
+        <apex:pageBlock id="pb_details" mode="detail">
+            <apex:outputPanel id="op_btns">
+            	<apex:pageBlockSection showHeader="false" columns="3" >
+	                <apex:pageBlockSectionItem rendered="{!showCreatermadetailsButton}">
+	                	<apex:outputLabel value="" />
+	                	<c:nosubmitbutton label="{!$Label.rstk__pagebtn_quickcreatesorma_creatermadetails}" onclick="createRmaDetails()" />
+	                </apex:pageBlockSectionItem>
+	                <apex:pageBlockSectionItem rendered="{!!showCreatermadetailsButton}"/>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f_customext.rstk__quickcreatesorma_useproddefaults__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f_customext.rstk__quickcreatesorma_useproddefaults__c.label}"/>
+	                    <apex:inputField id="quickcreatesorma_useproddefaults__c" value="{!customext.rstk__quickcreatesorma_useproddefaults__c}"/>
+	               	</apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f_customext.rstk__quickcreatesorma_indlinesforkitcomps__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f_customext.rstk__quickcreatesorma_indlinesforkitcomps__c.label}"/>
+	                    <apex:inputField id="quickcreatesorma_indlinesforkitcomps__c" value="{!customext.rstk__quickcreatesorma_indlinesforkitcomps__c}"/>
+	               	</apex:pageBlockSectionItem>
+	              </apex:pageBlockSection>
+              </apex:outputPanel>
+              
+              <apex:pageBlockSection showHeader="false" columns="3">  
+                <apex:pageBlockSectionItem helpText="{!f_soinv.rstk__soinv_invoice__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_soinv.rstk__soinv_invoice__c.label}"/>
+                    <apex:outputPanel >
+                        <c:autocomplete id="soinvid__c" cntr="{!controller}" slDesc="{!soinvName}" 
+                            objKey="soinvidfld" ref="soinv__c"
+                            query="select Id, Name from soinv__c where soinv_div__c = '{!sormh.rstk__sormh_div__c}' and soinv_custno__c = '{!sormh.rstk__sormh_custno__c}' and soinv_txntype__c = 'Invoice'" 
+                            width="250px"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                 
+                  <apex:pageBlockSectionItem helpText="{!f_customext.rstk__rma_soinvline__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f_customext.rstk__rma_soinvline__c.label}"/>
+                    <apex:outputPanel id="op_soinvline" >
+                   	 	<c:largeSelectList id="soinvlineid__c" cntr="{!controller}" options="{!soinvlines}" tabIndex="12" ref="rma_soinvline__c" objKey="soinvlineidfld" onchange="invoicelineselected();"/>
+                    </apex:outputPanel>  
+                </apex:pageBlockSectionItem> 
+            
+               
+                <apex:pageBlockSectionItem helpText="{!f_soship.rstk__soship_shipper__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_soship.rstk__soship_shipper__c.label}"/>
+                    <apex:outputPanel >
+                        <c:autocomplete id="soshipid__c" cntr="{!controller}" slDesc="{!soshipName}" 
+                            objKey="soshipidfld" ref="soship__c"
+                            query="select Id, Name from soship__c where soship_order__r.sohdr_div__c = '{!sormh.rstk__sormh_div__c}' and soship_custno__c = '{!sormh.rstk__sormh_custno__c}' and soship_sorma__c = null" 
+                            width="250px"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:outputPanel id="op_details">
+                <script>rows = {};</script>
+                <apex:pageBlockTable value="{!details}" var="d" columnsWidth="50px,100px,100px,100px,50px,100px,100px,100px">
+                    <apex:column headerValue="{!$Label.rstk__selected}" style="vertical-align:top;">
+                        <apex:inputCheckbox id="detailselected" value="{!d.selected}" onclick="selectdetail('{!d.soshipdmd.id}')"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstk__returnqty}" style="vertical-align:top;">
+                        <apex:outputPanel rendered="{!!d.issrl}">
+                            <apex:inputText id="returnqty" value="{!d.returnqty}" style="width:100px;" onblur="validateReturnQty('{!d.soshipdmd.id}')" onchange="returnqtyChanged('{!d.soshipdmd.id}')"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!d.issrl}">
+                            <apex:inputHidden id="selectedserialsstring__c" value="{!d.selectedserialsstring}"/>
+                            <select id="{!d.soshipdmd.id}" multiple="multiple" size="5" style="width:240px;" hiddenfieldid="{!$Component.selectedserialsstring__c}" onchange="setMultiselectValueToHiddenField(this);"/>
+                            <script>
+                                var srlelem = document.getElementById('{!d.soshipdmd.id}');
+                                var availsrls = {!d.AvailableSerialsString};
+                                var selecsrls = {!d.SelectedSerialsMapString};
+                                for(var i = 0; i < availsrls.length; i++) {
+                                    srlelem.options[srlelem.length] = new Option(availsrls[i], availsrls[i], false, (typeof selecsrls[availsrls[i]] != 'undefined'));
+                                }
+                            </script>
+                        </apex:outputPanel>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstk__salesorder}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.soshipdmd.soshipdmd_line__r.soshipline_shipper__r.rstk__soship_order__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstk__shipper}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.soshipdmd.soshipdmd_line__r.rstk__soshipline_shipper__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_soline.rstk__soline_line__c.label}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.soshipdmd.soshipdmd_line__r.soshipline_line__r.rstk__soline_line__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_soshipline.rstk__soshipline_prod__c.label}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.soshipdmd.soshipdmd_line__r.rstk__soshipline_prod__c}"/>
+                    </apex:column> 
+                    
+                    <apex:column headerValue="{!$Label.rstk__productitem}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.soshipdmd.soshipdmd_line__r.soshipline_prod__r.rstk__soprod_icitem__c}" rendered="{!!d.iskit}"/>
+						<apex:outputField value="{!d.soshipdmd.rstk__soshipdmd_compitem__c}" rendered="{!d.iskit && customext.rstk__quickcreatesorma_indlinesforkitcomps__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_soshipline.rstk__soshipline_qtyship__c.label}" style="vertical-align:top;">
+                        <apex:outputField value="{!d.soshipdmd.soshipdmd_line__r.rstk__soshipline_qtyship__c}" rendered="{!d.soshipdmd.soshipdmd_line__r.soshipline_prod__r.rstk__soprod_prodtype__c != 'Kit'}"/>
+                        <apex:outputField value="{!d.soshipdmd.rstk__soshipdmd_qtypackage__c}" rendered="{!d.soshipdmd.soshipdmd_line__r.soshipline_prod__r.rstk__soprod_prodtype__c = 'Kit'}"/>
+                        <script>
+                        rows['{!d.soshipdmd.id}'] = {
+                            selectedfld: document.getElementById("{!$Component.detailselected}"),
+                            returnqtyfld: document.getElementById("{!$Component.returnqty}"),
+                            returnsrlfld: document.getElementById("{!d.soshipdmd.id}"),
+                            qtypackage: {!d.soshipdmd.rstk__soshipdmd_qtypackage__c},
+                            qtyship: {!IF(d.soshipdmd.soshipdmd_line__r.soshipline_prod__r.rstk__soprod_prodtype__c = 'Kit', d.soshipdmd.rstk__soshipdmd_qtypackage__c, d.soshipdmd.soshipdmd_line__r.rstk__soshipline_qtyship__c)},
+                            decprecision: {!d.decprecision}
+                        };
+                        </script>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:outputPanel>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_ReturnQtyCantBeGrtrThanQtyShipped = "{!$Label.rstk__returnqtycantbegrtrthanqtyshipped}";
+        var LABEL_SelAtleastOneEntry = "{!$Label.rstk__selatleastoneentry}";
+        var LABEL_ReturnQtyCantBeEmpty = "{!$Label.rstk__returnqtycantbeempty}";
+    </script>
+</apex:page>

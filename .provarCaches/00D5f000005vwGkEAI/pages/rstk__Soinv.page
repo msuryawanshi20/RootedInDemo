@@ -1,0 +1,1669 @@
+<apex:page id="pg" standardController="rstk__soinv__c"
+    extensions="rstk.ControllerExtnSoinv,rstk.RemoteQueryController,rstk.CalcInvDueDate,rstk.ControllerExtnSalesOrderHelper,rstk.ControllerJobStatus" sideBar="false"
+    action="{!doBeforePageLoad}"> 
+    <apex:variable var="o" value="{!rstk__soinv__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soinv__c.fields}" />
+    <apex:variable var="f_l" value="{!$ObjectType.rstk__soinvline__c.fields}" />
+    <apex:variable var="f_sl" value="{!$ObjectType.rstk__soshipline__c.fields}" />
+    <apex:variable var="f_soppy" value="{!$ObjectType.rstk__soppy__c.fields}" />
+    <apex:variable var="f_invdist"
+        value="{!$ObjectType.rstk__soinvdist__c.fields}" />
+    <apex:variable var="f_invdistdet"
+        value="{!$ObjectType.rstk__soinvdistdet__c.fields}" />
+    <apex:variable var="f_soisales"
+        value="{!$ObjectType.rstk__soisales__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstk__customext__c.fields}" />    
+
+    <c:standardHeader cntr="{!controller}" title="{!pageTitle}"
+        enableAutocomplete="true" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <apex:includeScript value="{!$Resource.rstk__fields_cli_lib}" />
+    <apex:includeScript value="{!$Resource.rstk__line_items2}" />
+    <apex:includeScript value="{!$Resource.rstk__soinv_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__messageformat}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+
+    <style>
+.hidden {
+    visibility: hidden;
+}
+
+select:disabled {
+    color: #555;
+    background-color: #DDD;
+}
+
+.rcptinput {
+    width: 60px;
+    text-align: right;
+}
+
+.sort {
+    display: inline
+}
+
+.numSort {
+    display: inline
+}
+
+.dispOnlyCol {
+    background-color: #E4E4E4;
+}
+
+.modal {
+    background-color: #fff;
+    display: none;
+    padding: 15px;
+    text-align: left;
+    font-size: 1em;
+    border: 2px solid #333;
+    opacity: 1.0;
+    -moz-border-radius: 6px;
+    -webkit-border-radius: 6px;
+    -moz-box-shadow: 0 0 50px #ccc;
+    -webkit-box-shadow: 0 0 50x #ccc;
+}
+
+.modal h2 {
+    margin: 0px;
+    padding: 10px 0 10px 45px;
+    font-size: 16px;
+}
+
+.modalComponents {
+    color: #efefef;
+    height: 550px;
+    z-index: 100;
+}
+
+.Processing
+{
+    position: fixed;
+    background: url({!$Resource.rstk__busy});
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 100%;
+    height: 100%;
+    z-index: 2004;
+    left: 0%;
+    top: 0%;
+}
+
+</style>
+
+    <script>
+        var invApproved = {!o.rstk__soinv_approved__c};
+        var templateOverride = {!templateOverride};
+        var defaultTemplate = '{!defaultTemplate}';
+        var updateTax = {!updateTax};
+        var isDrawloop = {!isDrawloop};
+        var isRootDox = {!isRootDox};// RSTK-1274
+        var defaultTemplateForDox = '{!defaultTemplateForDox}';
+        var isTransferred = {!o.rstk__soinv_transferred__c};
+        var invType = {!invType};
+        var isEditable = {!isEditable};
+    	var SYFOREXSCHEDNO_Schedtype_3 = "{!SYFOREXSCHEDNO_Schedtype_3}";
+        var SYFOREXSCHEDNO_Schedtype_Override_Rate = "{!SYFOREXSCHEDNO_Schedtype_Override_Rate}"; 
+        
+        function calculateDueDate() {
+            var sInvDate = getFieldValue('soinv_invdate__c')+'';
+            var sytermsId = getFieldValue('soinv_terms__c')+'';
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.CalcInvDueDate.calcDueDate}', //NameSpace  
+                sInvDate, sytermsId,   
+                function(result, event){
+                    if (event.status) {
+                        updateDueDateRelatedFields( result.split('~') );
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.Exception1}" + event.message);
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );  
+        }
+        jQuery(document).ready(function() {
+            initHoverPopups(jQuery("#bodyTable"), {manualClose:false, displayUp:true, onClose:{}});
+            
+            // Hide related list "new" buttons
+            jQuery(".bRelatedList").find("input[value$={!$ObjectType.soconpbill__c.label}]").hide();
+
+            jQuery("button[rel*=popup]").overlay({
+            
+                top: "10%",
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                closeOnClick: false
+            });
+            
+            jQuery("button[rel*=win]").overlay({
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                closeOnClick: false,
+                
+                onBeforeLoad: function(e) {
+                    jQuery('#winVFPage').block({
+                        message: '',
+                        centerX: true, 
+                        centerY: true,
+                        css: { 
+                            border: 'none', 
+                            padding: '15px', 
+                            cursor: 'wait',
+                            opacity: .5, 
+                            textAlign: 'center'
+                        }
+                    });
+                    
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+"Frame");
+                    if (content.length>0) {
+                        if (winId == 'CreateNewInvoice') {
+                            content[0].src = "/apex/CreateNewInvoice?txtype={!IF(invtype,'I','C')}";
+                        } else if (winId == "BatchProcessing") {
+                            content[0].src = "/apex/SoinvBatchProcessing";
+                        } else if (winId == "SelectedBatchProcessing") {
+                            content[0].src = "/apex/SoinvBatchProcessing?selectedId={!o.soinv_invbatch__c}";
+                        } else if (winId == "AddShippers") {
+                            content[0].src = "/apex/CreateNewInvoice?addshippers=true&id={!o.id}";
+                        } else if (winId == 'ApplyPpy') {
+                            content[0].src = "/apex/ApplyPpy?actionType=edit&id={!o.id}";
+                        } else if (winId == 'LineAcctDist') {
+                            content[0].src = "/apex/SoinvlineAcctDist?actionType=edit&id="+soinvlineId;
+                        } else if (winId == 'LineDetails') {
+                            content[0].src = "/apex/SoinvlineDetails?actionType=edit&id="+soinvlineId;
+                        }
+                    
+                        content.load(function() {
+                            jQuery('#winVFPage').unblock();
+                        });
+                    }
+                },
+                onClose: function(e) {
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+"Frame");
+                    if (content.length>0) content[0].src = 'about:blank';
+                    if (!invApproved && winId != 'CommissionDetails') {
+                        updateInvoicePage();
+                    }
+                }
+            });
+        });
+        
+        function mandatoryFieldCheck() {
+            var errorFields = [];
+            checkRequiredField('soinv_name__c', '{!f.rstk__soinv_name__c.label}', errorFields);
+            checkRequiredField('soinv_address1__c', '{!f.rstk__soinv_address1__c.label}', errorFields);
+            checkRequiredField('soinv_period__c', '{!f.rstk__soinv_period__c.label}', errorFields);
+            checkRequiredField('soinv_year__c', '{!f.rstk__soinv_year__c.label}', errorFields);
+            return completeRequiredFieldCheck(errorFields);
+        }
+        
+        function parseNonNullDate(dateStr)
+        {
+          if (dateStr == null)
+          {
+            return null;
+          }
+          return parseLocaleDate(dateStr);
+        }
+        
+        function validateDueDate() 
+        {
+            var warningEl = jQuery('#dueDateWarning');
+            if (warningEl.size() > 0)
+            {
+                var invDateStr = jQuery('input[ID$="soinv_invdate__c"]').val();
+                var invDate = parseNonNullDate(invDateStr);
+                var dueDate = parseNonNullDate(jQuery('input[ID$="soinv_duedate__c"]').val());
+                
+                if (invDate == null || dueDate == null || (invDate.getTime() > dueDate.getTime()))
+                {
+                    warningEl.show("slow");
+                } 
+                else
+                {
+                    warningEl.hide();
+                }
+                jQuery('span[id$=static_soinv_invdate__c]').text(invDateStr);
+            }
+        }
+        
+        function extcommentChanged(e) {
+          var chk = jQuery("input[id$=soinv_printcomment__c]");
+          if (chk.length > 0) {
+            chk[0].checked = true;
+          }
+          return false;
+        }
+    </script>
+
+    <apex:form id="fm">
+<!-- RCB: 23507 -->        
+        <apex:actionFunction name="doRefreshsoinvlineacctdist" rerender="pbs_lineitems" immediate="true"/>
+        <div id="soinvlinecosGrid" style="display:none" >
+            <table cellspacing="0" cellpadding="0" margin="0" width="100%" height="100%">
+                <iframe id="soinvlinecosGridFrame" src="about:blank" width="100%" height="600px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                <input onclick="unblockUI();doRefreshsoinvlineacctdist(); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_Close}"/>
+            </table>
+        </div>               
+        
+           <apex:outputPanel id="hiddenFieldsPanel" style="display:none;">
+            {!$Label.rstk__soinv_printed}:<apex:inputField id="invPrinted" value="{!o.rstk__soinv_printed__c}" /><br/>
+            {!$Label.rstk__soinv_posted}:<apex:inputText id="invPosted" value="{!o.rstk__soinv_posted__c}" /><br/>
+            {!$Label.rstk__soinv_div}:<apex:inputText id="soinv_div__c" value="{!o.rstk__soinv_div__c}" /><br/>
+            {!$Label.rstk__soinv_ppy}:<apex:inputText id="soinv_ppyinv__c" value="{!o.rstk__soinv_ppyinv__c}" /><br/>
+            <apex:inputText id="soinv_pre_approved__c" value="{!o.rstk__soinv_pre_approved__c}" /><br/>
+       </apex:outputPanel>
+               
+       <apex:outputPanel rendered="{!!ISNULL(infoMessages)}">
+        <div class="message infoM3">
+       <table border="0" cellpadding="0" cellspacing="0" class="messageTable" style="padding:0px;margin:0px;">
+            <tbody><tr valign="top">
+                <td><img alt="INFO" class="msgIcon" src="/s.gif" title="INFO"/></td>
+                <td class="messageCell">&nbsp;&nbsp;{!infoMessages}</td>
+            </tr></tbody></table>
+        </div>
+        </apex:outputPanel>
+        <apex:outputPanel rendered="{!!ISNULL(errorMessages)}">
+            <div class="message errorM3">
+           <table border="0" cellpadding="0" cellspacing="0" class="messageTable" style="padding:0px;margin:0px;">
+                <tbody><tr valign="top">
+                    <td><img alt="ERROR" class="msgIcon" src="/s.gif" title="ERROR"/></td>
+                    <td class="messageCell">&nbsp;&nbsp;{!errorMessages}</td>
+                </tr></tbody></table>
+            </div>
+        </apex:outputPanel>
+        <button style="visibility: hidden" class="btnLineAcctDist"
+            rel="#winLineAcctDist"></button>
+<!-- RCB: 24643 -->             
+        <div class="modal" id="winLineAcctDist" style="width:1200px">
+        <h2>{!$Label.soinv_Line_Account_Distribution}</h2>
+        <iframe id="LineAcctDistFrame" height="520px" width="100%"
+            frameborder="0" src="about:blank"></iframe>
+        <button type="button" class="close" onclick="component_close()">
+        {!$Label.soinv_Close}</button>
+        </div>
+        <button style="visibility: hidden" class="btnCreateNewInvoice"
+            rel="#winCreateNewInvoice"></button>
+        <div class="modal" id="winCreateNewInvoice" style="width: 800px">
+        <h2>{!$Label.soinv_Create_a_New} {!IF(invType,$Label.invoice1, $Label.pagetitle_creditmemo)}</h2>
+        <iframe id="CreateNewInvoiceFrame" height="520px" width="100%"
+            frameborder="0" src="about:blank"></iframe>
+        <button type="button" class="close" onclick="component_close()">
+        {!$Label.soinv_Cancel}</button>
+        </div>
+        <button style="visibility: hidden" class="btnAddShippers"
+            rel="#winAddShippers"></button>
+        <div class="modal" id="winAddShippers" style="width: 800px">
+        <h2>{!$Label.soinv_Add_Shippers_to_the_Invoice}</h2>
+        <iframe id="AddShippersFrame" height="520px" width="100%"
+            frameborder="0" src="about:blank"></iframe>
+        <button type="button" class="close" onclick="component_close()">
+        {!$Label.soinv_Close}</button>
+        </div>
+        <button style="visibility: hidden" class="btnBatchProcessing"
+            rel="#winBatchProcessing"></button>
+        <div class="modal" id="winBatchProcessing" style="width: 800px">
+        <h2>{!$Label.soinv_Sales_Order_Invoice_Batches}</h2>
+        <iframe id="BatchProcessingFrame" height="520px" width="100%"
+            frameborder="0" src="about:blank"></iframe>
+        <button type="button" class="close" onclick="component_close()">
+        {!$Label.soinv_Close}</button>
+        </div>
+        <button style="visibility: hidden" class="btnSelectedBatchProcessing"
+            rel="#winSelectedBatchProcessing"></button>
+        <div class="modal" id="winSelectedBatchProcessing" style="width: 800px">
+        <h2>{!$Label.soinv_Sales_Order_Invoice_Batches}</h2>
+        <iframe id="SelectedBatchProcessingFrame" height="520px" width="100%"
+            frameborder="0" src="about:blank"></iframe>
+        <button type="button" class="close" onclick="component_close()">
+        {!$Label.soinv_Close}</button>
+        </div>
+        <button style="visibility: hidden" class="btnApplyPpy"
+            rel="#winApplyPpy"></button>
+        <div class="modal" id="winApplyPpy" style="width: 800px">
+        <h2>{!$Label.soinv_Apply_Prepayments}</h2>
+        <iframe id="ApplyPpyFrame" height="520px" width="100%" frameborder="0"
+            src="about:blank"></iframe>
+        <button type="button" class="close" onclick="component_close()">
+        {!$Label.soinv_Close}</button>
+        </div>
+        <button style="visibility: hidden" class="btnLineDetails"
+            rel="#winLineDetails"></button>
+        <div class="modal" id="winLineDetails" style="width: 850px">
+        <h2>{!$Label.soinv_Line_Details}</h2>
+        <iframe id="LineDetailsFrame" height="520px" width="100%"
+            frameborder="0" src="about:blank"></iframe>
+        <button type="button" class="close" onclick="component_close()">
+        {!$Label.soinv_Close}</button>
+        </div>
+        <button style="visibility: hidden" class="btnCommissionDetails"
+            rel="#winCommissionDetails"></button>
+        <div class="modal" id="winCommissionDetails" style="width: 900px">
+        <apex:inputHidden id="ovrExchSaveResultString" value="{!ovrExchSaveResultString}" />
+        <apex:pageBlock title="{!$Label.rstk__pagetab_soinv_commissiondetails}">
+            <apex:pageBlockTable value="{!soisales}" var="l">
+                <apex:column headerValue="{!f_l.rstk__soinvline_invline__c.label}" style="text-align:right;">
+                    <apex:outputText html-decimals="0" value="{!l.soisales_invline__r.rstk__soinvline_invline__c}" />
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstk__salesperson}"
+                    value="{!l.rstk__soisales_spersn__c}" />
+                <apex:column headerValue="{!f_soisales.rstk__soisales_compct__c.label}" style="text-align:right;">
+                    <apex:outputText html-decimals="2" value="{!l.rstk__soisales_compct__c}" />
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstk__splitpct}" style="text-align:right;">
+                    <apex:outputText html-decimals="*" value="{!l.rstk__soisales_split__c}" />
+                </apex:column>
+                <apex:column headerValue="{!f_soisales.rstk__soisales_lineamt__c.label}" style="text-align:right;">
+                    <apex:outputText html-decimals="2" value="{!l.rstk__soisales_lineamt__c}" />
+                </apex:column>
+                <apex:column headerValue="{!$Label.rstk__commissionable}" style="text-align:right;">
+                    <apex:outputText html-decimals="2" value="{!l.rstk__soisales_linecomable__c}" />
+                </apex:column>
+                <apex:column headerValue="{!f_soisales.rstk__soisales_comamt__c.label}" style="text-align:right;">
+                    <apex:outputText html-decimals="2" value="{!l.rstk__soisales_comamt__c}" />
+                </apex:column>
+                <apex:column headerValue="{!f_soisales.rstk__soisales_dueatinv__c.label}"
+                    style="text-align:right;">
+                    <apex:outputText html-decimals="2" value="{!l.rstk__soisales_dueatinv__c}" />
+                </apex:column>
+                <apex:column headerValue="{!f_soisales.rstk__soisales_dueatcash__c.label}"
+                    style="text-align:right;">
+                    <apex:outputText html-decimals="2" value="{!l.rstk__soisales_dueatcash__c}" />
+                </apex:column>
+            </apex:pageBlockTable>
+        </apex:pageBlock>
+        <button type="button" class="close">{!$Label.pagebtn_soinv_Close}</button>
+        </div>
+      
+        <button style="visibility: hidden" class="btnSelectTemplate"
+            rel="#winEmailTemplate"></button>
+        <div class="modal" id="winEmailTemplate" style="width:450px">
+        <h1>{!$Label.soinv_Select_Email_Template}</h1>
+        <apex:pageBlock >
+            <apex:pageBlockSection columns="1">
+                <apex:pageBlockSectionItem >
+                    <apex:selectList id="selected_template__c" style="width:300px" multiselect="false" size="1">
+                        <apex:selectOptions value="{!EmailTemplates}"/>
+                        </apex:selectList>
+                </apex:pageBlockSectionItem>
+               </apex:pageBlockSection>
+        </apex:pageBlock>
+        <button type="button" onclick="template_ok()">{!$Label.pagebtn_soinv_OK}</button>
+        <button type="button" class="close" onclick="template_cancel()">{!$Label.rstk__pagebtn_soinv_cancel}</button>
+        </div>
+        
+        <div class="overlayStyle" id="ovlAcctDist"
+            style="width: 800px; z-index: 10000;"><apex:pageBlock >
+            <apex:pageBlockSection title="{!$Label.rstk__pagetab_soinv_accountdistributionsummary}"
+                showHeader="true" columns="1" collapsible="false">
+                <apex:pageBlockTable value="{!distLines}" var="l">
+                    <apex:column headerValue="{!f_invdist.rstk__soinvdist_acct__c.label}"
+                        value="{!l.rstk__soinvdist_acct__c}" />
+                    <apex:column headerValue="{!f_invdist.rstk__soinvdist_drorcr__c.label}"
+                        value="{!l.rstk__soinvdist_drorcr__c}" />
+                    <apex:column headerValue="{!f_invdist.rstk__soinvdist_amount__c.label}"
+                        style="text-align:right;">
+                        <c:outputFormattedNumber value="{!l.rstk__soinvdist_amount__c}"
+                            decimals="2" />
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection title="{!$Label.rstk__pagetab_soinv_accountdistributiondetail}"
+                showHeader="true" columns="1" collapsible="false">
+                <apex:pageBlockTable value="{!distDetLines}" var="l">
+                    <apex:column headerValue="{!f_invdistdet.rstk__soinvdistdet_invline__c.label}">
+                        <apex:outputText html-decimals="0" value="{!l.rstk__soinvdistdet_invline__c}" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_invdistdet.rstk__soinvdistdet_reference__c.label}"
+                        value="{!l.rstk__soinvdistdet_reference__c}" />
+                    <apex:column headerValue="{!f_invdistdet.rstk__soinvdistdet_amount__c.label}"
+                        style="text-align:right;">
+                        <c:outputFormattedNumber value="{!l.rstk__soinvdistdet_amount__c}"
+                            decimals="2" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_invdistdet.rstk__soinvdistdet_dracct__c.label}"
+                        value="{!l.rstk__soinvdistdet_dracct__c}" />
+                    <apex:column headerValue="{!f_invdistdet.rstk__soinvdistdet_cracct__c.label}"
+                        value="{!l.rstk__soinvdistdet_cracct__c}" />
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+
+        <button type="button" class="close">{!$Label.pagebtn_soinv_Done}</button>
+        </div>
+		<apex:outputPanel id="op_ovrExch">
+	    	<script>
+	    		var ovrOrLockSyfoexs = "{!ovrOrLockSyfoexs}";   
+            	var lockInSyforexschedNoMapSize = "{!lockInSyforexschedNoMapSize}"; 
+            	var overrideSyforexschedNoMapSize = "{!overrideSyforexschedNoMapSize}"; 
+	            var isSyForexOtherThanCurrSpotRate = "{!isSyForexOtherThanCurrSpotRate}";
+	        </script>
+    	</apex:outputPanel>
+
+        <apex:pageBlock id="main">
+            <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+            <apex:actionFunction name="doUpdateTax" action="{!fetchTax}" status="statusProcessing" oncomplete="formatLocaleOutputFields();"/>
+            <apex:actionFunction name="updateInvoicePage"
+                action="{!updateInvoicePageData}" immediate="true" status="statusProcessing"
+                oncomplete="formatLocaleOutputFields();"
+                rerender="pbs_lineitems,soinv_total__c,soinv_hdrfreightamt__c,soinv_hdrpackageamt__c,soinv_hdrhandlingamt__c,soinv_freightamt__c,soinv_packageamt__c,soinv_handlingamt__c,soinv_totalppya__c,soinv_grandtotal__c,soinv_totalppyacc__c,taxAmt,soinv_taxexempt__c"/>
+            <apex:actionFunction name="doPreApproveInvoice"
+                oncomplete="formatLocaleOutputFields(); unblockUI();"
+                action="{!preApproveInvoice}" immediate="true" rerender="pageMessages"/>
+                <apex:actionFunction name="docheckPreApprove"
+                oncomplete="formatLocaleOutputFields(); unblockUI();"
+                action="{!checkPreApprove}" immediate="true" rerender="pageMessages"/>
+            <apex:actionFunction name="doApproveInvoice"
+                oncomplete="formatLocaleOutputFields(); unblockUI();"
+                action="{!approveInvoice}" immediate="true" rerender="pageMessages"/>
+            <apex:actionFunction name="printInvoiceAction"
+                action="{!printInvoice}" immediate="true" rerender="invPrinted, soinv_printed, pageMessages" oncomplete="return printInvoice();"/>            
+            <apex:actionFunction name="doTransferToAR" action="{!transferToAR}" oncomplete="formatLocaleOutputFields(); unblockUI();"
+                immediate="true" rerender="pageMessages"/>
+            <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+            <apex:actionFunction name="doSave" action="{!save}" oncomplete="formatLocaleOutputFields(); unblockUI();" rerender="pageMessages"/>
+            <apex:actionFunction name="doDeleteInvoice" action="{!doDeleteInvoice}" immediate="true" oncomplete="formatLocaleOutputFields(); unblockUI();" rerender="pageMessages"/>
+            
+            <apex:actionFunction name="doCancelInvoice" action="{!doCancelInvoice}" immediate="true" oncomplete="formatLocaleOutputFields(); unblockUI();" rerender="pageMessages"/>
+            <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+            <apex:actionFunction name="removeFromBatch" action="{!removeFromBatch}" immediate="false"/>
+            <apex:actionFunction name="createCreditMemo" action="{!createCreditMemo}" immediate="false" rerender="pageMessages" oncomplete="closeTopDialog();">
+               <apex:param name="allowReinvoicing" value="false"/>
+            </apex:actionFunction>
+            <apex:actionFunction name="refreshPage" action="{!refreshPage}" immediate="false"/>
+            <apex:actionFunction name="doxPrint" action="{!doxPrint}" immediate="false" reRender="pageMessages" oncomplete="doxPrintInvoice();"/>
+            <apex:actionFunction name="PageOffset" action="{!addPages}" immediate="false" reRender="pbs_lineitems,lineFormatDialog" oncomplete="formatLocaleOutputFields(); closeTopDialog();">
+               <apex:param name="numOf" value=""/>
+            </apex:actionFunction>
+            <apex:actionFunction name="checkForOverrideExchangePopUp" immediate="false" action="{!checkForOverrideExchangePopUp}" rerender="pageMessages,op_ovrExch" oncomplete="showOverrideexchratePopup();" />
+		    <apex:actionFunction name="exchrateScheduleChanged" action="{!exchrateScheduleChanged}" rerender="pageMessages,soinv_override_schedule__c" immediate="false" status="pleaseWaitStatus" oncomplete="unblockPopupUI('pleaseWaitPopup');">
+		       	<apex:param name="exchrate_schedule" assignTo="{!customext.rstk__soinv_exchrate_schedule__c}" value=""/>
+		    </apex:actionFunction>
+		    <apex:actionFunction name="overrideScheduleChanged" action="{!overrideScheduleChanged}" rerender="pageMessages,soinv_override_exchrate" immediate="false" status="pleaseWaitStatus" oncomplete="unblockPopupUI('pleaseWaitPopup'); overideScheduleComplete();">
+		       	<apex:param name="override_schedule" assignTo="{!customext.rstk__soinv_override_schedule__c}" value=""/>
+		    </apex:actionFunction>
+		    <apex:actionFunction name="saveOverrideRate" action="{!saveOverrideRate}" rerender="pageMessages,ovrExchSaveResultString" immediate="false" status="pleaseWaitStatus" oncomplete="postSaveOverrideRate();">
+		       	<apex:param name="exchrate_schedule" assignTo="{!customext.rstk__soinv_exchrate_schedule__c}" value=""/>
+		           <apex:param name="override_schedule" assignTo="{!customext.rstk__soinv_override_schedule__c}" value=""/>
+		           <apex:param name="override_exchrate" assignTo="{!customext.rstk__soinv_override_exchrate__c}" value=""/>
+		           <apex:param name="isReverse" assignTo="{!isReverseExchRate}" value=""/>
+		    </apex:actionFunction>    
+            <apex:facet name="header">
+                <apex:outputPanel style="width:1010px;margin:auto" layout="block">
+                    <apex:commandButton onclick="return creditThisInvoice({!invCreditControl}, {!NULLVALUE(o.rstk__soinv_amtcredited__c, 0)});"
+                        value="{!$Label.rstk__creditthisinvoice}" immediate="false" rendered="{! invType}" disabled="{! OR(invCancelled, NOT(o.soinv_approved__c))}" />
+                    <apex:commandButton onclick="_showDialog('creditmemolines', 1300, window.getWindowHeight(), null, true); return false;"
+                        value="{!IF(invType,$Label.rstk__pagebutton_adddeleteinvoicelines, $Label.rstk__pagebutton_adddeletecreditmemolines)}" immediate="true"
+                        rendered="{!AND(OR(!invType,allowManualInvoice),!o.rstk__soinv_approved__c, !invCancelled, !o.rstk__soinv_ppyinv__c)}"/>
+                         
+                    <apex:commandButton onclick="return showCreateNewInvoice();"
+                        value="{!IF(invType,$Label.rstk__pagebtn_soinvcreateinvoice, $Label.rstk__pagebtn_soinvcreatecredit)}" immediate="true" />
+                    <apex:commandButton onclick="return deleteInvoice()" 
+                         value="{!IF(invType,$Label.rstk__pagebtn_soinv_deleteinvoice ,$Label.rstk__pagebtn_soinv_deletecredit)}" rendered="{!!invDelete && !deleteBtnDisabled}" immediate="true"/>
+                        
+                    <apex:commandButton onclick="return cancelInvoice()" 
+                         value="{!IF(invType,$Label.rstk__cancel_invoice, $Label.rstk__cancel_credit_memo)}" rendered="{!invDelete && !deleteBtnDisabled}" immediate="true"/>
+                         
+                    <apex:commandButton onclick="return showAddShippers();"
+                        value="{!$Label.rstk__addtoinvoice}"
+                        disabled="{!addToInvoiceBtnDisabled || o.rstk__soinv_transferred__c}"
+                        immediate="true" rendered="{!AND(invType,!allowManualInvoice)}"/>
+                    <apex:commandButton onclick="return preApproveInvoice();"
+                        value="{!preapproveBtnLabel}" disabled="{!OR(invCancelled, o.rstk__soinv_approved__c)}" />
+                    <apex:commandButton onclick="return approveInvoice();"
+                        value="{!approveBtnLabel}" disabled="{!OR(invCancelled,AND(o.rstk__soinv_transferred__c, !generalJournalHeaderRequired))}" />
+                    <apex:commandButton onclick="return printInvoiceJS();" value="{!IF(invType,$Label.rstk__pagebtn_soinv_printinvoice, $Label.rstk__pagebtn_soinv_printcredit)}" rerender="invPrinted, soinv_printed, pageMessages"
+                        disabled="{!printInvoiceBtnDisabled}" immediate="true"  />
+                    <apex:commandButton onclick="return showBatchProcessing();"
+                        value="{!$Label.rstk__batchprocessing}" immediate="true"
+                        disabled="{!OR(o.rstk__soinv_transferred__c, invCancelled)}"  rendered="{!invType}"/>
+                    <apex:commandButton onclick="try { doSetFFCompanyAndProcess(transferToAR, pageParms['isFF']); } finally { return false; }"
+                        value="{!xferBtnLabel}" disabled="{!xferToARBtnDisabled}" />
+                    <apex:commandButton onclick="return showCommissionDetails();"
+                        value="{!$Label.rstk__commissiondetails}" disabled="{!commDtlsBtnDisabled}"
+                        immediate="true" rerender="hiddenFieldsPanel" rendered="{!!hideCommission}"/>
+                    <apex:commandButton onclick="return showApplyPrepayments();"
+                        value="{!$Label.rstk__applyprepayments}" disabled="{!applyPrepayBtnDisabled}" rendered="{!showPrepayments}"/>
+                    <apex:commandButton onclick="return showAccountDistribution();"
+                        value="{!$Label.rstk__accountdistribution}" disabled="{!acctDistBtnDisabled}" />
+                    <apex:commandButton onclick="return showLineFormatting();" value="{!$Label.rstk__pagebtn_soinv_lineformatting}" disabled="{!OR(isEditable, invCancelled)}"/>
+                    <apex:commandbutton value="{!$Label.rstk__processpaymentandcredits}" onclick="checkPreApprove(); showPaymentAndCreditsPopup(); return false;"
+                      rendered="{!AND(sogatewayId != null, userCanPay)}" disabled="{!invCancelled}" />
+
+                    <apex:commandbutton value="{!$Label.rstk__override_exchange_rate}" onclick="blockUI();checkForOverrideExchangePopUp(); return false;"
+                      rendered="{!!OvrExchRateBtnDisabled}" />  
+
+                    <a class="btnPopupAcctDist" style="visibility: hidden"
+                        rel="#ovlAcctDist" href="javascript:{}">Details</a>
+                </apex:outputPanel>
+            </apex:facet>
+
+        <c:Popup popupId="PaymentAndCreditsPopup" title="{!$Label.rstk__processpaymentandcredits}" onOk="PaymentAndCredits_saveAndClose();" onCancel="refreshPage()" buttonsOnTop="true" okCaption="{!$Label.rstk__commit}">
+            <iframe id="PaymentAndCreditsFrame" height="400px" width="800px" frameborder="0" src="about:blank"></iframe>
+        </c:Popup>
+        <script>
+          qesolines_isloading = false;
+          function showPaymentAndCreditsPopup() {
+             jQuery("#PaymentAndCreditsFrame").attr("src", "/apex/soinvpayment?id={!o.Id}");
+             _showDialog('PaymentAndCreditsPopup',900);
+          }
+          function PaymentAndCredits_saveAndClose() {
+            var frame = jQuery("#PaymentAndCreditsFrame");
+            if (frame.length > 0) {
+              var w = frame[0].contentWindow;
+              try {
+                w.commit(function() { _closeDialog(); refreshPage(); });
+              } catch (e) {
+                console.log(e.stack);
+                alert("{!$Label.rstk__soinv_error_closing_payment_window}" + e);
+              }
+            }
+          }
+        </script>
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false"
+                title="{!$Label.rstk__information}" columns="2"> 
+               <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_div__c.label}" />
+                    <apex:outputField value="{!o.rstk__soinv_div__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_invoice__c.inlineHelpText}">
+                    <apex:outputLabel value="{!IF(invType,f.rstk__soinv_invoice__c.label, $Label.rstk__label_creditmemonumber)}" />
+                    <apex:outputField value="{!o.rstk__soinv_invoiceno__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_total__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_total__c.label}" />
+                    <apex:outputPanel style="width:100px; text-align:right;"
+                        layout="block">
+                        <apex:outputField id="soinv_total__c" value="{!o.rstk__soinv_total__c}" /> {!maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+               <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_custno__c.label}" />
+                    <apex:outputField value="{!o.rstk__soinv_custno__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_freightamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_freightamt__c.label}" />
+                    <apex:outputPanel style="width:100px; text-align:right;"
+                        layout="block">
+                        <apex:outputField id="soinv_hdrfreightamt__c" value="{!o.rstk__soinv_freightamt__c}" /> {!maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_invdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!IF(invType,f.rstk__soinv_invdate__c.label,$Label.rstk__label_creditmemodate)}" />
+                    <apex:outputField id="static_soinv_invdate__c" value="{!o.rstk__soinv_invdate__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_handlingamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_handlingamt__c.label}" />
+                    <apex:outputPanel style="width:100px; text-align:right;"
+                        layout="block">
+                        <apex:outputField id="soinv_hdrhandlingamt__c" value="{!o.rstk__soinv_handlingamt__c}" /> {!maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_pre_approved__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_pre_approved__c.label}" />
+                    <apex:outputField value="{!o.rstk__soinv_pre_approved__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_packageamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_packageamt__c.label}" />
+                    <apex:outputPanel style="width:100px; text-align:right;"
+                        layout="block">
+                        <apex:outputField id="soinv_hdrpackageamt__c" value="{!o.rstk__soinv_packageamt__c}" /> {!maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_approved__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_approved__c.label}" />
+                    <apex:outputField value="{!o.rstk__soinv_approved__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_discamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_discamt__c.label}" />
+                    <apex:outputPanel style="width:100px; text-align:right;"
+                        layout="block" rendered="{!!disableDiscountAmount}">
+                        <apex:outputField value="{!o.rstk__soinv_discamt__c}" /> {!maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_printed__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_printed__c.label}" />
+                    <apex:outputField id="soinv_printed" value="{!o.rstk__soinv_printed__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="">
+                    <apex:outputLabel value="{!$Label.rstk__salestax}" />
+                    <apex:outputPanel style="width:100px; text-align:right;"
+                        layout="block">
+                        <apex:outputText id="taxAmt" html-decimals="2" value="{!taxAmt}" /> {!maintenanceCurrencySymbol}
+                        <apex:outputPanel rendered="{!AND(geoStatus.taxLookup, !o.rstk__soinv_approved__c)}">
+                            <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!o.rstk__soinv_taxverified__c}">* {!$Label.soinv_Estimated}&nbsp;&nbsp;</apex:outputPanel>
+                                <apex:commandbutton value="{!$Label.rstk__pagebtn_soinv_fetchtax}" immediate="true" action="{!fetchTax}"
+                                   onclick="showTopDialog('pleaseWaitPopup');" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                     </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_transferred__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_transferred__c.label}" />
+                    <apex:outputField value="{!o.rstk__soinv_transferred__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_grandtotal__c.inlineHelpText}">
+                    <apex:outputLabel value="{!IF(invType, f.rstk__soinv_grandtotal__c.label, $Label.rstk__label_creditmemototal)}" />
+                    <apex:outputPanel style="width:100px; text-align:right;"
+                        layout="block">
+                        <apex:outputField id="soinv_grandtotal__c" value="{!o.rstk__soinv_grandtotal__c}" /> {!maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_posted__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_posted__c.label}" />
+                    <apex:outputField value="{!o.rstk__soinv_posted__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_totalppya__c.inlineHelpText}" rendered="{!showPrepayments}">
+                    <apex:outputLabel value="{!f.rstk__soinv_totalppya__c.label}" />
+                    <apex:outputPanel style="width:100px; text-align:right;"
+                        layout="block">
+                        <apex:outputField id="soinv_totalppya__c" value="{!o.rstk__soinv_totalppya__c}" /> {!maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_invbatch__c.inlineHelpText}" rendered="{!invType}">
+                    <apex:outputLabel value="{!f.rstk__soinv_invbatch__c.label}" />
+                    <apex:outputPanel id="invoiceBatchSection">
+                        <apex:outputLink value="#" onclick="showSelectedBatchProcessing(); return false;" rendered="{!!ISNULL(o.rstk__soinv_invbatch__c)}">{!o.soinv_invbatch__r.rstk__soibatch_invbatch__c}</apex:outputLink>
+                        &nbsp;&nbsp;&nbsp;&nbsp;
+                        <apex:outputLink value="#" onclick="removeFromBatch(); return false;" rendered="{!AND(!ISNULL(o.rstk__soinv_invbatch__c), !o.rstk__soinv_approved__c)}">
+                            <img src="/img/func_icons/remove12.gif" alt="{!$Label.Remove_from_Batch}" title="{!$Label.Remove_from_Batch}"/>
+                        </apex:outputLink>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_vatamt__c.inlineHelpText}" rendered="{! hasSyvatclasses}">
+                    <apex:outputLabel value="{!f.rstk__soinv_vatamt__c.label}" />
+                    <apex:outputPanel style="width:100px; text-align:right;" layout="block">
+                        <apex:outputField id="soinv_vatamt__c" value="{!o.rstk__soinv_vatamt__c}" /> {!maintenanceCurrencySymbol}
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_cancelled__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__soinv_cancelled__c.label}" />
+                    <apex:outputField value="{!o.rstk__soinv_cancelled__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_acctinvoice__c.inlineHelpText}" rendered="{!isAccsys && !ISNULL(invTarget) && !o.rstk__soinv_arapbypass__c}">
+                    <apex:outputLabel value="{!accsysName}" />
+                    <c:hoverDetail recId="{!invTarget}"
+                        recName="{!invName}" />
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            <apex:pageBlockSection title="{!$Label.rstk__pagetab_soinv_additional}" showHeader="true"
+                collapsible="{!!isEditable}" columns="1">
+                <apex:actionRegion >
+                    <apex:panelGrid columns="1" width="100%">
+                        <apex:outputPanel layout="block">
+                            <apex:commandButton onclick="doEdit();return false;" value="{!$Label.rstk__pagebtn_edit}"
+                                rendered="{!AND(!OR(isEditable,o.rstk__soinv_transferred__c), !isEditingApproved)}" immediate="true" style="width:50px" />
+                            <apex:commandButton onclick="doPageSave();return false;"
+                                value="{!$Label.rstk__pagebtn_save}" rendered="{!isEditable}" style="width:50px" />
+                            <apex:commandButton action="{!pageSaveCustomFields}" immediate="false"
+                                value="{!$Label.rstk__pagebtn_save}" rendered="{!AND(OR(hasCustomFields, isEditingApproved), o.rstk__soinv_approved__c)}" style="width:50px" />
+                            <apex:commandButton onclick="doCancel();return false;"
+                                value="{!$Label.rstk__pagebtn_soinv_cancel}" rendered="{!isNew}" immediate="true"
+                                style="width:50px" />
+                            <apex:commandButton action="{!cancel}" value="{!$Label.rstk__pagebtn_soinv_cancel}"
+                                rendered="{!OR(isEdit, isEditingApproved)}" immediate="true" style="width:50px" />
+                        </apex:outputPanel>
+                        <apex:tabPanel switchType="client" id="pbs_tp">
+                            <apex:tab label="{!$Label.rstk__pagetab_soinv_salesdetails}">
+                                <apex:pageBlockSection columns="2">
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_period__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_period__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_period__c"
+                                                value="{!o.rstk__soinv_period__c}" rendered="{!isEdit}"
+                                                style="width:60px;" />
+                                            <apex:outputText html-decimals="-1" value="{!o.rstk__soinv_period__c}" rendered="{!isView}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_terms__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_terms__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:selectlist id="soinv_terms__c"
+                                                value="{!o.rstk__soinv_terms__c}" size="1" rendered="{!isEdit}"
+                                                onchange="calculateDueDate();">
+                                                <apex:selectOptions value="{!terms}" />
+                                            </apex:selectlist>
+                                            <apex:outputField html-decimals="-1" value="{!o.rstk__soinv_terms__c}" rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_year__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_year__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_year__c" value="{!o.rstk__soinv_year__c}"
+                                                rendered="{!isEdit}"/>
+                                            <apex:outputText html-decimals="-1" value="{!o.rstk__soinv_year__c}"  rendered="{!isView}"/>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                   <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_invdate__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!IF(invType,f.rstk__soinv_invdate__c.label, $Label.rstk__label_creditmemodate)}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_invdate__c" value="{!o.rstk__soinv_invdate__c}" onchange="validateDueDate();calculateDueDate();" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_invdate__c}" rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem />
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_duedate__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_duedate__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:outputPanel rendered="{!isEdit}" >
+                                                <apex:inputField id="soinv_duedate__c" value="{!o.rstk__soinv_duedate__c}" onchange="validateDueDate();"/>
+                                                <div id="dueDateWarning">
+                                                   <apex:image value="/img/msg_icons/warning16.png"/>
+                                                   {!warningDateBeforeInvoice}
+                                                </div>                                          
+                                            </apex:outputPanel>
+                                            <apex:outputField value="{!o.rstk__soinv_duedate__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_creditorg__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_creditorg__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:selectlist id="soinv_creditorg__c"
+                                                value="{!o.rstk__soinv_creditorg__c}" size="1"
+                                                rendered="{!isEdit}">
+                                                <apex:selectOptions value="{!groups}" />
+                                            </apex:selectlist>
+                                            <apex:outputField value="{!o.rstk__soinv_creditorg__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_paydiscdate__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_paydiscdate__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_paydiscdate__c"
+                                                value="{!o.rstk__soinv_paydiscdate__c}" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_paydiscdate__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_discpct__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_discpct__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_discpct__c"
+                                                value="{!o.rstk__soinv_discpct__c}" rendered="{!isEdit}"
+                                                style="width:60px;" />
+                                            <apex:outputField value="{!o.rstk__soinv_discpct__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_paydiscpct__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_paydiscpct__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_paydiscpct__c"
+                                                value="{!o.rstk__soinv_paydiscpct__c}" rendered="{!isEdit}"
+                                                style="width:60px;" />
+                                            <apex:outputField value="{!o.rstk__soinv_paydiscpct__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_taxloc__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_taxloc__c.label}" />
+                                        <apex:outputPanel >
+                                            <c:largeSelectList id="soinv_taxloc__c" cntr="{!controller}" rendered="{!isEdit}"
+												value="{!o.rstk__soinv_taxloc__c}" options="{!sotaxes}" width="150px" onchange="editTaxLocChanged();" />
+                                            <apex:outputField value="{!o.rstk__soinv_taxloc__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_finchgdate__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_finchgdate__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_finchgdate__c"
+                                                value="{!o.rstk__soinv_finchgdate__c}" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_finchgdate__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem id="soinv_taxexempt__c" helpText="{!f.rstk__soinv_taxexempt__c.inlineHelpText}">
+                                        <apex:outputLabel value="" />
+                                        <apex:outputPanel >
+                                            <apex:inputCheckbox id="soinv_taxexempt__c"
+                                                value="{!o.rstk__soinv_taxexempt__c}" disabled="{!isView}" />
+                                            <apex:outputText value="{!invoiceForResaleLabel}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_finchgpct__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_finchgpct__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_finchgpct__c"
+                                                value="{!o.rstk__soinv_finchgpct__c}" rendered="{!isEdit}"
+                                                style="width:60px;" />
+                                            <apex:outputField value="{!o.rstk__soinv_finchgpct__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_ppyacct__c.inlineHelpText}"
+                                        rendered="{!o.rstk__soinv_ppyinv__c}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_ppyacct__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:selectlist id="soinv_ppyacct__c"
+                                                value="{!o.rstk__soinv_ppyacct__c}" size="1" rendered="{!isEdit}">
+                                                <apex:selectOptions value="{!ppyAccounts}" />
+                                            </apex:selectlist>
+                                            <apex:outputField value="{!o.rstk__soinv_ppyacct__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_sellerpaysbc__c.inlineHelpText}" rendered="{!AND(!isNew, isPayBankCharge)}">
+		                                <apex:outputLabel value="{!f.rstk__soinv_sellerpaysbc__c.label}"/>
+		                                 <apex:outputPanel >
+			                                 <apex:inputField id="soinv_sellerpaysbc__c" value="{!o.rstk__soinv_sellerpaysbc__c}" rendered="{!isEdit}"/>
+			                                 <apex:outputField value="{!o.rstk__soinv_sellerpaysbc__c}" rendered="{!isView}" />
+		                                 </apex:outputPanel>
+		                                
+		                            </apex:pageBlockSectionItem>
+		                            
+									<apex:pageBlockSectionItem />
+									                            
+                            		<apex:pageBlockSectionItem helpText="{!f.rstk__soinv_bankcharge__c.inlineHelpText}" rendered="{!AND(!isNew, isPayBankCharge)}">
+		                                <apex:outputLabel value="{!f.rstk__soinv_bankcharge__c.label}"/>
+		                                <apex:outputPanel >
+			                                <apex:inputField id="soinv_bankcharge__c" value="{!o.rstk__soinv_bankcharge__c}" rendered="{!isEdit}"/>
+			                                <apex:outputField value="{!o.rstk__soinv_bankcharge__c}" rendered="{!isView}" />
+		                                </apex:outputPanel>
+		                                
+		                            </apex:pageBlockSectionItem>
+		                            
+		                            <apex:pageBlockSectionItem />
+                                </apex:pageBlockSection>
+                            </apex:tab>
+
+                            <apex:tab label="{!$Label.rstk__pagetab_soinv_comments}">
+                                <div style="width: 800px"><apex:outputLabel value="{!f.rstk__soinv_intcomment__c.label}" />
+                                  <apex:inputTextarea id="soinv_intcomment__c" value="{!o.rstk__soinv_intcomment__c}" rows="6" richtext="true" rendered="{!OR(isEditable, isEditingApproved)}" />
+                                  <apex:outputField value="{!o.rstk__soinv_intcomment__c}" rendered="{!!OR(isEditable, isEditingApproved)}" /> <br />
+                                <div>
+                                <div
+                                    style="height: 19px; float: left; width: 300px; position: relative;">
+                                <div style="position: absolute; bottom: 0px;"><apex:outputLabel value="{!f.rstk__soinv_extcomment__c.label}" /></div>
+                                </div>
+                                <div style="float: right;">
+                                  <apex:inputCheckbox id="soinv_printcomment__c" value="{!o.rstk__soinv_printcomment__c}" disabled="{!!OR(isEditable, isEditingApproved)}" />{!$Label.rstk__printexternalcommentson} {!pageTitle}</div>
+                                <div style="float: left; width: 800px">
+                                  <apex:inputTextarea id="soinv_extcomment__c" value="{!o.rstk__soinv_extcomment__c}" rows="6" richtext="true" rendered="{!OR(isEditable, isEditingApproved)}" />
+                                  <apex:outputField value="{!o.rstk__soinv_extcomment__c}" rendered="{!!OR(isEditable, isEditingApproved)}" /></div>
+                                </div>
+                                </div>
+                            </apex:tab>
+                            
+                            <apex:tab label="{!$Label.rstk__pagetab_soinv_address}">
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_name__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_name__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_name__c" value="{!o.rstk__soinv_name__c}"
+                                                size="30" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_name__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_phone__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_phone__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_phone__c"
+                                                value="{!o.rstk__soinv_phone__c}" size="30" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_phone__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_address1__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_address1__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_address1__c"
+                                                value="{!o.rstk__soinv_address1__c}" size="30"
+                                                rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_address1__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_fax__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_fax__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_fax__c" value="{!o.rstk__soinv_fax__c}"
+                                                size="30" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_fax__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_address2__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_address2__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_address2__c"
+                                                value="{!o.rstk__soinv_address2__c}" size="30"
+                                                rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_address2__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_email__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_email__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_email__c"
+                                                value="{!o.rstk__soinv_email__c}" size="30" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_email__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_address3__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_address3__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_address3__c"
+                                                value="{!o.rstk__soinv_address3__c}" size="30"
+                                                rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_address3__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_contact__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_contact__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_contact__c"
+                                                value="{!o.rstk__soinv_contact__c}" size="30" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_contact__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_city__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_city__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_city__c" value="{!o.rstk__soinv_city__c}"
+                                                size="30" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_city__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_conmethod__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_conmethod__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputField id="soinv_conmethod__c"
+                                                value="{!o.rstk__soinv_conmethod__c}" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_conmethod__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_state__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_state__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_state__c"
+                                                value="{!o.rstk__soinv_state__c}" size="30" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_state__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem />
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_country__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_country__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_country__c"
+                                                value="{!o.rstk__soinv_country__c}" size="30" rendered="{!isEdit}" />
+                                            <apex:inputField id="soinv_isocountry__c"
+                                                value="{!o.rstk__soinv_isocountry__c}" rendered="{!isEdit}" onchange="isocountryChanged();"/>
+                                            <apex:outputPanel rendered="{!isView}">
+                                            	<apex:outputField value="{!o.rstk__soinv_country__c}"/>
+                                                <!--apex:outputField value="{!o.rstk__soinv_isocountry__c}"/-->
+                                            </apex:outputPanel>
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem rendered="{!invType}" />
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_soship__c.inlineHelpText}" rendered="{!!invType}" >
+                                        <apex:outputLabel value="{!f.rstk__soinv_soship__c.label}" />
+                                        <apex:outputPanel >
+	                                        <c:autocomplete id="soinv_soship__c" cntr="{!controller}" editable="{!isEdit}" slDesc="{!SoshipName}"
+		                	                 query="select id, name from soship__c where soship_custno__c = '{!o.rstk__soinv_custno__c}' and soship_order__r.sohdr_div__c = '{!o.rstk__soinv_div__c}'"/> 
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                                                        
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_zip__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_zip__c.label}" />
+                                        <apex:outputPanel >
+                                            <apex:inputText id="soinv_zip__c" value="{!o.rstk__soinv_zip__c}"
+                                                size="30" rendered="{!isEdit}" />
+                                            <apex:outputField value="{!o.rstk__soinv_zip__c}"
+                                                rendered="{!isView}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem />
+                                </apex:pageBlockSection>
+                            </apex:tab>
+                            <apex:tab label="{!$Label.rstk__pagetab_soinv_freightetc}">
+                                <apex:panelGrid width="100%">
+                                    <apex:panelGroup >
+                                        <apex:outputPanel layout="block"
+                                            style="border:1px solid #dddddd;border-radius:5px;float:left;width:49%;">
+                                            <apex:pageBlockSection columns="1">
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_sumfrt__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputCheckbox id="soinv_sumfrt__c"
+                                                            value="{!o.rstk__soinv_sumfrt__c}" disabled="{!isView}"
+                                                            onchange="onSumFrtChange(this)" />
+                                                        <apex:outputText value="{!$Label.rstk__sumfreightchargefrom} {!IF(invType,$Label.rstk__invoicelines,$Label.rstk__label_creditmemolines)}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_freightamt__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="{!f.rstk__soinv_freightamt__c.label}" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputField id="soinv_freightamt__c" value="{!o.rstk__soinv_freightamt__c}" rendered="{!isEdit}"
+                                                            styleClass="amount" />
+                                                        <apex:outputField value="{!o.rstk__soinv_freightamt__c}" rendered="{!isView}"/>
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_freightacct__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="{!f.rstk__soinv_freightacct__c.label}" />
+                                                    <apex:outputPanel >
+                                                        <apex:selectlist id="soinv_freightacct__c"
+                                                            value="{!o.rstk__soinv_freightacct__c}" size="1"
+                                                            rendered="{!isEdit}">
+                                                            <apex:selectOptions value="{!revenueAccounts}" />
+                                                        </apex:selectlist>
+                                                        <apex:outputField value="{!o.rstk__soinv_freightacct__c}"
+                                                            rendered="{!isView}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                            </apex:pageBlockSection>
+                                        </apex:outputPanel>
+                                        <apex:outputPanel layout="block"
+                                            style="border:1px solid #dddddd;border-radius:5px;float:right;width:49%;">
+                                            <apex:pageBlockSection columns="1">
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_sumpackage__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputCheckbox id="soinv_sumpackage__c"
+                                                            value="{!o.rstk__soinv_sumpackage__c}" disabled="{!isView}"
+                                                            onchange="onSumPkgChange(this)" />
+                                                        <apex:outputText value="{!$Label.rstk__sumpackagingchargefrom} {!IF(invType,$Label.rstk__invoicelines,$Label.rstk__label_creditmemolines)}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_packageamt__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="{!f.rstk__soinv_packageamt__c.label}" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputField id="soinv_packageamt__" value="{!o.rstk__soinv_packageamt__c}" rendered="{!isEdit}"
+                                                            styleClass="amount" />
+                                                        <apex:outputField value="{!o.rstk__soinv_packageamt__c}" rendered="{!isView}"/>
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_packageacct__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="{!f.rstk__soinv_packageacct__c.label}" />
+                                                    <apex:outputPanel >
+                                                        <apex:selectlist id="soinv_packageacct__c"
+                                                            value="{!o.rstk__soinv_packageacct__c}" size="1"
+                                                            rendered="{!isEdit}">
+                                                            <apex:selectOptions value="{!revenueAccounts}" />
+                                                        </apex:selectlist>
+                                                        <apex:outputField value="{!o.rstk__soinv_packageacct__c}"
+                                                            rendered="{!isView}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                            </apex:pageBlockSection>
+                                        </apex:outputPanel>
+                                    </apex:panelGroup>
+                                    <apex:panelGroup >
+                                        <apex:outputPanel layout="block"
+                                            style="border:1px solid #dddddd;border-radius:5px;float:left;width:49%;">
+                                            <apex:pageBlockSection columns="1">
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_sumhand__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputCheckbox id="soinv_sumhand__c"
+                                                            value="{!o.rstk__soinv_sumhand__c}" disabled="{!isView}"
+                                                            onchange="onSumHandChange(this)" />
+                                                        <apex:outputText value="{!$Label.rstk__sumhandlingchargefrom}{!IF(invType,$Label.rstk__invoicelines,$Label.rstk__label_creditmemolines)}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_handlingamt__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="{!f.rstk__soinv_handlingamt__c.label}" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputField id="soinv_handlingamt__c" value="{!o.rstk__soinv_handlingamt__c}" rendered="{!isEdit}"
+                                                            styleClass="amount" />
+                                                        <apex:outputField value="{!o.rstk__soinv_handlingamt__c}" rendered="{!isView}"/>
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_handlingacct__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="{!f.rstk__soinv_handlingacct__c.label}" />
+                                                    <apex:outputPanel >
+                                                        <apex:selectlist id="soinv_handlingacct__c"
+                                                            value="{!o.rstk__soinv_handlingacct__c}" size="1"
+                                                            rendered="{!isEdit}">
+                                                            <apex:selectOptions value="{!revenueAccounts}" />
+                                                        </apex:selectlist>
+                                                        <apex:outputField value="{!o.rstk__soinv_handlingacct__c}"
+                                                            rendered="{!isView}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                            </apex:pageBlockSection>
+                                        </apex:outputPanel>
+                                        <apex:outputPanel layout="block"
+                                            style="border:1px solid #dddddd;border-radius:5px;float:right;width:49%;">
+                                            <apex:pageBlockSection columns="1">
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_taxfreight__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputCheckbox id="soinv_taxfreight__c"
+                                                            value="{!o.rstk__soinv_taxfreight__c}" disabled="{!isView}" />
+                                                        <apex:outputText value="{!f.rstk__soinv_taxfreight__c.label}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_taxhandling__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputCheckbox id="soinv_taxhandling__c"
+                                                            value="{!o.rstk__soinv_taxhandling__c}" disabled="{!isView}" />
+                                                        <apex:outputText value="{!f.rstk__soinv_taxhandling__c.label}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_taxpackaging__c.inlineHelpText}"
+                                                    labelStyle="width:40%;" dataStyle="width:60%;">
+                                                    <apex:outputLabel value="" />
+                                                    <apex:outputPanel >
+                                                        <apex:inputCheckbox id="soinv_taxpackaging__c"
+                                                            value="{!o.rstk__soinv_taxpackaging__c}" disabled="{!isView}" />
+                                                        <apex:outputText value="{!f.rstk__soinv_taxpackaging__c.label}" />
+                                                    </apex:outputPanel>
+                                                </apex:pageBlockSectionItem>
+                                            </apex:pageBlockSection>
+                                        </apex:outputPanel>
+                                    </apex:panelGroup>
+                                </apex:panelGrid>
+                            </apex:tab>
+                            <apex:tab label="{!$Label.rstk__pagetab_soinv_reference}">
+                                <apex:pageBlockSection >
+                                    <apex:pageBlockSectionItem helpText="{!f.CreatedDate.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.CreatedDate.label}" />
+                                        <apex:outputField value="{!o.CreatedDate}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_ppyinv__c.inlineHelpText}">
+                                        <apex:outputLabel value="" />
+                                        <apex:outputPanel >
+                                            <apex:inputCheckbox id="soinv_ppyinv__c" value="{!o.rstk__soinv_ppyinv__c}" disabled="true" />
+                                            <apex:outputText value="{!f.rstk__soinv_ppyinv__c.label}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <!-- new row -->
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_dateapproved__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_dateapproved__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_dateapproved__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f_soppy.rstk__soppy_ppynumber__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f_soppy.rstk__soppy_ppynumber__c.label}" />
+                                        <c:ObjectLink valueName="{!ppyNumber}" valueId="{!ppyId}" rendered="{!!ISNULL(ppyId)}"/>
+                                    </apex:pageBlockSectionItem>
+                                    <!-- new row -->
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_dateprinted__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_dateprinted__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_dateprinted__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_project__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_project__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_project__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <!-- new row -->
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_datetransfer__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_datetransfer__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_datetransfer__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_order__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_order__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_order__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <!-- new row -->
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_arbatch__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_arbatch__c.label}" />
+                                        <c:outputFormattedNumber value="{!o.rstk__soinv_arbatch__c}" decimals="0" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_invmultorders__c.inlineHelpText}">
+                                        <apex:outputLabel value="" />
+                                        <apex:outputPanel >
+                                            <apex:inputCheckbox id="soinv_invmultorders__c" value="{!o.rstk__soinv_invmultorders__c}" disabled="true" />
+                                            <apex:outputText value="{!f.rstk__soinv_invmultorders__c.label}" />
+                                        </apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <!-- new row -->
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_opportunity__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_opportunity__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_opportunity__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_amtcredited__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_amtcredited__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_amtcredited__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    <!-- new row -->
+                                    <apex:pageBlockSectionItem />
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_amtcravail__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_amtcravail__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_amtcravail__c}"/>
+                                    </apex:pageBlockSectionItem>
+                                    <!-- new row -->
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_soinv__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_soinv__c.label}" />
+										<apex:outputPanel >
+                                           <c:largeSelectList id="soinv_soinv__c" cntr="{!controller}" rendered="{!!invType && !o.rstk__soinv_approved__c}"
+											value="{!o.rstk__soinv_soinv__c}" options="{!soinvs}" width="150px"/>
+                                           <apex:outputField value="{!o.rstk__soinv_soinv__c}" rendered="{!invType || o.rstk__soinv_approved__c}"/>
+                                       	</apex:outputPanel>
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem />
+                                </apex:pageBlockSection>
+                            </apex:tab>
+                            <apex:tab label="{!$Label.rstk__pagetab_soinv_paymentschedule}" rendered="{!isFF}">
+                                <apex:pageBlockSection columns="1" rendered="{!isView}">
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_numberofpayments__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_numberofpayments__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_numberofpayments__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_psinterval__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_psinterval__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_psinterval__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_psfirstduedate__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_psfirstduedate__c.label}" />
+                                        <apex:outputField value="{!o.rstk__soinv_psfirstduedate__c}" />
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                                <apex:pageBlockSection columns="1" rendered="{!isEdit}">
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_numberofpayments__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_numberofpayments__c.label}" />
+                                        <apex:inputField value="{!o.rstk__soinv_numberofpayments__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_psinterval__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_psinterval__c.label}" />
+                                        <apex:inputField value="{!o.rstk__soinv_psinterval__c}" />
+                                    </apex:pageBlockSectionItem>
+                                    <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_psfirstduedate__c.inlineHelpText}">
+                                        <apex:outputLabel value="{!f.rstk__soinv_psfirstduedate__c.label}" />
+                                        <apex:inputField value="{!o.rstk__soinv_psfirstduedate__c}" />
+                                    </apex:pageBlockSectionItem>
+                                </apex:pageBlockSection>
+                            </apex:tab>
+                            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                              <apex:pageBlockSection columns="2">
+                                <apex:repeat value="{!customFields}" var="f">
+                                  <apex:pageBlockSectionItem >
+                                    <apex:outputLabel value="{!f.label}" />
+                                    <apex:outputPanel >
+                                      <apex:inputField value="{!o[f]}" required="{!OR(f.required, f.dbrequired)}" rendered="{!OR(o.rstk__soinv_approved__c, isEdit, isNew)}" />
+                                      <apex:outputField value="{!o[f]}" rendered="{!AND(!o.rstk__soinv_approved__c, isView)}" />
+                                      <apex:outputPanel rendered="{!AND(o.rstk__soinv_approved__c, f.type == 'reference')}">
+                                        (<apex:outputField value="{!o[f]}" />)
+                                      </apex:outputPanel>
+                                    </apex:outputPanel>
+                                  </apex:pageBlockSectionItem>
+                                </apex:repeat>
+                              </apex:pageBlockSection>
+                            </apex:tab>
+                            <apex:tab label="{!$Label.rstk__tab_info}" name="Info" id="Info">
+                                <c:infoSection cntr="{!controller}" showHeader="false"/>
+                            </apex:tab>
+                        </apex:tabPanel>
+                    </apex:panelGrid>
+                </apex:actionRegion>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection id="pbs_lineitems" showHeader="true"
+                columns="1" title="{!IF(invType,$Label.rstk__invoicelines,$Label.rstk__label_creditmemolines)}" collapsible="false">
+                <apex:actionRegion >
+                <apex:actionFunction name="doSaveLines" action="{!saveLines}" />
+                <apex:outputPanel rendered="{!numOfPages > 1}">
+                    <br/>
+                    <table width='100%'><tr width="50%" align="right"><td>
+                        {!$Label.Page} {!thePageNum+1} {!$Label.of} {!numOfPages}&nbsp;&nbsp;&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(-10000); return false;">1</a>&nbsp;&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(-10); return false;">&lt;&lt;</a>&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(-1); return false;">{!$Label.pgllink_Previous}</a>&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(1); return false;">{!$Label.pglink_Next}</a>&nbsp;&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(10); return false;">&gt;&gt;</a>&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(10000); return false;">{!numOfPages}</a>
+                    </td></tr></table>
+                </apex:outputPanel>
+                <apex:pageBlockTable id="pbt_lineitems" value="{!soinvLines}"
+                    var="d">
+                    <apex:column headerValue="{!IF(invType,f_l.rstk__soinvline_invline__c.label,$Label.rstk__label_creditmemoline)}">
+                        <apex:outputText value="{0,number,###0}">
+                            <apex:param value="{!d.soinvline.rstk__soinvline_invline__c}" />
+                        </apex:outputText>
+                        <apex:outputpanel style="display:none;">
+                            <apex:inputField id="s_soinvline_noprint__c" value="{!d.soinvline.rstk__soinvline_noprint__c}" />
+                            <apex:inputField id="s_soinvline_price__c" value="{!d.soinvline.rstk__soinvline_price__c}"/>
+                            <apex:inputField id="s_soinvline_discamt__c" value="{!d.soinvline.rstk__soinvline_discamt__c}"/>
+                            <apex:inputField id="s_soinvline_discpct__c" value="{!d.soinvline.rstk__soinvline_discpct__c}"/>
+                            <apex:inputField id="s_soinvline_invline__c" value="{!d.soinvline.rstk__soinvline_invline__c}"/>
+                        </apex:outputpanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f_l.rstk__soinvline_order__c.label}"
+                        value="{!d.soinvline.rstk__soinvline_order__c}" />
+                    <apex:column headerValue="{!f_sl.rstk__soshipline_shipper__c.label}"
+                        value="{!d.soinvline.soinvline_line__r.rstk__soshipline_shipper__c}" />
+                    <apex:column headerValue="{!f_l.rstk__soinvline_prod__c.label}"
+                        value="{!d.soinvline.rstk__soinvline_prod__c}" />
+                    <apex:column headerValue="{!f_l.rstk__soinvline_qty__c.label}"
+                        style="text-align:right;">
+                        <c:outputFormattedNumber value="{!d.soinvline.rstk__soinvline_qty__c}"
+                            decimals="{!d.qtyDecimal}" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_l.rstk__soinvline_price__c.label}"
+                        style="text-align:right;">
+                        <apex:outputText html-decimals="6" value="{!d.soinvline.rstk__soinvline_price__c - d.soinvline.rstk__soinvline_discamt__c}" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_l.rstk__soinvline_extamount__c.label}"
+                        style="text-align:right;">
+                        <apex:outputText html-decimals="6" value="{!d.extAmount}" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_l.rstk__soinvline_project__c.label}"
+                        value="{!d.soinvline.rstk__soinvline_project__c}" />
+                    <apex:column headerValue="{!$Label.rstk__details}">
+                        <apex:commandButton onclick="return editLineDetails('{!d.soinvline.id}');" value="{!$Label.rstk__pagebtn_soinv_details}"  />
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__accounts}">
+                        <apex:commandButton onclick="return editLineAcctDist('{!d.soinvline.id}');"
+                            value="{!$Label.rstk__distribution}" />
+                    </apex:column>
+                    <apex:column rendered="{!invlinecosredist && d.soinvline.rstk__soinvline_line__c != null}" >
+                        <input id="distBtn" onclick="showSoinvlinecosGrid('{!d.soinvline.id}');" type="button" class="btn" value="{!$Label.COS_Redistribution}" />
+                    </apex:column>
+                </apex:pageBlockTable>
+                <apex:outputPanel rendered="{!numOfPages > 1}">
+                    <br/>
+                    <table width='100%'><tr width="50%" align="right"><td>
+                        Page {!thePageNum+1} of {!numOfPages}&nbsp;&nbsp;&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(-10000); return false;">1</a>&nbsp;&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(-10); return false;">&lt;&lt;</a>&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(-1); return false;">{!$Label.pgllink_Previous}</a>&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(1); return false;">{!$Label.pglink_Next}</a>&nbsp;&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(10); return false;">&gt;&gt;</a>&nbsp;
+                        <a href="#" onclick="showTopDialog('pleaseWaitPopup'); PageOffset(10000); return false;">{!numOfPages}</a>
+                    </td></tr></table>
+                </apex:outputPanel>
+                </apex:actionRegion>
+                </apex:pageBlockSection>
+
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+             
+           <apex:outputPanel id="lineFormatDialog">
+             <c:Popup popupId="lineFormatPopup" title="{!$Label.rstk__pagepopup_soinv_lineformatting}" okCaption="Save" 
+                 onOk="{!IF(o.rstk__soinv_approved__c, '','return lineFormatOk();')}" 
+                 onCancel="return lineFormatCancel();">
+                 <apex:pageBlockTable id="lineFormatTable" value="{!soinvLines}" var="d">
+                    <apex:column headerValue="{!f_l.rstk__soinvline_invline__c.label}">
+                        <input style='text-align:left;' id="m_soinvline_invline__c" value=""/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soshipline_shipper__c.label}"
+                        value="{!d.soinvline.soinvline_line__r.rstk__soshipline_shipper__c}" />
+                    <apex:column headerValue="{!f_l.rstk__soinvline_prod__c.label}"
+                        value="{!d.soinvline.rstk__soinvline_prod__c}" />
+                    <apex:column headerValue="{!f_l.rstk__soinvline_qty__c.label}"
+                        style="text-align:right;">
+                        <c:outputFormattedNumber value="{!d.soinvline.rstk__soinvline_qty__c}"
+                            decimals="{!d.qtyDecimal}" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_l.rstk__soinvline_price__c.label}" style="text-align:right;">
+                        <input style='text-align:right;' id="m_soinvline_price__c" value="" class="decamount"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_l.rstk__soinvline_noprint__c.label}" style="text-align:right;">
+                        <input type="checkbox" id="m_soinvline_noprint__c"/>
+                    </apex:column>
+                 </apex:pageBlockTable>
+            </c:Popup>
+          </apex:outputPanel>
+            
+
+        </apex:pageBlock>
+
+    <c:Popup popupId="confirmCreditThisInvoicePopup" title="{!$Label.rstk__pagebtn_soinvcreatecredit}" onOk="doCreateCreditMemo();">
+        <apex:pageBlockSection columns="1">
+            <apex:pageBlockSectionItem >
+                {!$Label.rstk__confirmcreatecreditmemo}
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+               <div style="{!IF(hasShippers, '', 'display:none')}">
+                <input type="checkbox" id="allowReinvoicing"/>&nbsp;&nbsp;{!$Label.AllowShipperOnInvoiceToBeReInvoiced}
+               </div>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+    </c:Popup>
+
+    <c:Popup popupId="acknowledgeCreditInventoryControlledAndNotZero" title="{!$Label.rstk__pagebtn_soinvcreatecredit}">
+        <apex:pageBlockSection columns="1">
+            <apex:pageBlockSectionItem >
+                {! $Label.InvoiceReferencedByAnotherCRMemo_InventoryControlled}
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+    </c:Popup>
+
+    <c:Popup popupId="notCreditInventoryControlledAndNotZero" title="{!$Label.rstk__pagebtn_soinvcreatecredit}" onOk="doCreateCreditMemo();" cancelCaption="Cancel">
+        <apex:pageBlockSection columns="1">
+            <apex:pageBlockSectionItem >
+                <div style="background-color: yellow">{! $Label.InvoiceReferencedByAnotherCRMemo_NotInventoryControlled}</div>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        <apex:pageBlockSectionItem >
+            <div style="{!IF(hasShippers, '', 'display:none')}">
+                <input type="checkbox" id="allowReinvoicing"/>&nbsp;&nbsp;{!$Label.AllowShipperOnInvoiceToBeReInvoiced}
+            </div>
+        </apex:pageBlockSectionItem>
+    </c:Popup>
+    
+    <c:Popup popupId="creditmemolines" title="{!IF(invType,$Label.rstk__pagebutton_adddeleteinvoicelines, $Label.rstk__pagebutton_adddeletecreditmemolines)}" onOk="cml_saveAndClose()">
+        <c:PageableGrid pageSize="{!numCreditMemoLinesInGrid}" jsController="cml" data="{!invoiceLinesGrid}" editable="true" ispopup="true"/>
+    </c:Popup>
+    
+    <c:Popup title="{!$Label.rstk__override_exchange_rate}" popupId="showOverrideexchratePopup">
+         <apex:pageBlockSection id="pb_edit_overrideexchratesch" columns="1"> 
+             <apex:pageBlockSectionItem helpText="{!f_customext.rstk__soinv_exchrate_schedule__c.inlineHelpText}" id="pb_edit_si_overrideexchratesch">
+                 <apex:outputLabel value="{!f_customext.rstk__soinv_exchrate_schedule__c.label}"/>
+                 <apex:outputPanel id="pb_edit_op_overrideexchratesch">                            
+                     <apex:inputField id="soinv_exchrate_schedule" value="{!customext.rstk__soinv_exchrate_schedule__c}" onchange="blockPopupUI('pleaseWaitPopup');exchrateScheduleChangedFunction(this.value);"/>                            
+                 </apex:outputPanel>
+             </apex:pageBlockSectionItem>
+             <apex:pageBlockSectionItem helpText="{!f_customext.rstk__soinv_override_schedule__c.inlineHelpText}" id="pb_edit_op_override_schedule">
+                 <apex:outputLabel value="{!f_customext.rstk__soinv_override_schedule__c.label}"/>
+                 <apex:outputPanel >
+                     <apex:selectList id="soinv_override_schedule__c" value="{!customext.rstk__soinv_override_schedule__c}" onchange="blockPopupUI('pleaseWaitPopup');overrideScheduleChanged(this.value);" size="5">
+                         <apex:selectOptions value="{!syforexschednos}" />
+                     </apex:selectList>
+                 </apex:outputPanel>
+             </apex:pageBlockSectionItem> 
+             <apex:pageBlockSectionItem helpText="{!f_customext.rstk__soinv_override_exchrate__c.inlineHelpText}" id="pb_edit_si_overrideexchrate">
+                 <apex:outputLabel value="{!f_customext.rstk__soinv_override_exchrate__c.label}"/>
+                 <apex:outputPanel id="pb_edit_op_overrideexchrate">                            
+                     <apex:outputField id="soinv_override_exchrate" value="{!customext.rstk__soinv_override_exchrate__c}" />                            
+                 </apex:outputPanel>
+             </apex:pageBlockSectionItem>
+             <apex:pageBlockSectionItem />          
+             <apex:pageBlockSectionItem >          
+                 <apex:outputPanel rendered="true">
+                     <apex:outputLabel value=""/>
+                     <input type="button" name="useSchButton" class="btn" value="{!$Label.Use_Selected_Override_Schedule}" onclick="blockUI();saveOverrideRateCheck('false');" />
+                     <input type="button" name="revSchButton" class="btn" value="{!$Label.Revert_to_Current_Spot_Rate}" onclick="blockUI();saveOverrideRateCheck('true');" />
+                 </apex:outputPanel>                                
+             </apex:pageBlockSectionItem>
+         </apex:pageBlockSection>
+     </c:Popup>    
+     <div id="pleaseWaitPopup2" class="overlay">
+         <span style="border-radius: 5px;color: #000;background-color: #fff;">
+         </span>
+     </div>
+    
+    <script>
+        cml.currentMaxLine = {!maxLineNumber};
+        cml.nextLineNum = function() {
+          return ++this.currentMaxLine;
+        }
+
+        cml.resetRow = function(row) { 
+            cmlHandler.prototype.resetRow.call(this, row);
+            this.setRowValue(row, 'soinvline_invline__c',this.nextLineNum());
+         }
+
+        cml.allLineNumbersUnique = function() {
+          var self = this;
+          var vals = {}
+          var allUnique = true;
+          cml.getVisibleRows().each(function() {
+            var row = jQuery(this);
+            var val = self.getRowInt(row, 'soinvline_invline__c');
+            if (vals[val] == true) {
+              allUnique = false;
+            }
+            vals[val] = true;
+          });
+          return allUnique;
+        }
+        
+        cml.validate = function() {
+          if (!this.allLineNumbersUnique()) {
+            alert("{!$Label.Each_line_number_must_be_unique}");
+            return false;
+          }
+          return true;
+        }
+        
+        cml.entryChanged = function(row, rowNum, name, value) {
+            if (name == 'soinvline_prod__c') {
+                this.getRowObj(row, 'soinvline_qty__c').focus();
+                this.setRowValue(row, 'soinvline_uom__c', this.getUomForProd(value));
+                this.setRowValue(row, 'soinvline_salesacct__c', this.getSalesAccountForProd(value));
+                this.setRowValue(row, 'soinvline_taxexempt__c', this.getTaxExemptForProd(value));
+            } else if (name == 'soinvline_invline__c') {
+                this.setRowValue(row, name, parseInt(value) || 0);
+            }
+            if (name == "soinvline_qty__c") {
+                var soprod = this.getSoprod(this.getRowValue(row, 'soinvline_prod__c'));
+                if (soprod) {
+                    var decPlaces = soprod.formula_qtydecimal__c;
+                    if (decPlaces == null) { decPlaces = 0; }
+                    value = roundToDecimals(parseLocaleFloat(value), decPlaces);
+                    this.setRowValue(row, 'soinvline_qty__c', value);
+                }
+            }
+            {!IF(invType, 'if (name == "soinvline_qty__c" && value) { this.fetchPrice(row); }', '')}
+        }
+        
+        cml.fetchPrice = function(row) {
+          cml.currentRow = row;
+          fetchPriceCallout("{!o.Id}", this.getRowValue(row, 'soinvline_prod__c'), this.getRowValue(row, 'soinvline_qty__c'));
+        }
+        
+        function fetchPriceSuccess(val) {
+          if (cml.currentRow) {
+            if (val == 0) {
+              cml.setRowValue(cml.currentRow, 'soinvline_price__c', '');
+            } else {
+              cml.setRowDecimal(cml.currentRow, 'soinvline_price__c', val);
+            }
+          }
+        }
+        
+        cml.getUomForProd = function(prodId) {
+            var soprod = this.getSoprod(prodId);
+            if (soprod != null) {
+                return soprod.soprod_slsuom__c;
+            }
+            return '';
+        }
+
+        cml.getSalesAccountForProd = function(prodId) {
+            var soprod = this.getSoprod(prodId);
+            if (soprod != null) {
+                var sacct = null;
+                if (soprod.sopcs__r != null && soprod.sopcs__r.records != null) {
+                  sacct = soprod.sopcs__r.records.sopc_salesacct__c;
+                }
+                if (sacct == null) {
+                  sacct = soprod.soprod_salesacctind__c == 'true'?soprod.soprod_comcod__r.socomm_salesacct__c:soprod.soprod_salesacct__c;
+                }
+                return sacct;
+            }
+            return '';
+        }
+        
+        cml.getTaxExemptForProd = function(prodId) {
+            var soprod = this.getSoprod(prodId);
+            if (soprod != null) {
+                var taxExemptStr = soprod.soprod_taxexemptind__c == 'true'?soprod.soprod_comcod__r.socomm_taxexempt__c:soprod.soprod_taxexempt__c;
+                return taxExemptStr == 'true';
+            }
+            return false;
+        }
+
+        cml.getSoprod = function(prodId) {
+            var soprods = execQuery("select soprod_salesacctind__c, soprod_salesacct__c, soprod_comcod__r.socomm_salesacct__c, soprod_slsuom__c, "+
+                                    "soprod_taxexemptind__c, soprod_taxexempt__c, soprod_comcod__r.socomm_taxexempt__c, formula_qtydecimal__c, "+
+                                 "(select sopc_salesacct__c from sopcs__r where sopc_custno__c = '{!o.rstk__soinv_custno__c}') "+
+                                 "from soprod__c where Id="+quote(prodId));
+            if (soprods.length > 0) {
+              return soprods[0];
+            }
+            return null;
+        }
+        
+        cml.onSaved = function() {
+          refreshPage();
+        }
+    </script>
+
+
+    </apex:form>
+    <apex:relatedList id="soinvpays" list="soinvpays__r" subject="{!o.id}" />
+    <apex:relatedList id="sogateauds" list="sogateauds__r" subject="{!o.id}" rendered="{!AND(o.id != null, showSOGateAudits)}"/>
+    <apex:relatedList list="soconpbills__r" rendered="{!recurringServicesAllowed}" subject="{!o.id}" />
+    <c:footerInclude cntr="{!controller}" />
+     
+    <script>
+        var LABEL_EnterPrepaymentAcc = "{!$Label.EnterPrepaymentAcc}";
+        var LABEL_EnterNonNegFinanceChargePerc = "{!$Label.EnterNonNegFinanceChargePerc}";
+        var LABEL_EnterNonNegativePaymentDiscountPerc = "{!$Label.EnterNonNegativePaymentDiscountPerc}";
+        var LABEL_EnterNonNegDiscountPerc = "{!$Label.EnterNonNegDiscountPerc}";
+        var LABEL_EnterYearFrom2011To2030 = "{!$Label.EnterYearFrom2011To2030}";
+        var LABEL_EnterPeriodFrom1To12 = "{!$Label.EnterPeriodFrom1To12}";
+        var LABEL_OverrideToZeroForLinesWith100PercDiscounts = "{!$Label.OverrideToZeroForLinesWith100PercDiscounts}";
+        var LABEL_Warning_InvHasBeenPrinted_ClkOKToCont = "{!$Label.Warning_InvHasBeenPrinted_ClkOKToCont}";
+        var LABEL_Warning_InvNotYetPrinted_ClkOKToContWithTransferToAR = "{!$Label.Warning_InvNotYetPrinted_ClkOKToContWithTransferToAR}";
+        var LABEL_Warning_InvNotYetPrinted_ClkOKToContWithReverseARTransfer = "{!$Label.Warning_InvNotYetPrinted_ClkOKToContWithReverseARTransfer}";
+        var deleteInvoicePrompt = "{!deleteInvoicePrompt}";
+        var cancelInvoicePrompt = "{!$Label.Cancel_this_Invoice}";
+        var LABEL_confirmCreateCreditMemo = "{!$Label.rstk__confirmcreatecreditmemo}";
+        var LABEL_No_Override_or_Locked_In_Exchange_Rate_Schedules_exist_for_this_transaction_curr = "{!$Label.No_Override_or_Locked_In_Exchange_Rate_Schedules_exist_for_this_transaction_curr}";
+    	function isocountryChanged(type, name)
+        {
+            var isocountry = sfffGetFieldValue('soinv_isocountry__c');
+            console.log('isocountry '+isocountry);
+            sfffSetFieldValue('soinv_country__c', isocountry);
+            
+        }
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

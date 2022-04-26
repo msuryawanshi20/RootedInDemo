@@ -1,0 +1,631 @@
+<apex:page id="pg" standardController="rstkf__gljetemplth__c" extensions="rstkf.ControllerExtnGljetemplth,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">		
+	<apex:variable var="o" value="{!rstkf__gljetemplth__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__gljetemplth__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__general_journal_template_maintenance}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__general_journal_template_maintenance}" customInclude="{!$Resource.rstkf__gljetemplth_cli}" enableAutoComplete="true" showHeader="false"/>
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+	<apex:includeScript value="{!$Resource.rstkf__BlockUI}" />
+	
+	<style>
+		.clsCenter{
+			text-align:center;
+		}
+		
+		input[type=checkbox][disabled]{
+		  opacity: 0.4;
+		}
+		.modalPopupX{
+		     z-index: 30011;
+		     width: 650px;
+		 }
+		.popupBackgroundX{
+		     z-index: 30010;
+		}
+		.ct{
+			text-align:center;
+		}
+		
+		thePopup.offset({
+		    top  : topOffset + theWin.scrollTop(),
+		    left  : 40
+		});
+		
+	    .Processing
+	    {
+	        position: fixed;
+	        background: url({!$Resource.rstkf__busy});
+	        background-repeat: no-repeat;
+	        background-position: center;
+	        width: 100%;
+	        height: 100%;
+	        z-index: 2004;
+	        left: 0%;
+	        top: 0%;
+	    }
+		.ac_results {
+		    z-index: 9999;
+		    background-color: #eee;
+		}
+	</style>
+    <apex:variable var="f_gljetempltd" value="{!$ObjectType.rstkf__gljetempltd__c.fields}" />    
+    <script>
+		function verifyDate(firstDate,secondDate,datefieldID){
+        	Visualforce.remoting.Manager.invokeAction(  
+		        '{!$RemoteAction.ControllerExtnGljetemplth.verifyDate}', //NameSpace  
+		        firstDate,
+		        secondDate,   
+		        function(result, event){
+		        	if (event.status) {
+						var statusResult = checkResult(result,datefieldID);
+						counterCheck = 0;
+						console.log('statusResult  '+statusResult);	
+						console.log('statusResult counterCheck  '+counterCheck);						
+						//alert('statusResult '+statusResult);
+						returnStatusResult = statusResult;
+					} else if (event.type === 'exception') {
+						//alert("{!$Label.Exception}", event.message);
+						checkException(event.message,datefieldID)
+						returnStatusResult = false;	
+		            } else {
+						alert("{!$Label.UnexpectedStatus}", event.message); 
+						returnStatusResult = false;
+		            }
+		        }, {escape:false}
+		    );
+        }
+        
+        function editgltempldedit(id) {
+        	console.log('Inside editgltempldedit '+id);
+        	setEditURL(id);
+        }
+        
+        function deletegltempldeditcheck(id,dramt,cramt) {
+        	console.log('Inside deletegltempldeditcheck '+id);
+        	console.log('Inside deletegltempldeditcheck dramt '+dramt);
+        	console.log('Inside deletegltempldeditcheck cramt '+cramt);
+        	console.log('Inside deletegltempldeditcheck totalDebits '+totalDebits);
+        	console.log('Inside deletegltempldeditcheck totalCredits '+totalCredits);        	
+        	//var amountsreqCheck = sfffGetFieldValue('gljetemplth_amountsreq__c');
+        	var amountsreqCheck = "{!o.rstkf__gljetemplth_amountsreq__c}";
+        	console.log('Inside deletegltempldeditcheck amountsreqCheck '+amountsreqCheck); 
+        	if(amountsreqCheck == "true") {
+        		console.log('Inside deletegltempldeditcheck totalDebits Diff '+(totalDebits - dramt));
+        		console.log('Inside deletegltempldeditcheck totalCredits Diff '+(totalCredits - cramt));
+        		
+        		var totalDebitsDiff = totalDebits - dramt;
+        		var totalCreditsDiff = totalCredits - cramt;
+        		
+        		if(totalDebitsDiff.toFixed(2) != totalCreditsDiff.toFixed(2)) {
+        			if(confirm("{!$Label.Template_will_be_out_of_balance_if_deleted_this_Line_Still_want_to_Delete}")) {
+        				deletegltempldedit(id);        		
+        			}
+        		} else {
+        			if(confirm("{!$Label.AreYouSure}")) {
+        				deletegltempldedit(id);        		
+        			}
+        		}
+        		
+        	} else {
+        		if(confirm("{!$Label.AreYouSure}")) {
+        			deletegltempldedit(id);        		
+        		}
+        	}
+        	
+        }
+        
+        function check() {
+        	console.log('inside check ');
+        	//document.getElementById('pg:fm:journalHeader').style.display='none';
+        	//document.getElementById('pg:fm:gljetemplthsShow').style.display='block';
+        	getAllGljetemplths();
+        }
+        
+        function addCheck() {
+        	console.log('inside addCheck ');
+        	initializeAddGljetemplth();
+        	//document.getElementById('pg:fm:journalHeader').style.display='block';
+            //document.getElementById('pg:fm:gljetemplthsShow').style.display='none';///
+        }
+        
+        function cancelEntryCheck() {
+        	//document.getElementById('pg:fm:journalHeader').style.display='none';
+        	//document.getElementById('pg:fm:gljetemplthsShow').style.display='block';        
+        }
+        
+        function saveEntryCheck() {
+        	console.log('inside saveEntryCheck gljetemplID '+gljetemplID);
+	        if(gljetemplID == '') {
+	        	var templateid = sfffGetFieldValue('gljetemplth_templateid__c');
+				console.log('Inside saveEntryCheck templateid = '+templateid);
+				if(templateid == '' || templateid == null || templateid.trim() == '') {
+					alert(Label_Please_Enter_Template_ID);
+					return false;
+				}
+	        }
+	        
+        	var frmDate = sfffGetFieldValue('gljetemplth_fromdate__c');
+			var thruDate = sfffGetFieldValue('gljetemplth_thrudate__c');
+			console.log(' inside saveEntryCheck() : From date changed to = '+ frmDate + ' & Thru Date changed to = '+ thruDate );
+			if (frmDate && thruDate){
+				if(verifyDate(frmDate,thruDate,'gljetemplth_thrudate__c') == false){
+					return false;
+				}
+				
+			} else {
+                if(!frmDate && !thruDate) {
+                    if(confirm("{!$Label.Effective_Date_have_not_been_set_OK_to_Continue}") == false) {
+                    	return false;
+                	}
+                } else {                
+                    if(!frmDate){
+                        if(confirm("{!$Label.Effective_From_Date_have_not_been_set_OK_to_Continue}") == false) {
+                            return false;
+                        }
+                    }else if(!thruDate){
+                        if(confirm("{!$Label.Effective_Through_Date_have_not_been_set_OK_to_Continue}") == false) {
+                            return false;
+                        }
+                    } 
+				}
+	        }
+	        var ownerId = sfffGetFieldValue('gljetemplth_owner__c');
+			console.log(' gljetemplthOwnerChanged ownerId : '+ownerId);
+			if(ownerId == '') {
+				alert("{!$Label.Please_enter_Responsible_person}");
+				return false;
+			}
+	        
+	        var description = sfffGetFieldValue('gljetemplth_desc__c');
+			console.log(' description  : '+description);
+			if(description == '') {
+				alert("{!$Label.Please_enter_Description}");
+				return false;
+			}
+	        
+	        var accountsonlyCheck = sfffGetFieldValue('gljetemplth_accountsonly__c');
+       		var amountsreqCheck = sfffGetFieldValue('gljetemplth_amountsreq__c');
+       		if(amountsreqCheck == "1" && accountsonlyCheck =="1") {
+				alert("{!$Label.Either_Account_Only_or_Amounts_Required_Flag_can_be_Set}");
+				return false;
+			}
+	        
+	        if(amountsreqCheck == "1" && oldamountsreq == "false" && accountsWithZeroAmount == "true") {
+				alert(Label_some_accounts_do_not_have_amounts_Please_enter_amounts);
+				sfffSetFieldValue('gljetemplth_amountsreq__c','0');
+				return false;
+			}
+			
+			if(amountsreqCheck == "1" && oldamountsreq == "false" && ( totalDebits != totalCredits)){
+				var confirmflag = confirm("{!$Label.Template_is_out_of_balance_still_want_to_save}");
+				if(!confirmflag) {
+					return false;				
+	        	}       	
+			}
+        	saveGljetemplth();
+        }
+        
+        function cancelAddOrEditCheck() {
+        	console.log('inside cancelAddOrEditCheck');
+        	cancelAddOrEdit();
+        }
+        
+        function maintainCheck() {
+        	console.log('inside maintainCheck gljetemplthArray '+gljetemplthArray);
+        	var selectedCounter = 0;
+       		for (var i=0; i< gljetemplthArray.length; i++) {	
+       			console.log('defaultValue '+gljetemplthArray[i].selected.checked);
+       			console.log('innerHTML '+gljetemplthArray[i].selected.innerHTML);
+       		       			
+       			if (gljetemplthArray[i].selected.checked == true) {
+       				selectedCounter++;
+       			}
+       		}
+       		
+       		if (selectedCounter == 0) {
+       			alert(Label_Please_select_at_least_One_Entry);
+       		} else if (selectedCounter > 1) {
+       			alert(Label_Please_select_Only_One_Entry);
+       		} else {
+       			//alert('Record will be edited'); 
+       			//document.getElementById('pg:fm:gljetemplthsShow').style.display='none';
+       			editGljetemplth();
+       			//document.getElementById('pg:fm:journalHeader').style.display='block';
+        		       			
+       		}        	
+        }
+        
+        function viewEntryCheck() {
+        	console.log('inside viewEntryCheck gljetemplthArray '+gljetemplthArray);
+        	var selectedCounter = 0;
+       		for (var i=0; i< gljetemplthArray.length; i++) {	
+       			console.log('defaultValue '+gljetemplthArray[i].selected.checked);
+       			console.log('innerHTML '+gljetemplthArray[i].selected.innerHTML);
+       		       			
+       			if (gljetemplthArray[i].selected.checked == true) {
+       				selectedCounter++;
+       			}
+       		}
+       		
+       		if (selectedCounter == 0) {
+       			alert(Label_Please_select_at_least_One_Entry);
+       		} else if (selectedCounter > 1) {
+       			alert(Label_Please_select_Only_One_Entry);
+       		} else {
+       			//alert('Record will be edited'); 
+       			//document.getElementById('pg:fm:gljetemplthsShow').style.display='none';
+       			viewGljetemplth();
+       			//document.getElementById('pg:fm:journalHeader').style.display='block';
+        		       			
+       		}        	
+        }
+        
+        function viewGljetemplthAndAddLineCheck() {
+        	console.log('inside viewGljetemplthAndAddLineCheck gljetemplthArray '+gljetemplthArray);
+        	var selectedCounter = 0;
+       		for (var i=0; i< gljetemplthArray.length; i++) {	
+       			console.log('defaultValue '+gljetemplthArray[i].selected.checked);
+       			console.log('innerHTML '+gljetemplthArray[i].selected.innerHTML);
+       		       			
+       			if (gljetemplthArray[i].selected.checked == true) {
+       				selectedCounter++;
+       			}
+       		}
+       		
+       		if (selectedCounter == 0) {
+       			alert(Label_Please_select_at_least_One_Entry);
+       		} else if (selectedCounter > 1) {
+       			alert(Label_Please_select_Only_One_Entry);
+       		} else {
+       			//alert('Record will be edited'); 
+       			//document.getElementById('pg:fm:gljetemplthsShow').style.display='none';
+       			viewGljetemplthAndAddLine();
+       			//document.getElementById('pg:fm:journalHeader').style.display='block';
+        		       			
+       		}        	
+        }
+        
+        
+        function addLineButtonClick() {
+        	console.log('Inside addLineButtonClick');
+        	jQuery(".btnPopupNotesAttachments").click();       	
+        	console.log('Finished addLineButtonClick');
+        }
+        
+        var oldamountsreq = "{!o.rstkf__gljetemplth_amountsreq__c}";
+        var oldaccountsonly = "{!o.rstkf__gljetemplth_accountsonly__c}";
+        //var accountsonly = sfffGetFieldValue('gljetemplth_accountsonly__c');
+        //var amountsreq = sfffGetFieldValue('gljetemplth_amountsreq__c');
+        
+        
+        var accountsWithNonZeroAmount = "{!accountsWithNonZeroAmount}";
+        var accountsWithZeroAmount = "{!accountsWithZeroAmount}";
+        var oldstdid = "{!o.rstkf__gljetemplth_stdid__c}";
+        var oldIntermediatestdid = '0';
+        var gljetemplID = "{!o.id}";
+        var counterCheck = 0;
+        
+        
+        console.log(' accountsWithNonZeroAmount '+accountsWithNonZeroAmount);
+        console.log(' accountsWithZeroAmount '+accountsWithZeroAmount);
+        console.log(' oldstdid '+oldstdid);
+        var gljetemplthGlcmp = "{!o.rstkf__gljetemplth_glcmp__c}";
+        var totalDebits = "{!totalDebits}";
+        var totalCredits = "{!totalCredits}";
+        
+	</script>
+    <apex:form id="fm">
+        <apex:actionStatus onstart="showTopDialog('pleaseWaitPopup');" onstop="closeTopDialog();" id="pleaseWaitStatus"/>    
+    	<apex:actionFunction name="getAllGljetemplths" action="{!getAllGljetemplths}" reRender="gljetemplthsShow,journalHeader" immediate="false" status="pleaseWaitStatus"/>
+    	<apex:actionFunction name="initializeAddGljetemplth" action="{!initializeAddGljetemplth}" immediate="false" status="pleaseWaitStatus"/>       	     	
+    	<apex:actionFunction name="saveGljetemplth" action="{!saveGljetemplth}" immediate="false" status="pleaseWaitStatus" oncomplete="getAllGljetemplths()"/> 
+    	<apex:actionFunction name="editGljetemplth" action="{!editGljetemplth}" immediate="false" status="pleaseWaitStatus"/>
+    	<apex:actionFunction name="viewGljetemplth" action="{!viewGljetemplth}" immediate="false" status="pleaseWaitStatus"/>    	
+    	<apex:actionFunction name="viewGljetemplthAndAddLine" action="{!viewGljetemplth}" reRender="fm" immediate="false" oncomplete="addLineButtonClick();" status="pleaseWaitStatus"/>
+    	<apex:actionFunction name="setEditURL" action="{!setEditURL}" immediate="false" status="pleaseWaitStatus" reRender="op_maintainTemplateLinesPopup" oncomplete="openFramePopup();">
+    		<apex:param name="editLink" assignTo="{!editLink}" value=""/>
+    	</apex:actionFunction>	    	
+    	<apex:actionFunction name="deletegltempldedit" action="{!deletegltempldedit}" immediate="false" status="pleaseWaitStatus" reRender="journalHeader" oncomplete="getAllGljetemplthsAndRefresh()">
+    		<apex:param name="deleteIDs" assignTo="{!deleteID}" value=""/>
+    	</apex:actionFunction>    	
+    	<apex:actionFunction name="cancelAddOrEdit" action="{!cancelAddOrEdit}" reRender="gljetemplthsShow,journalHeader" immediate="false" status="pleaseWaitStatus"/>
+    	<apex:actionFunction name="getAllGljetemplthsAndRefresh" action="{!getAllGljetemplths}" immediate="false" status="pleaseWaitStatus" oncomplete="viewGljetemplth()"/> 
+    	<apex:actionFunction name="setAccountsOnlyflag" action="{!setAccountsOnlyflag}" immediate="false" status="pleaseWaitStatus" reRender="journalHeader">
+    		<apex:param name="accountsOnlyflag" assignTo="{!accountsOnlyflag}" value=""/>
+    	</apex:actionFunction>	   	
+		<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+	   	
+	   	<apex:pageBlock id="pb" mode="detail">
+	   		<apex:pageBlockSection id="pbs_main" columns="2" rendered="{!OR(isNew,isEdit)}">
+	     		<apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__gljetemplth_glcmp__c.label}"/>
+                    <apex:outputPanel >
+                    	<apex:outputField value="{!o.rstkf__gljetemplth_glcmp__c}"/>                    	
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                	<apex:outputPanel >
+                		<input type="button" id="getAllGljetemplth" value="{!$Label.Get_All_General_Header_Templates}" class="btn" onclick="check();"/>
+                	</apex:outputPanel>	
+                </apex:pageBlockSectionItem>
+	     	</apex:pageBlockSection>
+	    </apex:pageBlock> 	 	
+	    <apex:outputPanel id="gljetemplthsShow">
+	    	<apex:pageBlock title="{!$Label.rstkf__general_journal_entry_template_headers}" id="gljetemplths" mode="detail" rendered="{!!OR(createMode,updateMode,!sourceFromMenu,viewMode)}">
+	    		<script>
+               		var gljetemplthArray = []; counters = 0;  
+               		var gljetemplthBlockTable;
+               		//alert(' (createMode} '+'{!createMode}'+'(updateMode} '+'{!updateMode}');
+              	</script>
+              	<apex:outputPanel id="op_gljetemplthsShowbtns">              	
+			    	<input type="button" id="addEntry" value="{!$Label.Add_New_General_Journal_Entry_Template_Header}" class="btn" onclick="addCheck();"/>  
+			    	<input type="button" id="maintainEntry" value="{!$Label.Maintain_General_Journal_Entry_Template_Header}" class="btn" onclick="maintainCheck();"/>
+			    	<input type="button" id="viewEntry" value="{!$Label.View_General_Journal_Entry_Template_Header}" class="btn" onclick="viewEntryCheck();"/>
+			    	<input type="button" id="addTemplateLine" value="{!$Label.Add_New_Template_Line}" class="btn" onclick="viewGljetemplthAndAddLineCheck();"/>			    	
+			    </apex:outputPanel>	 
+				<apex:pageblocksection >
+					<apex:pageBlockSectionItem />
+				</apex:pageblocksection>
+		    	<apex:pageBlockTable id="gljetemplthData" value="{!journalEntryTemplates}" var="d">
+		    		<apex:column headerValue="{!$Label.rstkf__select}">
+	                    <apex:inputCheckbox id="gljetemplthSelected" value="{!d.selected}" />
+	                </apex:column>
+					<apex:column headerValue="{!f.rstkf__gljetemplth_templateid__c.label}">
+	                    <apex:outputField id="templateId" value="{!d.gljetemplth.rstkf__gljetemplth_templateid__c}" />
+	                </apex:column>
+	                   
+					<apex:column headerValue="{!f.rstkf__gljetemplth_stdid__c.label}">
+	                    <apex:outputField id="stdID" value="{!d.gljetemplth.rstkf__gljetemplth_stdid__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!f.rstkf__gljetemplth_owner__c.label}">
+	                    <apex:outputField id="owner" value="{!d.gljetemplth.rstkf__gljetemplth_owner__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!f.rstkf__gljetemplth_desc__c.label}">
+	                    <apex:outputField id="description" value="{!d.gljetemplth.rstkf__gljetemplth_desc__c}"/>
+	                    <script>
+                         gljetemplthArray[counters] = {
+                         	'selected': document.getElementById('{!$Component.gljetemplthSelected}'),
+                         	'templateId': document.getElementById('{!$Component.templateId}')
+                         }                        
+                         counters++;
+                         var gljetemplthBlockTable = document.getElementById('{!$Component.gljetemplthData}');
+                    </script>
+	                </apex:column>
+	            </apex:pageBlockTable>    
+		    </apex:pageBlock>
+	            
+	    </apex:outputPanel>	    
+	    <apex:outputPanel id="journalHeader">
+	    	<script>
+    			addRequiredFieldDecoration("input[id*=':" + "gljetemplth_templateid__c" + "']");
+    			addRequiredFieldDecoration("textarea[id*=':" + "gljetemplth_desc__c" + "']");    		
+    		</script>
+	    	<apex:pageBlock id="pb_add" mode="detail" rendered="{!OR(createMode,updateMode,!sourceFromMenu,viewMode)}">
+		   		<apex:pageBlockButtons >
+		   			<apex:outputPanel id="op_hdrbtns" rendered="{!AND(sourceFromMenu,!viewMode)}">
+		   				<input type="button" id="saveEntry" value="{!$Label.pagebtn_Save}" class="btn" onclick="saveEntryCheck();"/>
+		   			</apex:outputPanel>
+		   			
+		   			<apex:outputPanel id="op_hdrbtns2" rendered="{!sourceFromMenu}">
+		   				<input type="button" id="cancelEntry" value="{!$Label.Cancel}" class="btn" onclick="cancelAddOrEditCheck();"/>
+		   			</apex:outputPanel>
+		   		</apex:pageBlockButtons>
+		   		
+		   		<apex:pageBlockSection id="pbs_main2" columns="1" rendered="{!OR(createMode,updateMode,!sourceFromMenu,viewMode)}">
+		     		<apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_glcmp__c.inlineHelpText}" rendered="{!OR(createMode,updateMode,sourceFromMenu,viewMode)}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_glcmp__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_glcmp__c}"/>
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_templateid__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_templateid__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_templateid__c}" rendered="{!OR(updateMode,!sourceFromMenu,viewMode)}"/>
+	                    	<apex:inputField id="gljetemplth_templateid__c" value="{!o.rstkf__gljetemplth_templateid__c}" rendered="{!createMode}"/>
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>	                
+	                
+	                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_stdid__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_stdid__c.label}"/>
+	                    <apex:outputPanel >	                    	    
+	                    	<apex:selectList id="gljetemplth_stdid__c" value="{!o.rstkf__gljetemplth_stdid__c}" size="1" rendered="{!AND(sourceFromMenu,!viewMode)}"> 
+		                            <apex:selectOptions value="{!stdids}" />
+		                    </apex:selectList>
+		                    <apex:outputField value="{!o.rstkf__gljetemplth_stdid__c}" rendered="{!OR(!sourceFromMenu,viewMode)}"/>               	
+	                    </apex:outputPanel>
+                	</apex:pageBlockSectionItem>
+                	
+                	<apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_desc__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_desc__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:inputField id="gljetemplth_desc__c" value="{!o.rstkf__gljetemplth_desc__c}" rendered="{!AND(sourceFromMenu,!viewMode)}"/>
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_desc__c}" rendered="{!OR(!sourceFromMenu,viewMode)}"/>
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+                
+                	<apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_reversing__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_reversing__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:inputField id="gljetemplth_reversing__c" value="{!o.rstkf__gljetemplth_reversing__c}" rendered="{!AND(sourceFromMenu,!viewMode)}"/>
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_reversing__c}" rendered="{!OR(!sourceFromMenu,viewMode)}"/>
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+                
+                	<apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_accountsonly__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_accountsonly__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:inputField id="gljetemplth_accountsonly__c" value="{!o.rstkf__gljetemplth_accountsonly__c}" rendered="{!AND(sourceFromMenu,!viewMode)}" onchange="gljetemplthAccountsonlyChanged();"/>
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_accountsonly__c}" rendered="{!OR(!sourceFromMenu,viewMode)}"/>                     	
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_amountsreq__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_amountsreq__c.label}"/>
+	                    <apex:outputPanel id="op_gljetemplth_amountsreq__c">
+	                    	<apex:inputField id="gljetemplth_amountsreq__c" value="{!o.rstkf__gljetemplth_amountsreq__c}" rendered="{!AND(sourceFromMenu,!viewMode)}" onchange="gljetemplthAmountsreqChanged();"/>
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_amountsreq__c}" rendered="{!OR(!sourceFromMenu,viewMode)}"/>  
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_fromdate__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_fromdate__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:inputField id="gljetemplth_fromdate__c" value="{!o.rstkf__gljetemplth_fromdate__c}" rendered="{!AND(sourceFromMenu,!viewMode)}"/>
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_fromdate__c}" rendered="{!OR(!sourceFromMenu,viewMode)}"/>
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_thrudate__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_thrudate__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:inputField id="gljetemplth_thrudate__c" value="{!o.rstkf__gljetemplth_thrudate__c}" rendered="{!AND(sourceFromMenu,!viewMode)}"/>
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_thrudate__c}" rendered="{!OR(!sourceFromMenu,viewMode)}"/>
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_owner__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_owner__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:selectList id="gljetemplth_owner__c" value="{!o.rstkf__gljetemplth_owner__c}" size="1" rendered="{!AND(sourceFromMenu,!viewMode)}"> 
+		                            <apex:selectOptions value="{!glusrs}" />
+		                    </apex:selectList>
+		                    <apex:outputField value="{!o.rstkf__gljetemplth_owner__c}" rendered="{!OR(!sourceFromMenu,viewMode)}"/>
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>          
+	                
+	                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_lastxferyear__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_lastxferyear__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_lastxferyear__c}" />
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_lastxferpd__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_lastxferpd__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_lastxferpd__c}" />
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_lastxfergljh__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstkf__gljetemplth_lastxfergljh__c.label}"/>
+	                    <apex:outputPanel >
+	                    	<apex:outputField value="{!o.rstkf__gljetemplth_lastxfergljh__c}" />
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+                    
+	                 <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__gljetemplthlist_totalDebits__c.inlineHelpText}" rendered="{!AND(!createMode,sourceFromMenu)}">
+	                    <apex:outputLabel value="{!f_customext.rstkf__gljetemplthlist_totalDebits__c.label}"/>
+	                    <apex:outputPanel >
+                            <apex:outputText id="gljetempltddramttotalDebits" value="{!totalDebitsAmt}" html-decimals="2"/>			                   
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+	                
+	                 <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__gljetemplthlist_totalCredits__c.inlineHelpText}" rendered="{!AND(!createMode,sourceFromMenu)}">
+	                    <apex:outputLabel value="{!f_customext.rstkf__gljetemplthlist_totalCredits__c.label}"/>
+	                    <apex:outputPanel >
+                            <apex:outputText id="gljetempltddramttotalCredits" value="{!totalCreditsAmt}" html-decimals="2"/>			                   
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>                 
+	            </apex:pageBlockSection>	                
+	    	</apex:pageBlock>
+	    	<apex:pageBlock rendered="{!viewMode}">
+	    		<input type="button" id="saveEntry" style="visibility:hidden" class="btnPopupNotesAttachments" value="{!$Label.Add_New_Template_Line}" onclick="editgltempldedit('Create');"/>
+		    	<apex:pageBlockTable id="gljetempltDetails" value="{!gljetempltds}" var="d">
+		    		<apex:column headerValue="">
+	                	<apex:outputLink value="javascript:{}" onclick="editgltempldedit('{!d.id}')">Edit</apex:outputLink>
+	                	<apex:outputText id="pipe" value=" | "/>
+	                	<apex:outputLink value="javascript:{}" onclick="deletegltempldeditcheck('{!d.id}','{!d.rstkf__gljetempltd_dramt__c}','{!d.rstkf__gljetempltd_cramt__c}')">Delete</apex:outputLink>	                	
+	                </apex:column>
+	                
+		    		<apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_lineno__c.label}">
+	                	<apex:outputText id="gljetempltdlineno" value="{!d.rstkf__gljetempltd_lineno__c}"/>
+	                </apex:column>
+	                
+		    		<apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_glacct__c.label}">
+	                    <apex:outputField id="gljetempltdglacct" value="{!d.rstkf__gljetempltd_glacct__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_dramt__c.label}">
+                        <apex:outputField id="gljetempltddramt" value="{!d.rstkf__gljetempltd_dramt__c}" />		                    
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_cramt__c.label}">
+                        <apex:outputField id="gljetempltdcramt" value="{!d.rstkf__gljetempltd_cramt__c}" />		                    
+	                </apex:column>
+	               
+	                <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_gldiv__c.label}">
+	                    <apex:outputField id="gljetempltdgldiv" value="{!d.rstkf__gljetempltd_gldiv__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_glproj__c.label}">
+	                    <apex:outputField id="gljetempltdglproj" value="{!d.rstkf__gljetempltd_glproj__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_linecomment__c.label}">
+	                    <apex:outputText id="gljetempltdlinecomment" value="{!d.rstkf__gljetempltd_linecomment__c}"/>
+	                </apex:column>
+		    	</apex:pageBlockTable>	    	
+	    </apex:pageBlock>	    	   		
+	    </apex:outputPanel>   
+	    <div id="pleaseWaitPopup" style="display:none">
+	     	<apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+	        <apex:outputPanel styleClass="topPopup">
+	        	<apex:image url="{!$Resource.rstkf__busy}"/>
+	        </apex:outputPanel>
+	    </div>
+	</apex:form>
+	<apex:outputPanel id="op_maintainTemplateLinesPopup">
+		 <div id="maintainTemplateLinesPopup" style="display:none">
+			<apex:pageBlock id="pb_maintainTemplateLinesPopup"  mode="detail">
+				<apex:iframe src="{!editLink}" id="maintainTemplateLinesPopupId" width="100%" height="600px" scrolling="true"/>
+				<p style="position:auto;text-align:left">
+					<input type="button" name="popupCancelButton" class="btn" value="Close without Saving" onclick="cancelReloadTemplates()" tabIndex="9992"/>
+				</p>
+			</apex:pageBlock>
+		</div>		  
+	</apex:outputPanel>
+	<c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>	
+	<script>	 	
+		var Label_value1mustbegreaterthanval2 = "{!$Label.value1mustbegreaterthanval2}";		
+		var LABEL_gljetemplth_fromdate__c = "{!f.rstkf__gljetemplth_fromdate__c.label}";
+		var LABEL_gljetemplth_thrudate__c = "{!f.rstkf__gljetemplth_thrudate__c.label}";
+		var Label_Please_Enter_Template_ID = "{!$Label.Please_Enter_Template_ID}";
+		var Label_Please_select_at_least_One_Entry = "{!$Label.Please_select_at_least_One_Entry}";
+		var Label_Please_select_Only_One_Entry = "{!$Label.Please_select_Only_One_Entry}";
+		var Label_Override_Entry_description_with_new_General_Journal_Entry_Standard_ID_selected = "{!$Label.Override_Entry_description_with_new_General_Journal_Entry_Standard_ID_selected}";
+		var Label_some_accounts_do_not_have_amounts_Please_enter_amounts = "{!$Label.some_accounts_do_not_have_amounts_Please_enter_amounts}";
+		var Label_Some_accounts_have_amounts_and_ask_whether_to_clear_those_amounts = "{!$Label.Some_accounts_have_amounts_and_ask_whether_to_clear_those_amounts}";
+		var Label_Template_ID_already_exists = "{!$Label.Template_ID_already_exists}";
+		var Label_Either_Account_Only_or_Amounts_Required_Flag_can_be_Set = "{!$Label.Either_Account_Only_or_Amounts_Required_Flag_can_be_Set}";
+		var Label_Please_enter_valid_Template_ID = "{!$Label.Please_enter_valid_Template_ID}";
+				
+	 	function openFramePopup() {
+			/*if (!_isDialogOpen()) {
+				//_showNewDialog('maintainTemplateLinesPopup',650,600,100);	
+				//	showPopup('#maintainTemplateLinesPopup', 800, 400);		
+			} */
+			showPopup('#maintainTemplateLinesPopup', 860, 675);		
+			
+		}
+		
+		function cancelReloadTemplates() {
+			unblockUI();		
+		}
+		
+		function reloadTemplates() {		
+			_closeDialog();
+			getAllGljetemplthsAndRefresh();		
+		}
+	</script>
+</apex:page>

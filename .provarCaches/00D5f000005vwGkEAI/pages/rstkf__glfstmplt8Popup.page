@@ -1,0 +1,99 @@
+<apex:page id="pg" standardController="rstkf__glfstmplt8__c" extensions="rstkf.ControllerExtnGlfstmplt8Popup,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    
+    <apex:variable var="o" value="{!glfstmplt8}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__glfstmplt8__c.fields}" />
+    <c:standardHeader cntr="{!controller}" showHeader="false" enableQuickMenu="false" enableAutoComplete="true" customInclude="{!$Resource.rstkf__glfstmplt8Popup_cli}"/>
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        
+        .bPageHeader
+        {
+            display : none;
+        }
+        
+        .bPageFooter
+        {
+            display : none;
+        }
+        
+        .hasMotif {
+            margin: 0 0px;
+        }
+        
+        .bodyDiv
+        {
+            border-top : 0px;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="upsertRecord" action="{!doupsertRecord}" immediate="false" reRender="pageMessages,op_isSuccess" oncomplete="closeAndRefreshTable(); return false;" status="statusProcessing"/>
+        <apex:actionFunction name="repopulateGlacct" action="{!doNothing}" immediate="true" reRender="pageMessages,op_glfstmplt8_glacct__c" oncomplete="glacctPostLoad(); return false;" status="statusProcessing"/>
+        
+        <apex:outputPanel id="op_isSuccess">
+            <script>
+                var isSuccess = "{!isSuccess}";
+            </script>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons location="bottom">
+                <apex:commandButton id="saveBtn" onclick="saveRecord();return false;" value="{!$Label.rstkf__pagevalsave}" styleclass="btn"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main" columns="1">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glfstmplt8_seq__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glfstmplt8_seq__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__glfstmplt8_seq__c}" rendered="{!!isNewMode}"/>
+                        <apex:outputPanel styleClass="requiredInput" layout="block" id="currFiscalYearPanel">
+                            <apex:outputPanel styleClass="requiredBlock"/>
+                            <apex:inputField id="glfstmplt8_seq__c" value="{!o.rstkf__glfstmplt8_seq__c}" rendered="{!isNewMode}" taborderhint="1"/>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="glfstmplt8_command__c" value="{!o.rstkf__glfstmplt8_command__c}" required="true" taborderhint="2"/>
+                <apex:inputField id="glfstmplt8_rangestart__c" value="{!o.rstkf__glfstmplt8_rangestart__c}" taborderhint="3"/>
+                <apex:inputField id="glfstmplt8_rangeend__c" value="{!o.rstkf__glfstmplt8_rangeend__c}" taborderhint="4"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glfstmplt8_glacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glfstmplt8_glacct__c.label}"/>
+                    <apex:outputPanel id="op_glfstmplt8_glacct__c">
+                        <c:glaccount id="glfstmplt8_glacct__c" 
+                               cntr="{!controller}"
+                               ref="glfstmplt8_glacct__c"
+                               options="{!accounts}"
+                               slDesc="{!glacctName}"
+                               query="{!glacctAutoCompleteQuery}"
+                               queryParms=""
+                               displaySelectList="{!accounts.size <= 999}"
+                               width="180px"
+                               tabIndex="42" />
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock> 
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+        var Label_entervaluefor = "{!$Label.pleaseentervaluefor}";
+        var company = "{!companyInReq}";
+        var groupName = "{!groupNameInReq}";
+        var gluserId = "{!currentGluserId}";
+        var usernotauthorizedforthecompany = "{!$Label.youarenotauthorizedtoviewdataforthiscompany}";
+        var label_fieldmustbeExp1andExp2 = "{!$Label.fieldmustbeExp1andExp2}";
+        var label_field_already_exists_for_this_group_Id = "{!$Label.field_already_exists_for_this_group_Id}";
+        var label_field_must_be_this = "{!$Label.field_must_be_this}";
+    </script>
+</apex:page>

@@ -1,0 +1,1677 @@
+<apex:page id="pg" docType="html-5.0" standardController="rstk__icitem__c" extensions="rstk.ControllerExtnItemPlanReview,rstk.RemoteQueryController" sideBar="false" 
+ action="{!doBeforePageLoad}">
+
+<apex:variable var="o" value="{!rstk__icitem__c}" />
+<apex:variable var="f" value="{!$ObjectType.rstk__icitem__c.fields}" />
+<apex:variable var="f_supitem" value="{!$ObjectType.rstk__supitem__c.fields}" />
+<apex:variable var="f_icsimsess" value="{!$ObjectType.rstk__icsimsess__c.fields}" />
+<apex:variable var="f_supreq" value="{!$ObjectType.rstk__supreq__c.fields}" />
+<apex:variable var="f_icfcst" value="{!$ObjectType.rstk__icfcst__c.fields}" />
+<apex:variable var="f_iclotexp" value="{!$ObjectType.rstk__iclotexp__c.fields}" />
+
+
+<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_itemplanreview}" enableAutocomplete="true" displayListLink="false"/>
+<apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+<apex:includeScript value="{!URLFOR($Resource.rstk__jquery_tablesorter_cli)}" />
+<apex:includeScript value="{!URLFOR($Resource.rstk__jquery_vfFloatingHeaders)}" />
+
+<script>
+
+var mode;
+var simseq = 0;
+var templateRow;
+var adjTblId = 'pg:fm:pb_adjustreq:pbt_ajdreqs';
+var txnstatus = false;
+function pageInit(type) {
+    mode = type;
+}
+
+function hideContextMenu() { return {!(vendno != null)}; }
+
+function deleteRow(el) {
+    var table = document.getElementById(adjTblId);
+    var body = table.tBodies[0];
+    body.removeChild(el.parentNode.parentNode);
+}
+
+function addSimrecRow() {
+    var table = document.getElementById(adjTblId);
+    var body = table.tBodies[0];
+    var cloneRow = templateRow.cloneNode(true);
+    cloneRow.Id = '';
+    if (body.rows.length > 0) {
+        body.insertBefore(cloneRow,body.rows[0]);
+    } else {
+        body.appendChild(cloneRow);
+    }
+}
+
+function saveAdjustReqs() {
+    blockUI();
+    window.setTimeout(doSaveAdjustReqs,300);
+}
+
+function getInputElement(el) {
+    return jQuery(el).find('input')[0];
+}
+
+function doSaveAdjustReqs() {
+    try {
+        var table = document.getElementById(adjTblId);
+        var body = table.tBodies[0];
+    
+        var icitemId = pageParms.recordId;
+        var icsimreqs = [];
+        var rows = body.rows;
+    
+        for (var i=0;i<rows.length;i++) {
+            var row = rows[i];
+            var supreqId = row.cells[0].childNodes[1].value;
+            var ordno = row.cells[1].firstChild.innerHTML;
+            var qtyReq = getInputElement(row.cells[2]).value;
+            var curDate = getInputElement(row.cells[3]).value;
+            var ovrDate = getInputElement(row.cells[4]).value;
+            if (isNaN(qtyReq)) {
+                alert("{!$Label.rstk__invalidqty}");
+                unblockUI();
+                adjustReqs(false);
+                return;
+            }
+            var adjQty = ensureFloat(qtyReq);
+            if (!isEmpty(ordno)) {
+                if (!isEmpty(ovrDate)) {
+                    icsimreqs.push(createIcsimreq(simseq, icitemId, supreqId, (adjQty * -1), curDate));
+                    icsimreqs.push(createIcsimreq(simseq, icitemId, supreqId, adjQty, ovrDate));
+                }
+            } else {
+                if (!isEmpty(qtyReq) || !isEmpty(curDate)) {
+                    if (isEmpty(qtyReq) || ensureFloat(qtyReq) <= 0) {
+                        alert("{!$Label.rstk__qtymustgt0}");
+                        unblockUI();
+                        adjustReqs(false);
+                        return;
+                    }
+                    if (isEmpty(curDate)) {
+                        alert("{!$Label.rstk__duedatereqd}");
+                        unblockUI();
+                        adjustReqs(false);
+                        return;
+                    }
+                    icsimreqs.push(createIcsimreq(simseq, icitemId, null, adjQty, curDate));
+                }
+            }
+        }
+        
+        var delStatus = true;
+        var records = execQuery("select name, id from icsimreq__c where icsimreq_simseq__c = " + simseq, true);
+        if (records.length > 0) {
+            var delIds = [];
+            for (var i=0;i<records.length;i++){ delIds.push(records[i].Id); }
+            var delResult = sforce.connection.deleteIds(delIds);
+            if (!delResult[0].getBoolean("success")) {
+                alert("{!$Label.rstk__unabletodelexistingicsimreqs}", delResult[0]);
+                unblockUI();
+                return;
+            }
+        }
+        
+        if (icsimreqs.length > 0) {
+            var result = sforce.connection.create(icsimreqs);
+            if (!result[0].getBoolean("success")) {
+                alert("{!$Label.rstk__failedtocreateicsimreqs}", result[0]);
+                unblockUI();
+            }
+        }
+    } catch (e) {alert(e);}
+    unblockUI();
+}
+
+function createIcsimreq(seq, icitemId, supreq, adjqty, dte) {
+    var icsimreq = new sforce.SObject("icsimreq__c");
+    
+    icsimreq.icsimreq_simseq__c = seq;
+    icsimreq.icsimreq_icitem__c = icitemId;
+    icsimreq.icsimreq_simuser__c = pageParms.syusrId;
+    if (!isEmpty(supreq)) {
+        icsimreq.icsimreq_supreq__c = supreq;
+    }
+    icsimreq.icsimreq_adjqty__c = adjqty;
+    icsimreq.icsimreq_date__c = dte;
+    
+    return icsimreq;
+}
+
+
+function createFieldChangeHandlers() {
+    fieldChangeHandlers = {
+        icitem_relateditem__c: itemChanged
+    };
+}
+
+function itemChanged(type, name) {
+    var itemId = sfffGetFieldValue('icitem_relateditem__c');
+    blockUI();
+    if (isEmpty(itemId)) {
+        window.location.assign('{!URLFOR($Page.rstk__ItemPlanReview)}');
+    } else {
+        window.location.assign('{!URLFOR($Page.rstk__ItemPlanReview)}?actionType=edit&id='+itemId);
+    }
+}
+
+function clearSimsettings() {
+    sfffSetFieldValue('icitem_toollifeunits__c', '');
+    sfffSetFieldValue('icitem_avgtoollifeused__c', '');
+    sfffSetFieldValue('icitem_abcdate__c', '');
+    sfffSetFieldValue('icitem_descr__c', '');
+}
+
+function simseqchanged(type, name) {
+    clearSimsettings();
+    switchToSimDailyTab();
+}
+
+function switchToDailyTab() {
+    RichFaces.switchTab('pg:fm:pb1:theTabPanel','pg:fm:pb1:tab_daily_doi','tab_daily_doi');
+}
+function switchToSimDailyTab() {
+    RichFaces.switchTab('pg:fm:pb1:theTabPanel','pg:fm:pb1:tab_simulated_daily_doi','tab_simulated_daily_doi');
+}
+
+function adjustReqs(isView) {
+    var popWidth = 620;
+    var popHeight = 490;
+    var top = ((jQuery(window).height() - popHeight) / 2);
+    var width = jQuery(window).width();
+    var left = (width - popWidth) / 2;
+    if (popWidth > width) {
+        left = 0;
+    } else {
+        width = popWidth;
+    }
+    
+    jQuery.blockUI({
+        message: jQuery('#adjustRequisitions' + (isView ? 'view' : '')),
+        css: {
+            backgroundColor:'#fff',
+            left: (left + 'px'),
+            top: (top + 'px'),
+            width:(width + 'px'),
+            height:(popHeight + 'px'),
+            padding:'15px',
+            textAlign:'left',
+            fontSize:'1em',
+            border:'2px solid #333',
+            
+            opacity:'1.0',
+            '-moz-border-radius':'6px',
+            '-webkit-border-radius':'6px',
+            '-moz-box-shadow': '0 0 50px #ccc',
+            '-webkit-box-shadow': '0 0 50x #ccc'
+        }
+    });
+}
+
+function showLocations() {
+    var popWidth = 1200;
+    var popHeight = 490;
+    var top = ((jQuery(window).height() - popHeight) / 2);
+    var width = jQuery(window).width();
+    var left = (width - popWidth) / 2;
+    if (popWidth > width) {
+        left = 0;
+    } else {
+        width = popWidth;
+    }
+    
+    jQuery.blockUI({
+        message: jQuery('#locations'),
+        css: {
+            backgroundColor:'#fff',
+            left: (left + 'px'),
+            top: (top + 'px'),
+            width:(width + 'px'),
+            height:(popHeight + 'px'),
+            padding:'15px',
+            textAlign:'left',
+            fontSize:'1em',
+            border:'2px solid #333',
+            
+            opacity:'1.0',
+            '-moz-border-radius':'6px',
+            '-webkit-border-radius':'6px',
+            '-moz-box-shadow': '0 0 50px #ccc',
+            '-webkit-box-shadow': '0 0 50x #ccc'
+        }
+    });
+}
+
+function checkAndGenerateSim() {
+    if (isEmpty(sfffGetFieldValue('icitem_descr__c'))) {
+        alert("{!$Label.rstk__simulationdescriptionreqd}");
+    } else {
+        blockUI();
+        generateSim();
+    }
+    return false;
+}
+
+function invokeReqHover(elId) {
+    var popWidth = 1000;
+    var popHeight = 370;
+    var top = ((jQuery(window).height() - popHeight) / 2);
+    var width = jQuery(window).width();
+    var left = (width - popWidth) / 2;
+    if (popWidth > width) {
+        left = 0;
+    } else {
+        width = popWidth;
+    }
+    
+    jQuery.blockUI({
+        message: jQuery('#' + elId),
+        css: {
+            backgroundColor:'#fff',
+            left: (left + 'px'),
+            top: (top + 'px'),
+            width:(width + 'px'),
+            height:(popHeight + 'px'),
+            padding:'15px',
+            textAlign:'left',
+            fontSize:'1em',
+            border:'2px solid #333',
+            
+            opacity:'1.0',
+            '-moz-border-radius':'6px',
+            '-webkit-border-radius':'6px',
+            '-moz-box-shadow': '0 0 50px #ccc',
+            '-webkit-box-shadow': '0 0 50x #ccc'
+        }
+    });
+}
+
+function invokeICFcstHover() {
+    var popWidth = 1000;
+    var popHeight = 370;
+    var top = ((jQuery(window).height() - popHeight) / 2);
+    var width = jQuery(window).width();
+    var left = (width - popWidth) / 2;
+    if (popWidth > width) {
+        left = 0;
+    } else {
+        width = popWidth;
+    }
+    jQuery.blockUI({
+        message: jQuery('#icfcsts'),
+        css: {
+            backgroundColor:'#fff',
+            left: (left + 'px'),
+            top: (top + 'px'),
+            width:(width + 'px'),
+            height:(popHeight + 'px'),
+            padding:'15px',
+            textAlign:'left',
+            fontSize:'1em',
+            border:'2px solid #333',
+            
+            opacity:'1.0',
+            '-moz-border-radius':'6px',
+            '-webkit-border-radius':'6px',
+            '-moz-box-shadow': '0 0 50px #ccc',
+            '-webkit-box-shadow': '0 0 50x #ccc'
+        }
+    });
+}
+
+function openProcessForecast() {
+    window.open('/apex/ProcessForecast');
+}
+
+function jsOnRowDelete(rowNo) {
+    if(rowNo != null){
+        callDeleteRow(rowNo);
+    }
+}
+
+function saveIcfcsts() {
+    try {
+        var tblId = 'pg:fm2:pb_icfcsts:pbt_icfcsts';
+        var table = document.getElementById(tblId);
+        var body = table.tBodies[0];
+    
+        var icitemId = pageParms.recordId;
+        var peitemInfo = execQuery("select id, peitem_item__c, peitem_descr__c from peitem__c where id = '{!o.rstk__icitem_item__c}'");
+        var icfcsts = [];
+        var ictsls = [];
+        var factories = {};
+        var rows = body.rows;
+        
+        var titleRows = execQuery("select icfcst_desc__c,icfcst_factory__c,icfcst_forecast01__c,icfcst_forecast02__c,icfcst_forecast03__c,icfcst_forecast04__c,icfcst_forecast05__c,icfcst_forecast06__c,icfcst_forecast07__c,icfcst_forecast08__c, icfcst_forecast09__c,icfcst_forecast10__c,icfcst_forecast11__c,icfcst_forecast12__c,    icfcst_icitem__c,icfcst_item__c,icfcst_procseq__c,icfcst_supplier__c from icfcst__c where icfcst_item__c = 'IPN' order by icfcst_procseq__c desc"); 
+        if (titleRows.length == 0) {
+            alert("Unable to find Title Row.");
+            return;
+        } else {
+            var icfcstTitle = new sforce.SObject("icfcst__c");
+            icfcstTitle.icfcst_factory__c = titleRows[0].icfcst_factory__c;
+            icfcstTitle.icfcst_supplier__c = titleRows[0].icfcst_supplier__c;
+            icfcstTitle.icfcst_item__c = titleRows[0].icfcst_item__c;
+            icfcstTitle.icfcst_icitem__c = titleRows[0].icfcst_icitem__c;
+            icfcstTitle.icfcst_desc__c = titleRows[0].icfcst_desc__c;
+            icfcstTitle.icfcst_procseq__c = 0;
+            icfcstTitle.icfcst_forecast01__c = titleRows[0].icfcst_forecast01__c;
+            icfcstTitle.icfcst_forecast02__c = titleRows[0].icfcst_forecast02__c;
+            icfcstTitle.icfcst_forecast03__c = titleRows[0].icfcst_forecast03__c;
+            icfcstTitle.icfcst_forecast04__c = titleRows[0].icfcst_forecast04__c;
+            icfcstTitle.icfcst_forecast05__c = titleRows[0].icfcst_forecast05__c;
+            icfcstTitle.icfcst_forecast06__c = titleRows[0].icfcst_forecast06__c;
+            icfcstTitle.icfcst_forecast07__c = titleRows[0].icfcst_forecast07__c;
+            icfcstTitle.icfcst_forecast08__c = titleRows[0].icfcst_forecast08__c;
+            icfcstTitle.icfcst_forecast09__c = titleRows[0].icfcst_forecast09__c;
+            icfcstTitle.icfcst_forecast10__c = titleRows[0].icfcst_forecast10__c;
+            icfcstTitle.icfcst_forecast11__c = titleRows[0].icfcst_forecast11__c;
+            icfcstTitle.icfcst_forecast12__c = titleRows[0].icfcst_forecast12__c;
+            icfcsts.push(icfcstTitle);
+        }
+        for (var i=0;i<rows.length;i++) {
+            var factory = document.getElementById(tblId + ':' + i + ':factory').value;
+            if (isEmpty(factory)) {
+                alert("Factory is required.");
+                return;
+            } else {
+                if (!isEmpty(factories[factory])) {
+                    alert("Cannot have Duplicate Factories.");
+                    return;
+                }
+                factories[factory] = factory;
+            }
+            var supplier = document.getElementById(tblId + ':' + i + ':supplier').value;
+
+            var icfcst = new sforce.SObject("icfcst__c");
+            
+            icfcst.icfcst_factory__c = factory;
+            icfcst.icfcst_supplier__c = supplier;
+            icfcst.icfcst_item__c = peitemInfo[0].peitem_item__c;
+            icfcst.icfcst_icitem__c = icitemId;
+            icfcst.icfcst_desc__c = peitemInfo[0].peitem_descr__c;
+            icfcst.icfcst_procseq__c = 0;
+
+            for (var j=1;j<=12;j++) {
+                var pref = (j < 10 ? '0' : '');
+                var fcstFld = document.getElementById(tblId + ':' + i + ':forecast' + pref + j);
+                if (fcstFld) {
+                    if (isNaN(fcstFld.value) || ensureFloat(fcstFld.value) < 0) {
+                        alert("Invalid Number (" + fcstFld.value + ")");
+                        return;
+                    } else {
+                        icfcst['icfcst_forecast' + pref + j + '__c'] = fcstFld.value;
+                    }
+                }
+            }
+            icfcsts.push(icfcst);
+            
+            var ictslInfo = execQuery("select ictsl_desc__c,ictsl_factory__c,ictsl_icitem__c,ictsl_item__c, ictsl_procseq__c, ictsl_supplier__c, ictsl_qty__c from ictsl__c where ictsl_icitem__c = '" + icitemId + "' order by ictsl_procseq__c desc limit 1"); 
+            if (ictslInfo.length == 0) {
+                alert("{!$Label.rstk__unable_to_locate_target_stocking_level_record_for_this_item}");
+                return;
+            } else {
+                var ictsl = new sforce.SObject("ictsl__c");
+                ictsl.ictsl_desc__c = ictslInfo[0].ictsl_desc__c;
+                ictsl.ictsl_factory__c = ictslInfo[0].ictsl_factory__c;
+                ictsl.ictsl_icitem__c = ictslInfo[0].ictsl_icitem__c;
+                ictsl.ictsl_item__c = ictslInfo[0].ictsl_item__c;
+                ictsl.ictsl_procseq__c = 0;
+                ictsl.ictsl_supplier__c = ictslInfo[0].ictsl_supplier__c;
+                ictsl.ictsl_qty__c = ictslInfo[0].ictsl_qty__c;
+
+                icfcsts.push(ictsl);
+            }
+        }
+
+        if (icfcsts.length > 0) {
+            var result = sforce.connection.create(icfcsts);
+            if (!result[0].getBoolean("success")) {
+                alert(result[0]);
+                return;
+            }
+        }
+        if (ictsls.length > 0) {
+            var result = sforce.connection.create(ictsls);
+            if (!result[0].getBoolean("success")) {
+                alert(result[0]);
+                return;
+            }
+        }
+    } catch (e) {alert(e);}
+    unblockUI();
+    openProcessForecast();
+}
+
+function saveRecord() {
+    return false;
+}
+
+function enableFixedHeaderSort(tableId) {
+    var tbl = jQuery("table[id$=" + tableId + "]");
+    var sortOptions = { 
+            0: { sorter: false },
+            1: { sorter: false },
+            2: { sorter: false },
+            3: { sorter: false },
+            4: { sorter: false }
+        };
+
+    if (tbl) {
+        tbl.vfFloatingHeaders();
+        tbl.tablesorter({
+            headers: sortOptions
+        });
+    }
+}
+
+</script>
+
+
+<style>
+    .Processing
+    {
+        position: fixed;
+        background: url({!$Resource.rstk__busy});
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 100%;
+        height: 100%;
+        z-index: 2004;
+        left: 0%;
+        top: 0%;
+    }
+</style>
+
+<apex:form id="fm" rendered="{!displayPageContent}">
+    <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+    <apex:actionFunction name="generateItemDetail" action="{!generateItemDetail}" immediate="false" oncomplete="unblockUI();" rerender="pageMessages,op_daily_doi,op_weekly_doi,op_monthly_doi,op_pbs_Main1,op_simulated_daily_doi,op_regen"/>
+    <apex:actionFunction name="generateSim" action="{!generateSim}" immediate="false" oncomplete="unblockUI();switchToSimDailyTab();" rerender="pageMessages,op_pbs_Main1,op_simulated_daily_doi,op_ajdreqs"/>
+    <apex:actionFunction name="setSessionId" action="{!setSessionId}" immediate="false" oncomplete="unblockUI();" rerender="pageMessages,op_pbs_Main1,op_simulated_daily_doi,op_ajdreqs">
+        <apex:param name="icsimsessId" assignTo="{!icsimsessId}" value="" />
+    </apex:actionFunction>
+    <apex:actionFunction name="showFcstInfo" action="{!fetchFcstInfo}" oncomplete="unblockUI();invokeICFcstHover();" immediate="false" rerender="op_fcst"/>
+    <apex:actionFunction name="callDeleteRow" action="{!deleteRowFromIcfcstGrid}" immediate="false" rerender="op_icfcsts" status="statusProcessing">
+        <apex:param value="" name="DelRow" assignTo="{!strRowToProcess}"/>
+    </apex:actionFunction>
+<apex:pageBlock id="pb" mode="detail">
+    <apex:outputPanel style="display:none">
+        <c:division id="icitem_div__c" cntr="{!controller}"/>
+    </apex:outputPanel>
+
+    <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="3">
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_item__c.inlineHelpText}" dataStyle="width:6%" labelStyle="width:13%" rendered="{!vendno == null}">
+            <apex:outputLabel value="{!f.rstk__icitem_item__c.label}"/>
+            <c:autocomplete id="icitem_relateditem__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}" 
+                query="select id, name from icitem__c where icitem_div__c = '{!o.rstk__icitem_div__c}'" 
+                queryParms="[]"  tabIndex="2"/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_item__c.inlineHelpText}" dataStyle="width:6%" labelStyle="width:13%" rendered="{!vendno != null}">
+            <apex:outputLabel value="{!f.rstk__icitem_item__c.label}"/>
+            <c:largeSelectList id="icitem_relateditem__c" required="true" cntr="{!controller}" options="{!icitems}" tabIndex="2"/>
+        </apex:pageBlockSectionItem>
+    
+        <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%">
+            <apex:outputLabel value="{!$Label.rstk__supplierpartmaster}"/>
+            <apex:outputPanel >
+                <apex:outputLink value="{!URLFOR($Action.rstk__supitem__c.Edit, supitem.id)}{!ReturnUrlParms}" rendered="{!supitem.id != null}">{!supitem.Name}</apex:outputLink>&nbsp;&nbsp;
+                <apex:outputText value="({!supitem.rstk__supitem_venditem__c})" rendered="{!supitem.id != null}"/>
+            </apex:outputPanel>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%" rendered="{!(vendno != null)}"><apex:outputText value="" /></apex:pageBlockSectionItem>
+        <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%" rendered="{!(vendno == null)}">
+            <apex:outputLabel value="{!$Label.rstk__inventoryitemmaster}"/>
+            <apex:outputField value="{!o.rstk__icitem_relateditem__c}" />
+        </apex:pageBlockSectionItem>
+
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_doi__c.inlineHelpText}" dataStyle="width:6%" labelStyle="width:13%">
+            <apex:outputLabel value="{!f.rstk__icitem_doi__c.label}"/>
+            <apex:outputField value="{!o.rstk__icitem_doi__c}"/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%" rendered="{!(vendno != null)}"><apex:outputText value="" /></apex:pageBlockSectionItem>
+        <apex:pageBlockSectionItem helpText="{!f_supitem.rstk__supitem_povend__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%" rendered="{!(vendno == null)}">
+            <apex:outputLabel value="{!f_supitem.rstk__supitem_povend__c.label}"/>
+            <apex:outputField value="{!supitem.rstk__supitem_povend__c}" />
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%" >
+            <apex:outputLabel value="{!$Label.rstk__inventorybalances}"/>
+            <apex:outputLink value="javascript:showLocations()">{!o.Name}</apex:outputLink>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_daysusage__c.inlineHelpText}" dataStyle="width:6%" labelStyle="width:13%">
+            <apex:outputLabel value="{!f.rstk__icitem_daysusage__c.label}"/>
+            <apex:outputField value="{!o.rstk__icitem_daysusage__c}"/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%" rendered="{!(vendno != null)}"><apex:outputText value="" /></apex:pageBlockSectionItem>
+        <apex:pageBlockSectionItem helptext="{!f.rstk__icitem_povendpoaddr__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%" rendered="{!(vendno == null)}">
+            <apex:outputLabel value="{!$Label.rstk__supplierfacility}" />
+            <apex:outputField value="{!o.rstk__icitem_povendpoaddr__c}" />
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%">
+            <apex:outputLabel value="{!$Label.rstk__currenttslquantity}"/>
+            <apex:outputText value="{!tslQty}" style="text-align:right;"/>
+        </apex:pageBlockSectionItem>
+
+        <apex:pageBlockSectionItem rendered="{!!isNew}" dataStyle="width:6%" labelStyle="width:13%">
+            <apex:outputPanel id="op_regen">
+                <apex:outputField value="{!firstIcdoi.Createddate}" rendered="{!firstIcdoi != null}" />&nbsp;&nbsp;
+                <apex:commandButton id="cb_regen_doi" onclick="switchToDailyTab();blockUI();generateItemDetail(); return false;" value="{!$Label.rstk__pagebtn_itemplanreview_regeneratedoi}" rendered="{!vendno == null}"/>
+            </apex:outputPanel>
+            <apex:outputPanel rendered="{!vendno == null}">
+                <apex:outputLabel value="{!$Label.rstk__clearmysimulations}"/ >
+                <apex:inputCheckbox id="clear_sim_option__c" value="{!clearSimOption}"/>
+            </apex:outputPanel>
+        </apex:pageBlockSectionItem>
+        <apex:pageBlockSectionItem rendered="{!isNew}" dataStyle="width:6%" labelStyle="width:13%"><apex:outputText value=""/></apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_transittype__c.inlineHelpText}" dataStyle="width:20%" labelStyle="width:13%">
+            <apex:outputLabel value="{!f.rstk__icitem_transittype__c.label}"/>
+            <apex:outputField value="{!o.rstk__icitem_transittype__c}" />
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem dataStyle="width:20%" labelStyle="width:13%">
+            <apex:outputLabel value="{!$Label.rstk__usageforcurrentmonthtodate}"/>
+            <apex:outputText value="{!actUsage}" style="text-align:right;"/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem rendered="{!o.id != null}" dataStyle="width:6%" labelStyle="width:13%">
+            <c:nosubmitbutton label="{!$Label.rstk__itemplanreview_pagebtn_exportdailydoi}" onclick="window.open('{!$Site.BaseUrl}/apex/{!dailyDOIPageDetails}?id={!o.id}');" style="float:left;"/>
+        </apex:pageBlockSectionItem>
+        <apex:pageBlockSectionItem rendered="{!o.id != null}" />
+        <apex:pageBlockSectionItem rendered="{!o.id != null}"  />
+        
+        <apex:pageBlockSectionItem rendered="{!o.id != null}" dataStyle="width:6%" labelStyle="width:13%">
+            <c:nosubmitbutton label="{!$Label.rstk__itemplanreview_pagebtn_exportmonthlydoiwithexpiredlots}" onclick="window.open('{!$Site.BaseUrl}/apex/{!doiexportPageDetails}?id={!o.id}');" style="float:left;" />
+        </apex:pageBlockSectionItem>
+        <apex:pageBlockSectionItem rendered="{!o.id != null}" />
+        <apex:pageBlockSectionItem rendered="{!o.id != null}"  />
+        
+    </apex:pageBlockSection>
+</apex:pageBlock>
+    
+<apex:pageBlock id="pb1" mode="detail" rendered="{!!isNew}">
+    <apex:outputPanel id="op_pbs_Main1">
+    <apex:pageBlockSection id="pbs_Main1"  title="{!$Label.rstk__pagetab_itemplanreview_advanced}" showHeader="true" collapsible="true" columns="2">
+        <apex:pageBlockSectionItem helpText="{!f_icsimsess.rstk__icsimsess_simseq__c.inlineHelpText}">
+            <apex:outputLabel value="{!f_icsimsess.rstk__icsimsess_simseq__c.label}"/>
+            <apex:selectList id="icsimseq__c" size="1" multiselect="false" onchange="blockUI();simseqchanged();setSessionId(this.value);" value="{!icsimsessId}">
+                <apex:selectOptions value="{!simsessions}"/>
+            </apex:selectList>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem >
+            <apex:outputLabel value="{!$Label.rstk__averageusageoverride}" />
+            <c:inputField id="icitem_avgtoollifeused__c" cntr="{!controller}" tabIndex="120" />
+        </apex:pageBlockSectionItem> 
+        
+        <apex:pageBlockSectionItem >
+            <apex:outputLabel value="{!$Label.rstk__simulationdescription}" />
+            <c:inputField id="icitem_descr__c" cntr="{!controller}" tabIndex="13" />
+        </apex:pageBlockSectionItem> 
+
+        <apex:pageBlockSectionItem >
+            <apex:outputLabel value="{!$Label.rstk__dailyforecastoverride}" />
+            <c:inputField id="icitem_toollifeunits__c" cntr="{!controller}" tabIndex="12" />
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem >
+            <apex:commandButton id="cb_adjust_reqs" onclick="adjustReqs(false); return false;" value="{!$Label.rstk__pagebtn_itemplanreview_adjustrequisitions}"/>
+            <apex:commandButton id="cb_generate_sim" onclick="checkAndGenerateSim(); return false;" value="{!$Label.rstk__pagebtn_itemplanreview_generatesimulation}"/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem >
+            <apex:outputLabel value="{!$Label.rstk__dailyforecastoverridedate}" />
+            <c:inputField id="icitem_abcdate__c" cntr="{!controller}" tabIndex="13" />
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem >
+            <apex:outputText value=""/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem >
+            <apex:outputLabel value="{!$Label.rstk__additionalqtyonhand}" />
+            <c:inputField id="icitem_wmsunits__c" cntr="{!controller}" tabIndex="14" />
+        </apex:pageBlockSectionItem>
+        
+    </apex:pageBlockSection>
+    </apex:outputPanel>
+    <p/>
+    <apex:tabPanel switchType="client" selectedTab="tab_daily_doi" id="theTabPanel">
+        <apex:tab label="{!$Label.rstk__pagetab_itemplanreview_dailydoi}" name="tab_daily_doi" id="tab_daily_doi">
+            <apex:pageBlockSection id="pbs_daily_doi" showHeader="false" columns="2">
+            <apex:outputPanel id="op_daily_doi" style="width:1500px; overflow:auto;display:block">
+                <div class="headcol">
+                <table class="list" style="float:left;width:150px;" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <th class="headerRow" style="width:300px;">&nbsp;</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_SslQuantity}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_DoiPerForecast}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_DoiPerUsage}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_CurrentQtyOnHand}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_ProjectedDoiBasedOnAllReqs}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsDue}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsShipped}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">
+                                <apex:outputLink value="javascript:blockUI();showFcstInfo();" rendered="{!(vendno == null)}">{!$Label.rstk__forecasted_usage}</apex:outputLink>
+                                <apex:outputText value="{!$Label.rstk__labelforecastedusage}" rendered="{!(vendno != null)}"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_endofdayqtyoh}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_averageusage}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                </div>
+                <apex:outputPanel rendered="{!dailydois.size > 0}">
+                <div style="overflow: auto;">
+                <table id='pbt_dailydois' class="list" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <apex:repeat value="{!dailydois}" var="h">
+                            <th class="headerRow">
+                                <apex:outputPanel styleClass="wrappingHeader">{!h.header}</apex:outputPanel>
+                            </th>
+                        </apex:repeat>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.sslqtyStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.fcstBgcolor};">{!r.doifcstStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.usageBgcolor};">{!r.doiusageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.qtyohbodStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.fcstBgcolor};">{!r.doifcstarStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;" >
+                            <apex:outputPanel rendered="{!r.supreqs == null}">{!r.totreqStr}</apex:outputPanel>
+                            
+                            <apex:outputPanel rendered="{!r.supreqs != null}">
+                                <a href="javascript:invokeReqHover('simreqsdue{!r.header}')"><c:outputFormattedNumber value="{!r.totreq}" decimals="0"/></a>
+                                <div id="simreqsdue{!r.header}" style="display:none">
+                                    <h2>{!$Label.rstk__itemplanreview_requisitionsdue}</h2>
+                                    <apex:pageBlock id="pb_simreqsdue" mode="detail">
+                                        <apex:outputPanel id="op_simreqsdue" style="height:300px;overflow:auto;display:block">
+                                            <apex:pageBlockTable id="pbt_simreqsdue" value="{!r.supreqs}" var="rec">            
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_ordno__c.label}" width="150px">
+                                                    <apex:outputLink value="{!URLFOR($Action.rstk__supreq__c.View, rec.Id)}{!ReturnUrlParms}" target="_blank" rendered="{!(vendno == null)}">{!rec.rstk__supreq_ordno__c}</apex:outputLink>
+                                                    <apex:outputText value="{!rec.supreq_icreq__r.rstk__icreq_ordno__c}" rendered="{!(vendno != null)}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_qtyreq__c.label}" width="50px">
+                                                    <apex:outputField value="{!rec.rstk__supreq_qtyreq__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currpickupdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currpickupdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currconsoldate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currconsoldate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currwmsdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currwmsdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_receivedcon__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_receivedcon__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_pickedup__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_pickedup__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_poshipcontwms__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_poshipcontwms__c}"/>
+                                                </apex:column>  
+                                            </apex:pageBlockTable>
+                                        </apex:outputPanel>
+                                        <p>
+                                            <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_close}" onclick="unblockUI();" style="width:75px;"/>
+                                        </p>
+                                    </apex:pageBlock>
+                                </div>
+                            </apex:outputPanel>
+                         </td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.shipdreqsdueStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.forecastStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.qtyoheodStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!dailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.usageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                   </tbody>   
+                 </table>
+                 </div>
+            </apex:outputPanel>
+            </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+         <apex:tab label="{!$Label.rstk__pagetab_itemplanreview_weeklydoi}" name="tab_weekly_doi" id="tab_weekly_doi">
+            <apex:pageBlockSection id="pbs_weekly_doi" showHeader="false" columns="2">
+            <apex:outputPanel id="op_weekly_doi" style="width:1500px;display:inline-block">
+                <div class="headcol">
+                <table class="list" style="float:left;width:150px;" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <th class="headerRow" style="width:300px;">&nbsp;</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_AverageSslQuantity}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_DoiPerForecast}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_DoiPerUsage}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_ProjectedDoiBasedOnAllReqs}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_CurrentQtyOnHand}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsDue}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsShipped}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">
+                                <apex:outputLink value="javascript:blockUI();showFcstInfo();" rendered="{!(vendno == null)}">{!$Label.rstk__forecasted_usage}</apex:outputLink>
+                                <apex:outputText value="{!$Label.rstk__labelforecastedusage}" rendered="{!(vendno != null)}"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_endofdayqtyoh}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_averageweeklyusage}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                </div>
+                <apex:outputPanel rendered="{!weeklydois.size > 0}">
+                <div style="overflow: auto;">
+                <table id='pbt_weeklydois' class="list" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <apex:repeat value="{!weeklydois}" var="h">
+                            <th class="headerRow">
+                                <apex:outputPanel styleClass="wrappingHeader">{!h.header}</apex:outputPanel>
+                            </th>
+                        </apex:repeat>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.sslqtyStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.fcstBgcolor};">{!r.doifcstStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.usageBgcolor};">{!r.doiusageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.fcstarBgcolor};">{!r.doifcstarStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.qtyohbodStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;" >
+                            <apex:outputPanel rendered="{!r.supreqs.size == 0}">
+                                <c:outputFormattedNumber value="{!r.totreq}" decimals="0"/>
+                            </apex:outputPanel>
+                            
+                            <apex:outputPanel rendered="{!r.supreqs.size > 0}">
+                                <a href="javascript:invokeReqHover('simreqsdue{!r.header}')"><c:outputFormattedNumber value="{!r.totreq}" decimals="0"/></a>
+                                <div id="simreqsdue{!r.header}" style="display:none">
+                                    <h2>Requisitions Due</h2>
+                                    <apex:pageBlock id="pb_simreqsdue" mode="detail">
+                                        <apex:outputPanel id="op_simreqsdue" style="height:300px;overflow:auto;display:block">
+                                            <apex:pageBlockTable id="pbt_simreqsdue" value="{!r.supreqs}" var="rec">            
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_ordno__c.label}" width="150px">
+                                                    <apex:outputLink value="{!URLFOR($Action.rstk__supreq__c.View, rec.Id)}{!ReturnUrlParms}" target="_blank" rendered="{!(vendno == null)}">{!rec.rstk__supreq_ordno__c}</apex:outputLink>
+                                                    <apex:outputText value="{!rec.supreq_icreq__r.rstk__icreq_ordno__c}" rendered="{!(vendno != null)}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_qtyreq__c.label}" width="50px">
+                                                    <apex:outputField value="{!rec.rstk__supreq_qtyreq__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currpickupdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currpickupdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currconsoldate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currconsoldate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currwmsdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currwmsdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_receivedcon__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_receivedcon__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_pickedup__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_pickedup__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_poshipcontwms__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_poshipcontwms__c}"/>
+                                                </apex:column>  
+                                            </apex:pageBlockTable>
+                                        </apex:outputPanel>
+                                        <p>
+                                            <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_close}" onclick="unblockUI();" style="width:75px;"/>
+                                        </p>
+                                    </apex:pageBlock>
+                                </div>
+                            </apex:outputPanel>
+                         </td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.shipdreqsdueStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.forecastStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.qtyoheodStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!weeklydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.usageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                   </tbody>   
+                 </table>
+                </div>
+            </apex:outputPanel>
+            </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+         <apex:tab label="{!$Label.rstk__pagetab_itemplanreview_monthlydoi}" name="tab_monthly_doi" id="tab_monthly_doi">
+            <apex:pageBlockSection id="pbs_monthly_doi" showHeader="false" columns="2">
+            <apex:outputPanel id="op_monthly_doi" style="width:1500px;display:inline-block">
+                <div class="headcol">
+                <table class="list" style="float:left;width:150px;" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <th class="headerRow" style="width:300px;">&nbsp;</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_AverageSslQuantity}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_AverageDoiPerForecast}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_DoiPerUsage}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_ProjectedDoiBasedOnAllReqs}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_CurrentQtyOnHand}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsDue}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsShipped}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">
+                                <apex:outputLink value="javascript:blockUI();showFcstInfo();" rendered="{!(vendno == null)}">{!$Label.rstk__forecasted_usage}</apex:outputLink>
+                                <apex:outputText value="{!$Label.rstk__labelforecastedusage}" rendered="{!(vendno != null)}"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_endofdayqtyoh}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_averagemonthlyusage}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                </div>
+                <apex:outputPanel rendered="{!monthlydois.size > 0}">
+                <div style="overflow: auto;">
+                <table id='pbt_monthlydois' class="list" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <apex:repeat value="{!monthlydois}" var="h">
+                            <th class="headerRow">
+                                <apex:outputPanel styleClass="wrappingHeader">{!h.header}</apex:outputPanel>
+                            </th>
+                        </apex:repeat>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;">{!r.sslqtyStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;background-color:{!r.fcstBgcolor};">{!r.doifcstStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;background-color:{!r.usageBgcolor};">{!r.doiusageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;background-color:{!r.fcstarBgcolor};">{!r.doifcstarStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;">{!r.qtyohbodStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;" >
+                            <apex:outputPanel rendered="{!r.supreqs.size == 0}">
+                                <c:outputFormattedNumber value="{!r.totreq}" decimals="0"/>
+                            </apex:outputPanel>
+                            
+                            <apex:outputPanel rendered="{!r.supreqs.size > 0}">
+                                <a href="javascript:invokeReqHover('simreqsdue{!r.header}')"><c:outputFormattedNumber value="{!r.totreq}" decimals="0"/></a>
+                                <div id="simreqsdue{!r.header}" style="display:none">
+                                    <h2>{!$Label.rstk__itemplanreview_requisitionsdue}</h2>
+                                    <apex:pageBlock id="pb_simreqsdue" mode="detail">
+                                        <apex:outputPanel id="op_simreqsdue" style="height:300px;overflow:auto;display:block">
+                                            <apex:pageBlockTable id="pbt_simreqsdue" value="{!r.supreqs}" var="rec">            
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_ordno__c.label}" width="150px">
+                                                    <apex:outputLink value="{!URLFOR($Action.rstk__supreq__c.View, rec.Id)}{!ReturnUrlParms}" target="_blank" rendered="{!(vendno == null)}">{!rec.rstk__supreq_ordno__c}</apex:outputLink>
+                                                    <apex:outputText value="{!rec.supreq_icreq__r.rstk__icreq_ordno__c}" rendered="{!(vendno != null)}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_qtyreq__c.label}" width="50px">
+                                                    <apex:outputField value="{!rec.rstk__supreq_qtyreq__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currpickupdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currpickupdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currconsoldate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currconsoldate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currwmsdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currwmsdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_receivedcon__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_receivedcon__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_pickedup__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_pickedup__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_poshipcontwms__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_poshipcontwms__c}"/>
+                                                </apex:column>  
+                                            </apex:pageBlockTable>
+                                        </apex:outputPanel>
+                                        <p>
+                                            <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_close}" onclick="unblockUI();" style="width:75px;"/>
+                                        </p>
+                                    </apex:pageBlock>
+                                </div>
+                            </apex:outputPanel>
+                         </td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;">{!r.shipdreqsdueStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;">{!r.forecastStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;">{!r.qtyoheodStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:left;">{!r.usageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                   </tbody>   
+                 </table>
+                </div>
+            </apex:outputPanel>
+            </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__monthly_doi_with_expired_lots}" name="tab_monthly_doi_wt_Exp_Lots" id="tab_monthly_doi_wt_Exp_Lots">
+            <apex:pageBlockSection id="pbs_monthly_doi_expLots" showHeader="false" columns="2">
+            <apex:outputPanel id="op_monthly_doi_expLots" style="width:1500px;display:inline-block">
+                <div class="headcol">
+                <table class="list" style="float:left;width:150px;" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <th class="headerRow" style="width:300px;">&nbsp;</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_AverageSslQuantity}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_AverageDoiPerForecast}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_DoiPerUsage}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_CurrentQtyOnHand}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsDue}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsShipped}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">
+                                <apex:outputLink value="javascript:blockUI();showFcstInfo();" rendered="{!(vendno == null)}">{!$Label.rstk__forecasted_usage}</apex:outputLink>
+                                <apex:outputText value="{!$Label.rstk__labelforecastedusage}" rendered="{!(vendno != null)}"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_projectedexpirationloss}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_endofmonthqtyoh}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.rstk__itemplanreview_averagemonthlyusage}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                </div>
+                <apex:outputPanel rendered="{!monthlydois.size > 0}">
+                <div style="overflow: auto;">
+                <table id='pbt_monthlydois' class="list" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <apex:repeat value="{!monthlydois}" var="h">
+                            <th class="headerRow">
+                                <apex:outputPanel styleClass="wrappingHeader">{!h.header}</apex:outputPanel>
+                            </th>
+                        </apex:repeat>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.sslqtyStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.fcstBgcolor};">{!r.doifcstStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.usageBgcolor};">{!r.doiusageLEStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.qtyohbodLEStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;" >
+                            <apex:outputPanel rendered="{!r.supreqs.size == 0}">
+                                <c:outputFormattedNumber value="{!r.totreq}" decimals="0"/>
+                            </apex:outputPanel>
+                            
+                            <apex:outputPanel rendered="{!r.supreqs.size > 0}">
+                                <a href="javascript:invokeReqHover('simreqsdue{!r.header}')"><c:outputFormattedNumber value="{!r.totreq}" decimals="0"/></a>
+                                <div id="simreqsdue{!r.header}" style="display:none">
+                                    <h2>Requisitions Due</h2>
+                                    <apex:pageBlock id="pb_simreqsdue" mode="detail">
+                                        <apex:outputPanel id="op_simreqsdue" style="height:300px;overflow:auto;display:block">
+                                            <apex:pageBlockTable id="pbt_simreqsdue" value="{!r.supreqs}" var="rec">            
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_ordno__c.label}" width="150px">
+                                                    <apex:outputLink value="{!URLFOR($Action.rstk__supreq__c.View, rec.Id)}{!ReturnUrlParms}" target="_blank" rendered="{!(vendno == null)}">{!rec.rstk__supreq_ordno__c}</apex:outputLink>
+                                                    <apex:outputText value="{!rec.supreq_icreq__r.rstk__icreq_ordno__c}" rendered="{!(vendno != null)}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_qtyreq__c.label}" width="50px">
+                                                    <apex:outputField value="{!rec.rstk__supreq_qtyreq__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currpickupdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currpickupdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currconsoldate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currconsoldate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currwmsdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currwmsdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_receivedcon__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_receivedcon__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_pickedup__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_pickedup__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_poshipcontwms__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_poshipcontwms__c}"/>
+                                                </apex:column>  
+                                            </apex:pageBlockTable>
+                                        </apex:outputPanel>
+                                        <p>
+                                            <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_close}" onclick="unblockUI();" style="width:75px;"/>
+                                        </p>
+                                    </apex:pageBlock>
+                                </div>
+                            </apex:outputPanel>
+                         </td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.shipdreqsdueStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.forecastStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;" >
+                            <apex:outputPanel rendered="{!r.iclotexps.size == 0}">
+                                <c:outputFormattedNumber value="{!r.exploss}" decimals="6"/>
+                            </apex:outputPanel>
+                            
+                            <apex:outputPanel rendered="{!r.iclotexps.size > 0}">
+                                <a href="javascript:invokeReqHover('lotExpItem{!r.header}')"><c:outputFormattedNumber value="{!r.exploss}" decimals="6"/></a>
+                                <div id="lotExpItem{!r.header}" style="display:none">
+                                    <h2>Lot Expiration Details</h2>
+                                    <apex:pageBlock id="pb_lotExpItem" mode="detail">
+                                        <apex:outputPanel id="op_lotExpItem" style="height:300px;overflow:auto;display:block">
+                                            <apex:pageBlockTable id="pbt_lotExpItem" value="{!r.iclotexps}" var="rec">          
+                                                <apex:column headerValue="{!f_iclotexp.rstk__iclotexp_lotno__c.label}" >
+                                                    <apex:outputField value="{!rec.rstk__iclotexp_lotno__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_iclotexp.rstk__iclotexp_expdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__iclotexp_expdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_iclotexp.rstk__iclotexp_explossqtyf__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__iclotexp_explossqtyf__c}"/>
+                                                </apex:column>  
+                                            </apex:pageBlockTable>
+                                        </apex:outputPanel>
+                                        <p>
+                                            <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_close}" onclick="unblockUI();" style="width:75px;"/>
+                                        </p>
+                                    </apex:pageBlock>
+                                </div>
+                            </apex:outputPanel>
+                         </td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.qtyoheodleStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!monthlydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.usageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                   </tbody>   
+                 </table>
+                </div>
+            </apex:outputPanel>
+            </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab> 
+        <apex:tab label="{!$Label.rstk__pagetab_itemplanreview_simulateddailydoi}" name="tab_simulated_daily_doi" id="tab_simulated_daily_doi">
+            <apex:pageBlockSection id="pbs_simulated_daily_doi" showHeader="false" columns="2">
+            <apex:outputPanel id="op_simulated_daily_doi" style="width:1500px;display:inline-block">
+                <apex:commandButton id="cb_adjust_simreqs" onclick="adjustReqs(true); return false;" value="{!$Label.rstk__pagebtn_itemplanreview_requisitionadjustments}" rendered="{!simdailydois.size > 0}"/>
+                <div class="headcol">
+                <table class="list" style="float:left;width:150px;" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <th class="headerRow" style="width:300px;">{!$Label.itemplanreview_Simulated}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_SslQuantity}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_DoiPerForecast}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_DoiPerUsage}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_CurrentQtyOnHand}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsDue}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_RequisitionsShipped}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_ForecastedUsage}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_EndOfMonthQtyOh}</td>
+                        </tr>
+                        <tr>
+                            <td class="dataRow" style="white-space: nowrap">{!$Label.itemplanreview_AverageUsage}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                </div>
+                <apex:outputPanel rendered="{!simdailydois.size > 0}">
+                <div style="overflow: auto;">
+                <table id='pbt_simulated_dailydois' class="list" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <apex:repeat value="{!simdailydois}" var="h">
+                            <th class="headerRow">
+                                <apex:outputPanel styleClass="wrappingHeader">{!h.header}</apex:outputPanel>
+                            </th>
+                        </apex:repeat>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.sslqtyStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.fcstBgcolor};">{!r.doifcstStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;background-color:{!r.usageBgcolor};">{!r.doiusageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.qtyohbodStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;" >
+                            <apex:outputPanel rendered="{!r.supreqs == null}">
+                                <c:outputFormattedNumber value="{!r.totreq}" decimals="0"/>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!r.supreqs != null}">
+                                <a href="javascript:invokeReqHover('simreqsdue{!r.header}')"><c:outputFormattedNumber value="{!r.totreq}" decimals="0"/></a>
+                                <div id="simreqsdue{!r.header}" style="display:none">
+                                    <h2>Requisitions Due</h2>
+                                    <apex:pageBlock id="pb_simreqsdue" mode="detail">
+                                        <apex:outputPanel id="op_simreqsdue" style="height:300px;overflow:auto;display:block">
+                                            <apex:pageBlockTable id="pbt_simreqsdue" value="{!r.supreqs}" var="rec">            
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_ordno__c.label}" width="150px">
+                                                    <apex:outputLink value="{!URLFOR($Action.rstk__supreq__c.View, rec.Id)}{!ReturnUrlParms}" target="_blank" rendered="{!(vendno != null)}">{!rec.rstk__supreq_ordno__c}</apex:outputLink>
+                                                    <apex:outputText value="{!rec.supreq_icreq__r.rstk__icreq_ordno__c}" rendered="{!(vendno != null)}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_qtyreq__c.label}" width="50px">
+                                                    <apex:outputField value="{!rec.rstk__supreq_qtyreq__c}"/>
+                                                </apex:column>
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currpickupdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currpickupdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currconsoldate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currconsoldate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_currwmsdate__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_currwmsdate__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_receivedcon__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_receivedcon__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_pickedup__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_pickedup__c}"/>
+                                                </apex:column>  
+                                                <apex:column headerValue="{!f_supreq.rstk__supreq_poshipcontwms__c.label}">
+                                                    <apex:outputField value="{!rec.rstk__supreq_poshipcontwms__c}"/>
+                                                </apex:column>  
+                                            </apex:pageBlockTable>
+                                        </apex:outputPanel>
+                                        <p>
+                                            <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_close}" onclick="unblockUI();" style="width:75px;"/>
+                                        </p>
+                                    </apex:pageBlock>
+                                </div>
+                            </apex:outputPanel>
+                         </td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.shipdreqsdueStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.forecastStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.qtyoheodStr}</td>
+                        </apex:repeat>
+                    </tr>
+                    <tr>
+                        <apex:repeat value="{!simdailydois}" var="r">
+                          <td class="dataRow" style="text-align:right;">{!r.usageStr}</td>
+                        </apex:repeat>
+                    </tr>
+                   </tbody>   
+                 </table>
+                 </div>
+            </apex:outputPanel>
+            </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+    </apex:tabPanel>
+
+</apex:pageBlock>
+    <apex:outputPanel id="op_ajdreqs">
+        <div id="adjustRequisitions" style="display:none">
+            <h2>{!$Label.rstk__itemplanreview_adjustrequisitions}</h2>
+            <apex:pageBlock id="pb_adjustreq" mode="detail">
+                <p>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_newsimulatedrequisition}" onclick="addSimrecRow();" style="width:150px;"/>
+                </p>
+                <apex:outputPanel style="height:400px;overflow:auto;display:block">
+                    <apex:pageBlockTable id="pbt_ajdreqs" value="{!simreqs}" var="rec">
+                        <apex:column id="rowselected" headerValue="{!$Label.rstk__delete}">
+                            <apex:inputCheckbox id="row_cb" onchange="deleteRow(this)" style="display:{!IF(rec.supreqObj.Id != null,'none','')}"/>
+                            <apex:inputHidden id="supreq_id" value="{!rec.supreqObj.Id}"/>
+                        </apex:column>          
+                        <apex:column id="adj_recnum" headerValue="{!f_supreq.rstk__supreq_ordno__c.label}" width="150px">
+                            <apex:outputField id="rec_num" value="{!rec.supreqObj.rstk__supreq_ordno__c}"/>
+                        </apex:column>
+                        <apex:column id="adj_qty" headerValue="{!f_supreq.rstk__supreq_qtyreq__c.label}" width="50px">
+                            <apex:outputPanel rendered="{!rec.supreqObj.Id != null}">
+                                <input type="text" id="qty" disabled="disabled" value="{!rec.qty}" style="width:70px;text-align:right;"/>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!rec.supreqObj.Id == null}">
+                                <input type="text" id="qty" value="{!rec.qty}" style="width:70px;text-align:right;"/>
+                            </apex:outputPanel>
+                        </apex:column>
+                        <apex:column id="adj_date" headerValue="{!f_supreq.rstk__supreq_currwmsdate__c.label}">
+                            <apex:outputPanel rendered="{!rec.supreqObj.Id != null}">
+                                <input type="date" disabled="disabled" id="due_date" value="{!rec.duedate}"/>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!rec.supreqObj.Id == null}">
+                                <input type="date" id="due_date" min="{!TEXT(YEAR(TODAY())) + '-' + TEXT(MONTH(TODAY())) + '-' + TEXT(DAY(TODAY()))}" value="{!rec.duedate}"/>
+                            </apex:outputPanel>
+                        </apex:column>  
+                        <apex:column id="adj_dateovr" headerValue="{!$Label.rstk__revisedduedate}">
+                            <input type="date" id="due_date_ovr" style="display:{!IF(rec.supreqObj.Id == null,'none','')}" min="{!TEXT(YEAR(TODAY())) + '-' + TEXT(MONTH(TODAY())) + '-' + TEXT(DAY(TODAY()))}" value="{!rec.duedateovr}"/>
+                        </apex:column>  
+                    </apex:pageBlockTable>
+                </apex:outputPanel>
+                <p>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_save}" onclick="saveAdjustReqs();return false;" style="width:75px;"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_cancel}" onclick="unblockUI();" style="width:75px;"/>
+                </p>
+        </apex:pageBlock>
+        </div>
+
+        <script>
+            simseq = {!IF(icsimsess == null,'0',icsimsess.rstk__icsimsess_simseq__c)};
+            enableFixedHeaderSort(adjTblId);
+            var table = document.getElementById(adjTblId);
+            var body = table.tBodies[0];
+            var rowCount = body.rows.length;
+            templateRow = body.rows[0];
+            body.removeChild(templateRow);
+        </script>
+        
+        <div id="adjustRequisitionsview" style="display:none">
+            <h2>{!$Label.rstk__itemplanreview_requisitionadjustments}</h2>
+            <apex:pageBlock id="pb_adjustreqview" mode="detail">
+                <apex:outputPanel style="height:400px;overflow:auto;display:block">
+                    <apex:pageBlockTable id="pbt_adjustreqview" value="{!simreqs}" var="rec">       
+                        <apex:column headerValue="{!f_supreq.rstk__supreq_ordno__c.label}" width="150px">
+                            <apex:outputField id="rec_num" value="{!rec.supreqObj.rstk__supreq_ordno__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_supreq.rstk__supreq_qtyreq__c.label}" width="50px">
+                            <apex:outputText value="{!rec.qty}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_supreq.rstk__supreq_currwmsdate__c.label}">
+                            <apex:outputField value="{!rec.supreqObj.rstk__supreq_currwmsdate__c}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!$Label.rstk__revisedduedate}">
+                            <apex:outputField value="{!rec.supreqObj.rstk__supreq_datereceived__c}"/>
+                        </apex:column>  
+                    </apex:pageBlockTable>
+                </apex:outputPanel>
+                <p>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_close}" onclick="unblockUI();" style="width:75px;"/>
+                </p>
+        </apex:pageBlock>
+        </div>
+        <script>
+            var viewTable = document.getElementById('pg:fm:pb_adjustreqview:pbt_adjustreqview');
+            if (viewTable.tBodies[0].rows.length > 0) {
+                viewTable.tBodies[0].removeChild(viewTable.tBodies[0].rows[0]);
+            }
+        </script>
+    </apex:outputPanel>
+</apex:form>
+
+<apex:form id="fm2">
+    <apex:outputPanel id="op_fcst" rendered="{!vendno == null}">
+        <div id="icfcsts" style="display:none">
+            <apex:outputPanel id="op_icfcsts">
+            <script type="text/javascript">txnstatus={!txnstatus};</script>
+            <h2>{!$Label.rstk__itemplanreview_forecastuploadmaintenance}</h2>
+            <apex:pageBlock id="pb_icfcsts" mode="detail">
+                <apex:outputPanel id="op_fcstMsg" rendered="{!hasCustMsg}">
+                    <apex:pageMessage severity="{!custMsg.severity}" strength="{!custMsg.strength}" title="{!custMsg.title}" summary="{!custMsg.summary}"></apex:pageMessage>
+                </apex:outputPanel>
+                <apex:outputPanel style="height:{!IF(hasCustMsg, '255px', '300px')};overflow:auto;display:block">
+                    <apex:pageBlockTable id="pbt_icfcsts" value="{!icfcstRecs}" var="rec">
+                        <apex:column style="vertical-align:top;" rendered="{!!hasZeroProc}">
+                            <apex:facet name="header">Action</apex:facet> 
+                            <apex:outputLink id="idOpLinkDel" value="#" onclick="jsOnRowDelete({!rec.intRowNo});return false;"> Del </apex:outputLink>
+                        </apex:column>
+                        <apex:column headerValue="{!f_icfcst.rstk__icfcst_factory__c.label}">
+                            <apex:inputField id="factory" value="{!rec.icfcst.rstk__icfcst_factory__c}" style="text-align:right;width:100px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_factory__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!f_icfcst.rstk__icfcst_supplier__c.label}">
+                            <apex:inputField id="supplier" value="{!rec.icfcst.rstk__icfcst_supplier__c}" style="text-align:right;width:100px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_supplier__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast01__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast01__c != null}">
+                            <apex:inputField id="forecast01" value="{!rec.icfcst.rstk__icfcst_forecast01__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast01__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast02__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast02__c != null}">
+                            <apex:inputField id="forecast02" value="{!rec.icfcst.rstk__icfcst_forecast02__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast02__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast03__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast03__c != null}">
+                            <apex:inputField id="forecast03" value="{!rec.icfcst.rstk__icfcst_forecast03__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast03__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast04__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast04__c != null}">
+                            <apex:inputField id="forecast04" value="{!rec.icfcst.rstk__icfcst_forecast04__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast04__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast05__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast05__c != null}">
+                            <apex:inputField id="forecast05" value="{!rec.icfcst.rstk__icfcst_forecast05__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast05__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast06__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast06__c != null}">
+                            <apex:inputField id="forecast06" value="{!rec.icfcst.rstk__icfcst_forecast06__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast06__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast07__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast07__c != null}">
+                            <apex:inputField id="forecast07" value="{!rec.icfcst.rstk__icfcst_forecast07__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast07__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast08__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast08__c != null}">
+                            <apex:inputField id="forecast08" value="{!rec.icfcst.rstk__icfcst_forecast08__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast08__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast09__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast09__c != null}">
+                            <apex:inputField id="forecast09" value="{!rec.icfcst.rstk__icfcst_forecast09__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast09__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast10__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast10__c != null}">
+                            <apex:inputField id="forecast10" value="{!rec.icfcst.rstk__icfcst_forecast10__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast10__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast11__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast11__c != null}">
+                            <apex:inputField id="forecast11" value="{!rec.icfcst.rstk__icfcst_forecast11__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast11__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                        <apex:column headerValue="{!icfcstTitle.rstk__icfcst_forecast12__c}" rendered="{!icfcstTitle.rstk__icfcst_forecast12__c != null}">
+                            <apex:inputField id="forecast12" value="{!rec.icfcst.rstk__icfcst_forecast12__c}" style="text-align:right;width:80px;" rendered="{!!hasZeroProc}"/>
+                            <apex:outputText value="{!rec.icfcst.rstk__icfcst_forecast12__c}" rendered="{!hasZeroProc}"/>
+                        </apex:column>  
+                    </apex:pageBlockTable>
+                    <apex:commandButton value="{!$Label.rstk__itemplanreview_pagebtn_addrow}" action="{!addNewRowToIcfcstGrid}" immediate="false" rerender="op_icfcsts" rendered="{!!hasZeroProc}" status="statusProcessing"/>
+                </apex:outputPanel>
+                <p>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_save}" onclick="saveIcfcsts();return false;" style="width:75px;"/>
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_itemplanreview_close}" onclick="unblockUI();" style="width:75px;"/>
+                </p>
+            </apex:pageBlock>
+            </apex:outputPanel>
+        </div>
+    </apex:outputPanel>
+</apex:form>
+
+<apex:outputPanel >
+    <div id="locations" style="display:none">
+    <apex:pageBlock mode="detail" rendered="{!(vendno == null)}">
+        <apex:outputPanel style="height:400px;overflow:auto;display:block">
+            <apex:relatedList list="ICLOCITEMs__r"/>
+        </apex:outputPanel>
+        <p>
+            <input onclick="unblockUI(); return false;" type="button" class="btn" value="Close"/>
+        </p>
+    </apex:pageBlock>
+    <apex:pageBlock title="{!$Label.rstk__inventory_by_location}" mode="detail" rendered="{!(vendno != null)}">
+        <apex:outputPanel style="height:400px;overflow:auto;display:block">
+            <apex:pageBlockTable value="{!suplocitems}" var="a">
+            	<apex:column headerValue="{!$Label.rstk__stock_location}" value="{!a.rstk__suplocitem_location__c}"/>
+				<apex:column headerValue="{!$Label.rstk__location_quantity_oh}" value="{!a.rstk__suplocitem_locfreeqty__c}"/>
+				<apex:column headerValue="{!$Label.rstk__itemplanreview_condition}" value="{!a.rstk__suplocitem_condition__c}"/>
+				<apex:column headerValue="{!$Label.rstk__lot_number}" value="{!a.rstk__suplocitem_lotno__c}"/>
+				<apex:column headerValue="{!$Label.rstk__lot_expiration_date}" value="{!a.rstk__suplocitem_expdate__c}"/>
+			</apex:pageBlockTable>
+        </apex:outputPanel>
+        <p>
+            <input onclick="unblockUI(); return false;" type="button" class="btn" value="Close"/>
+        </p>
+    </apex:pageBlock>
+        </div>
+</apex:outputPanel>
+
+<c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true" showActivities="false"/>
+</apex:page>

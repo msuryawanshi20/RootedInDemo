@@ -1,0 +1,285 @@
+<apex:page id="pg" standardController="rstkf__customextf__c" extensions="rstkf.ControllerExtnARDebitCreditMemoRegister,rstkf.ControllerJobStatus" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__customextf__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__ardebitcreditmemoregister}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__ardebitcreditmemoregister}" enableAutoComplete="true" showHeader="false" enableQuickMenu="true" />
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <script>
+        function selectAll(el) {
+            for(rowid in debitCreditMemoRows) {
+                var row = debitCreditMemoRows[rowid];
+                row.selected.checked = el.checked;
+            }
+        }
+        
+        function selectRecord() {
+            var recCnt = 0;
+            for(rowid in debitCreditMemoRows) {
+                var row = debitCreditMemoRows[rowid];
+                //console.log('inside selectRecord() row.selected for rowid = '+ rowid + ' selected = '+row.selected);
+                if(row.selected == undefined || !row.selected.checked){
+                    recCnt = recCnt + 1;
+                }
+            }
+            //console.log('inside selectRecord() row.selected recCnt = '+recCnt + ' and Object.keys(debitCreditMemoRows).length = ' + Object.keys(debitCreditMemoRows).length);
+            if(recCnt == Object.keys(debitCreditMemoRows).length){
+                document.getElementById("pg:fm:pb:transRecordsTable:selectAllCheckBox").checked = false;
+            }
+        }
+        
+        function updateunpostMemoCheckBox() {
+            var includeUnpostedMemosOnly = '#' + '{!$Component.pg:fm:pb:pbs_main:includeUnpostedMemosOnlypbs:includeUnpostedMemosOnlyelement}'.replace(/:/g,'\\:');
+            var includeUnpostedMemosOnlyChecked = jQuery(includeUnpostedMemosOnly).attr('checked');
+            if(includeUnpostedMemosOnlyChecked == false) {
+                var unpostMemoCheckBox = '#' + '{!$Component.pg:fm:pb:pbs_main:unpostBatchCheckBoxpbs:unpostMemoCheckBoxelement}'.replace(/:/g,'\\:');
+                jQuery(unpostMemoCheckBox).attr('checked', false);
+            }
+        }
+        
+        function includeUnpostedBatchesOnlyChanged() {
+            var includeUnpostedBatchesOnlyVal = document.getElementById('pg:fm:pb:pbs_main:psbi_IncludeUnpostedBatchesOnly:includeUnpostedBatchesOnlyChkbox').checked;
+            //console.log('inside includeUnpostedBatchesOnlyChanged() : includeUnpostedBatchesOnlyVal = '+ includeUnpostedBatchesOnlyVal);
+            var postUnpostedBatchesAfterRepFld = document.getElementById('pg:fm:pb:pbs_main:pbsi_PostUnpostedBatchesAfterRep:postUnpostedBatchesAfterRepChkbox'); 
+            //console.log('inside includeUnpostedBatchesOnlyChanged() : postUnpostedBatchesAfterRepFld.disabled = '+ postUnpostedBatchesAfterRepFld.disabled);
+            if(!postUnpostedBatchesAfterRepFld.disabled && !includeUnpostedBatchesOnlyVal){
+                postUnpostedBatchesAfterRepFld.checked = false;
+            }
+        }
+        
+        function validate(){
+            var includeUnpostedBatchesOnlyFld = document.getElementById('pg:fm:pb:pbs_main:psbi_IncludeUnpostedBatchesOnly:includeUnpostedBatchesOnlyChkbox');
+            var postUnpostedBatchesAfterRepFld = document.getElementById('pg:fm:pb:pbs_main:pbsi_PostUnpostedBatchesAfterRep:postUnpostedBatchesAfterRepChkbox');
+            if(includeUnpostedBatchesOnlyFld
+               && postUnpostedBatchesAfterRepFld     
+               && !postUnpostedBatchesAfterRepFld.disabled 
+               && postUnpostedBatchesAfterRepFld.checked 
+               && !includeUnpostedBatchesOnlyFld.checked){
+                alert("{!$Label.Not_allowed_Include_Unposted_Sessions_Only_must_be_checked}");
+                return false;
+            }
+            
+            var tableId = '#' + '{!$Component.pg:fm:pb:transRecordsTable}'.replace(/:/g,'\\:');
+            var checkedsize = jQuery(tableId).find('input[type="checkbox"]:checked').size();
+            
+            var saId = '#' + '{!$Component.pg:fm:pb:transRecordsTable:selectAllCheckBox}'.replace(/:/g,'\\:');
+            var saidChecked = jQuery(saId).attr('checked');
+            if( checkedsize > 1){
+                return true;
+            } else{
+                if(checkedsize == 1 && saidChecked == false) {
+                    return true;
+                } else {    
+                    alert("{!$Label.PleaseSelectAtLeastOneItem}");
+                    return false;
+                }    
+            }
+        }
+    
+        function verifyDate(firstDate,secondDate,flag){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnARDebitCreditMemoRegister.verifyDate}', //NameSpace  
+                firstDate,
+                secondDate,   
+                function(result, event){
+                    if (event.status) {
+                        var statusResult = checkResult(result,flag);
+                        counterCheck = 0;
+                        console.log('statusResult  '+statusResult); 
+                        console.log('statusResult counterCheck  '+counterCheck);                        
+                        //alert('statusResult '+statusResult);
+                        returnStatusResult = statusResult;
+                    } else if (event.type === 'exception') {
+                        //alert("{!$Label.Exception}", event.message);
+                        checkException(event.message,datefieldID)
+                        returnStatusResult = false; 
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message); 
+                        returnStatusResult = false;
+                    }
+                }, {escape:false}
+            );
+        }
+    
+        function initiateVerifyDate(flag) {
+            console.log(' inside initiateVerifyDate');
+            var frmDate = document.getElementById('pg:fm:pb:pbs_main:memo_fromdate__pb:memo_fromdate__c').value;
+            var thruDate = document.getElementById('pg:fm:pb:pbs_main:memo_thrudate__pb:memo_thrudate__c').value;
+            console.log(' inside saveEntryCheck() : From date changed to = '+ frmDate + ' & Thru Date changed to = '+ thruDate );
+            if (frmDate && thruDate){
+                if(verifyDate(frmDate,thruDate,flag) == false){
+                    return false;
+                }
+            }
+        }
+        
+        function checkResult(result,flag){
+            console.log(' inside checkResult() : result = '+ result + ' & flag = '+ flag);  
+            if(result){
+                if(flag == 'from') {
+                    alert(Label_value1mustbegreaterthanval2,[LABEL_gljetemplth_thrudate__c,LABEL_gljetemplth_fromdate__c]);
+                    document.getElementById('pg:fm:pb:pbs_main:memo_fromdate__pb:memo_fromdate__c').value = '';                         
+                    document.getElementById('pg:fm:pb:pbs_main:memo_fromdate__pb:memo_fromdate__c').focus();
+                    return false;
+                } else {
+                    alert(Label_value1mustbegreaterthanval2,[LABEL_gljetemplth_thrudate__c,LABEL_gljetemplth_fromdate__c]);
+                    document.getElementById('pg:fm:pb:pbs_main:memo_thrudate__pb:memo_thrudate__c').value = '';   
+                    document.getElementById('pg:fm:pb:pbs_main:memo_thrudate__pb:memo_thrudate__c').focus();
+                    return false;
+                }
+                
+            }   
+        }
+    </script>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="reloadTransRecods" action="{!generateTransRecords}" reRender="pageMessages,transRecordsPanel,postUnpostedBatchesAfterRepChkbox,unpostMemoCheckBox" status="statusProcessing"/>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons id="pbb" location="top">
+                <apex:commandbutton value="{!$Label.rstkf__query}" onclick="reloadTransRecods();return false;"/>
+                <apex:commandLink value="{!$Label.rstkf__execute}" onclick="return validate();" action="{!viewReport}" styleClass="btn" style="text-decoration:none; padding:4px; color:inherit;" target="_blank"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" columns="1">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__memoregister_company__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_company__c.label}"/>
+                    <apex:outputField value="{!customext.rstkf__memoregister_company__c}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem id="psbi_IncludeUnpostedBatchesOnly" rendered="{!arcntl_arbatchopt}" helpText="{!f.rstkf__memoregister_IncludeUnpostedBatchesOnly__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_IncludeUnpostedBatchesOnly__c.label}"/>
+                    <apex:inputCheckbox id="includeUnpostedBatchesOnlyChkbox" value="{!customext.rstkf__memoregister_IncludeUnpostedBatchesOnly__c}" onchange="includeUnpostedBatchesOnlyChanged();">
+                    </apex:inputCheckbox>
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem id="pbsi_PostUnpostedBatchesAfterRep" rendered="{!arcntl_arbatchopt}" helpText="{!f.rstkf__memoregister_PostUnpostedBatchesAfterRep__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_PostUnpostedBatchesAfterRep__c.label}"/>
+                    <apex:outputPanel id="op_postUnpostedBatchesAfterRepChkbox">
+                        <apex:inputCheckbox id="postUnpostedBatchesAfterRepChkbox" value="{!customext.rstkf__memoregister_PostUnpostedBatchesAfterRep__c}" disabled="{!!isEnableUnpostedMemos}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem id="includeUnpostedMemosOnlypbs" rendered="{!!arcntl_arbatchopt}" helpText="{!f.rstkf__memoregister_IncludeUnpostedMemosOnly__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_IncludeUnpostedMemosOnly__c.label}"/>
+                    <apex:inputCheckbox id="includeUnpostedMemosOnlyelement" value="{!customext.rstkf__memoregister_IncludeUnpostedMemosOnly__c}" onchange="updateunpostMemoCheckBox();">
+                    </apex:inputCheckbox>
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem id="unpostBatchCheckBoxpbs" rendered="{!!arcntl_arbatchopt}" helpText="{!f.rstkf__memoregister_PostUnpostedMemosAfterRepor__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_PostUnpostedMemosAfterRepor__c.label}"/>
+                    <apex:outputPanel id="unpostMemoCheckBox">
+                        <apex:inputCheckbox id="unpostMemoCheckBoxelement" value="{!customext.rstkf__memoregister_PostUnpostedMemosAfterRepor__c}" disabled="{!!isEnableUnpostedMemos}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__memoregister_memotype__c.inlineHelpText}">
+                       <apex:outputLabel value="{!f.rstkf__memoregister_memotype__c.label}"/>
+                       <apex:selectList id="rstk__comments__c" value="{!customext.rstkf__memoregister_memotype__c}" size="1" style="width:250px;"> 
+                           <apex:selectOptions value="{!MemoTypes}" /> 
+                       </apex:selectList> 
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__memoregister_from_customer__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_from_customer__c.label}"/>
+                    <apex:inputField value="{!customext.rstkf__memoregister_from_customer__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__memoregister_ThroughCustomer__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_ThroughCustomer__c.label}"/>
+                    <apex:inputField value="{!customext.rstkf__memoregister_ThroughCustomer__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem id="memo_fromdate__pb" helpText="{!f.rstkf__memoregister_fromDate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_fromDate__c.label}"/>
+                    <apex:inputField id="memo_fromdate__c" value="{!customext.rstkf__memoregister_fromDate__c}" onchange="initiateVerifyDate('from');"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem id="memo_thrudate__pb" helpText="{!f.rstkf__memoregister_throughDate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__memoregister_throughDate__c.label}"/>
+                    <apex:inputField id="memo_thrudate__c" value="{!customext.rstkf__memoregister_throughDate__c}" onchange="initiateVerifyDate('through');"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__memoregister_memosource__c.inlineHelpText}">
+                       <apex:outputLabel value="{!f.rstkf__memoregister_memosource__c.label}"/>
+                       <apex:selectList id="rstk__comment2__c" value="{!customext.rstkf__memoregister_memosource__c}" size="1" style="width:250px;"> 
+                           <apex:selectOptions value="{!MemoSources}" /> 
+                       </apex:selectList> 
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:outputPanel id="transRecordsPanel">
+                <script>var debitCreditMemoRows = {};</script>
+                <apex:pageBlockTable value="{!TransRecords}" var="a" id="transRecordsTable">
+                    <apex:column id="selectAllColumn">
+                        <apex:facet name="header">
+                            <apex:inputCheckbox id="selectAllCheckBox" value="{!isSelectAllTrans}" onclick="selectAll(this);" />
+                        </apex:facet>
+                        <apex:inputCheckbox id="selected" value="{!a.sel}" onclick="selectRecord();"/>
+                        <script>
+                            debitCreditMemoRows["{!a.recId}"] = {
+                                docno:"{!a.docNo}",
+                                selected: document.getElementById("{!$Component.selected}")
+                            };
+                        </script>
+                     </apex:column>
+                     <apex:column headerValue="{!$Label.rstkf__batchhash}" rendered="{!arcntl_arbatchopt}">                        
+                        <apex:outputLink value="{!IF(ISNULL(a.arinvhId),'',URLFOR($Action.rstkf__arinvh__c.View, a.arinvhId))}" target="_blank">{!a.batchNo}</apex:outputLink> 
+                     </apex:column>    
+                     <apex:column headerValue="{!$Label.rstkf__memotype}" value="{!a.memoType}"/>
+                     <apex:column headerValue="{!$Label.rstkf__customer}">
+                         <apex:outputLink value="{!IF(ISNULL(a.custId),'',URLFOR($Action.rstk__socust__c.View, a.custId))}" target="_blank">{!a.custNo}</apex:outputLink> 
+                     </apex:column>    
+                     <apex:column headerValue="{!$Label.rstkf__status}" value="{!a.status}"/>
+                     <apex:column headerValue="{!$Label.rstkf__documenthash}" value="{!a.docNo}"/>
+                     <apex:column headerValue="{!$Label.rstkf__tranid}" >
+                         <apex:outputLink value="{!IF(ISNULL(a.arinvtxnId),'',URLFOR($Action.rstkf__arinvtxn__c.View, a.arinvtxnId))}" target="_blank">{!a.tranId}</apex:outputLink> 
+                     </apex:column>
+            		 <apex:column >
+                         <apex:facet name="header">
+                            <apex:outputText escape="false" value="{!$Label.rstkf__memoamountbrinmemocurrency}" />
+                        </apex:facet>
+                        <apex:outputText style="float:right;" html-decimals="2" value="{!a.memoAmtMemoCurrency}" />
+            		 </apex:column>    
+                     <apex:column headerValue="{!$Label.rstkf__memodate}" value="{!a.memoDateString}"/>
+                     <apex:column headerValue="{!$Label.rstkf__memosource}" value="{!a.memoSource}"/>
+                </apex:pageBlockTable>
+                <apex:panelGrid columns="6">
+                  <apex:commandButton status="fetchStatus" reRender="transRecordsPanel" value="|<" action="{!firstPageRecSet}" disabled="{!!debitCreditSetController.hasPrevious}" title="{!$Label.rstkf__labelfirstpage}"/>
+                  <apex:commandButton status="fetchStatus" reRender="transRecordsPanel" value="<" action="{!previousPageRecSet}" disabled="{!!debitCreditSetController.hasPrevious}" title="{!$Label.rstkf__labelpreviouspage}"/>
+                  <apex:commandButton status="fetchStatus" reRender="transRecordsPanel" value=">" action="{!nextPageRecSet}" disabled="{!!debitCreditSetController.hasNext}" title="{!$Label.rstkf__labelnextpage}"/>
+                  <apex:commandButton status="fetchStatus" reRender="transRecordsPanel" value=">|" action="{!lastPageRecSet}" disabled="{!!debitCreditSetController.hasNext}" title="{!$Label.rstkf__labellastpage}"/>
+                  <apex:outputText >{!(debitCreditSetController.pageNumber * numOfRecsPerPage)+1-numOfRecsPerPage}-{!IF((debitCreditSetController.pageNumber * numOfRecsPerPage)>noOfRecords, noOfRecords,(debitCreditSetController.pageNumber * numOfRecsPerPage))} {!$Label.rstkf__page_no_of} {!noOfRecords}</apex:outputText>
+                  <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                    <apex:actionStatus id="fetchStatus" startText="{!$Label.rstkf__fetchingdotdotdot}" stopText=""/>
+                  </apex:outputPanel>
+                </apex:panelGrid>
+            </apex:outputPanel>
+        </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        var Label_value1mustbegreaterthanval2 = "{!$Label.value1mustbegreaterthanval2}";        
+        var LABEL_gljetemplth_fromdate__c = "{!f.rstkf__memoregister_fromDate__c.label}";
+        var LABEL_gljetemplth_thrudate__c = "{!f.rstkf__memoregister_throughDate__c.label}";
+    </script>
+</apex:page>

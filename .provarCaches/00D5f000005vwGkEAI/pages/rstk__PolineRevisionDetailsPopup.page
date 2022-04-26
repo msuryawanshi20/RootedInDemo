@@ -1,0 +1,427 @@
+<apex:page id="pg" standardController="rstk__poline__c"  extensions="rstk.ControllerExtnPolineDefaultView"  sideBar="false" showHeader="false" action="{!doBeforeLoad}">
+		<style>
+			.modal {
+				background-color:#fff;
+				display:none;
+				width:640px;
+				padding:15px;
+				text-align:left;
+				font-size:1em;
+				border:2px solid #333;
+				z-index: 3636;
+			
+				opacity:1.0;
+				-moz-border-radius:6px;
+				-webkit-border-radius:6px; 
+				-moz-box-shadow: 0 0 50px #ccc;
+				-webkit-box-shadow: 0 0 50px #ccc;
+			}
+			
+			.modal h2 {
+				margin:0px;
+				padding:10px 0 10px 45px;
+				border-bottom:1px solid #333;
+				font-size:20px;
+			}
+			
+			.helpText {
+				z-index: 9996;
+			}
+				
+		    div.hideCurrDate span.dateInput span.dateFormat{
+       			display:none;
+       		}
+				
+			td.cellBorder{ border: solid #000 0px;}
+			
+			.activeTab {width: 200px;}
+			
+			.stdLabel {font-family: Arial, Helvetica, sans-serif; font-size: 91%; font-weight: bold; color: #4A4A56;}
+			.stdLabelHeadline {font-family: Arial, Helvetica, sans-serif; font-size: 100%; font-weight: bold; color: #4A4A56;}
+			.tdLeftPad { align:left; width:25%; padding-left:20px;}
+			
+			#datePicker {
+		        z-index: 9997;
+		    }
+
+		    .autoCompleteBoxScrolling {
+		    	z-index: 11000;
+		    }
+		    
+	</style>	
+<script type="text/javascript">var __sfdcSessionId = '{!GETSESSIONID()}';</script>
+<script type="text/javascript">var __siteUrlPrefix = '{!$Site.Prefix}';</script>
+<script type="text/javascript">var __busySpinner = "{!$Resource.rstk__busy}";</script>
+<script type="text/javascript">var __iconpath = "{!URLFOR($Resource.rstk__treeIcons)}";</script>
+
+<apex:includeScript value="{!$Resource.rstk__sfff}" />
+<apex:includeScript value="{!$Resource.rstk__connection}" />
+<apex:includeScript value="{!$Resource.rstk__common_client_lib}" />
+<apex:includeScript value="{!$Resource.rstk__jquery144min}"/>
+<apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+<apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+<apex:stylesheet value="/sCSS/21.0/sprites/1297816277000/Theme3/default/gc/versioning.css"/>
+<apex:includeScript value="{!$Resource.rstk__polineDefaultView_cli}" />
+<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+<apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+<apex:variable var="o" value="{!pohdr}" />
+<apex:variable var="f_poline" value="{!$ObjectType.rstk__poline__c.fields}" />
+<apex:variable var="f_polineaddr" value="{!$ObjectType.rstk__polineaddr__c.fields}" />
+
+	<apex:form id="fm">
+		<apex:pageBlock id="pb" mode="maindetail">
+			<apex:pageBlockSection id="revision" columns="1" rendered="{!showPolineRevisionsInfo}">
+				<apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!$Label.rstk__linerevision}"/>
+					<apex:outputField value="{!tempLineRev.rstk__polinerev_sts__c}"/>
+				</apex:pageBlockSectionItem>
+				<apex:pageBlockSection columns="2">
+					<apex:pageBlockSectionItem >
+						<apex:outputLabel value="{!$Label.rstk__currentinternalrev}" style="white-space:nowrap;"/>
+						<apex:outputField value="{!o.rstk__pohdr_curintrev__c}"/>
+					</apex:pageBlockSectionItem>
+					<apex:pageBlockSectionItem >
+						<apex:outputLabel value="{!$Label.rstk__currentvendorrev}" style="white-space:nowrap;"/>
+						<apex:outputField value="{!o.rstk__pohdr_vendrev__c}"/>
+					</apex:pageBlockSectionItem>
+				</apex:pageBlockSection>
+				<apex:pageBlockSection columns="1">
+					<apex:tabPanel tabClass="activeTab" switchType="client" id="ovr_tp">
+						<apex:tab label="{!$Label.rstk__pagetab_purchord_quantity}" name="groupa" id="groupa">
+							<table style="width:100%">
+								<tr>
+									<td align="center" style="width:25%"><apex:outputLabel ></apex:outputLabel></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__currentpoline}" styleclass="stdLabelHeadline"/></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__linerevision}" styleclass="stdLabelHeadline"/></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__newvalue}" styleclass="stdLabelHeadline"/></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__status}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"></td>
+									<td class="tdLeftPad"><apex:outputField value="{!tempLineRev.rstk__polinerev_sts__c}"/></td>
+									<td class="tdLeftPad"><apex:outputField value="{!tempLineRev.rstk__polinerev_sts__c}"/></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__quantity}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad">
+										<apex:outputText value="{0, number, 0}">
+				       						<apex:param value="{!tempPoline.rstk__poline_qtyreq__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText value="{0, number, 0}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_qty__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText value="{0, number, 0}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_qty__c}" />
+				       					</apex:outputText>
+									</td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__uom}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_poline_puruom__c" value="{!poUOM}"/></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_polinerev_puruom__c" value="{!poRevUOM}"/></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_polinerev_puruom__c" value="{!poRevUOM}"/></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__uomconversionfactor}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_poline_poumcf__c" value="{0, number, #.#####}">
+				       						<apex:param value="{!tempPoline.rstk__poline_poumcf__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_polinerev_poumcf__c" value="{0, number, #.#####}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_poumcf__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_polinerev_poumcf__c" value="{0, number, #.#####}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_poumcf__c}" />
+				       					</apex:outputText>
+									</td>
+								</tr>
+								<tr style="display:{!IF(enableInvQty,'','none')}">
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__inventoryqtyordered}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_poline_invqtyreq__c" value="{!tempPoline.rstk__poline_invqtyreq__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_polinerev_invqtyreq__c" value="{!tempLineRev.rstk__polinerev_invqtyreq__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polinerev_invqtyreq__c" value="{!tempLineRev.rstk__polinerev_invqtyreq__c}" /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__unitprice}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_poline_unitpricemcurr__c" value="{0, number, #.###}">
+				       						<apex:param value="{!tempPoline.rstk__poline_unitpricemcurr__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_polinerev_unitpricemcurr__c" value="{0, number, #.###}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_unitpricemcurr__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_polinerev_unitpricemcurr__c" value="{0, number, #.###}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_unitpricemcurr__c}" />
+				       					</apex:outputText>
+									</td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__amount}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_poline_amtreqmcurr__c" value="{0, number, 0}">
+				       						<apex:param value="{!tempPoline.rstk__poline_amtreqmcurr__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_polinerev_lineamt__c" value="{0, number, 0}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_lineamt__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_polinerev_lineamt__c" value="{0, number, 0}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_lineamt__c}" />
+				       					</apex:outputText>
+									</td>
+								</tr>
+								<tr id="alt_curr1" style="{!otherCurrencyDisplay}">
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__unitpricehomecurrency}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_poline_unitprice__c"  value="{!tempPoline.rstk__poline_unitprice__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_polinerev_unitprice__c"  value="{!tempLineRev.rstk__polinerev_unitprice__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polinerev_unitprice__c"  value="{!tempLineRev.rstk__polinerev_unitprice__c}" /></td>
+								</tr>
+								<tr id="alt_curr2" style="{!otherCurrencyDisplay}">
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__amounthomecurrency}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_poline_amtreq__c"  value="{!tempPoline.rstk__poline_amtreq__c}" /></td>
+									<td class="tdLeftPad"></td>
+									<td class="tdLeftPad"></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__exchangerate}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_poline_exchangerate__c" value="{0, number, 0}">
+				       						<apex:param value="{!tempPoline.rstk__poline_exchangerate__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_polinerev_exchangerate__c" value="{0, number, 0}">
+				       						<apex:param value="{!tempLineRev.rstk__polinerev_exchangerate__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad"></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__originalorderquantity}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_poline_origqtyreq__c" value="{0, number, 0}">
+				       						<apex:param value="{!tempPoline.rstk__poline_origqtyreq__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad"></td>
+									<td class="tdLeftPad"></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_poline.rstk__poline_qtyoutstdg__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_poline_qtyoutstdg__c" value="{0, number, #.##}">
+				       						<apex:param value="{!tempPoline.rstk__poline_qtyoutstdg__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad"></td>
+									<td class="tdLeftPad"></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_poline.rstk__poline_qtyoutstdginv__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad">
+										<apex:outputText id="modal_dsp_poline_qtyoutstdginv__c" value="{0, number, 0}">
+				       						<apex:param value="{!tempPoline.rstk__poline_qtyoutstdginv__c}" />
+				       					</apex:outputText>
+									</td>
+									<td class="tdLeftPad"></td>
+									<td class="tdLeftPad"></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_poline.rstk__poline_qtyrtv__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_poline_qtyrtv__c"  value="{!tempPoline.rstk__poline_qtyrtv__c}" /></td>
+									<td class="tdLeftPad"></td>
+									<td class="tdLeftPad"></td>
+								</tr>
+							</table>
+						</apex:tab>
+						<apex:tab label="{!$Label.rstk__pagetab_purchord_datesandindicators}" name="groupa2" id="groupa2">
+							<table style="width:100%">
+								<tr>
+									<td align="center" style="width:25%"><apex:outputLabel ></apex:outputLabel></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__currentpoline}" styleclass="stdLabelHeadline"/></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__linerevision}" styleclass="stdLabelHeadline"/></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__newvalue}" styleclass="stdLabelHeadline"/></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__vendorrequestedreceiptdate}" styleclass="stdLabel"/></td>
+									<td></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_polinerev_vendrcptdte__c" value="{!tempLineRev.rstk__polinerev_vendrcptdte__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polinerev_vendrcptdte__c" value="{!tempLineRev.rstk__polinerev_vendrcptdte__c}" /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__buyerreceiptdate}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp2_poline_schedrcptdte__c"  value="{!tempPoline.rstk__poline_schedrcptdte__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_polinerev_buyerrcptdte__c"  value="{!tempLineRev.rstk__polinerev_buyerrcptdte__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polinerev_buyerrcptdte__c" value="{!tempLineRev.rstk__polinerev_buyerrcptdte__c}"  /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__duedate1}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp2_poline_duedte__c" value="{!tempPoline.rstk__poline_duedte__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_polinerev_duedte__c" value="{!tempLineRev.rstk__polinerev_duedte__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polinerev_duedte__c" value="{!tempLineRev.rstk__polinerev_duedte__c}"   /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__closeshortindicator}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_poline_closeshortind__c" value="{!tempPoline.rstk__poline_closeshortind__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsp_polinerev_closeshortind__c" value="{!tempLineRev.rstk__polinerev_closeshortind__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polinerev_closeshortind__c" value="{!tempLineRev.rstk__polinerev_closeshortind__c}" /></td>
+								</tr>
+							</table>
+						</apex:tab>
+						<apex:tab label="{!$Label.rstk__pagetab_purchord_shippingterms}" name="groupb" id="groupb">
+							<table style="width:100%">
+								<tr>
+									<td align="center" style="width:25%"><apex:outputLabel ></apex:outputLabel></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__currentpoline}" styleclass="stdLabelHeadline"/></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__linerevision}" styleclass="stdLabelHeadline"/></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__newvalue}" styleclass="stdLabelHeadline"/></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__shipvia}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_poline_shipviatype__c" value="{!poShipviatype}"  /></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_polinerev_shipviatype__c" value="{!poRevShipviatype}"  /></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_polinerev_shipviatype__c" value="{!poRevShipviatype}"  /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__carrier12}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_poline_carrier__c" value="{!poCarrier}" /></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_polinerev_carrier__c" value="{!poRevCarrier}" /></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_polinerev_carrier__c" value="{!poRevCarrier}" /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__fob}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_poline_fob__c" value="{!poFob}" /></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_polinerev_fob__c" value="{!poRevFob}" /></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_polinerev_fob__c" value="{!poRevFob}" /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__freightterms}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_poline_frghtrm__c" value="{!poFrghtrm}" /></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_dsp_polinerev_frghtrm__c" value="{!poRevFrghtrm}" /></td>
+									<td class="tdLeftPad"><apex:outputText id="modal_polinerev_frghtrm__c" value="{!poRevFrghtrm}" /></td>
+								</tr>
+							</table>	
+						</apex:tab>
+						<apex:tab label="{!$Label.rstk__pagetab_purchord_shippingaddress}" name="groupb2" id="groupb2" >
+							<table style="width:100%">
+								<tr>
+									<td align="center" style="width:25%"><apex:outputLabel ></apex:outputLabel></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__currentpoline}" styleclass="stdLabelHeadline"/></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__linerevision}" styleclass="stdLabelHeadline"/></td>
+									<td align="center" style="width:25%"><apex:outputLabel value="{!$Label.rstk__newvalue}" styleclass="stdLabelHeadline"/></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_street__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_street__c" value="{!tempLineAddr.rstk__polineaddr_street__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_street__c" value="{!tempLineAddrRev.rstk__polineaddr_street__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_street__c" value="{!tempLineAddrRev.rstk__polineaddr_street__c}"  /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_city__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_city__c"  value="{!tempLineAddr.rstk__polineaddr_city__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_city__c" value="{!tempLineAddrRev.rstk__polineaddr_city__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_city__c" value="{!tempLineAddrRev.rstk__polineaddr_city__c}"   /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_stateprov__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_stateprov__c"  value="{!tempLineAddr.rstk__polineaddr_stateprov__c}"   /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_stateprov__c" value="{!tempLineAddrRev.rstk__polineaddr_stateprov__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_stateprov__c" value="{!tempLineAddrRev.rstk__polineaddr_stateprov__c}"  /></td>
+									<td></td>
+								</tr>
+								
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_country__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_country__c" value="{!tempLineAddr.rstk__polineaddr_country__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_country__c" value="{!tempLineAddrRev.rstk__polineaddr_country__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_country__c" value="{!tempLineAddrRev.rstk__polineaddr_country__c}"  /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_zippostalcode__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_zippostalcode__c" value="{!tempLineAddr.rstk__polineaddr_zippostalcode__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_zippostalcode__c" value="{!tempLineAddrRev.rstk__polineaddr_zippostalcode__c}" /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_zippostalcode__c" value="{!tempLineAddrRev.rstk__polineaddr_zippostalcode__c}"  /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_phone__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_phone__c" value="{!tempLineAddr.rstk__polineaddr_phone__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_phone__c" value="{!tempLineAddrRev.rstk__polineaddr_phone__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_phone__c" value="{!tempLineAddrRev.rstk__polineaddr_phone__c}"   /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_fax__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_fax__c" value="{!tempLineAddr.rstk__polineaddr_fax__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_fax__c" value="{!tempLineAddrRev.rstk__polineaddr_fax__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_fax__c" value="{!tempLineAddrRev.rstk__polineaddr_fax__c}"   /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!f_polineaddr.rstk__polineaddr_website__c.label}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_website__c" value="{!tempLineAddr.rstk__polineaddr_website__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_website__c" value="{!tempLineAddrRev.rstk__polineaddr_website__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_website__c" value="{!tempLineAddrRev.rstk__polineaddr_website__c}"  /></td>
+								</tr>
+								<tr>
+									<td align="right"><apex:outputLabel value="{!$Label.rstk__email}" styleclass="stdLabel"/></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dspline_polineaddr_contactemail__c" value="{!tempLineAddr.rstk__polineaddr_contactemail__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_dsprev_polineaddr_contactemail__c" value="{!tempLineAddrRev.rstk__polineaddr_contactemail__c}"  /></td>
+									<td class="tdLeftPad"><apex:outputField id="modal_polineaddr_contactemail__c" value="{!tempLineAddrRev.rstk__polineaddr_contactemail__c}"  /></td>
+								</tr>
+							</table>	
+						</apex:tab>
+					</apex:tabPanel>
+					<apex:pageBlockSection title="{!$Label.rstk__pagetab_purchord_comments}" collapsible="true" columns="1">
+						<apex:outputPanel >
+							<table cellpadding="2" cellspacing="2">
+								<tr>
+									<td align="right" style="width:120px"><apex:outputLabel value="{!$Label.rstk__vendorcommentslinerevision}" styleclass="stdLabel"/></td>
+									<td align="left" style="width:200px">
+										<apex:outputField id="modal_dsp_polinerev_vendcomments__c"  value="{!tempLineRev.rstk__polinerev_vendcomments__c}" />
+									</td>
+									<td align="right" style="width:120px"><apex:outputLabel value="{!$Label.rstk__vendorcommentsupdate}" styleclass="stdLabel"/></td>
+									<td align="left" style="width:200px">
+										<apex:outputField id="modal_dsp_polinerev_vendorCommentsUpdate__c"  value="{!tempLineRev.rstk__polinerev_vendcomments__c}" />
+									</td>
+								</tr>
+								<tr>
+									<td align="right" style="width:120px"><apex:outputLabel value="{!$Label.rstk__buyercommentslinerevision}" styleclass="stdLabel"/></td>
+									<td align="left" style="width:200px">
+										<apex:outputField id="modal_polinerev_buyercomments__c"  value="{!tempLineRev.rstk__polinerev_buyercomments__c}" />
+									</td>
+									<td align="right" style="width:120px"><apex:outputLabel value="{!$Label.rstk__buyercommentsupdate}" styleclass="stdLabel"/></td>
+									<td align="left" style="width:200px">	
+										<apex:outputField id="modal_polinerev_buyerCommentsUpdate__c"  value="{!tempLineRev.rstk__polinerev_buyercomments__c}" />
+									</td>
+								</tr>
+							</table>
+						</apex:outputPanel>
+					</apex:pageBlockSection>
+				</apex:pageBlockSection>					
+			</apex:pageBlockSection>
+			<apex:pageBlockSection id="approvedMFRSTab" showHeader="false" title="" columns="1" rendered="{!showApprovedMfrsDetails}">
+          		<apex:pageBlockTable value="{!polineMfrDetails}" var="row">
+          			<apex:column headerValue="{!$Label.rstk__mfr_name}" style="width:200px"><apex:outputField value="{!row.polinemfr_peitemmfr__r.rstk__peitemmfr_mfrname__c}"/></apex:column>
+          			<apex:column headerValue="{!$Label.rstk__mfr_item}" style="width:200px"><apex:outputField value="{!row.polinemfr_peitemmfr__r.rstk__peitemmfr_mfritemno__c}"/></apex:column>
+					<apex:column headerValue="{!$Label.rstk__mfr_description}" style="width:200px"><apex:outputField value="{!row.polinemfr_peitemmfr__r.rstk__peitemmfr_mfritemdesc__c}" /></apex:column>
+ 				</apex:pageBlockTable>
+           </apex:pageBlockSection>
+		</apex:pageBlock>
+	</apex:form>
+    <script>
+        var LABEL_An_Error_has_Occured_Error = "{!$Label.rstk__an_error_has_occured_error}";
+    </script>
+</apex:page>

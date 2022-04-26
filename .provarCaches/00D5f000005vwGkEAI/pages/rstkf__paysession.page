@@ -1,0 +1,1537 @@
+<apex:page id="pg" standardController="rstkf__paysession__c" extensions="rstkf.ControllerExtnPaymentSelection,rstkf.ControllerJobStatus" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!paysession}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__paysession__c.fields}" />
+    <apex:variable var="f_customextf" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="f_customextf2" value="{!$ObjectType.rstkf__customextf2__c.fields}" />
+    <apex:variable var="f_paysessvend" value="{!$ObjectType.rstkf__paysessvend__c.fields}" />
+    <c:standardHeader cntr="{!controller}" customInclude="{!$Resource.rstkf__paymentSelection_cli}" displayListLink="true"/>
+     <apex:stylesheet value="{!URLFOR($Resource.rstkf__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_vfFloatingHeaders}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+    
+    <style>
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 2000; /* Sit on top */
+            left: 30%;
+            top: 30%;
+            width: 800px; 
+            height: 150px;
+            background-color: transparent;
+        }
+        
+        /* Modal Content */
+        .modal-content {
+            background-color: #fefefe;
+            margin: -100px;
+            padding: 15px;
+            border: 1px solid #888;
+            width: 800px;
+            height: 150px;
+        }
+        
+        .overlay {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 300;
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%;
+            text-align: center;
+            background-color: rgba(0,0,0,0.4);
+        }
+         
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        
+        input:disabled {
+            background: #dddddd;
+        }
+        
+        .sort {display:inline}
+        .numSort {display:inline}
+        
+        .floatingStyle { 
+            background-color:#829DC0 !important;
+        }
+        
+     </style>
+    
+    <script>
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+        var checkPrintPkg = '{!checkprintpkg}';
+        var checkPrintTemplate = '{!checkprinttempl}';
+        var remitPrintTemplate = '{!remitPrintTemplate}';
+        var paysessionId = '{!o.Id}';
+        var paysession_glbankacct = "{!paymentSelection.paysession.rstkf__paysession_glbankacct__c}";
+        var currCmpId = "{!currCompany.Id}";
+        var congaBtnUrl = "{!congaBtnUrl}";
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:actionFunction name="bankacctChanged" action="{!bankacctChanged}" onComplete="unblockUI();" rerender="op_paysession_paymenttype, pageMessages, op_paysession_procVars" immediate="false"/>
+        <apex:actionFunction name="savePaymentSession" action="{!savePaymentSession}"/>
+        <apex:actionFunction name="resumePaymentSession" action="{!resumePaymentSession}" onComplete="unblockUI();" rerender="op_tabs, pageMessages, pb" immediate="false"/>
+        <apex:actionFunction name="cancelPaymentSession" action="{!cancelPaymentSession}"/>
+        <apex:actionFunction name="openPaymentByVendorPopup" action="{!retrievePayByVendList}" onComplete="showPopup('#popPaymentByVendor', 1300, 510);enableSortForPayByVend();" rerender="op_tabs, psvPageMessages, op_popPaymentByVendor" immediate="false"/>
+        <apex:actionFunction name="openPayByInvPopup" action="{!retrievePayByInvoiceList}" onComplete="showPopup('#popPaymentByInvoice', 1300, 510);enableSortForPayByInv();" rerender="op_tabs, psiPageMessages, op_popPayByInv, op_filterByVendor" immediate="false"/>
+        <apex:actionFunction name="openReviewAndProcessPaymentsPopup" action="{!reviewAndProcessPaymentsPopup}" onComplete="showPopup('#popPaymentReviewAndProcessing', 1300, 490);setReviewAndProcessPaymentsPopup();" rerender="op_tabs, prapPageMessages, op_popPaymentReviewAndProcessing" immediate="false"/>
+        
+        <apex:actionFunction name="verifyBeforeResuming" action="{!verifySelInvsAreOpen}" onComplete="evaluateVerification();buttonsEnabled(true);" rerender="pageMessages, op_paysession_procVars" immediate="false"/>
+        <apex:actionFunction name="doPostPayments" action="{!doPostPayments}" onComplete="checkJobStatus();" rerender="PageMessages, op_JobStatus" immediate="false"/>
+        
+        <apex:actionFunction name="exportAndPrintSdocs2" action="{!exportAndPrint}" onComplete="checkPrintPdfJobStatus('true');" immediate="false" rerender="op_paysession_procVars"/>
+        <apex:actionFunction name="exportAndPrintConga2" action="{!exportAndPrint}" 
+    					onComplete="openCongaUrl();" 
+    					rerender="prapPageMessages, op_procVars, op_popPaymentReviewAndProcessing, op_btns_paymRevAndProcessing" 
+    					immediate="false" status="statusProcessingPaymRev"/>
+        <apex:actionFunction name="processNextApchecksForSdocs" action="{!processNextApchecksForSdocs}" onComplete="checkPrintPdfJobStatus('false');" immediate="false" rerender="op_paysession_procVars"/>
+        <apex:actionFunction name="processNextApchecksForSdocsMain" action="{!processNextApchecksForSdocs}" onComplete="checkPrintPdfJobStatus('true');" immediate="false" rerender="op_paysession_procVars"/>
+        <apex:actionFunction name="createJBFExportForPaySession"  action="{!createJBFExportForPaySession}" rerender="PageMessages" immediate="false" onComplete="alert('{!$Label.rstkf__jbf_export_completed}');window.location.reload();"/>
+        <apex:actionFunction name="createSepaXMLForPaySession"  action="{!createSepaXMLForPaySession}" rerender="pageMessages,op_isSepaExpoError" immediate="false" onComplete="postSepaCheck();"/>
+        <!--  <apex:actionFunction name="loadExchangeRate" action="{!loadExchangeRate}" immediate="false" rerender="pageMessages,op_var" oncomplete="_showDialog('OverrideExchangeRatePopup');setRevSerchgbutton();unblockUI();unblockPopupUI('OverrideExchangeRateWaitPopup');" status="statusProcessing"/>-->
+        <apex:actionFunction name="loadExchangeRate" action="{!loadExchangeRate}" immediate="false" rerender="pageMessages,op_var" oncomplete="showPopup('#OverrideExchangeRatePopup', 800, 300);setRevSerchgbutton();unblockPopupUI('OverrideExchangeRateWaitPopup');" status="statusProcessing"/>
+        <!--  <apex:actionFunction name="loadBankExchangeRate" action="{!loadBankExchangeRate}" immediate="false" rerender="cbankpopup,pageMessages" oncomplete="_showDialog('OverrideBankExchangeRatePopup');unblockUI();checkBankOverrideRate();" status="statusProcessing"/>-->
+         <apex:actionFunction name="loadBankExchangeRate" action="{!loadBankExchangeRate}" immediate="false" rerender="cbankpopup,op_varBank,pageMessages" oncomplete="showPopup('#OverrideBankExchangeRatePopup', 800, 300);checkBankOverrideRate();unblockPopupUI('BankExchangeRateWaitPopup');" status="statusProcessing"/>
+       
+        <apex:outputpanel id="op_paysession_procVars">
+            <script>
+                 var hasChanges = '{!hasChanges}';
+                 if(hasChanges == 'true') {
+                    unblockUI();
+                 }
+                 var sdocJobIds = '{!sdocJobIds}';
+                 var hasMoreChecks = '{!hasMoreChecks}';
+                 var isBankCard = '{!isBankCard}';
+             </script>
+        </apex:outputpanel>
+        <apex:outputpanel id="op_isSepaExpoError">
+            <script>
+                 var isSepaExpoError = '{!isSepaExpoError}';
+             </script>
+        </apex:outputpanel>        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+        </apex:outputPanel>
+        <script>
+            var hasPassword = '{!hasPassword}';
+            var sessionCreatedByUser = '{!o.CreatedBy}';
+            var currentUser = '{!currentUser}';
+        </script>
+        
+        <apex:outputPanel id="op_errormessage" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'Completed With Errors'}">
+            <span style="color: red; font-weight: bold; font-size: 130%;">
+                {!$Label.postPaymentCompleteWithErrorsMessage} 
+            </span>
+        </apex:outputPanel>
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons >
+                <apex:commandButton value="{!$Label.rstkf__savesession}" onclick="blockUI(); doSavePaymentSession();return false;" rendered="{!!paysessionExists && (paymentSelection.paysession.rstkf__paysession_status__c == 'In-Process' || isNew)}"/>
+                <apex:commandButton value="{!$Label.rstkf__resumesession}" onclick="blockUI(); doResumePaymentSession();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'Suspended'}"/>
+                <apex:commandButton value="{!$Label.rstkf__cancelsession}" onclick="blockUI(); cancelPaymentSession();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'Suspended'}"/>
+                <apex:commandButton value="{!$Label.rstkf__selforpaybyvend}" onclick="blockUI(); openPaymentByVendor();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'In-Process'}"/>
+                <apex:commandButton value="{!$Label.rstkf__selforpaybyinv}" onclick="blockUI(); openPaymentByInvoice();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'In-Process'}"/>
+                <apex:commandButton value="{!$Label.rstkf__reviewandprocesspayments}" onclick="blockUI(); reviewAndProcessPayments();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'In-Process'}"/>
+                <apex:commandButton value="{!$Label.rstkf__resumepostpayments}" onclick="confirmresumePostPayments();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'Completed With Errors'}"/>
+                <apex:commandButton value="{!$Label.rstkf__createcheckprintpdf + ' (' + sdocJobTemplName + ')'}"  onclick="blockUI();invokeExportAndPrint2();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'Completed' && paymentSelection.paysession.rstkf__paysession_havechecks__c > 0 && checkprinttempl != null}"/>
+                <apex:commandButton value="{!$Label.rstkf__create_jbf_export}"  onclick="blockUI();invokeJBFExport();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'Completed' && isJBFTrue == true}" />
+                <apex:commandButton value="{!$Label.rstkf__regenerate_sepa_xml}"  onclick="blockUI();invokeSepaXMLExport();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'Completed' && isSepaTrue == true}" />
+                <apex:commandButton value="{!$Label.rstkf__create_remittance_advice}"  onclick="blockUI();invokeRemitAdviceExport();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_status__c == 'Completed' && isRemitAdviceTrue == true}" />
+                <apex:commandButton value="{!$Label.rstkf__button_override_payment_exchange_rate}" onclick="blockUI();blockPopupUI('OverrideExchangeRateWaitPopup'); doLoadExchangeRate(); return false;"  rendered="{!!paysessionExists && (paymentSelection.paysession.rstkf__paysession_status__c == 'In-Process' || paymentSelection.paysession.rstkf__paysession_status__c == 'Suspended')}" />
+                <apex:commandButton value="{!$Label.rstkf__button_override_bank_to_home_exchange_rate}" onclick="blockUI();doLoadBankExchangeRate(); return false;"  rendered="{!!paysessionExists && !!isDiffBankCurr && (paymentSelection.paysession.rstkf__paysession_status__c == 'In-Process' || paymentSelection.paysession.rstkf__paysession_status__c == 'Suspended')}" />  
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs" columns="2" collapsible="false" rendered="{!isNew}">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_glcmp__c.label}" />
+                    <apex:outputField label="{!f.rstkf__paysession_glcmp__c.label}" value="{!paymentSelection.paysession.rstkf__paysession_glcmp__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_glbankacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_glbankacct__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="paysession_glbankacct__c" value="{!paymentSelection.paysession.rstkf__paysession_glbankacct__c}" onchange="blockUI();bankacctChanged();" size="1" style="width:250px;" tabindex="3"> 
+                            <apex:selectOptions value="{!glbankaccts}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>               
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_vendorsel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_vendorsel__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="paysession_vendorsel__c" value="{!paymentSelection.paysession.rstkf__paysession_vendorsel__c}" size="1" style="width:250px;" tabindex="1"> 
+                            <apex:selectOptions value="{!vendorSels}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_respuser__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_respuser__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="paysession_respuser__c" value="{!paymentSelection.paysession.rstkf__paysession_respuser__c}" size="1" style="width:250px;" tabindex="4"> 
+                            <apex:selectOptions value="{!respUsers}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_paymenttype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_paymenttype__c.label}"/>
+                    <apex:outputPanel id="op_paysession_paymenttype">
+                    	<apex:selectList id="paysession_paymenttype__c" value="{!paymentSelection.paysession.rstkf__paysession_paymenttype__c}" size="1" style="width:250px;" tabindex="2"> 
+                            <apex:selectOptions value="{!paymentTypes}" /> 
+                        </apex:selectList>
+                        <script>
+                        	if(isBankCard == 'true') {
+                        		jQuery('select[name*=paysession_paymenttype__c]')[0].disabled = true;
+                        	}
+                        	else {
+                        		jQuery('select[name*=paysession_paymenttype__c]')[0].disabled = false;
+                        	}
+                        </script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_povclass__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_povclass__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="paysession_povclass__c" value="{!paymentSelection.paysession.rstkf__paysession_povclass__c}" size="1" style="width:250px;" tabindex="4"> 
+                            <apex:selectOptions value="{!povClasses}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_datesel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_datesel__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="paysession_datesel__c" value="{!paymentSelection.paysession.rstkf__paysession_datesel__c}" size="1" style="width:250px;" tabindex="2"> 
+                            <apex:selectOptions value="{!dateSels}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_cutoffdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_cutoffdate__c.label}" />
+                    <apex:inputField id="paysession_cutoffdate__c" value="{!paymentSelection.paysession.rstkf__paysession_cutoffdate__c}" taborderhint="41"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_includehold__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_includehold__c.label}" />
+                    <apex:inputField id="paysession_includehold__c" value="{!paymentSelection.paysession.rstkf__paysession_includehold__c}" taborderhint="21"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_doterms__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_doterms__c.label}" />
+                    <apex:inputField id="paysession_doterms__c" value="{!paymentSelection.paysession.rstkf__paysession_doterms__c}" taborderhint="42"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_exppaydate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_exppaydate__c.label}" />
+                    <apex:inputField id="paysession_exppaydate__c" value="{!paymentSelection.paysession.rstkf__paysession_exppaydate__c}" taborderhint="22"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_checkdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_checkdate__c.label}" />
+                    <apex:inputField id="paysession_checkdate__c" value="{!paymentSelection.paysession.rstkf__paysession_checkdate__c}" taborderhint="43"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_chkcomments__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_chkcomments__c.label}" />
+                    <apex:inputField id="paysession_chkcomments__c" value="{!paymentSelection.paysession.rstkf__paysession_chkcomments__c}" taborderhint="23"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_password__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_password__c.label}" />
+                    <apex:inputField id="paysession_password__c" value="{!paymentSelection.paysession.rstkf__paysession_password__c}" taborderhint="44"/>
+                </apex:pageBlockSectionItem>
+                 
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_comments__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_comments__c.label}" />
+                    <apex:inputField id="paysession_comments__c" value="{!paymentSelection.paysession.rstkf__paysession_comments__c}" taborderhint="24"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_inclcredits__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_inclcredits__c.label}" />
+                    <apex:inputField id="paysession_inclcredits__c" value="{!paymentSelection.paysession.rstkf__paysession_inclcredits__c}" taborderhint="45"/>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_main2" columns="2" rendered="{!!isNew}" >
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_glcmp__c}"/>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_includehold__c}"/>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_sessionid__c}"/>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_respuser__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_glbankacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__paysession_glbankacct__c.label}" />
+                    <apex:outputText value="{!bankacctStr}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_cutoffdate__c}"/>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_vendorsel__c}"/>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_exppaydate__c}"/>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_datesel__c}"/>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_chkcomments__c}"/>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_doterms__c}"/>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_laststatuschg__c}"/>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_paymenttype__c}"/>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_totnetpaybank__c}"/>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_status__c}"/>
+                <apex:outputText value="{!paymentSelection.paysession.rstkf__paysession_firstcheckno__c}"/>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_netopenamtnumb__c}"/>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_comments__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__paysession_checkdate__c.inlineHelpText}">
+                 <apex:outputLabel value="{!f.rstkf__paysession_checkdate__c.label}" />
+                 <apex:outputPanel id="op_bu">
+                  <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_checkdate__c}"/>&nbsp;&nbsp; <apex:commandButton value="{!$Label.rstkf__changepaymentdate}" onclick="_showDialog('PaymentDatePopup'); return false;" rendered="{!!paysessionExists &&  (paymentSelection.paysession.rstkf__paysession_status__c != 'Completed With Errors' && paymentSelection.paysession.rstkf__paysession_status__c != 'Completed')}" />
+                 </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_povclass__c}"/>
+                
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_frompayto__c}"/>
+                <apex:outputField value="{!paymentSelection.paysession.rstkf__paysession_inclcredits__c}"/>
+                
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        </apex:form>
+        
+        <apex:form id="tabs_fm">
+        <apex:outputPanel id="op_tabs">
+        <apex:pageBlock id="pb_tabs">   
+            <div id="div_vendors" >
+            <apex:pageBlockSection id="pbs_tabs" columns="1" rendered="{!!isNew}">
+            	<apex:outputPanel id="op_exchratemessage" rendered="{!exchratesMissing}">
+		            <span style="color: red; font-size: 100%;">
+		                {!$Label.OneOrMoreVendorsHaveMissingExchRate} 
+		            </span>
+        		</apex:outputPanel>
+                <apex:tabPanel switchType="client" selectedtab="tab_vendors" id="theTabPanel">
+                    <apex:tab label="{!$Label.rstkf__tab_vendors}" name="tab_vendors" id="tab_vendors">
+                        <apex:outputPanel id="op_vendors">
+                            <script>var vendorRows = {};  var vendorSelectcbxs = []; var vendorMatchescbxs = {};</script>
+                            <div style="overflow: scroll; height: 500px;">
+                            <apex:pageBlockTable value="{!paymentSelection.paysessvendRecs}" var="rec" id="pbt_vendors" >
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_povend__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_povend__c}" />
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_paytype__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_paytype__c}" />
+                                <!-- <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_paycurr__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_paycurr__c}" /> -->
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_maintcurr__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_maintcurr__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totunapplamtmaint__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_totunapplamtmaint__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_discavailable__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_discavailable__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_netopenamt__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_netopenamt__c}" />
+                                <apex:column style="{!IF((rec.paysessvend.rstkf__paysessvend_payexchrate__c = null), 'color:red' , 'color: black' )}; width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_netopenamtbank__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_netopenamtbank__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totgrosspay__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_totgrosspay__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totdisctknamt__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_totdisctknamt__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totnetpay__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_totnetpay__c}" />
+                                <apex:column style="width:80px; text-align: center;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_numbinv__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_numbinv__c}" />
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_selectpayind__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_selectpayind__c}" />
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_actualpayind__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_actualpayind__c}" />
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_checknumber__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_checknumber__c}" />
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_handcheckind__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_handcheckind__c}" />
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_appayd__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_appayd__c}" />
+                            </apex:pageBlockTable>
+                            </div>
+                            <apex:panelGrid columns="6">
+                                <apex:commandLink status="fetchStatusVendors" reRender="op_vendors" action="{!vendFirstPage}">First</apex:commandlink>
+                                <apex:commandLink status="fetchStatusVendors" reRender="op_vendors" action="{!vendPreviousPage}" rendered="{!setConVend.hasPrevious}">Previous</apex:commandlink>
+                                <apex:commandLink status="fetchStatusVendors" reRender="op_vendors" action="{!vendNextPage}" rendered="{!setConVend.hasNext}">Next</apex:commandlink>
+                                <apex:commandLink status="fetchStatusVendors" reRender="op_vendors" action="{!vendLastPage}">Last</apex:commandlink>
+                                <apex:outputText >{!(setConVend.pageNumber * vendPagesize)+1-vendPagesize}-{!IF((setConVend.pageNumber * vendPagesize)>noOfVendRecords, noOfVendRecords,(setConVend.pageNumber * vendPagesize))} of {!noOfVendRecords}</apex:outputText>
+                                <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                    <apex:actionStatus id="fetchStatusVendors" startText="Fetching..." stopText=""/>
+                                </apex:outputPanel>
+                            </apex:panelGrid>
+                            
+                        </apex:outputPanel>
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstkf__tab_invoices}" name="tab_invoices" id="tab_invoices">
+                        <apex:outputPanel id="op_invoices">
+                            <script>var invRows = {};  var invSelectcbxs = []; var invMatchescbxs = {};</script>
+                            <div style="overflow: scroll; height: 500px;">
+                            <apex:pageBlockTable value="{!paymentSelection.paysessinvRecs}" var="rec" id="pbt_invoices">
+                                <apex:column headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_apinvtxn__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_apinvtxn__c}" />
+                                <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_txncurrency__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_txncurrency__c}" />
+                                <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_maintamt__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_maintamt__c}" />
+                                <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_unapplamtmaint__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_unapplamtmaint__c}" />
+                                <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_discavailable__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_discavailable__c}" />
+                                <apex:column headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_termsdiscdate__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_termsdiscdate__c}" />
+                                <apex:column headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_process__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_process__c}" />
+                                <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_grosspay__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_grosspay__c}" />
+                                <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_disctermamt__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_disctermamt__c}" />
+                                <apex:column style="text-align: right;" headerValue="{!$Label.rstkf__col_wht}" value="{!rec.paysessinv.paysessinv_apinvtxn__r.rstkf__apinvtxn_dowht__c}" rendered="{!isWhtEnabled}"/>
+                                <apex:column style="text-align: right;" headerValue="{!$Label.rstkf__col_whtclass}" value="{!rec.paysessinv.paysessinv_apinvtxn__r.rstkf__apinvtxn_apwht__c}" rendered="{!isWhtEnabled}"/>
+                                <apex:column style="text-align: right;" headerValue="{!$Label.rstkf__col_whtamt}" value="{!rec.paysessinv.rstkf__paysessinv_amtwht__c}" rendered="{!isWhtEnabled}"/>
+                                <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_netpay__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_netpay__c}" /> 
+                                <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_netpaybank__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_netpaybank__c}" />
+                            </apex:pageBlockTable>
+                            </div>
+                            <apex:panelGrid columns="6">
+                                <apex:commandLink status="fetchStatusInvoices" reRender="op_invoices" action="{!invFirstPage}">First</apex:commandlink>
+                                <apex:commandLink status="fetchStatusInvoices" reRender="op_invoices" action="{!invPreviousPage}" rendered="{!setConInv.hasPrevious}">Previous</apex:commandlink>
+                                <apex:commandLink status="fetchStatusInvoices" reRender="op_invoices" action="{!invNextPage}" rendered="{!setConInv.hasNext}">Next</apex:commandlink>
+                                <apex:commandLink status="fetchStatusInvoices" reRender="op_invoices" action="{!invLastPage}">Last</apex:commandlink>
+                                <apex:outputText >{!(setConInv.pageNumber * invPagesize)+1-invPagesize}-{!IF((setConInv.pageNumber * invPagesize)>noOfInvRecords, noOfInvRecords,(setConInv.pageNumber * invPagesize))} of {!noOfInvRecords}</apex:outputText>
+                                <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                                    <apex:actionStatus id="fetchStatusInvoices" startText="Fetching..." stopText=""/>
+                                </apex:outputPanel>
+                            </apex:panelGrid>
+                        </apex:outputPanel>
+                    </apex:tab>
+                    <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                        <c:customFields cntr="{!controller}" cols="2"/>
+                    </apex:tab>
+                </apex:tabPanel>
+             </apex:pageBlockSection>
+             </div>   
+         </apex:pageBlock>
+         </apex:outputPanel>
+         </apex:form>
+         
+         <apex:outputpanel rendered="{!!isNew}">    
+         <div id="popPaymentByVendor" style="display:none; z-index: 10;">
+            <apex:pageMessages id="psvPageMessages"/>
+            <apex:form id="fm2">
+            <apex:actionStatus id="statusProcessingVendor" startStyleClass="Processing"/>
+            <apex:actionFunction name="doClosePopup" action="{!closePopup}" immediate="false" status="statusProcessingVendor"/>
+            <apex:actionFunction name="processVendorSelections" action="{!processVendorSelections}" onComplete="" rerender="psvPageMessages, op_popPaymentByVendor" immediate="false" status="statusProcessingVendor"/>
+            <apex:pageBlock mode="detail" title="{!$Label.rstkf__selectpaymentbyvendor}">
+                <apex:pageBlockButtons location="top">
+                    <apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="doClosePopup();return false;"/>
+                    <apex:commandButton value="{!$Label.rstkf__btn_processvendorselections}" onclick="blockUI();processVendorSelections();return false;"/>
+                </apex:pageBlockButtons>
+                <apex:outputPanel id="op_popPaymentByVendor">
+                    <input type="checkbox" onclick="selectAllPayByVend(this)" />
+                    <apex:outputLabel value="{!$Label.rstkf__pagevalselectall}" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    
+                    <!--  <apex:outputLabel value="{!f.paysession_totseldiscavail__c.label}: "/>-->
+                    <apex:outputLabel value="{!f.rstkf__paysession_totseldiscavailbank__c.label}: "/>&nbsp;&nbsp;&nbsp;
+                    <!-- <apex:inputField id="pbv_paysession_totseldiscavail__c" value="{!customext.rstkf__paysession_totdisc__c}"/> -->
+                    <apex:inputField id="pbv_paysession_totseldiscavail__c" value="{!customext.rstkf__paysession_totdisc__c}"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    
+                    <apex:outputLabel value="{!f.rstkf__paysession_totnetpaybank__c.label}: "/>&nbsp;&nbsp;&nbsp;
+                    <apex:inputField id="pbv_paysession_totselnetpayamt__c" value="{!customext.rstkf__paysession_totamount__c}"/>
+                    <script>
+                        var vendorRows = {};  
+                        var vendorSelectcbxs = [];
+                        jQuery('input[id*=pbv_paysession_totseldiscavail__c]')[0].disabled = true;
+                        jQuery('input[id*=pbv_paysession_totselnetpayamt__c]')[0].disabled = true;
+                    </script>
+                    <div style="overflow: scroll; height: 390px;">
+                    <apex:pageBlockTable value="{!paymentSelection.payByVendorRecs}" var="rec" id="pbt_vendors">
+                        <apex:column headerValue="{!$Label.rstkf__pagevalselect}">
+                            <apex:inputCheckbox id="selected" value="{!rec.selected}" onchange="selectPayByVendRec('{!rec.key}')"/>
+                            <script>
+                                vendorSelectcbxs[vendorSelectcbxs.length] = document.getElementById("{!$Component.selected}");
+                                vendorRows["{!rec.key}"] = {
+                                    selected: document.getElementById("{!$Component.selected}"),
+                                    discavailable: {!rec.paysessvend.rstkf__paysessvend_discavailable__c},
+                                    //netopenamt: {!rec.paysessvend.rstkf__paysessvend_netopenamt__c}
+                                    netopenamt: {!rec.paysessvend.rstkf__paysessvend_netopenamtbank__c}
+                                };
+                            </script>
+                        </apex:column>
+                        <apex:column headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_povend__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_povend__c}" />
+                        <apex:column headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_paytype__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_paytype__c}" />
+                        <!-- <apex:column headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_paycurr__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_paycurr__c}" /> -->
+                        <apex:column headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_maintcurr__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_maintcurr__c}" />
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totunapplamtmaint__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_totunapplamtmaint__c}" />
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_discavailable__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_discavailable__c}" />
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_netopenamt__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_netopenamt__c}" />
+                        <apex:column style="{!IF((rec.paysessvend.rstkf__paysessvend_payexchrate__c = null), 'color:red' , 'color: black' )}; text-align: right;"
+                        	headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_netopenamtbank__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_netopenamtbank__c}" />
+                        <apex:column style="text-align: center;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_numbinv__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_numbinv__c}" />
+                        <!-- <apex:column headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_selectpayind__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_selectpayind__c}" /> -->
+                    </apex:pageBlockTable>
+                     </div>
+                    <apex:panelGrid columns="6">
+                        <apex:commandLink status="fetchStatusVendorsPopup" reRender="op_popPaymentByVendor" action="{!paymentByVendorFirstPage}" oncomplete="enableSortForPayByVend();">First</apex:commandlink>
+                        <apex:commandLink status="fetchStatusVendorsPopup" reRender="op_popPaymentByVendor" action="{!paymentByVendorPreviousPage}" rendered="{!setConPayByVend.hasPrevious}" oncomplete="enableSortForPayByVend();">Previous</apex:commandlink>
+                        <apex:commandLink status="fetchStatusVendorsPopup" reRender="op_popPaymentByVendor" action="{!paymentByVendorNextPage}" rendered="{!setConPayByVend.hasNext}" oncomplete="enableSortForPayByVend();">Next</apex:commandlink>
+                        <apex:commandLink status="fetchStatusVendorsPopup" reRender="op_popPaymentByVendor" action="{!paymentByVendorLastPage}" oncomplete="enableSortForPayByVend();">Last</apex:commandlink>
+                        <apex:outputText >{!(setConPayByVend.pageNumber * payByVendPagesize)+1-payByVendPagesize}-{!IF((setConPayByVend.pageNumber * payByVendPagesize)>noOfPayByVendRecords, noOfPayByVendRecords,(setConPayByVend.pageNumber * payByVendPagesize))} of {!noOfPayByVendRecords}</apex:outputText>
+                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                            <apex:actionStatus id="fetchStatusVendorsPopup" startText="Fetching..." stopText=""/>
+                        </apex:outputPanel>
+                    </apex:panelGrid>
+                   
+                </apex:outputPanel>
+            </apex:pageBlock>
+        </apex:form>
+        </div>
+        </apex:outputpanel>
+        
+        <apex:outputpanel rendered="{!!isNew}"> 
+         <div id="resumePaymentSession" style="display:none">
+            <apex:pageMessages id="rpsPageMessages"/>
+            <apex:form id="fm5">
+                <apex:actionStatus id="statusProcessingResume" startStyleClass="Processing"/>
+                <apex:pageBlock mode="detail" title="{!$Label.rstkf__resumepaymentsession} ">
+                    <apex:pageBlockButtons location="top">
+                        <apex:commandButton value="{!$Label.rstkf__pageval_cancel}" onclick="unblockUI());return false;" status="statusProcessingResume"/>
+                        <apex:commandButton value="{!$Label.rstkf__btn_submit}" onclick="validatePassword();return false;" status="statusProcessingResume"/>
+                    </apex:pageBlockButtons>
+                    
+                    <apex:pageBlockSection id="pbs_resumePaymentSession" showHeader="false" columns="1" collapsible="false">
+                        <apex:inputText id="sessionPassword__c" label="Session Password: " value="{!inputPassword}"/>
+                    </apex:pageBlockSection>
+                </apex:pageBlock>
+            </apex:form>
+        </div>
+        </apex:outputpanel>
+        
+        <apex:outputpanel rendered="{!!isNew}"> 
+        <div id="popPaymentByInvoice" style="display:none; z-index: 10; overflow: scroll; height: 510px;">
+            <apex:pageMessages id="psiPageMessages"/>
+            <apex:form id="fm3">
+            <apex:actionStatus id="statusProcessingPayByInv" startStyleClass="Processing"/>
+            <apex:actionFunction name="doClosePopup" action="{!closePopup}" immediate="false" status="statusProcessingPayByInv"/>
+            <apex:actionFunction name="processInvoiceSelections" action="{!processInvoiceSelections}" onComplete="enableSortForPayByInv();" rerender="psiPageMessages, op_popPayByInv" immediate="false" status="statusProcessingPayByInv"/>
+            <apex:actionFunction name="showFilteredVendors" action="{!showFilteredVendors}" onComplete="enableSortForPayByInv();" rerender="psiPageMessages, op_popPayByInv" immediate="false" status="statusProcessingPayByInv"/>
+            <apex:pageBlock mode="detail" title="{!$Label.rstkf__selectpaymbyinvoice}" >
+                <apex:pageBlockButtons location="top">
+                    <apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="doClosePopup();return false;"/>
+                    <apex:commandButton value="{!$Label.rstkf__btn_processinvoiceselections}" onclick="doProcessInvoiceSelection();return false;"/>
+                </apex:pageBlockButtons>
+                 <apex:outputpanel id="op_filterByVendor">
+                <apex:pageBlockSection id="pbs_checkNumDetails" showHeader="false" columns="3"  collapsible="false">
+               
+                    <!-- <apex:outputLabel value="{!$Label.rstkf__filterbyvendor}" />&nbsp;
+                    <apex:selectList id="filteredVendors__c" value="{!filteredVendor}" size="1" style="width:150px;" onchange="showFilteredVendors();"> 
+                        <apex:selectOptions value="{!filteredVendors}" /> 
+                    </apex:selectList><br/><br/>
+                    <apex:outputLabel value="{!f_customextf.rstkf__paysession_filterbyInv__c.label}: "/>&nbsp;
+                    <apex:inputField id="paysession_filterbyInv__c" value="{!customext.rstkf__paysession_filterbyInv__c}"  onchange="showFilteredVendors();"/>  -->
+                    <apex:pageBlockSectionItem helpText="">
+	                    <apex:outputLabel value="{!$Label.rstkf__filterbyvendor}"/>
+	                    <apex:selectList id="filteredVendors__c" value="{!filteredVendor}" size="1" style="width:150px;" onchange="showFilteredVendors();"> 
+	                        <apex:selectOptions value="{!filteredVendors}" /> 
+	                    </apex:selectList>
+	                </apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__paysession_filterbyInv__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f_customextf.rstkf__paysession_filterbyInv__c.label}"/>
+	                    <apex:inputField id="paysession_filterbyInv__c" value="{!customext.rstkf__paysession_filterbyInv__c}"  onchange="showFilteredVendors();"/>
+	                </apex:pageBlockSectionItem>
+	                
+	                <apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__paysession_sortseq__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f_customextf.rstkf__paysession_sortseq__c.label}"/>
+	                    <apex:inputField id="paysession_sortseq__c" value="{!customext.rstkf__paysession_sortseq__c}" onchange="showFilteredVendors();"/>
+	                </apex:pageBlockSectionItem>
+	             
+	                <apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__paysession_txntotalgt__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f_customextf.rstkf__paysession_txntotalgt__c.label}"/>
+	                    <apex:inputField id="paysession_txntotalgt__c" value="{!customext.rstkf__paysession_txntotalgt__c}" onchange="showFilteredVendors();"/>
+	                </apex:pageBlockSectionItem>
+                 
+                    <apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__paysession_txntotallt__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f_customextf.rstkf__paysession_txntotallt__c.label}"/>
+	                    <apex:inputField id="paysession_txntotallt__c" value="{!customext.rstkf__paysession_txntotallt__c}" onchange="showFilteredVendors();"/>
+	                </apex:pageBlockSectionItem>   
+                
+                
+                </apex:pageBlockSection>
+                </apex:outputpanel>
+                
+                <apex:outputPanel id="op_popPayByInv">
+                    <input type="checkbox" onclick="selectAllPayByInv(this)" />
+                    <apex:outputLabel value="{!$Label.rstkf__pagevalselectall}" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    
+                    <!-- <apex:outputLabel value="{!f.paysession_totdisctknamt__c.label}: "/> -->
+                    <apex:outputLabel value="{!f.rstkf__paysession_totseldisctknamtbank__c.label}: "/>&nbsp;&nbsp;&nbsp;
+                    <!-- <apex:inputField id="pbi_paysession_totdisctknamt__c" value="{!customext.rstkf__paysession_totdisc__c}"/> -->
+                    <apex:inputField id="pbi_paysession_totdisctknamt__c" value="{!customext.rstkf__paysession_totdisc__c}"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    
+                    <apex:outputLabel value="{!f.rstkf__paysession_totnetpaybank__c.label}: "/>&nbsp;&nbsp;&nbsp;
+                    <apex:inputField id="pbi_paysession_totnetpaybank__c" value="{!customext.rstkf__paysession_totamount__c}"/>
+                    
+                    <script>
+                        var invoiceRows = {};  
+                        var invoiceSelectcbxs = [];
+                        jQuery('input[id*=pbi_paysession_totdisctknamt__c]')[0].disabled = true;
+                        jQuery('input[id*=pbi_paysession_totnetpaybank__c]')[0].disabled = true;
+                    </script>
+                    <div style="overflow: scroll; height: 370px;">
+                    <apex:pageBlockTable value="{!paymentSelection.payByInvoiceRecs}" var="rec" id="pbt_invoices">
+                        <apex:column headerValue="{!$Label.rstkf__pagevalselect}">
+                            <apex:inputCheckbox id="selected" value="{!rec.selected}" onchange="selectPayByInvRec('{!rec.key}')"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_apinvtxn__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_apinvtxn__c}" />
+                        <apex:column headerValue="{!$ObjectType.rstkf__apinvtxn__c.fields.rstkf__apinvtxn_trandate__c.label}" value="{!rec.paysessinv.paysessinv_apinvtxn__r.rstkf__apinvtxn_trandate__c}" />
+                        <apex:column style="{!IF((rec.paysessinv.paysessinv_paysessvend__r.rstkf__paysessvend_payexchrate__c = null), 'color:red' , 'color: black' )}; text-align: right;"
+                        	headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_txncurrency__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_txncurrency__c}" />
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_maintamt__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_maintamt__c}" />
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_unapplamtmaint__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_unapplamtmaint__c}" />
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_discavailable__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_discavailable__c}" />
+                        
+                        <apex:column headerValue="{!$ObjectType.rstkf__apinvtxn__c.fields.rstkf__apinvtxn_agedate__c.label}" value="{!rec.paysessinv.paysessinv_apinvtxn__r.rstkf__apinvtxn_agedate__c}" />
+                        <apex:column headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_termsdiscdate__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_termsdiscdate__c}" />
+                        
+                        <apex:column style="text-align: right;" headerValue="{!$Label.rstkf__col_wht}" value="{!rec.paysessinv.paysessinv_apinvtxn__r.rstkf__apinvtxn_dowht__c}" rendered="{!isWhtEnabled}"/>
+                        <apex:column style="text-align: right;" headerValue="{!$Label.rstkf__col_whtclass}" value="{!rec.paysessinv.paysessinv_apinvtxn__r.rstkf__apinvtxn_apwht__c}" rendered="{!isWhtEnabled}"/>
+                        
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_grosspay__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_grosspay__c}" />
+                        <apex:column style="text-align: right;" headerValue="{!$Label.rstkf__col_whtamt}">
+                            <apex:inputField id="paysessinv_amtwht__c" value="{!rec.paysessinv.rstkf__paysessinv_amtwht__c}" onchange="amtwhtChanged('{!rec.key}')" />
+                            <script>
+                                var dowht = "{!rec.paysessinv.paysessinv_apinvtxn__r.rstkf__apinvtxn_dowht__c}";
+                                if(dowht == "false") {
+                                    document.getElementById("{!$Component.paysessinv_amtwht__c}").disabled = true;
+                                }
+                            </script>
+                        </apex:column>
+                        
+                        
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_disctknamt__c.label}">
+                            <apex:inputField id="paysessinv_disctknamt__c" value="{!rec.paysessinv.rstkf__paysessinv_disctknamt__c}" onchange="disctknamtChanged('{!rec.key}')" />
+                            <script>
+                                var doterms = "{!paymentSelection.paysession.rstkf__paysession_doterms__c}";
+                                if({!!paymentSelection.paysession.paysession_doterms__c}) {
+                                    document.getElementById("{!$Component.paysessinv_disctknamt__c}").disabled = true;
+                                }
+                            </script>
+                        </apex:column>
+                        
+                        <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_netpay__c.label}">
+                            <apex:inputField id="paysessinv_netpay__c" value="{!rec.paysessinv.rstkf__paysessinv_netpay__c}" onchange="netpayChanged('{!rec.key}', true)" />
+                        </apex:column>
+                         <apex:column style="text-align: right;" headerValue="{!$ObjectType.rstkf__customextf__c.fields.rstkf__amountpay_bankcurr__c.label}">
+                            <apex:inputField id="amountpay_bankcurr__c"  value="{!rec.customextf.rstkf__amountpay_bankcurr__c}" html-disabled="true" />
+ 							<script>
+                                invoiceSelectcbxs[invoiceSelectcbxs.length] = document.getElementById("{!$Component.selected}");
+                                invoiceRows["{!rec.key}"] = {
+                                    selected: document.getElementById("{!$Component.selected}"),
+                                    paysessinv_disctknamt_prevvalue: parseFloat("{!rec.paysessinv.rstkf__paysessinv_discavailable__c}").toFixed(2),
+                                    paysessinv_disctknamt__c: document.getElementById("{!$Component.paysessinv_disctknamt__c}"),
+                                    paysessinv_netpay_prevvalue: parseFloat("{!rec.paysessinv.paysessinv_unapplamtmaint__c - rec.paysessinv.paysessinv_discavailable__c}").toFixed(2),
+                                    paysessinv_netpay__c: document.getElementById("{!$Component.paysessinv_netpay__c}"),
+                                    paysessinv_discavailable__c: parseFloat("{!rec.paysessinv.rstkf__paysessinv_discavailable__c}").toFixed(2),
+                                    paysessinv_unapplamtmaint__c: parseFloat("{!rec.paysessinv.rstkf__paysessinv_unapplamtmaint__c}").toFixed(2),
+                                    paysessinv_amtwht__c: document.getElementById("{!$Component.paysessinv_amtwht__c}"),
+                                    paysessinv_amtwht_prevvalue: parseFloat("{!rec.paysessinv.rstkf__paysessinv_amtwht__c}").toFixed(2),
+                                    amountpay_bankcurr__c: document.getElementById("{!$Component.amountpay_bankcurr__c}"),
+									paysessinv_trantype__c: ("{!rec.paysessinv.paysessinv_trantype__c}"),
+                                    exchangerate: getFloatValue("{!rec.paysessinv.paysessinv_paysessvend__r.paysessvend_payexchrate__c}"),
+                                    amountpay_bankcurr_prevvalue : parseFloat("{!rec.paysessinv.paysessinv_unapplamtmaint__c - rec.paysessinv.paysessinv_discavailable__c}").toFixed(2) * parseFloat("{!rec.paysessinv.paysessinv_paysessvend__r.paysessvend_payexchrate__c}").toFixed(2) ,
+                                };
+                            </script>
+ 							                      
+                         </apex:column>
+                        <!-- <apex:column headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_process__c.label}" value="{!rec.paysessinv.rstkf__paysessinv_process__c}" /> -->
+                    </apex:pageBlockTable>
+                     </div>
+                    <apex:panelGrid columns="6">
+                        <apex:commandLink status="fetchPopStatusInvoices" reRender="op_popPayByInv" action="{!payByInvFirstPage}" oncomplete="enableSortForPayByInv();">First</apex:commandlink>
+                        <apex:commandLink status="fetchPopStatusInvoices" reRender="op_popPayByInv" action="{!payByInvPreviousPage}"  oncomplete="enableSortForPayByInv();" rendered="{!setConPayByInv.hasPrevious}">Previous</apex:commandlink>
+                        <apex:commandLink status="fetchPopStatusInvoices" reRender="op_popPayByInv" action="{!payByInvNextPage}"  oncomplete="enableSortForPayByInv();" rendered="{!setConPayByInv.hasNext}">Next</apex:commandlink>
+                        <apex:commandLink status="fetchPopStatusInvoices" reRender="op_popPayByInv" action="{!payByInvLastPage}"  oncomplete="enableSortForPayByInv();">Last</apex:commandlink>
+                        <apex:outputText >{!(setConPayByInv.pageNumber * payByInvPagesize)+1-payByInvPagesize}-{!IF((setConPayByInv.pageNumber * payByInvPagesize)>noOfPayByInvRecords, noOfPayByInvRecords,(setConPayByInv.pageNumber * payByInvPagesize))} of {!noOfPayByInvRecords}</apex:outputText>
+                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                            <apex:actionStatus id="fetchPopStatusInvoices" startText="Fetching..." stopText=""/>
+                        </apex:outputPanel>
+                    </apex:panelGrid>
+                   
+                </apex:outputPanel>
+            </apex:pageBlock>
+        </apex:form>
+        </div>
+        </apex:outputpanel>
+        
+        
+        <apex:outputpanel rendered="{!!isNew}"> 
+        <div id="popPaymentReviewAndProcessing" style="display:none;z-index: 10;">
+            <apex:pageMessages id="prapPageMessages"/>
+            <apex:form id="fm4">
+            <apex:actionStatus id="statusProcessingPaymRev" startStyleClass="Processing"/>
+            <apex:actionFunction name="paymentReviewSave" action="{!paymentReviewSave}" rerender="prapPageMessages, op_popPaymentReviewAndProcessing, op_btns_paymRevAndProcessing" immediate="false" status="statusProcessingPaymRev"/>
+            <apex:actionFunction name="removeSelectedPayments" action="{!removeSelectedPayments}" onComplete="reloadPage();" immediate="false" status="statusProcessingPaymRev"/>
+            <apex:actionFunction name="clearCheckNumbers" action="{!clearCheckNumbers}" onComplete="unblockPopupUI('paymRevPleaseWaitPopup');setReviewAndProcessPaymentsPopup();" rerender="prapPageMessages, op_popPaymentReviewAndProcessing, op_btns_paymRevAndProcessing" immediate="false" status="statusProcessingPaymRev"/>
+            <apex:actionFunction name="createOutputExportFiles" action="{!createOutputExportFiles}" 
+            	onComplete="doAfterCreateOutputExportFiles();reloadViewPage();" 
+            	rerender="prapPageMessages, op_procVars, op_popPaymentReviewAndProcessing, op_btns_paymRevAndProcessing" 
+            	immediate="false" status="statusProcessingPaymRev"/>
+            <apex:actionFunction name="createCheckPrintPdf" action="{!createCheckPrintPdf}" 
+            	onComplete="checkPrintPdfJobStatus('false');" rerender="prapPageMessages, op_procVars, op_popPaymentReviewAndProcessing, op_btns_paymRevAndProcessing" 
+            	immediate="false" status="statusProcessingPaymRev"/>
+            <apex:actionFunction name="verifyBeforePosting" action="{!verifyBeforePosting}" onComplete="evaluateVerifyPosting();" rerender="prapPageMessages, op_procVars" immediate="false" status="statusProcessingPaymRev"/>
+            <apex:actionFunction name="doPostPayments" action="{!doPostPayments}" onComplete="checkJobStatus();buttonsEnabled(true);" rerender="prapPageMessages, op_procVars, op_JobStatus, pb, pb_tabs"  immediate="false" status="statusProcessingPaymRev"/>
+            <apex:actionFunction name="doClosePopup" action="{!closePopup}" onComplete="reloadPage();" rerender="pageMessages, pb, pb_tabs, op_popPaymentReviewAndProcessing" immediate="false" status="statusProcessingPaymRev"/>
+            
+            <apex:actionFunction name="getRelatedInvoices" action="{!getRelatedInvoices}" oncomplete="openDialogWindow('vendorInvoices');return false;" rerender="op_vendorInvoices" immediate="false" status="statusProcessingPaymRev">
+                <apex:param name="selectedVendorId" assignTo="{!selectedVendorId}" value="" />
+            </apex:actionFunction>
+            
+            <apex:outputpanel id="op_procVars">
+            <script>
+                var hasChanges = '{!hasChanges}';
+                var hasMulticurrCheckPayments = '{!hasMulticurrCheckPayments}';
+                var sdocJobIds = '{!sdocJobIds}';
+                var hasMoreChecks = '{!hasMoreChecks}';
+                var hasApcheckOrApeft = '{!hasApcheckOrApeft}';
+            </script>
+            </apex:outputpanel>
+            
+            <!-- <apex:outputPanel id="op_JobStatus">
+                <input type="hidden" id="processlogId" value="{!processLogId}"/>
+            </apex:outputPanel> -->
+            
+            <apex:pageBlock mode="detail" title="{!$Label.rstkf__paymentreviewandprocessing}">
+                <apex:pageBlockButtons location="top">
+                    <apex:outputPanel id="op_btns_paymRevAndProcessing" >
+                        <apex:commandButton value="{!$Label.rstkf__pageval_save}" onclick="paymentReviewSave();return false;"/>
+                        <apex:commandButton value="{!$Label.rstkf__removeselectedpayments}" onclick="removeSelectedPayments();return false;"/>
+                        <apex:commandButton value="{!$Label.rstkf__setstartingchknumber}" onclick="blockPopupUI('paymRevPleaseWaitPopup');openDialogWindow('setStartingCheckNumber');return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_havechecks__c > 0}"/>
+                        <apex:commandButton value="{!$Label.rstkf__chknumadjustment}" onclick="blockPopupUI('paymRevPleaseWaitPopup');openDialogWindow('checkNumberAdjustment');return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_havechecks__c > 0}"/>
+                        <apex:commandButton value="{!$Label.rstkf__clearstartingchknum}" onclick="confirmClearCheckNumber();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_firstcheckno__c != null && paymentSelection.paysession.rstkf__paysession_firstcheckno__c != 0}"/>
+                        <apex:commandButton value="{!$Label.rstkf__createoutputexportfiles}" 
+								onclick="blockPopupUI('paymRevPleaseWaitPopup');createOutputExportFiles();return false;" 
+								rendered="{!(paymentSelection.paysession.paysession_haveefts__c > 0) || (paymentSelection.paysession.paysession_havechecks__c > 0 
+											&& !(paymentSelection.paysession.paysession_firstcheckno__c == null || paymentSelection.paysession.paysession_firstcheckno__c == 0))
+										}"/>
+								
+                        <apex:commandButton value="{!$Label.rstkf__createcheckprintpdf + ' (' + sdocJobTemplName + ')'}"  onclick="doCreateCheckPrintPdf();return false;" rendered="{!paymentSelection.paysession.rstkf__paysession_havechecks__c > 0 && checkprinttempl != null && paymentSelection.paysession.rstkf__paysession_firstcheckno__c != null && paymentSelection.paysession.rstkf__paysession_firstcheckno__c > 0}"/>
+                        <apex:commandButton value="{!$Label.rstkf__postpayments}" onclick="confirmpostPayments();return false;"/>
+                        <apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="doClosePopup();return false;"/>
+                    </apex:outputPanel>
+                </apex:pageBlockButtons>
+                <div id="popPaymentReviewAndProcessingInner" style="overflow:scroll;">
+                <apex:outputPanel id="op_popPaymentReviewAndProcessing" >
+                    <script>var vendorRows = {};  var vendorSelectcbxs = [];</script>
+                    <input type="checkbox" onclick="selectAllPaymRevVends(this)" />
+                    <apex:outputLabel value="{!$Label.rstkf__pagevalselectall}" />&nbsp;&nbsp;&nbsp;
+                    <div style="overflow: scroll; height: 390px;">
+                    <apex:pageBlockTable value="{!paymentSelection.paymReviewVendRecs}" var="rec" id="pbt_vendors">
+                        <apex:column style="width:80px;" headerValue="{!$Label.rstkf__pagevalselect}">
+                            <apex:inputCheckbox id="selected" value="{!rec.selected}" onchange="selectRecord('{!rec.key}')"/>
+                        </apex:column>
+                        <apex:column style="width:150px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_povend__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_povend__c}" />
+                        <apex:column style="width:80px; text-align: center;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_maintcurr__c.label}"  value="{!rec.paysessvend.rstkf__paysessvend_maintcurr__c}" />
+                        <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_paytype__c.label}" >
+                           <apex:outputPanel id="op_paysession_paymenttype_process" rendered="{!!hasApcheckOrApeft && rec.paysessvend.rstkf__paysessvend_paytype__c != 'Bank Card' && (rec.paysessvend.paysessvend_paysession__r.rstkf__paysession_firstcheckno__c == null || rec.paysessvend.paysessvend_paysession__r.rstkf__paysession_firstcheckno__c == 0)}">
+	                    	<apex:selectList id="paysessvend_paytype__c" value="{!rec.paysessvend.rstkf__paysessvend_paytype__c}" size="1" style="width:100px;" tabindex="2"> 
+	                            <apex:selectOptions value="{!payTypes}" /> 
+	                        </apex:selectList>
+	                         <script>
+	                        	var poven = '{!rec.paysessvend.rstkf__paysessvend_paytype__c}'
+	                        </script>
+	                      </apex:outputPanel>
+                            <!--<apex:inputField id="paysessvend_paytype__c" value="{!rec.paysessvend.rstkf__paysessvend_paytype__c}" rendered="{!!hasApcheckOrApeft && rec.paysessvend.rstkf__paysessvend_paytype__c != 'Bank Card' && (rec.paysessvend.paysessvend_paysession__r.rstkf__paysession_firstcheckno__c == null || rec.paysessvend.paysessvend_paysession__r.rstkf__paysession_firstcheckno__c == 0)}"/>   -->
+                            <apex:outputField value="{!rec.paysessvend.rstkf__paysessvend_paytype__c}" rendered="{!hasApcheckOrApeft  || rec.paysessvend.rstkf__paysessvend_paytype__c == 'Bank Card' ||(rec.paysessvend.paysessvend_paysession__r.rstkf__paysession_firstcheckno__c != null && rec.paysessvend.paysessvend_paysession__r.rstkf__paysession_firstcheckno__c > 0)}"/>
+                        </apex:column>
+                        
+                        <apex:column style="width:80px; text-align: center;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_numbinvprocess__c.label}"  value="{!rec.paysessvend.rstkf__paysessvend_numbinvprocess__c}" />
+                        
+                        <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totgrosspay__c.label}"  value="{!rec.paysessvend.rstkf__paysessvend_totgrosspay__c}" />
+                        <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totdisctknamt__c.label}"  value="{!rec.paysessvend.rstkf__paysessvend_totdisctknamt__c}" />
+                        <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_whtamt__c.label}"  value="{!rec.paysessvend.rstkf__paysessvend_whtamt__c}" rendered="{!isWhtEnabled}"/>
+                        <apex:column style="width:40px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totnetpay__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_totnetpay__c}" />
+                        <apex:column style="width:40px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totnetpaybank__c.label}" value="{!rec.paysessvend.rstkf__paysessvend_totnetpaybank__c}" />
+                        <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_handcheckind__c.label}">
+                            <apex:inputField id="paysessvend_handcheckind__c" value="{!rec.paysessvend.rstkf__paysessvend_handcheckind__c}" rendered="{!rec.paysessvend.rstkf__paysessvend_paytype__c == 'Check'}"/>
+                            <apex:outputField value="{!rec.paysessvend.rstkf__paysessvend_handcheckind__c}" rendered="{!rec.paysessvend.rstkf__paysessvend_paytype__c != 'Check'}"/>
+                        </apex:column>
+                        
+                        <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_checknumber__c.label}" >
+                            <apex:inputField id="paysessvend_checknumber__c" value="{!rec.paysessvend.rstkf__paysessvend_checknumber__c}" onchange="paysessvendChecknumbChanged('{!rec.key}')" rendered="{!rec.paysessvend.rstkf__paysessvend_paytype__c == 'Check'}"/>
+                            <apex:outputField value="{!rec.paysessvend.rstkf__paysessvend_checknumber__c}" rendered="{!rec.paysessvend.rstkf__paysessvend_paytype__c != 'Check'}"/>
+                        </apex:column>
+                        
+                        <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_checkmemo__c.label}" >
+                            <apex:inputField id="paysessvend_checkmemo__c" value="{!rec.paysessvend.rstkf__paysessvend_checkmemo__c}" rendered="{!rec.paysessvend.rstkf__paysessvend_paytype__c == 'Check'}"/>
+                            <apex:outputField value="{!rec.paysessvend.rstkf__paysessvend_checkmemo__c}" rendered="{!rec.paysessvend.rstkf__paysessvend_paytype__c != 'Check'}"/>
+                        </apex:column>
+                        
+                        <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_paycurr__c.label}" rendered="{!numbAltCurr > 0}">
+                            <apex:outputField value="{!rec.paysessvend.rstkf__paysessvend_paycurr__c}" />
+                        </apex:column>
+                        
+                        <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totnetpaybank__c.label}" rendered="{!numbAltCurr > 0}">
+                            <apex:outputField value="{!rec.paysessvend.rstkf__paysessvend_totnetpaybank__c}" />
+                        </apex:column>
+                        
+                        <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessvend__c.fields.rstkf__paysessvend_totnetpayhome__c.label}" rendered="{!numbAltCurr > 0}">
+                            <apex:outputField value="{!rec.paysessvend.rstkf__paysessvend_totnetpayhome__c}" />
+                        </apex:column>
+                        
+                        <apex:column style="width:80px;" headerValue="Details">
+                            <input type="button" id="Details" value="Details" class="btn" onclick="blockPopupUI('paymRevPleaseWaitPopup');getRelatedInvoices('{!rec.paysessvend.id}');"/>
+                            <script>
+                                vendorSelectcbxs[vendorSelectcbxs.length] = document.getElementById("{!$Component.selected}");
+                                vendorRows["{!rec.key}"] = {
+                                    selected: document.getElementById("{!$Component.selected}"),
+                                    paytypeVal: '{!JSENCODE(rec.paysessvend.paysessvend_paytype__c)}',
+                                    totnetpay: parseFloat("{!rec.paysessvend.rstkf__paysessvend_totnetpay__c}").toFixed(2),
+                                    paytype: document.getElementById("{!$Component.paysessvend_paytype__c}"),
+                                    paysessvend_checknumber: document.getElementById("{!$Component.paysessvend_checknumber__c}"),
+                                    paysessvend_checkmemo: document.getElementById("{!$Component.paysessvend_checkmemo__c}"),
+                                    paysessvend_handcheckind: document.getElementById("{!$Component.paysessvend_handcheckind__c}"),
+                                    paysessvend_checknumber_orig: "{!rec.paysessvend.rstkf__paysessvend_checknumber__c}"
+                                };
+                            </script>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                    </div>
+                    <apex:panelGrid columns="6">
+                        <apex:commandLink status="fetchStatusPaymentReviewPopup" reRender="op_popPaymentReviewAndProcessing" action="{!paymReviewVendorFirstPage}">First</apex:commandlink>
+                        <apex:commandLink status="fetchStatusPaymentReviewPopup" reRender="op_popPaymentReviewAndProcessing" action="{!paymReviewVendorPreviousPage}" rendered="{!setConPaymReview.hasPrevious}">Previous</apex:commandlink>
+                        <apex:commandLink status="fetchStatusPaymentReviewPopup" reRender="op_popPaymentReviewAndProcessing" action="{!paymReviewVendorNextPage}" rendered="{!setConPaymReview.hasNext}">Next</apex:commandlink>
+                        <apex:commandLink status="fetchStatusPaymentReviewPopup" reRender="op_popPaymentReviewAndProcessing" action="{!paymReviewVendorLastPage}">Last</apex:commandlink>
+                        <apex:outputText >{!(setConPaymReview.pageNumber * PaymReviewPagesize)+1-PaymReviewPagesize}-{!IF((setConPaymReview.pageNumber * PaymReviewPagesize)>noOfPaymReviewVendRecords, noOfPaymReviewVendRecords,(setConPaymReview.pageNumber * PaymReviewPagesize))} of {!noOfPaymReviewVendRecords}</apex:outputText>
+                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                            <apex:actionStatus id="fetchStatusPaymentReviewPopup" startText="Fetching..." stopText=""/>
+                        </apex:outputPanel>
+                    </apex:panelGrid>
+                    
+                </apex:outputPanel>
+                </div>
+            </apex:pageBlock>
+            
+            <div id="setStartingCheckNumber" class="modal">
+                <script>
+                    var defaultCheckNumb = "{!JSENCODE(checkNum)}";
+                    var bankacct = "{!paymentSelection.paysession.rstkf__paysession_glbankacct__c}";
+                    var bankacctCheckNumb = "{!paymentSelection.paysession.paysession_glbankacct__r.glbankacct_lstchecknumb__c}";
+                </script>
+                <div class="modal-content">
+                <apex:pageMessages id="sscnPageMessages"/>
+                    <apex:actionFunction name="initializeCheckNumbers" action="{!initializeCheckNumbers}" onComplete="closeDialogWindow('setStartingCheckNumber','paymRevPleaseWaitPopup'); setReviewAndProcessPaymentsPopup();" rerender="op_popPaymentReviewAndProcessing, op_btns_paymRevAndProcessing" immediate="false" status="statusProcessingPaymRev"/>
+    
+                    <apex:pageBlock mode="detail" title="{!$Label.rstkf__setstartingchknumber}">
+                        <apex:pageBlockButtons location="top">
+                            <apex:commandButton value="{!$Label.rstkf__pageval_cancel}" onclick="closeDialogWindow('setStartingCheckNumber','paymRevPleaseWaitPopup');return false;"/>
+                            <apex:commandButton value="{!$Label.rstkf__pageval_save}" onclick="blockPopupUI('paymRevPleaseWaitPopup');initializeCheckNumbers();return false;"/>
+                        </apex:pageBlockButtons>
+                        <apex:pageBlockSection id="pbs_setStartingCheckNumber" showHeader="false" columns="2" collapsible="false">
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.rstkf__checkdate}"/>
+                                <apex:inputField id="checkDate__c" value="{!customext.rstkf__customext_date1__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:inputText id="startingCheckNum__c" label="{!$Label.rstkf__startingchecknumber}" value="{!checkNum}" onchange="startingCheckNumChanged();"/>
+                        </apex:pageBlockSection>
+                    </apex:pageBlock>
+                </div>
+            </div>
+            
+            <div id="checkNumberAdjustment" class="modal">
+                <script>
+                </script>
+                <div class="modal-content"> 
+                <apex:pageMessages id="cnaPageMessages"/>
+                    <apex:actionFunction name="processDamagedChecks" action="{!processDamagedChecks}" onComplete="closeDialogWindow('checkNumberAdjustment','paymRevPleaseWaitPopup');setReviewAndProcessPaymentsPopup();" rerender="op_popPaymentReviewAndProcessing" immediate="false" status="statusProcessingPaymRev"/>
+    
+                    <apex:pageBlock mode="detail" title="{!$Label.rstkf__checknumadjustment}">
+                        <apex:pageBlockButtons location="top">
+                            <apex:commandButton value="{!$Label.rstkf__pageval_cancel}" onclick="closeDialogWindow('checkNumberAdjustment','paymRevPleaseWaitPopup');return false;"/>
+                            <apex:commandButton value="{!$Label.rstkf__pageval_save}" onclick="blockPopupUI('paymRevPleaseWaitPopup');doProcessDamagedChecks();return false;"/>
+                        </apex:pageBlockButtons>
+                        <apex:pageBlockSection id="pbs_checkNumberAdjustment" showHeader="false" columns="2" collapsible="false">
+                            <apex:inputText id="firstDamagedCheck__c" label="First Damaged/Destroyed Check Number" value="{!firstDamagedCheck}" onchange="firstDamagedCheckChanged();"/>
+                            <apex:inputText id="lastDamagedCheck__c" label="Last Damaged/Destroyed Check Number" value="{!lastDamagedCheck}" onchange="lastDamagedCheckChanged();"/>
+                            
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.rstkf__renumberoption}" />
+                                <apex:outputPanel >
+                                    <apex:selectList id="renumberOption__c" value="{!renumberOption}" size="1"> 
+                                        <apex:selectOptions value="{!renumberOptions}" /> 
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlock>
+                </div>
+            </div>
+            
+            <div id="vendorInvoices" class="modal" style="height:400px; width:900px;">
+                <script>
+                </script>
+                <div class="modal-content" style="height:400px; width:900px; overflow:scroll;">
+                    <apex:pageBlock title="{!$Label.rstkf__vendorinvoices}" id="pb_vendorInvoices" mode="detail" >
+                        <apex:pageBlockButtons location="top">
+                            <apex:commandButton value="{!$Label.rstkf__pagevalclose}" onclick="closeDialogWindow('vendorInvoices','paymRevPleaseWaitPopup');return false;"/>
+                        </apex:pageBlockButtons>    
+                        <apex:outputPanel id="op_vendorInvoices">
+                            <script>var invRows = {};  var invSelectcbxs = []; var invMatchescbxs = {};</script>
+                            <apex:pageBlockTable value="{!paysessVendorInvoices}" var="rec" id="pbt_invoices">
+                                <apex:column style="width:80px;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_apinvtxn__c.label}" value="{!rec.rstkf__paysessinv_apinvtxn__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_netpay__c.label}" value="{!rec.rstkf__paysessinv_netpay__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_disctknamt__c.label}" value="{!rec.rstkf__paysessinv_disctknamt__c}" />
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_amtwht__c.label}" value="{!rec.rstkf__paysessinv_amtwht__c}" rendered="{!isWhtEnabled}"/>
+                                <apex:column style="width:80px; text-align: right;" headerValue="{!$ObjectType.rstkf__paysessinv__c.fields.rstkf__paysessinv_grosspay__c.label}" value="{!rec.rstkf__paysessinv_grosspay__c}" />
+                            </apex:pageBlockTable>
+                        </apex:outputPanel>
+                    </apex:pageBlock>
+                </div>
+            </div>
+            
+            <div id="paymRevPleaseWaitPopup" class="overlay">
+                <span style="padding: 5px; border-radius: 5px;color: #000;background-color: #fff;">
+                    Please wait...
+                </span>
+            </div>
+            
+            <div id="exportAndPrint" class="modal" style="height:130px; width:490px;">
+                <div class="modal-content" style="height:130px; width:490px;">
+    				<apex:actionFunction name="exportAndPrintSdocs" action="{!exportAndPrint}" 
+    					onComplete="checkPrintPdfJobStatus('false');" 
+    					rerender="prapPageMessages, op_procVars, op_popPaymentReviewAndProcessing, op_btns_paymRevAndProcessing" 
+    					immediate="false" status="statusProcessingPaymRev"/>
+    				<apex:actionFunction name="exportAndPrintConga" action="{!exportAndPrint}" 
+    					onComplete="openCongaUrl();" 
+    					rerender="prapPageMessages, op_procVars, op_popPaymentReviewAndProcessing, op_btns_paymRevAndProcessing" 
+    					immediate="false" status="statusProcessingPaymRev"/>
+    					
+                    <apex:pageBlock mode="detail" title="">
+                        <apex:pageBlockButtons location="bottom">
+                            <apex:commandButton value="{!$Label.rstkf__btn_useexisting}" onclick="closeDialogWindow('exportAndPrint');invokecreateCheckPrintPdf();return false;"/>
+                            <apex:commandButton value="{!$Label.rstkf__btn_regenerate}" onclick="closeDialogWindow('exportAndPrint');invokeExportAndPrint();return false;"/>
+                            <apex:commandButton value="{!$Label.rstkf__pageval_cancel}" onclick="closeDialogWindow('exportAndPrint','paymRevPleaseWaitPopup');return false;"/>
+                        </apex:pageBlockButtons>
+                        <apex:pageBlockSection id="pbs_exportAndPrint" showHeader="false" columns="1" collapsible="false">
+                            <apex:pageBlockSectionItem >
+                                <apex:outputText value="{!$Label.rstkf__useexistingorregenerate}"/>
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlock>
+                </div>
+            </div>
+        
+        </apex:form>
+        </div>
+        </apex:outputpanel>
+        <apex:outputpanel Id="cpopup">
+        <div id="OverrideExchangeRatePopup" style="display:none; z-index: 10; height: 300px;">
+        	<apex:pageMessages />
+	    	<apex:form id="fpopup"  >
+	    		<apex:actionFunction name="exchangeScheduleChanged" action="{!exchangeScheduleChanged}" oncomplete="checkOverrideRate(); unblockPopupUI('OverrideExchangeRateWaitPopup');" immediate="false" rerender="pageMessages,op_var,op_exchange_rate,op_exchange_rate_ch" >
+	    		<apex:param name="paymentCurrencyId" assignTo="{!paymentCurrencyId}" value=""/>  	
+	    		</apex:actionFunction> 
+	    		<apex:actionFunction name="revertPayToBankSpotRate" action="{!revertPayToBankSpotRate}" oncomplete="_closeDialog(); unblockPopupUI('OverrideExchangeRateWaitPopup');" immediate="false" rerender="pageMessages" > 
+	    			<apex:param name="paymentCurrencyId" assignTo="{!paymentCurrencyId}" value=""/>  	
+	    		</apex:actionFunction>
+	    		<apex:actionFunction name="overridePayToBankRate" action="{!overridePayToBankRate}" oncomplete="_closeDialog();unblockPopupUI('OverrideExchangeRateWaitPopup');" immediate="false" rerender="pageMessages"> 
+	    		<apex:param name="paymentCurrencyId" assignTo="{!paymentCurrencyId}" value=""/>
+	    		</apex:actionFunction>
+	    		
+	    		<apex:actionFunction name="getExchangeRate" action="{!getExchangeRate}" oncomplete="checkOverrideRate();setExchangeButton(); unblockPopupUI('OverrideExchangeRateWaitPopup');" immediate="false" rerender="pageMessages,op_exchange_rate_ch,op_var" />
+	    		<apex:actionFunction name="getCurrExchangeRate" action="{!getCurrExchangeRate}" oncomplete="setRevSerchgbutton(); unblockPopupUI('OverrideExchangeRateWaitPopup');" immediate="false" rerender="pageMessages,op_rateschedule,op_exchangerate,op_exchange_rate,op_exchange_rate_ch,ch_rateschedule,op_var" >
+	    			<apex:param name="paymentCurrencyId" assignTo="{!paymentCurrencyId}" value=""/>  	
+	    		</apex:actionFunction>
+	    		
+	    		<apex:actionFunction name="getExistingRate" action="{!GetExistingRate}" oncomplete="setExchangeButton();unblockPopupUI('OverrideExchangeRateWaitPopup');" immediate="false" rerender="pageMessages,op_exchange_rate,op_var" >
+	    			<apex:param name="overRideRate" assignTo="{!overRideRate}" value=""/>  	
+	    		</apex:actionFunction>
+	    		
+	    		 <apex:outputPanel id="op_var">
+			        <script>
+			         	var isExistingOverrideRateYN = '{!isExistingOverrideRateYN}';
+			         	var vendschedtype = '{!customext.paysession_vendschedtype__c}';
+			         	var isOverRide = "{!isOverRide}";
+			         	
+			         	if(vendschedtype == 'Current Spot Rate'){
+					    	jQuery('input[Id*=revertPayToBankSpotRate]')[0].disabled = true;
+					    }else{
+					    	jQuery('input[Id*=revertPayToBankSpotRate]')[0].disabled = false;
+					    }
+					    jQuery('input[Id*=selectOverride]')[1].disabled = true;
+				 	</script>
+		        </apex:outputPanel>
+	    		<apex:pageBlock title="{!$Label.rstkf__button_override_payment_exchange_rate}" >
+		       		<apex:pageBlockSection id="pbs_jobpopup" showHeader="false" columns="1">
+		       		
+		       		 	<apex:pageBlockSectionItem helpText="Bank Currency">
+	                    	<apex:outputLabel value="{!$Label.rstkf__label_bankcurrency}" />
+		                	<apex:outputField value="{!o.paysession_glbankacct__r.rstkf__glbankacct_curr__c}" />
+			            </apex:pageBlockSectionItem>
+			            
+			            
+		           		<apex:pageBlockSectionItem helpText="">
+		           		<apex:outputLabel value="{!f_customextf.rstkf__paysession_paymentcurrency__c.label}" />
+		           		<apex:outputPanel id="op_payCurrency">
+		           			<apex:selectList id="paymentCurrencyId" size="1"  value="{!paymentCurrencyId}" multiselect="false" onchange="blockPopupUI('OverrideExchangeRateWaitPopup'); doGetCurrExchangeRate(); return false;" disabled="{!isSingleCurr}" >
+	                            <apex:selectOptions value="{!paymentcurrency}"/>
+	                        </apex:selectList>
+	                     </apex:outputPanel>
+	                    </apex:pageBlockSectionItem>	                    
+	                   
+	                    
+	                    <apex:pageBlockSectionItem helpText="">
+		                	<apex:outputLabel value="{!f_customextf.rstkf__paysession_currexchangerate__c.label}" />
+		                	<apex:outputPanel id="op_exchangerate">
+		                		<apex:outputField id="paysession_currexchangerate__c" value="{!customext.rstkf__paysession_currexchangerate__c}" />
+		                	</apex:outputPanel>
+		                </apex:pageBlockSectionItem>
+		               
+		                <apex:pageBlockSectionItem helpText="">
+		                	<apex:outputLabel value="{!f_customextf.rstkf__paysession_currrateschedule__c.label}"  />
+		                	<apex:outputPanel id="op_rateschedule">
+		                		<apex:outputField id="paysession_currrateschedule__c" value="{!customext.rstkf__paysession_currrateschedule__c}" />
+		                	</apex:outputPanel>
+		                </apex:pageBlockSectionItem>
+			            
+	                    <apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__exchange_rate_schedule__c.inlineHelpText}" >
+		                	<apex:outputLabel value="{!f_customextf.rstkf__exchange_rate_schedule__c.label}" />
+		                	<apex:outputPanel id="ch_rateschedule">
+	                	<apex:inputField id="exchange_rate_schedule__c" value="{!customext.rstkf__exchange_rate_schedule__c}" onchange="blockPopupUI('OverrideExchangeRateWaitPopup');doExchangeScheduleChanged(); return false;"  />
+		                </apex:outputPanel>
+		                </apex:pageBlockSectionItem>
+		                
+		                <apex:pageBlockSectionItem >
+	                	<apex:outputLabel value="{!$Label.rstkf__override_rate_schedule}" />
+	                	<apex:outputPanel id="op_exchange_rate">
+	                	 	<apex:selectList id="scheduleIdLockedIn" size="1"  
+			                		multiselect="false" 
+			                		value="{!customext.rstkf__apinv_overriderate__c}" 
+			                		onchange="doGetExchangeRate({!customext.rstkf__apinv_overriderate__c});blockPopupUI('OverrideExchangeRateWaitPopup'); return false;" 
+			                		rendered="{!isOverRide == 'LockedIn'}" >
+	                            <apex:selectOptions value="{!LockedInRates}"/>
+	                        </apex:selectList>
+	                       
+	                        
+	                        <apex:selectList id="scheduleIdOverride" size="1"  
+		                       		multiselect="false" 
+		                       		value="{!customext.rstkf__apinv_overriderate__c}" 
+		                       		onchange="doGetExchangeRate({!customext.rstkf__apinv_overriderate__c});blockPopupUI('OverrideExchangeRateWaitPopup'); return false;" 
+		                       		rendered="{!isOverRide == 'Overrride'}" >
+	                            <apex:selectOptions value="{!OverRideRates}"/>
+	                        </apex:selectList>
+	                       </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+		                
+		                   
+		                <apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__paysession_overriderate__c.inlineHelpText}" >
+		                    	<apex:outputLabel value="{!f_customextf.rstkf__paysession_overriderate__c.label}" />
+		                    	<apex:outputPanel id="op_exchange_rate_ch">
+			                		<apex:inputField id="paysession_overriderate__c" value="{!customext.rstkf__paysession_overriderate__c}" onchange="blockPopupUI('OverrideExchangeRateWaitPopup'); doGetExistingRate(); return false;" />
+			            		</apex:outputPanel>
+			            </apex:pageBlockSectionItem>
+			   
+			      </apex:pageBlockSection>
+			       <apex:pageBlockSection id="pbs_jobpopup_but" showHeader="false" columns="3">
+			            <apex:commandButton id="selectOverride" onclick="blockPopupUI('OverrideExchangeRateWaitPopup'); doOverridePayToBankRate();  return false;" value="{!$Label.rstkf__button_override_rate}" />
+		                <apex:commandButton id="revertPayToBankSpotRate"  onclick="blockPopupUI('OverrideExchangeRateWaitPopup'); doRevertPayToBankSpotRate();  return false;" value="{!$Label.rstkf__button_revert_to_current_spot_rate}" />
+		                <apex:commandButton value="{!$Label.rstkf__cancel}" onclick="blockPopupUI('OverrideExchangeRateWaitPopup'); reloadPage();" /> 
+		           </apex:pageBlockSection>
+			    </apex:pageBlock>
+			    
+			    <div id="OverrideExchangeRateWaitPopup" class="overlay">
+                <span style="padding: 5px; border-radius: 5px;color: #000;background-color: #fff;">
+                    Please wait...
+                </span>
+            </div> 
+		    </apex:form>  
+	   </div>
+	   </apex:outputpanel>
+	    
+	    <apex:outputpanel Id="cbankpopup">
+        <div id="OverrideBankExchangeRatePopup" style="display:none; z-index: 30; height: 300px;">
+	    	<apex:pageMessages />
+	    	<apex:form id="fbankpopup"  >
+	    		<apex:actionFunction name="bankExchScheduleChanged" action="{!bankExchScheduleChanged}" oncomplete="checkBankOverrideRate(); unblockPopupUI('BankExchangeRateWaitPopup');" immediate="false" rerender="op_exchange_rate_bank,op_exchange_rate_ch_bank" />
+		        <apex:actionFunction name="getBankExchangeRate" action="{!getBankExchangeRate}" oncomplete="checkBankOverrideRate(); unblockPopupUI('BankExchangeRateWaitPopup');" immediate="false" rerender="op_exchange_rate_bank,op_exchange_rate_ch_bank" />
+	    		<apex:actionFunction name="getBankExistingRate" action="{!getBankExistingRate}" oncomplete="setBankRevSerchgbutton();unblockPopupUI('BankExchangeRateWaitPopup');" immediate="false" rerender="pageMessages,op_exchange_rate_bank,op_exchange_rate_ch_bank" />
+	    		<apex:actionFunction name="overrideBankHomeRate" action="{!overrideBankHomeRate}" oncomplete="setBankRevSerchgbutton();_closeDialog();unblockPopupUI('BankExchangeRateWaitPopup');" immediate="false" rerender="pageMessages" /> 
+	    		<apex:actionFunction name="revertSpotBankToHomeRate" action="{!revertSpotBankToHomeRate}" oncomplete="setBankRevSerchgbutton();_closeDialog(); unblockPopupUI('BankExchangeRateWaitPopup');" immediate="false" rerender="pageMessages" /> 
+	    		
+	    		 <apex:outputPanel id="op_varBank">
+			        <script>
+			         	jQuery('input[Id*=selectOverrideBank]')[0].disabled = true;
+				 	</script>
+		        </apex:outputPanel>
+	    		<apex:pageBlock title="{!$Label.rstkf__popup_bank_to_home_exchange_rate_override}">
+		       		<apex:pageBlockSection id="pbs_jobpopup" showHeader="false" columns="1">
+		       		
+		       		 	<apex:pageBlockSectionItem helpText="Bank Currency" >
+	                    	<apex:outputLabel value="{!$Label.rstkf__label_bankcurrency}" />
+		                	<apex:outputField value="{!o.paysession_glbankacct__r.rstkf__glbankacct_curr__c}" />
+			            </apex:pageBlockSectionItem>
+			            
+		           		<apex:pageBlockSectionItem helpText="{!f_customextf2.rstkf__paysession_homercurrency__c.inlineHelpText}">
+		                	<apex:outputLabel value="{!f_customextf2.rstkf__paysession_homercurrency__c.label}" />
+		                	<apex:outputField id="paysession_homercurrency__c" value="{!customextf2.rstkf__paysession_homercurrency__c}" />
+		                </apex:pageBlockSectionItem>
+			            
+			            <apex:pageBlockSectionItem helpText="{!f_customextf2.rstkf__paysession_currbankexchangerate__c.inlineHelpText}">
+		                	<apex:outputLabel value="{!f_customextf2.rstkf__paysession_currbankexchangerate__c.label}" />
+		                	<apex:outputField id="paysession_currbankexchangerate__c" value="{!customextf2.rstkf__paysession_currbankexchangerate__c}" />
+		                </apex:pageBlockSectionItem>
+		               
+		                <apex:pageBlockSectionItem helpText="{!f_customextf2.rstkf__paysession_currbankoverrideschedule__c.inlineHelpText}">
+		                	<apex:outputLabel value="{!f_customextf2.rstkf__paysession_currbankoverrideschedule__c.label}"  />
+		                	<apex:outputField id="paysession_currbankoverrideschedule__c" value="{!customextf2.rstkf__paysession_currbankoverrideschedule__c}" />
+		                </apex:pageBlockSectionItem>
+			            
+	                      <apex:pageBlockSectionItem helpText="{!f_customextf2.rstkf__baankexchange_rate_schedule__c.inlineHelpText}" >
+		                	<apex:outputLabel value="{!f_customextf2.rstkf__baankexchange_rate_schedule__c.label}" />
+		                	<apex:outputPanel id="ch_bankrateschedule">
+	                	<apex:inputField id="baankexchange_rate_schedule__c" value="{!customextf2.rstkf__baankexchange_rate_schedule__c}" onchange="blockPopupUI('BankExchangeRateWaitPopup');doBankExchScheduleChanged(); return false;"  />
+		                </apex:outputPanel>
+		                </apex:pageBlockSectionItem>
+		                
+		                <apex:pageBlockSectionItem >
+		                	<apex:outputLabel value="{!$Label.rstkf__override_rate_schedule}" />
+		                	<apex:outputPanel id="op_exchange_rate_bank">
+		                	 	<apex:selectList id="bankSchedNoRates" size="1"  
+				                		multiselect="false" 
+				                		value="{!customextf2.rstkf__paysession_bankschedulerate__c}" 
+				                		onchange="doGetBankExchangeRate();blockPopupUI('BankExchangeRateWaitPopup'); return false;"
+				                		rendered="{!isBankOverRide}" >
+		                            <apex:selectOptions value="{!BankSchedNoRates}"/>
+		                        </apex:selectList>
+	                        </apex:outputPanel>
+                    	</apex:pageBlockSectionItem>
+		                
+		                 <apex:pageBlockSectionItem helpText="{!f_customextf2.rstkf__paysession_bankoverriderate__c.inlineHelpText}" >
+		                    	<apex:outputLabel value="{!f_customextf2.rstkf__paysession_bankoverriderate__c.label}" />
+		                    	<apex:outputPanel id="op_exchange_rate_ch_bank">
+			                		<apex:inputField id="paysession_bankoverriderate__c" value="{!customextf2.rstkf__paysession_bankoverriderate__c}" onchange="blockPopupUI('BankExchangeRateWaitPopup'); doGetBankExistingRate(); return false;" />
+			            		</apex:outputPanel>
+			            </apex:pageBlockSectionItem>
+			   
+			       </apex:pageBlockSection>
+			       <apex:pageBlockSection id="pbs_jobpopup_but" showHeader="false" columns="3">
+			            <apex:commandButton id="selectOverrideBank" onclick="blockPopupUI('BankExchangeRateWaitPopup'); doOverrideBankHomeRate();  return false;" value="{!$Label.rstkf__button_override_rate}" />
+		                <apex:commandButton id="revertspotrateBank"  onclick="blockPopupUI('BankExchangeRateWaitPopup'); doRevertSpotBankToHomeRate();  return false;" value="{!$Label.rstkf__button_revert_to_current_spot_rate}" />
+		                <apex:commandButton value="{!$Label.rstkf__cancel}" onclick="blockPopupUI('OverrideExchangeRateWaitPopup'); reloadPage();" /> 
+		           </apex:pageBlockSection>
+			    </apex:pageBlock>
+			    
+			    <div id="BankExchangeRateWaitPopup" class="overlay">
+                <span style="padding: 5px; border-radius: 5px;color: #000;background-color: #fff;">
+                    Please wait...
+                </span>
+            </div> 
+		    </apex:form>
+		</div>  
+	    </apex:outputpanel>
+	    
+	    
+	    
+	    <apex:outputpanel Id="paydtpopup">
+        <c:Popup popupId="PaymentDatePopup" title="{!$Label.rstkf__change_payment_date}" onOk="blockPopupUI('PaymentDateWaitPopup');paymentDateChanged();" onCancel="_closeDialog();" okCaption="Save" buttonsOnTop="false">
+	    	<apex:pageMessages id="paydatePageMessages"/>
+	    	<apex:form id="paydtpopup">
+	    		<apex:actionFunction name="paymentDateChanged" action="{!paymentDateChanged}" oncomplete="unblockUI();unblockPopupUI('PaymentDateWaitPopup');" immediate="false" rerender="paydatePageMessages" />
+	    		<apex:pageBlock >
+		       		<apex:pageBlockSection id="pbs_jobpopup" showHeader="false" columns="1">
+		       		    <apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__payment_date__c.inlineHelpText}" >
+		                    	<apex:outputLabel value="{!f_customextf.rstkf__payment_date__c.label}" />
+		                    	<apex:inputField id="payment_date__c" value="{!customext.rstkf__payment_date__c}"  />
+			            </apex:pageBlockSectionItem>
+			       </apex:pageBlockSection>
+	        	</apex:pageBlock>
+			    
+			    <div id="PaymentDateWaitPopup" class="overlay">
+                <span style="padding: 5px; border-radius: 5px;color: #000;background-color: #fff;">
+                    Please wait...
+                </span>
+            </div> 
+		    </apex:form>  
+	    </c:Popup>
+	    </apex:outputpanel>
+       
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+    
+    function doLoadExchangeRate() {
+		loadExchangeRate();
+		return false;
+	 }
+	 
+	 function doLoadBankExchangeRate() {
+	 	loadBankExchangeRate();
+		return false;
+	 }
+	 
+	 
+	 function doExchangeScheduleChanged() {
+	 	jQuery('input[Id*=selectOverride]')[1].disabled = true;
+	 	var paymentCurrencyId	= jQuery("select[id*=paymentCurrencyId")[0].value;
+	 	exchangeScheduleChanged(paymentCurrencyId);
+	 }
+	 
+	 function doBankExchScheduleChanged() {
+	 	jQuery('input[Id*=selectOverrideBank]')[0].disabled = true;
+	 	//var paymentCurrencyId	= jQuery("select[id*=paymentCurrencyId")[0].value;
+		bankExchScheduleChanged();
+	 }
+	 
+	 
+	 
+	 function setExchangeButton() {
+	 	if(isExistingOverrideRateYN == 'true'){
+			 jQuery('input[Id*=selectOverride]')[1].disabled = true;
+		}else{
+			jQuery('input[Id*=selectOverride]')[1].disabled = false;
+			
+		}
+	 	return false;
+	 }
+	 
+	 
+	 function setRevSerchgbutton() {
+	   if(vendschedtype == 'Current Spot Rate'){
+	    	jQuery('input[Id*=revertPayToBankSpotRate]')[0].disabled = true;
+	    }else{
+	    	jQuery('input[Id*=revertPayToBankSpotRate]')[0].disabled = false;
+	    }
+	   	return false;
+	 }
+	
+ 	 function setBankRevSerchgbutton() {
+	    var bankoverriderate = jQuery("input[id*=paysession_bankoverriderate__c")[0].value;
+	    if(bankoverriderate == '' || bankoverriderate == 0){
+			 jQuery('input[Id*=selectOverrideBank]')[0].disabled = true;
+		}else{
+			jQuery('input[Id*=selectOverrideBank]')[0].disabled = false;
+		}
+		
+		var isBanktoHomeRateSet = {!isBanktoHomeRateSet};
+	    if(isBanktoHomeRateSet == true){
+	    	jQuery('input[Id*=revertspotrateBank]')[0].disabled = false;
+	    }else{
+	    	jQuery('input[Id*=revertspotrateBank]')[0].disabled = true;
+	    }
+	 	return false;
+	 }
+	 
+	
+	 function checkOverrideRate() {
+	    var overRideRate = jQuery('input[id*=paysession_overriderate__c')[0].value;
+	    var exchrateschedule = jQuery('select[id*=exchange_rate_schedule__c')[1].value;
+	    if(exchrateschedule == 'Override Rate'){
+	    	var glcmpId = '{!paysession.paysession_glcmp__c}';
+			if(overRideRate == '' || overRideRate == 0){
+				var glcmps = execQuery("select glcmp_manfxoverok__c from glcmp__c where id = '" + glcmpId + "' ");
+				if (glcmps.length > 0 ) {
+					if (glcmps[0].glcmp_manfxoverok__c == 'true') {
+						jQuery('input[Id*=paysession_overriderate__c]')[0].disabled = false;
+					}else{
+						jQuery('input[Id*=paysession_overriderate__c]')[0].disabled = true;
+					}
+				}
+			}else{
+				jQuery('input[Id*=paysession_overriderate__c]')[0].disabled = true;
+			}
+	    }else{
+	    	jQuery('input[Id*=paysession_overriderate__c]')[0].disabled = true;
+	    }
+	 }
+	
+	 function checkBankOverrideRate() {
+	    var overRideRate = jQuery("input[id*=paysession_bankoverriderate__c")[0].value;
+	    var exchrateschedule = jQuery("select[id*=baankexchange_rate_schedule__c")[0].value;
+	    if(exchrateschedule == 'Override Rate'){
+	    	var glcmpId = '{!paysession.paysession_glcmp__c}';
+			if(overRideRate == '' || overRideRate == 0){
+				var glcmps = execQuery("select glcmp_manfxoverok__c from glcmp__c where id = '" + glcmpId + "' ");
+				if (glcmps.length > 0 ) {
+					if (glcmps[0].glcmp_manfxoverok__c == 'true') {
+						jQuery('input[Id*=paysession_bankoverriderate__c]')[0].disabled = false;
+					}else{
+						jQuery('input[Id*=paysession_bankoverriderate__c]')[0].disabled = true;
+					}
+				}
+			}else{
+				jQuery('input[Id*=paysession_bankoverriderate__c]')[0].disabled = true;
+			}
+	    }else{
+	    	jQuery('input[Id*=paysession_bankoverriderate__c]')[0].disabled = true;
+	    }
+	    
+	    var isBanktoHomeRateSet = {!isBanktoHomeRateSet};
+	    if(isBanktoHomeRateSet == true){
+	    	jQuery('input[Id*=revertspotrateBank]')[0].disabled = false;
+	    }else{
+	    	jQuery('input[Id*=revertspotrateBank]')[0].disabled = true;
+	    }
+	 }
+	 
+	/* function setBankRevSerchgbutton() {
+	 	var isBanktoHomeRateSet = {!isBanktoHomeRateSet};
+	    if(isBanktoHomeRateSet == true){
+	    	jQuery('input[Id*=revertspotrateBank]')[0].disabled = false;
+	    }else{
+	    	jQuery('input[Id*=revertspotrateBank]')[0].disabled = true;
+	    }
+	 }*/
+	 
+	
+	 function doGetExchangeRate(scheduleId) {
+		var exchrateschedule = jQuery("select[id*=exchange_rate_schedule__c")[1].value;
+		if(scheduleId == ''){
+			 jQuery('input[Id*=selectOverride]')[0].disabled = true;
+		}else{
+			jQuery('input[Id*=selectOverride]')[0].disabled = false;
+		}
+		
+		getExchangeRate(scheduleId);
+	 }
+	 
+	 function doGetBankExchangeRate() {
+	 	var bankscheduleId = jQuery("select[id*=baankexchange_rate_schedule__c")[0].value;
+		if(bankscheduleId == ''){
+			 jQuery('input[Id*=selectOverrideBank]')[0].disabled = true;
+		}else{
+			jQuery('input[Id*=selectOverrideBank]')[0].disabled = false;
+		}
+		getBankExchangeRate();
+	 }
+	 
+	 
+	 
+	 function doGetCurrExchangeRate() {
+	 	var paymentCurrencyId	= jQuery("select[id*=paymentCurrencyId")[0].value;
+	 	getCurrExchangeRate(paymentCurrencyId);
+	 }
+	 
+	 function doRevertPayToBankSpotRate() {
+	 	var paymentCurrencyId	= jQuery("select[id*=paymentCurrencyId")[0].value;
+	 	revertPayToBankSpotRate(paymentCurrencyId);
+	 }
+	 
+	 function doRevertSpotBankToHomeRate() {
+		 revertSpotBankToHomeRate();
+	 }
+	 
+	 function doOverridePayToBankRate() {
+	 	var paymentCurrencyId	= jQuery("select[id*=paymentCurrencyId")[0].value;
+	 	overridePayToBankRate(paymentCurrencyId);
+	 }
+	 
+	 function doOverrideBankHomeRate() {
+		 overrideBankHomeRate();
+	 }
+	 
+	 
+	 function doGetExistingRate() {
+	 	var overRideRate	= jQuery("input[id*=paysession_overriderate__c")[0].value;
+	 	
+	 	if(overRideRate < 0){
+	 	 	alert('Override Rate for this Session should be greater than 0');
+	 	 	return false;
+	 	}else{
+	 		getExistingRate(overRideRate);
+	 	}
+	 	
+	 }
+	 
+	 function doGetBankExistingRate() {
+	 	var overRideRate	= jQuery("input[id*=paysession_bankoverriderate__c")[0].value;
+	 	
+	 	if(overRideRate < 0){
+	 	 	alert('Override Rate for this Session should be greater than 0');
+	 	 	return false;
+	 	}else{
+	 		getBankExistingRate();
+	 	}
+	 
+	 }
+	 
+	
+	 
+        
+    	setRequired('paysession_checkdate__c', true);
+    	
+        var sessionId = "{!o.Id}";
+        
+        function reloadPage() {
+        	window.location.href='/'+sessionId;
+        }
+        
+        function reloadViewPage() {
+        	window.location.href='?actionType=view&id='+sessionId;
+        }
+        
+        
+        function validatePassword(){
+            var inputPassword = jQuery('input[id*=sessionPassword__c]')[0].value;
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnPaymentSelection.validatePassword}', //NameSpace  
+                inputPassword,
+                '{!o.Id}',
+                function(result, event){
+                    if (event.status) {
+                        if(result == true) {
+                            resumePaymentSession();
+                            return false;
+                        }
+                        else {
+                            alert("{!$Label.passwordDoesntMatch}");
+                            return false;
+                        }
+                        console.log('result: ' + result);
+                    } else if (event.type === 'exception') {
+                        alert('Error occured while verifying password');
+                        return false;
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function reviewAndProcessPayments() {
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnPaymentSelection.verifyInvoicesAreOpen}', //NameSpace
+                '{!o.Id}',
+                function(result, event){
+                    if (event.status) {
+                        if(result == true) {
+                            alert("{!$Label.invoiceChngdSinceEnteringProcessAndDeselected}");
+                            unblockUI();
+                            return false;
+                        }
+                        else {
+                            openReviewAndProcessPaymentsPopup();
+                            return false;
+                        }
+                    } else if (event.type === 'exception') {
+                        alert('Error occured');
+                        return false;
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function checkPrintPdfJobStatus(fromMainPage) {
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnPaymentSelection.checkPrintPdfJobStatus}', //NameSpace
+                sdocJobIds,
+                fromMainPage,
+                function(result, event){
+                    if (event.status) {
+                    	var response = JSON.parse(result);
+                        if(response.status == 'IN-PROGRESS') {
+                            setTimeout(function() {checkPrintPdfJobStatus(response.fromMainPage);}, 1000);
+                        }
+                        else if(response.status == 'ERROR') {
+                            alert("Error Occured...");
+                            if(response.fromMainPage == 'false') {
+                            	unblockPopupUI('paymRevPleaseWaitPopup');
+                            }
+                            else {
+                            	unblockUI();
+                            }
+                            return false;
+                        }
+                        else if(response.status == 'COMPLETE') {
+                        	var nsp = pageParms.namespaceprefix;
+                            if(nsp.length > 0) {
+                            	nsp = nsp + '__';
+                            }
+                        	
+                        	//window.open("/apex/SDOC__SDJobPDF?ObjectName=" + nsp + "APCheck__c");
+                        	if(hasMoreChecks == 'true') {
+                        		if(response.fromMainPage == 'false') {
+                        			setTimeout(function() {processNextApchecksForSdocs();}, 8000);
+                        		}
+                        		else {
+                        			setTimeout(function() {processNextApchecksForSdocsMain();}, 8000);
+                        		}
+                        	}
+                        	else {
+                        		window.open("/apex/SDOC__SDJobPDF?ObjectName=" + nsp + "APCheck__c");
+	                        	if(response.fromMainPage == 'false') {
+	                            	unblockPopupUI('paymRevPleaseWaitPopup');
+	                            }
+	                            else {
+	                            	unblockUI();
+	                            }
+                        	}
+                        }
+                        else {
+                            console.log('Invalid status...');
+                        }
+                    } else if (event.type === 'exception') {
+                        alert('Error occured');
+                        if(response.fromMainPage == 'false') {
+							unblockPopupUI('paymRevPleaseWaitPopup');
+                        }
+                        else {
+							unblockUI();
+                        }
+                        return false;
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function openCongaUrl() {
+        	window.open(congaBtnUrl);
+        }
+        
+    </script>
+    
+    <script>
+        var paymDtisReqdIfTakeAdvOfTermsDiscIsChkd = "{!$Label.paymDtisReqdIfTakeAdvOfTermsDiscIsChkd}";
+        var netPaymAmtCantBeGTDiffBtwnUnapAmtAndDiscTkn = "{!$Label.netPaymAmtCantBeGTDiffBtwnUnapAmtAndDiscTkn}";
+        var startingChkNumCantBeLessThan = "{!$Label.startingChkNumCantBeLessThan}";
+        var noChksExistForLastChkNum_resolveBeforeProceeding = "{!$Label.noChksExistForLastChkNum_resolveBeforeProceeding}";
+        var chkAlreadyExistsForLastChkNumPlus1_resolveBeforeProceeding = "{!$Label.chkAlreadyExistsForLastChkNumPlus1_resolveBeforeProceeding}";
+        var firstDamagedChkNotFoundInSession = "{!$Label.firstDamagedChkNotFoundInSession}";
+        var lastDamagedChkNotFoundInSession = "{!$Label.lastDamagedChkNotFoundInSession}";
+        var confirmYouWantToClearStartingAndSysAssigndChkNums = "{!$Label.confirmYouWantToClearStartingAndSysAssigndChkNums}";
+        var netPaymAmtCantBeLessThan0 = "{!$Label.netPaymAmtCantBeLessThan0}";
+        var amtOfDiscTknCantBeLessThan0 = "{!$Label.amtOfDiscTknCantBeLessThan0}";
+        var amtOfDiscTknCantBeGTDiscAvailable = "{!$Label.amtOfDiscTknCantBeGTDiscAvailable}";
+        var lastDamagedCheckCantBeBlank = "{!$Label.lastDamagedCheckCantBeBlank}";
+        var firstDamagedCheckCantBeBlank = "{!$Label.firstDamagedCheckCantBeBlank}";
+        var Paysession_VendorSelect_O = "{!Paysession_VendorSelect_O}";
+        var Paysession_DateSelect_O = "{!Paysession_DateSelect_O}";
+        var checkNumMustBeSpecForPaymTypeCheck = "{!$Label.checkNumMustBeSpecForPaymTypeCheck}";
+        var chkAlreadyExistsForFirstChkNum_MustResolveBeforeProceeding = "{!$Label.chkAlreadyExistsForFirstChkNum_MustResolveBeforeProceeding}";
+        var noInvoicesSelectedForPost = "{!$Label.noInvoicesSelectedForPost}";
+        var LABEL_invalidChkNumSpecified = "{!$Label.invalidChkNumSpecified}";
+        var LABEL_chkNumShouldBeWithinRange = "{!$Label.chkNumShouldBeWithinRange}";
+        var LABEL_invalidFirstDamagedChkNumSpecified = "{!$Label.invalidFirstDamagedChkNumSpecified}";
+        var LABEL_invalidLastDamagedChkNumSpecified = "{!$Label.invalidLastDamagedChkNumSpecified}";
+        var LABEL_CheckNumberCannotBeLTLastCheckNumberOnBankAccount = "{!$Label.CheckNumberCannotBeLTLastCheckNumberOnBankAccount}";
+        var LABEL_createOutputExportFilesCompletedSuccessfully = "{!$Label.createOutputExportFilesCompletedSuccessfully}";
+        var LABEL_NoAPCheckAPEftRecsCreated = "{!$Label.NoAPCheckAPEftRecsCreated}";
+        var LABEL_WHTAmtCantBeLessThanZero = "{!$Label.WHTAmtCantBeLessThanZero}";
+        var LABEL_WHTAmtCasntBeLessThanDiffBetweenUnappliedAmtAndDiscntTkn = "{!$Label.WHTAmtCasntBeLessThanDiffBetweenUnappliedAmtAndDiscntTkn}";
+        var Do_you_want_to_process_selected_Payments = "{!$Label.Do_you_want_to_process_selected_Payments}";
+        var Amount_of_Discount_Taken_WHT_Amount_cannot_be_less_than_Zero = "{!$Label.Amount_of_Discount_Taken_WHT_Amount_cannot_be_less_than_Zero}";
+		var Sum_of_Net_Payment_Amount_cannot_be_more_than_Zero = "{!$Label.Sum_of_Net_Payment_Amount_cannot_be_more_than_Zero}";
+		var Sum_of_Net_Payment_Amount_Amount_of_Discount_Taken_WHT_Amount_cannot_less_than = "{!$Label.Sum_of_Net_Payment_Amount_Amount_of_Discount_Taken_WHT_Amount_cannot_less_than}";
+		var Sum_of_Net_Payment_Amount_cannot_be_less_than_Zero = "{!$Label.Sum_of_Net_Payment_Amount_cannot_be_less_than_Zero}";
+        var Sum_of_Net_Payment_Amount_Amount_of_Discount_Taken_WHT_Amount_cannot_more_than = "{!$Label.Sum_of_Net_Payment_Amount_Amount_of_Discount_Taken_WHT_Amount_cannot_more_than}";
+		var SEPA_XML_Exported_Successfully = "{!$Label.SEPA_XML_Exported_Successfully}";
+    </script>
+</apex:page>

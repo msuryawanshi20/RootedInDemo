@@ -1,0 +1,106 @@
+<apex:page id="pg" standardController="rstk__soibatch__c" extensions="rstk.ControllerExtnViewSoibatch" 
+    action="{!doBeforePageLoad}" sideBar="false" showHeader="false">
+	
+	<apex:variable var="o" value="{!rstk__soibatch__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soibatch__c.fields}" />
+    <apex:variable var="f_soinv" value="{!$ObjectType.rstk__soinv__c.fields}" />
+    	
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__salesorderinvoicebatch}"/>
+	
+    <apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    
+    <script>
+    function afterPageLoad() {
+      formatLocaleOutputFields();
+    } 
+    </script>
+    
+    <apex:form id="frm">
+    	<apex:actionFunction name="addToBatch" action="{!addToBatch}" immediate="false"/>
+    	<apex:actionFunction name="removeFromBatch" action="{!removeFromBatch}" immediate="false"/>
+    	
+    	<apex:pageBlock id="pb2">
+    		<apex:pageBlockTable id="soinvTable" value="{!soinvs}" var="l" rendered="{!gridType == 'showInvoices'}">
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_invoice__c.label}" style="text-align:right;" >
+	        		<c:ObjectLink valueId="{!l.Id}" valueName="{!l.rstk__soinv_invoiceno__c}" />
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_custno__c.label}" value="{!l.rstk__soinv_custno__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_invdate__c.label}" value="{!l.rstk__soinv_invdate__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_grandtotal__c.label}" style="text-align:right;">
+	        		<apex:outputText html-decimals="2" value="{!l.rstk__soinv_grandtotal__c}" />
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_duedate__c.label}" value="{!l.rstk__soinv_duedate__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_year__c.label}">
+	        		<apex:outputText value="{0,number,###0}">
+	        			<apex:param value="{!l.rstk__soinv_year__c}"/>
+	        		</apex:outputText>
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_period__c.label}" value="{!l.rstk__soinv_period__c}"/>
+	        </apex:pageBlockTable>
+	        
+	        <apex:outputPanel rendered="{!gridType == 'addToBatch'}">
+	            <input type="button" value="{!$Label.pagebtn_soinvbatchprocessing_AddSelectedInvoicesToBatch}" onclick="blockUI();addToBatch();" />
+	        </apex:outputPanel>
+	        <apex:pageBlockTable id="addToBatchSoinvTable" value="{!addToBatchSoinvs}" var="l" rendered="{!gridType == 'addToBatch'}">
+	            <apex:column headerValue="">
+	                <apex:inputCheckbox id="selected" value="{!l.selected}"/>
+	            </apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_invoice__c.label}" style="text-align:right;" >
+	        		<c:ObjectLink valueId="{!l.soinv.Id}" valueName="{!l.soinv.rstk__soinv_invoiceno__c}" />
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_custno__c.label}" value="{!l.soinv.rstk__soinv_custno__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_invdate__c.label}" value="{!l.soinv.rstk__soinv_invdate__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_grandtotal__c.label}" style="text-align:right;">
+	        		<apex:outputText html-decimals="2" value="{!l.soinv.rstk__soinv_grandtotal__c}" />
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_duedate__c.label}" value="{!l.soinv.rstk__soinv_duedate__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_year__c.label}">
+	        		<apex:outputText value="{0,number,###0}">
+	        			<apex:param value="{!l.soinv.rstk__soinv_year__c}"/>
+	        		</apex:outputText>
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_period__c.label}" value="{!l.soinv.rstk__soinv_period__c}"/>
+	        </apex:pageBlockTable>
+	        <apex:outputPanel rendered="{!gridType == 'addToBatch'}">
+	            <input type="button" value="{!$Label.pagebtn_soinvbatchprocessing_AddSelectedInvoicesToBatch}" onclick="blockUI();addToBatch();" />
+	        </apex:outputPanel> 
+	        
+	        <apex:outputPanel rendered="{!gridType == 'removeFromBatch'}">
+    			<input type="button" value="{!$Label.pagebtn_soinvbatchprocessing_RemoveSelectedInvoicesFromBatch}" onclick="blockUI();removeFromBatch();" rendered="{!gridType == 'removeFromBatch'}"/>
+	        </apex:outputPanel>
+	        <apex:pageBlockTable id="removeFromBatchSoinvTable" value="{!removeFromBatchSoinvs}" var="l" rendered="{!gridType == 'removeFromBatch'}">
+	            <apex:column headerValue="">
+	                <apex:inputCheckbox id="selected" value="{!l.selected}"/>
+	            </apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_invoice__c.label}" style="text-align:right;" >
+	        		<c:ObjectLink valueId="{!l.soinv.Id}" valueName="{!l.soinv.rstk__soinv_invoiceno__c}" />
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_custno__c.label}" value="{!l.soinv.rstk__soinv_custno__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_invdate__c.label}" value="{!l.soinv.rstk__soinv_invdate__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_grandtotal__c.label}" style="text-align:right;">
+	        		<apex:outputText html-decimals="2" value="{!l.soinv.rstk__soinv_grandtotal__c}" />
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_duedate__c.label}" value="{!l.soinv.rstk__soinv_duedate__c}"/>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_year__c.label}">
+	        		<apex:outputText value="{0,number,###0}">
+	        			<apex:param value="{!l.soinv.rstk__soinv_year__c}"/>
+	        		</apex:outputText>
+	        	</apex:column>
+	        	<apex:column headerValue="{!f_soinv.rstk__soinv_period__c.label}" value="{!l.soinv.rstk__soinv_period__c}"/>
+	        </apex:pageBlockTable>
+	        <apex:outputPanel rendered="{!gridType == 'removeFromBatch'}">
+    			<input type="button" value="{!$Label.pagebtn_soinvbatchprocessing_RemoveSelectedInvoicesFromBatch}" onclick="blockUI();removeFromBatch();" rendered="{!gridType == 'removeFromBatch'}"/>
+	        </apex:outputPanel> 
+    	</apex:pageBlock>
+    	
+    	<div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+	<c:footerInclude cntr="{!controller}" />
+</apex:page>

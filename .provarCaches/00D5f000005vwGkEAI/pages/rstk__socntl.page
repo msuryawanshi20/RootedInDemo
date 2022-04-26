@@ -1,0 +1,1677 @@
+<apex:page id="pg" standardController="rstk__socntl__c" extensions="rstk.ControllerExtnSocntl,rstk.RemoteQueryController,rstk.GeoServicesHelper" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__socntl__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__socntl__c.fields}" /> 
+    <apex:variable var="f_sovsales" value="{!$ObjectType.rstk__sovsales__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_socntl}"  customInclude="{!$Resource.rstk__socntl_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__geoservices_cli}"/>
+ 
+    <style>
+            .modal {
+                background-color:#fff;
+                display:none;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+            .modal h2 {
+                margin:0px;
+                padding:10px 0 10px 45px;
+                font-size:16px;
+            }
+            
+            .modalComponents {
+                color:#efefef;
+                height:450px;
+                z-index:100;
+            }
+    </style>
+
+    <script>
+        var userLastDiv='{!userLastDiv}';
+        var divId = "{!o.rstk__socntl_div__c}";
+        var validateAddr = new GeoService();
+        validateAddr.init(divId);
+        var isFFActive = {!isFFActive};
+        var dfltSocomm = {!dfltSocommJSON};
+        var dfltInvdiv = {!dfltInvdivJSON};
+        var dfltComcod = {!dfltComcodJSON};
+        
+        function closeEmailTmplClonePopup() {
+            jQuery(".close").click();
+            refreshEmailTemplatesTab();
+        }
+        jQuery(document).ready(function() {
+            jQuery("button[rel*=win]").overlay({
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                closeOnClick: false,
+                
+                onBeforeLoad: function(e) {
+                    jQuery('#winVFPage').block({
+                        message: '',
+                        centerX: true, 
+                        centerY: true,
+                        css: { 
+                            border: 'none', 
+                            padding: '15px', 
+                            cursor: 'wait',
+                            opacity: .5, 
+                            textAlign: 'center'
+                        }
+                    });
+                    
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var templateId = jQuery(e.target.getTrigger().closest('span')[0].previousSibling).find('select').val()
+                    var content = jQuery("#"+winId+"Frame");
+                    if (content.length>0) {
+                        if (winId == 'CloneEmailTemplate') {
+                            content[0].src = "/apex/CloneEmailTemplate?srcid="+templateId;
+                        }
+                    
+                        content.load(function() {
+                            jQuery('#winVFPage').unblock();
+                        });
+                    }
+                },
+                onClose: function(e) {
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+"Frame");
+                    if (content.length>0) content[0].src = 'about:blank';
+                }
+            });
+            
+            if (dfltSocomm && jQuery('span[id*=dfltsocomm]').length > 0)
+                setFieldText(jQuery('span[id*=dfltsocomm]')[0], dfltSocomm);
+            if (dfltInvdiv && jQuery('span[id*=dfltinvdiv]').length > 0)
+                setFieldText(jQuery('span[id*=dfltinvdiv]')[0], dfltInvdiv);
+            if (dfltComcod && jQuery('span[id*=dfltcomcod]').length > 0)
+                setFieldText(jQuery('span[id*=dfltcomcod]')[0], dfltComcod);
+        });
+    </script>
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="addSalespersonDivision" action="{!addSalespersonDivision}"/>
+          
+        <apex:actionFunction name="refreshEmailTemplatesTab" action="{!refreshEmailTemplatesTab}" rerender="soackemailtmpl_select, soboltemplate_select, sopacktemplate_select, soinvtemplate_select, sopicktemplate_select"/>
+       
+        <input name="isSubmit" type="hidden"/>
+        
+        <div class="modal" id="winCloneEmailTemplate" style="width:700px">
+            <h2>{!$Label.socntl_Clone_Email_Template}</h2>
+            <iframe id="CloneEmailTemplateFrame" height="320px" width="100%" frameborder="0" src="about:blank"></iframe> 
+            <button type="button" class="close" onclick="closePopup()"> {!$Label.pagebtn_soagh_Close} </button>
+        </div>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+            
+            <c:division id="socntl_div__c" cntr="{!controller}" />
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autoorder__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_autoorder__c.label}"/>
+                    <c:inputField id="socntl_autoorder__c" required="false" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_bookfiscalopt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_bookfiscalopt__c.label}"/>
+                    <c:inputField id="socntl_bookfiscalopt__c" required="false" cntr="{!controller}" tabIndex="21"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_onlyautoorder__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_onlyautoorder__c.label}"/>
+                    <c:inputField id="socntl_onlyautoorder__c" required="false" cntr="{!controller}" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_bookyear__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_bookyear__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_bookyear__c}" /></apex:outputText>
+                        <apex:inputField id="socntl_bookyear__c" value="{!o.rstk__socntl_bookyear__c}" required="false" rendered="{!actionType != 'view'}"/>
+                        <script>pageTabIndexes["socntl_bookyear__c"]="22";</script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_prevendorddel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_prevendorddel__c.label}"/>
+                    <c:inputField id="socntl_prevendorddel__c" required="false" cntr="{!controller}" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_bookper__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_bookper__c.label}"/>
+                    <c:inputField id="socntl_bookper__c" required="false" cntr="{!controller}" tabIndex="23"/>
+                </apex:pageBlockSectionItem>
+         
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nextorder__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_nextorder__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_nextorder__c}" /></apex:outputText>
+                        <apex:inputField id="socntl_nextorder__c" value="{!o.rstk__socntl_nextorder__c}" required="false" rendered="{!actionType != 'view'}"/>
+                        <script>pageTabIndexes["socntl_nextorder__c"]="4";</script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_shipfiscalopt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_shipfiscalopt__c.label}"/>
+                    <c:inputField id="socntl_shipfiscalopt__c" required="false" cntr="{!controller}" tabIndex="24"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_sydivaddr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_sydivaddr__c.label}"/>
+                    <c:selectList id="socntl_sydivaddr__c" required="true" cntr="{!controller}" options="{!shipAddresses}" tabIndex="25"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invoiceper__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_invoiceper__c.label}"/>
+                    <c:inputField id="socntl_invoiceper__c" required="false" cntr="{!controller}" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_oknotaxloc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_oknotaxloc__c.label}"/>
+                    <c:inputField id="socntl_oknotaxloc__c" required="false" cntr="{!controller}" tabIndex="26"/>
+                </apex:pageBlockSectionItem>
+  
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invoiceyear__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socntl_invoiceyear__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_invoiceyear__c}" /></apex:outputText>
+                        <apex:inputField id="socntl_invoiceyear__c" value="{!o.rstk__socntl_invoiceyear__c}" required="false" rendered="{!actionType != 'view'}"/>
+                        <script>pageTabIndexes["socntl_invoiceyear__c"]="25";</script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <br />
+            <apex:tabPanel switchType="client" selectedTab="tab_Account" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_accountdefaults}" name="tab_Account" id="tab_Account">
+                    <apex:pageBlockSection id="pbs_Account" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ffsalesacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_ffsalesacct__c.label}"/>
+                            <c:largeSelectList id="socntl_ffsalesacct__c" required="true" cntr="{!controller}" options="{!Syaccs}" tabIndex="101"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_freightacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_freightacct__c.label}"/>
+                            <c:largeSelectList id="socntl_freightacct__c" required="true" cntr="{!controller}" options="{!RevenueAccts}" tabIndex="121"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_salesacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_salesacct__c.label}"/>
+                            <c:largeSelectList id="socntl_salesacct__c" required="true" cntr="{!controller}" options="{!RevenueAccts}" tabIndex="102"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_packageacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_packageacct__c.label}"/>
+                            <c:largeSelectList id="socntl_packageacct__c" required="true" cntr="{!controller}" options="{!RevenueAccts}" tabIndex="122"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_cosacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_cosacct__c.label}"/>
+                            <c:largeSelectList id="socntl_cosacct__c" required="true" cntr="{!controller}" options="{!CostSalesAccts}" tabIndex="103"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_handlingacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_handlingacct__c.label}"/>
+                            <c:largeSelectList id="socntl_handlingacct__c" required="true" cntr="{!controller}" options="{!RevenueAccts}" tabIndex="123"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_cospendacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_cospendacct__c.label}"/>
+                            <c:largeSelectList id="socntl_cospendacct__c" required="false" cntr="{!controller}" options="{!CostSalesClrAccts}" tabIndex="104"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ovrtaxacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_ovrtaxacct__c.label}"/>
+                            <c:largeSelectList id="socntl_ovrtaxacct__c" required="true" cntr="{!controller}" options="{!LiabilityAccts}" tabIndex="124"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ppyacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_ppyacct__c.label}"/>
+                            <c:largeSelectList id="socntl_ppyacct__c" required="true" cntr="{!controller}" options="{!UnEarRevAccts}" tabIndex="110"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ccppyacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_ccppyacct__c.label}"/>
+                            <c:largeSelectList id="socntl_ccppyacct__c" required="true" cntr="{!controller}" options="{!UnEarRevAccts}" tabIndex="125"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_discacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_discacct__c.label}"/>
+                            <c:largeSelectList id="socntl_discacct__c" required="true" cntr="{!controller}" options="{!RevenueAccts}" tabIndex="111"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_orderpaycashacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_orderpaycashacct__c.label}"/>
+                            <c:largeSelectList id="socntl_orderpaycashacct__c" required="false" cntr="{!controller}" options="{!ClearingAccts}" tabIndex="126"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_synccogsrev__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_synccogsrev__c.label}"/>
+                            <c:inputField id="socntl_synccogsrev__c" required="false" cntr="{!controller}" tabIndex="112"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_defsalesacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_defsalesacct__c.label}"/>
+                            <c:largeSelectList id="socntl_defsalesacct__c" required="false" cntr="{!controller}" options="{!UnEarRevAccts}" tabIndex="127"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_defcogsacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_defcogsacct__c.label}"/>
+                            <c:largeSelectList id="socntl_defcogsacct__c" required="false" cntr="{!controller}" options="{!DeferredCosts}" tabIndex="128"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+               <apex:tab label="{!$Label.rstk__pagetab_socntl_auto_project}" name="tab_autoproj" id="tab_autoproj">
+                    <apex:pageBlockSection id="pbs_autoproj" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autoprojline__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autoprojline__c.label}"/>
+                            <c:inputField id="socntl_autoprojline__c" required="false" cntr="{!controller}" tabIndex="1000"/>
+                        </apex:pageBlockSectionItem>
+        
+                        <apex:pageBlockSectionItem />
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autoproj__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autoproj__c.label}"/>
+                            <c:inputField id="socntl_autoproj__c" required="false" cntr="{!controller}" tabIndex="1001"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_projnoopt__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_projnoopt__c.label}"/>
+                            <c:inputField id="socntl_projnoopt__c" required="false" cntr="{!controller}" tabIndex="1005"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_lineprojopt__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_lineprojopt__c.label}"/>
+                            <c:inputField id="socntl_lineprojopt__c" required="false" cntr="{!controller}" tabIndex="1002"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_projprefix__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_projprefix__c.label}"/>
+                            <c:inputField id="socntl_projprefix__c" required="false" cntr="{!controller}" tabIndex="1006"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_lineprojovr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_lineprojovr__c.label}"/>
+                            <c:inputField id="socntl_lineprojovr__c" required="false" cntr="{!controller}" tabIndex="1003"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_projdiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_projdiv__c.label}"/>
+                            <c:selectList id="socntl_projdiv__c" required="false" cntr="{!controller}" options="{!cmpDivisions}" tabIndex="1007"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_projautocomp__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_projautocomp__c.label}"/>
+                            <c:inputField id="socntl_projautocomp__c" required="false" cntr="{!controller}" tabIndex="1004"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nextprojnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nextprojnum__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_nextprojnum__c}" /></apex:outputText>
+                                <apex:inputField id="socntl_nextprojnum__c" value="{!o.rstk__socntl_nextprojnum__c}" required="false" rendered="{!actionType != 'view'}"/>
+                                <script>pageTabIndexes["socntl_nextprojnum__c"]="1008";</script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_getprojdim__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_getprojdim__c.label}"/>
+                            <c:inputField id="socntl_getprojdim__c" required="false" cntr="{!controller}" tabIndex="1005"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+    
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_configurator}" name="tab_Configurator" id="tab_Configurator" rendered="{!isConfigsoe}">
+                    <apex:pageBlockSection id="pbs_Configurator" showHeader="false" columns="2" >
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_configsoe__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_configsoe__c.label}"/>
+                            <c:inputField id="socntl_configsoe__c" required="false" cntr="{!controller}" tabIndex="233"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_dfltconfigprod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_dfltconfigprod__c.label}"/>
+                            <c:largeSelectList id="socntl_dfltconfigprod__c" cntr="{!controller}" options="{!Cfgprods}" tabIndex="124"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_showconfigcost__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_showconfigcost__c.label}"/>
+                            <c:inputField id="socntl_showconfigcost__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_dfltexportcust__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_dfltexportcust__c.label}"/>
+                            <c:autocomplete id="socntl_dfltexportcust__c" cntr="{!controller}" query="select id, name from socust__c" width="200px"
+                                tabIndex="124" slDesc="{!dfltExportcust}" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_showprice1__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_showprice1__c.label}"/>
+                            <c:inputField id="socntl_showprice1__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_price1label__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_price1label__c.label}"/>
+                            <c:inputField id="socntl_price1label__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_showprice2__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_showprice2__c.label}"/>
+                            <c:inputField id="socntl_showprice2__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_price2label__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_price2label__c.label}"/>
+                            <c:inputField id="socntl_price2label__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_hideexcluded__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_hideexcluded__c.label}"/>
+                            <c:inputField id="socntl_hideexcluded__c" required="false" cntr="{!controller}" tabIndex="233"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_chgaltprice1__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_chgaltprice1__c.label}"/>
+                            <c:inputField id="socntl_chgaltprice1__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_suppprice__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_suppprice__c.label}"/>
+                            <c:inputField id="socntl_suppprice__c" required="false" cntr="{!controller}" tabIndex="233"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_chgaltprice2__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_chgaltprice2__c.label}"/>
+                            <c:inputField id="socntl_chgaltprice2__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_showdcompprice__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_showdcompprice__c.label}"/>
+                            <c:inputField id="socntl_showdcompprice__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_noconsolcomp__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_noconsolcomp__c.label}"/>
+                            <c:inputField id="socntl_noconsolcomp__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_allowreexport__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_allowreexport__c.label}"/>
+                            <c:inputField id="socntl_allowreexport__c" required="false" cntr="{!controller}" tabIndex="234"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_credit_chargesandcommissions}" name="tab_Credit" id="tab_Credit">
+                    <apex:pageBlockSection id="pbs_Credit" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_crcheckmeth__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_crcheckmeth__c.label}"/>
+                            <c:inputField id="socntl_crcheckmeth__c" required="true" cntr="{!controller}" tabIndex="301"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_commpctinv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_commpctinv__c.label}"/>
+                            <c:inputField id="socntl_commpctinv__c" required="false" cntr="{!controller}" tabIndex="321"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_creditholdrel__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_creditholdrel__c.label}"/>
+                            <c:inputField id="socntl_creditholdrel__c" required="false" cntr="{!controller}" tabIndex="302"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_commpctcash__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_commpctcash__c.label}"/>
+                            <c:inputField id="socntl_commpctcash__c" required="false" cntr="{!controller}" tabIndex="322"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_creditorg__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_creditorg__c.label}"/>
+                            <c:selectList id="socntl_creditorg__c" required="false" cntr="{!controller}" options="{!creditSyorgs}" tabIndex="303"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_taxfreight__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_taxfreight__c.label}"/>
+                            <c:inputField id="socntl_taxfreight__c" required="false" cntr="{!controller}" tabIndex="323"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_crchkentry__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_crchkentry__c.label}"/>
+                            <c:inputField id="socntl_crchkentry__c" required="false" cntr="{!controller}" tabIndex="304"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_taxhandling__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_taxhandling__c.label}"/>
+                            <c:inputField id="socntl_taxhandling__c" required="false" cntr="{!controller}" tabIndex="324"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_crchkalloc__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_crchkalloc__c.label}"/>
+                            <c:inputField id="socntl_crchkalloc__c" required="false" cntr="{!controller}" tabIndex="305"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_taxpackaging__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_taxpackaging__c.label}"/>
+                            <c:inputField id="socntl_taxpackaging__c" required="false" cntr="{!controller}" tabIndex="325"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_crchkissue__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_crchkissue__c.label}"/>
+                            <c:inputField id="socntl_crchkissue__c" required="false" cntr="{!controller}" tabIndex="306"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_sumfrt__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_sumfrt__c.label}"/>
+                            <c:inputField id="socntl_sumfrt__c" required="false" cntr="{!controller}" tabIndex="326"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_crchkship__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_crchkship__c.label}"/>
+                            <c:inputField id="socntl_crchkship__c" required="false" cntr="{!controller}" tabIndex="307"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_sumpackage__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_sumpackage__c.label}"/>
+                            <c:inputField id="socntl_sumpackage__c" required="false" cntr="{!controller}" tabIndex="327"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_usechargedtl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_usechargedtl__c.label}"/>
+                            <c:inputField id="socntl_usechargedtl__c" required="false" cntr="{!controller}" tabIndex="308"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_sumhand__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_sumhand__c.label}"/>
+                            <c:inputField id="socntl_sumhand__c" required="false" cntr="{!controller}" tabIndex="328"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_frtmarkuppct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_frtmarkuppct__c.label}"/>
+                            <c:inputField id="socntl_frtmarkuppct__c" required="false" cntr="{!controller}" tabIndex="309"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_allowholdalloc__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_allowholdalloc__c.label}"/>
+                            <c:inputField id="socntl_allowholdalloc__c" required="false" cntr="{!controller}" tabIndex="329"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_creditsoprod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_creditsoprod__c.label}"/>
+                            <c:selectList id="socntl_creditsoprod__c" required="false" cntr="{!controller}" options="{!creditprods}" tabIndex="331"/>
+                        </apex:pageBlockSectionItem>
+
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_defaultcommissionschedule}" name="tab_CustomerCommission" rendered="{!actionType != 'create'}">
+                    <apex:pageBlockSection id="pbs_CustomerCommission" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+                        <apex:outputLink value="{!URLFOR($Action.rstk__sovsales__c.New)}{!ReturnUrlParms}">{!$Label.rstk__new_salesperson}</apex:outputLink>
+                        <!-- input type="button" value="New Salesperson" class="btn" onclick="addSalespersonDivision();return false;"/-->
+                        <apex:pageBlockTable value="{!sovsales}" var="v">
+                            <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.rstk__sovsales__c.Edit, v.id)}{!ReturnUrlParms}">Edit</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__sovsales__c.View, v.id)}{!ReturnUrlParms}">Del</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__salesperson}" value="{!v.name}" />
+                            <apex:column headerValue="{!f_sovsales.rstk__sovsales_compct__c.label}"><apex:outputField id="sovsales_compct__c" value="{!v.rstk__sovsales_compct__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__splitpct}"><apex:outputField id="sovsales_split__c" value="{!v.rstk__sovsales_split__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+            
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_emailtemplates}" name="tab_emailTemplates" id="tab_emailTemplates">
+                  <apex:pageBlockSection id="pbs_emailTemplates" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_soackemailtmpl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_soackemailtmpl__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="soackemailtmpl_select">
+                                    <apex:selectList value="{!o.rstk__socntl_soackemailtmpl__c}" multiselect="false" size="1" tabIndex="6">
+                                        <apex:selectOptions value="{!SOAckEmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                                <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!syconfig.rstk__syconfig_rootdox__c)}">
+                                    <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px"> {!$Label.rstk__clone} </button>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!SOAckEmailTemplateName}" rendered="{!isView}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_acktemplovr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_acktemplovr__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_acktemplovr__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_acktemplovr__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extraheader_ack__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extraheader_ack__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extraheader_ack__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extraheader_ack__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extradetails_ack__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extradetails_ack__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extradetails_ack__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extradetails_ack__c}" rendered="{!isView}"/>
+                        </apex:outputPanel> 
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ackemailsubject__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_ackemailsubject__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_ackemailsubject__c}" style="width:300px" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_ackemailsubject__c}" rendered="{!isView}"/>
+                        </apex:outputPanel> 
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ppyonack__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_ppyonack__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_ppyonack__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_ppyonack__c}" rendered="{!isView}"/>
+                        </apex:outputPanel> 
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_soquoteemailtmpl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_soquoteemailtmpl__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="soquoteemailtmpl_select">
+                                    <apex:selectList value="{!o.rstk__socntl_soquoteemailtmpl__c}" multiselect="false" size="1" tabIndex="6">
+                                        <apex:selectOptions value="{!SOQuoteEmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                                <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!syconfig.rstk__syconfig_rootdox__c)}">
+                                    <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px"> {!$Label.rstk__clone} </button>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!SOQuoteEmailTemplateName}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_qottemplovr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_qottemplovr__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_qottemplovr__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_qottemplovr__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                      
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extraheader_quote__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extraheader_quote__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extraheader_quote__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extraheader_quote__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extradetails_quote__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extradetails_quote__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extradetails_quote__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extradetails_quote__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_soboltemplate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_soboltemplate__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="soboltemplate_select">
+                                    <apex:selectList value="{!o.rstk__socntl_soboltemplate__c}" multiselect="false" size="1" tabIndex="6">
+                                        <apex:selectOptions value="{!BOLEmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                                <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!syconfig.rstk__syconfig_rootdox__c)}">
+                                    <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px"> {!$Label.rstk__clone} </button>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!BOLEmailTemplateName}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_boltemplovr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_boltemplovr__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_boltemplovr__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_boltemplovr__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                      
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extraheader_bol__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extraheader_bol__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extraheader_bol__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extraheader_bol__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extradetails_bol__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extradetails_bol__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extradetails_bol__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extradetails_bol__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_sopacktemplate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_sopacktemplate__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="sopacktemplate_select">
+                                    <apex:selectList value="{!o.rstk__socntl_sopacktemplate__c}" multiselect="false" size="1" tabIndex="6">
+                                        <apex:selectOptions value="{!PackingSlipEmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                                <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!syconfig.rstk__syconfig_rootdox__c)}">
+                                    <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px"> {!$Label.rstk__clone} </button>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!PackingSlipEmailTemplateName}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_packtemplovr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_packtemplovr__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_packtemplovr__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_packtemplovr__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extraheader_ps__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extraheader_ps__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extraheader_ps__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extraheader_ps__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extradetails_ps__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extradetails_ps__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extradetails_ps__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extradetails_ps__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_soinvtemplate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_soinvtemplate__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="soinvtemplate_select">
+                                    <apex:selectList value="{!o.rstk__socntl_soinvtemplate__c}" multiselect="false" size="1" tabIndex="6">
+                                        <apex:selectOptions value="{!InvoiceEmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                                <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!syconfig.rstk__syconfig_rootdox__c)}">
+                                    <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px"> {!$Label.rstk__clone} </button>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!InvoiceEmailTemplateName}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invtemplovr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_invtemplovr__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_invtemplovr__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_invtemplovr__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extraheader_soinv__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extraheader_soinv__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extraheader_soinv__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extraheader_soinv__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extradetails_soinv__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extradetails_soinv__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extradetails_soinv__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extradetails_soinv__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invemailsubject__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_invemailsubject__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_invemailsubject__c}" style="width:360px" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_invemailsubject__c}" rendered="{!isView}"/>
+                        </apex:outputPanel> 
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_socredittemplate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_socredittemplate__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="credittemplate_select">
+                                    <apex:selectList value="{!o.rstk__socntl_socredittemplate__c}" multiselect="false" size="1" tabIndex="7">
+                                        <apex:selectOptions value="{!creditMemoEmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                                <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!syconfig.rstk__syconfig_rootdox__c)}">
+                                    <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px"> {!$Label.rstk__clone} </button>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!CreditMemoEmailTemplateName}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_credittemplovr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_credittemplovr__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_credittemplovr__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_credittemplovr__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extraheader_credit__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extraheader_credit__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extraheader_credit__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extraheader_credit__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extradetails_credit__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extradetails_credit__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extradetails_credit__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extradetails_credit__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_creditemailsubject__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_creditemailsubject__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_creditemailsubject__c}" style="width:360px" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_creditemailsubject__c}" rendered="{!isView}"/>
+                        </apex:outputPanel> 
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_rmatemplate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_rmatemplate__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="sormatemplate_select">
+                                    <apex:selectList value="{!o.rstk__socntl_rmatemplate__c}" multiselect="false" size="1" tabIndex="16">
+                                        <apex:selectOptions value="{!RMAEmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                                <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!syconfig.rstk__syconfig_rootdox__c)}">
+                                    <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px"> {!$Label.rstk__clone} </button>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!RMAEmailTemplateName}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_rmatemplovr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_rmatemplovr__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_rmatemplovr__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_rmatemplovr__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extraheader_rma__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extraheader_rma__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extraheader_rma__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extraheader_rma__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_extradetails_rma__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_extradetails_rma__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField value="{!o.rstk__socntl_extradetails_rma__c}" rendered="{!!isView}"/>
+                            <apex:outputText value="{!o.rstk__socntl_extradetails_rma__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_picktemplate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_picktemplate__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputPanel rendered="{!!isView}">
+                                <apex:outputPanel id="sopicktemplate_select">
+                                    <apex:selectList id="socntl_picktemplate__c" value="{!o.rstk__socntl_picktemplate__c}" multiselect="false" size="1" tabIndex="17">
+                                        <apex:selectOptions value="{!SOPickListEmailTemplates}"/>
+                                    </apex:selectList>
+                                </apex:outputPanel>
+                                <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!syconfig.rstk__syconfig_rootdox__c)}">
+                                    <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px"> {!$Label.rstk__clone} </button>
+                                </apex:outputPanel>
+                            </apex:outputPanel>
+                            <apex:outputText value="{!SOPickListEmailTemplateName}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_templatepicklist__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socntl_templatepicklist__c.label}"/>
+                        <apex:outputPanel >
+                             <apex:inputField Id="socntl_templatepicklist__c" value="{!o.rstk__socntl_templatepicklist__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socntl_templatepicklist__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+                   </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!otherInvoiceTabName}" name="tab_ffInvoice" id="tab_ffInvoice" rendered="{!showOtherInvoiceTab}">
+                    <apex:pageBlockSection id="pbs_ffInvoice" showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_freightprod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_freightprod__c.label}"/>
+                            <c:autocomplete id="socntl_freightprod__c" cntr="{!controller}" required="false" slDesc="{!socntl_freightprodDesc}" query="{!selectProduct2Query}" tabIndex="501"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_packageprod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_packageprod__c.label}"/>
+                            <c:autocomplete id="socntl_packageprod__c" cntr="{!controller}" required="false" slDesc="{!socntl_packageprodDesc}" query="{!selectProduct2Query}" tabIndex="502"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_handlingprod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_handlingprod__c.label}"/>
+                            <c:autocomplete id="socntl_handlingprod__c" cntr="{!controller}" required="false" slDesc="{!socntl_handlingprodDesc}" query="{!selectProduct2Query}" tabIndex="503"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_prepayprod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_prepayprod__c.label}"/>
+                            <c:autocomplete id="socntl_prepayprod__c" cntr="{!controller}" required="true" slDesc="{!socntl_prepayprodDesc}" query="{!selectProduct2Query}" tabIndex="504"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_clearingprod__c.inlineHelpText}" rendered="{!isFFInt}">
+                            <apex:outputLabel value="{!f.rstk__socntl_clearingprod__c.label}"/>
+                            <c:autocomplete id="socntl_clearingprod__c" cntr="{!controller}" required="{!requireClearingProd}" slDesc="{!socntl_clearingprodDesc}" query="{!selectProduct2Query}" tabIndex="505"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_taxprod__c.inlineHelpText}" rendered="{!!isFFInt}">
+                            <apex:outputLabel value="{!f.rstk__socntl_taxprod__c.label}"/>
+                            <c:autocomplete id="socntl_taxprod__c" cntr="{!controller}" required="false" slDesc="{!socntl_taxprodDesc}" query="{!selectProduct2Query}" tabIndex="506"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_geoservice}" name="tab_geo" id="tab_geo">
+                    <apex:pageBlockSection id="pbs_geo" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avalara__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avalara__c.label}"/>
+                            <c:inputField id="socntl_avalara__c" required="false" cntr="{!controller}" tabIndex="901"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avatax__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avatax__c.label}"/>
+                            <c:inputField id="socntl_avatax__c" required="false" cntr="{!controller}" tabIndex="921"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avacompany__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avacompany__c.label}"/>
+                            <c:inputField id="socntl_avacompany__c" required="false" cntr="{!controller}" tabIndex="902"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avalaradevelop__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avalaradevelop__c.label}"/>
+                            <apex:outputpanel >
+                                <span id="static_socntl_avalaradevelop__c" style="display:none;">{!o.rstk__socntl_avalaradevelop__c}</span>
+                                <c:inputField id="socntl_avalaradevelop__c" required="false" cntr="{!controller}" tabIndex="922"/>
+                            </apex:outputpanel>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avalarauser__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avalarauser__c.label}"/>
+                            <c:inputField id="socntl_avalarauser__c" required="false" cntr="{!controller}" tabIndex="903"/>
+                        </apex:pageBlockSectionItem>                    
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avataxauto__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avataxauto__c.label}"/>
+                            <c:inputField id="socntl_avataxauto__c" required="false" cntr="{!controller}" tabIndex="923"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avalarapassword__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avalarapassword__c.label}"/>
+                            <apex:outputpanel >
+                                <span style="display:{!IF(isView, '', 'none')};">{!IF(ISBLANK(o.rstk__socntl_avalarapassword__c),'','***')}</span>
+                                <apex:inputField id="socntl_avalarapassword__c" value="{!o.rstk__socntl_avalarapassword__c}" taborderhint="904" rendered="{!!isView}"/>
+                            </apex:outputpanel>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem >
+                            <apex:outputpanel >
+                              <apex:outputLabel value=""/>
+                              <input type="button" value="{!$Label.Test_Avalara_Connection}" tabIndex="9050" onclick="validateAvalara(); return false;" style="display:{!IF(!isView, '', 'none')};"/>
+                            </apex:outputpanel>
+                            <a href="#" onclick="openAvalaraAdmin(); return false;" tabindex="9051">{!$Label.rstk__go_to_avalara_admin_console}</a>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avalarafreighttaxcode__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avalarafreighttaxcode__c.label}"/>
+                            <c:inputField id="socntl_avalarafreighttaxcode__c" required="false" cntr="{!controller}" tabIndex="923"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avalarahandlingtaxcode__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avalarahandlingtaxcode__c.label}"/>
+                            <c:inputField id="socntl_avalarahandlingtaxcode__c" required="false" cntr="{!controller}" tabIndex="923"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avalarapackingtaxcode__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avalarapackingtaxcode__c.label}"/>
+                            <c:inputField id="socntl_avalarapackingtaxcode__c" required="false" cntr="{!controller}" tabIndex="923"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avaexcludegeo__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avaexcludegeo__c.label}"/>
+                            <c:inputField id="socntl_avaexcludegeo__c" required="false" cntr="{!controller}" tabIndex="924"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_avataxlinecred__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_avataxlinecred__c.label}"/>
+                            <c:inputField id="socntl_avataxlinecred__c" required="false" cntr="{!controller}" tabIndex="925"/>
+                        </apex:pageBlockSectionItem>
+                        
+                    </apex:pageBlockSection>    
+                </apex:tab>            
+
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_invoiceprocessing}" name="tab_invproc" id="tab_invproc">
+                    <apex:pageBlockSection id="pbs_inproc" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invmultorder__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_invmultorder__c.label}"/>
+                            <c:inputField id="socntl_invmultorder__c" required="false" cntr="{!controller}" tabIndex="261"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nofulfillinv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nofulfillinv__c.label}"/>
+                            <c:inputField id="socntl_nofulfillinv__c" required="false" cntr="{!controller}" tabIndex="271"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_postffasin__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_postffasin__c.label}"/>
+                            <c:inputField id="socntl_postffasin__c" required="false" cntr="{!controller}" tabIndex="262"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invreqcase__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_invreqcase__c.label}"/>
+                            <c:inputField id="socntl_invreqcase__c" required="false" cntr="{!controller}" tabIndex="272"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invreqdim__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_invreqdim__c.label}"/>
+                            <c:inputField id="socntl_invreqdim__c" required="false" cntr="{!controller}" tabIndex="263"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invcloseso__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_invcloseso__c.label}"/>
+                            <c:inputField id="socntl_invcloseso__c" required="false" cntr="{!controller}" tabIndex="273"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invemailuser__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_invemailuser__c.label}"/>
+                            <c:inputField id="socntl_invemailuser__c" required="false" cntr="{!controller}" tabIndex="264"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_allowmanualsoinv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_allowmanualsoinv__c.label}"/>
+                            <c:inputField id="socntl_allowmanualsoinv__c" required="false" cntr="{!controller}" tabIndex="274"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nozeroinv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nozeroinv__c.label}"/>
+                            <c:inputField id="socntl_nozeroinv__c" required="false" cntr="{!controller}" tabIndex="265"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invlinecosredist__c.inlineHelpText}" rendered="{!FFIsActive}" >
+                            <apex:outputLabel value="{!f.rstk__socntl_invlinecosredist__c.label}"/>
+                            <c:inputField id="socntl_invlinecosredist__c" required="false" cntr="{!controller}" tabIndex="275" />
+                        </apex:pageBlockSectionItem>
+                        <apex:outputField value="{!o.rstk__socntl_invlinecosredist__c}" rendered="{!!FFIsActive}"/>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_carryshipdateovr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_carryshipdateovr__c.label}"/>
+                            <c:inputField id="socntl_carryshipdateovr__c" required="false" cntr="{!controller}" tabIndex="266"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nosoinvdelete__c.inlineHelpText}" >
+                            <apex:outputLabel value="{!f.rstk__socntl_nosoinvdelete__c.label}"/>
+                            <c:inputField id="socntl_nosoinvdelete__c" required="false" cntr="{!controller}" tabIndex="276" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ffainvclosedpdopt__c.inlineHelpText}" rendered="{!isFFInt}">
+                            <apex:outputLabel value="{!f.rstk__socntl_ffainvclosedpdopt__c.label}"/>
+                            <c:inputField id="socntl_ffainvclosedpdopt__c" required="false" cntr="{!controller}" tabIndex="267"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_creditinvctrl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_creditinvctrl__c.label}"/>
+                            <c:inputField id="socntl_creditinvctrl__c" required="false" cntr="{!controller}" tabIndex="268"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_rndtaxbyline__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_rndtaxbyline__c.label}"/>
+                            <c:inputField id="socntl_rndtaxbyline__c" required="false" cntr="{!controller}" tabIndex="278"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_forcevat6__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_forcevat6__c.label}"/>
+                            <c:inputField id="socntl_forcevat6__c" required="false" cntr="{!controller}" tabIndex="279"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_miscellaneous}" name="tab_misc" id="tab_misc">
+                    <apex:pageBlockSection id="pbs_misc" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_okadditem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_okadditem__c.label}"/>
+                            <c:inputField id="socntl_okadditem__c" required="false" cntr="{!controller}" tabIndex="1011"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_dfltsocomm__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_dfltsocomm__c.label}"/>
+                            <c:selectList id="socntl_dfltsocomm__c" required="false" cntr="{!controller}" options="{!Socomms}" tabIndex="1015"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_dfltinvdiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_dfltinvdiv__c.label}"/>
+                            <c:selectList id="socntl_dfltinvdiv__c" required="false" cntr="{!controller}" options="{!Invdivs}" tabIndex="1012"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_dfltcomcod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_dfltcomcod__c.label}"/>
+                            <c:selectList id="socntl_dfltcomcod__c" required="false" cntr="{!controller}" options="{!iccomcods}" tabIndex="1016"/>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_dfltcanreason__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_dfltcanreason__c.label}"/>
+                            <c:selectList id="socntl_dfltcanreason__c" required="false" cntr="{!controller}" options="{!reasons}" tabIndex="1014"/>
+                        </apex:pageBlockSectionItem>
+                        
+                         <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_sitebyaddr__c.inlineHelpText}" rendered="{!isCsg}">
+                            <apex:outputLabel value="{!f.rstk__socntl_sitebyaddr__c.label}"/>
+                            <c:inputField id="socntl_sitebyaddr__c" required="false" cntr="{!controller}" tabIndex="1018"/>
+                        </apex:pageBlockSectionItem>
+
+                         <apex:pageBlockSectionItem rendered="{!isCsg}"/>
+
+                         <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_oppautostock__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_oppautostock__c.label}"/>
+                            <c:inputField id="socntl_oppautostock__c" required="false" cntr="{!controller}" tabIndex="1019"/>
+                        </apex:pageBlockSectionItem>
+                        
+                         <apex:pageBlockSectionItem />
+                         
+                         <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autostockpb__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autostockpb__c.label}"/>
+                            <c:inputField id="socntl_autostockpb__c" required="false" cntr="{!controller}" tabIndex="1020"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_amortinuse__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_amortinuse__c.label}"/>
+                            <c:inputField id="socntl_amortinuse__c" required="false" cntr="{!controller}" tabIndex="814"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_allowitemchg__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_allowitemchg__c.label}"/>
+                            <c:inputField id="socntl_allowitemchg__c" required="false" cntr="{!controller}" tabIndex="1021"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_amortcurper__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_amortcurper__c.label}"/>
+                            <c:inputField id="socntl_amortcurper__c" required="false" cntr="{!controller}" tabIndex="1022"/>
+                        </apex:pageBlockSectionItem>
+                        
+                    </apex:pageBlockSection>    
+    
+                </apex:tab>
+
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_orderprocessing}" name="tab_Order" id="tab_Order">
+                    <apex:pageBlockSection id="pbs_Order" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_verifyaddr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_verifyaddr__c.label}"/>
+                            <c:inputField id="socntl_verifyaddr__c" required="false" cntr="{!controller}" tabIndex="201"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autoissue__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autoissue__c.label}"/>
+                            <c:inputField id="socntl_autoissue__c" required="false" cntr="{!controller}" tabIndex="221"/>
+                        </apex:pageBlockSectionItem>
+                    
+                       <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_sosysissue__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_sosysissue__c.label}"/>
+                            <c:inputField id="socntl_sosysissue__c" required="false" cntr="{!controller}" tabIndex="202"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_bypassalloc__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_bypassalloc__c.label}"/>
+                            <c:inputField id="socntl_bypassalloc__c" required="false" cntr="{!controller}" tabIndex="222"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_bypasspackage__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_bypasspackage__c.label}"/>
+                            <apex:outputpanel >
+                                <c:inputField id="socntl_bypasspackage__c" required="false" cntr="{!controller}" tabIndex="203"/>
+                                <span style="display:none;" id="inital_socntl_bypasspackage__c">{!o.socntl_bypasspackage__c}</span>
+                            </apex:outputpanel>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autoallocate__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autoallocate__c.label}"/>
+                            <c:inputField id="socntl_autoallocate__c" required="false" cntr="{!controller}" tabIndex="223"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invmultshipper__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_invmultshipper__c.label}"/>
+                            <c:inputField id="socntl_invmultshipper__c" required="false" cntr="{!controller}" tabIndex="224"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_weightuom__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_weightuom__c.label}"/>
+                            <c:selectList id="socntl_weightuom__c" required="false" cntr="{!controller}" options="{!sl.syuoms}" tabIndex="204"/>
+                        </apex:pageBlockSectionItem>
+                        <!-- apex:pageBlockSectionItem helpText="{!f.socntl_postinvoices__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.socntl_postinvoices__c.label}"/>
+                            <c:inputField id="socntl_postinvoices__c" required="false" cntr="{!controller}" tabIndex="205"/>
+                        </apex:pageBlockSectionItem> -->
+                    
+                        <!-- apex:pageBlockSectionItem helpText="{!f.socntl_overshipok__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.socntl_overshipok__c.label}"/>
+                            <c:inputField id="socntl_overshipok__c" required="false" cntr="{!controller}" tabIndex="224"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <!-- apex:pageBlockSectionItem helpText="{!f.socntl_chgcomments__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.socntl_chgcomments__c.label}"/>
+                            <c:inputField id="socntl_chgcomments__c" required="false" cntr="{!controller}" tabIndex="206"/>
+                        </apex:pageBlockSectionItem -->
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_wonumbpolicy__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_wonumbpolicy__c.label}"/>
+                            <c:inputField id="socntl_wonumbpolicy__c" required="false" cntr="{!controller}" tabIndex="225"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autonumbcont__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autonumbcont__c.label}"/>
+                            <c:inputField id="socntl_autonumbcont__c" required="false" cntr="{!controller}" tabIndex="205"/>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_woprefix__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_woprefix__c.label}"/>
+                            <c:inputField id="socntl_woprefix__c" required="false" cntr="{!controller}" tabIndex="226"/>
+                        </apex:pageBlockSectionItem>
+                        <!-- 
+                        <apex:pageBlockSectionItem />
+                         
+                        <apex:pageBlockSectionItem helpText="{!f.socntl_validservice__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.socntl_validservice__c.label}"/>
+                            <c:inputField id="socntl_validservice__c" required="false" cntr="{!controller}" tabIndex="227"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.socntl_validatenic__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.socntl_validatenic__c.label}"/>
+                            <c:inputField id="socntl_validatenic__c" required="false" cntr="{!controller}" tabIndex="228"/>
+                        </apex:pageBlockSectionItem>
+                        -->
+                                                
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nextcontainer__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nextcontainer__c.label}"/>
+                            <!-- c:inputField id="socntl_nextcontainer__c" required="false" cntr="{!controller}" tabIndex="207"/-->
+                            <apex:outputPanel >
+                                <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_nextcontainer__c}" /></apex:outputText>
+                                <apex:inputField id="socntl_nextcontainer__c" value="{!o.rstk__socntl_nextcontainer__c}" required="false" style="display:{!IF(!isView, '', 'none')};text-align:right;"/>
+                                <script>pageTabIndexes["socntl_nextcontainer__c"]="206";</script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autocreatepl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autocreatepl__c.label}"/>
+                            <c:inputField id="socntl_autocreatepl__c" required="false" cntr="{!controller}" tabIndex="227"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_generickit__c.inlineHelpText}" rendered="{!!isView}">
+                            <apex:outputLabel value="{!f.rstk__socntl_generickit__c.label}"/>
+                            <apex:outputPanel style="display:{!IF(!isView, '', 'none')};">
+                                <c:autocomplete id="socntl_generickit__c" cntr="{!controller}" slDesc="{!SoprodNo}" 
+                                    query="{!soprodSQL}" 
+                                    queryParms="[['socntl_div__c','Division']]" width="200px" tabIndex="207"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:outputField value="{!o.rstk__socntl_generickit__c}" rendered="{!isView}"/>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_wiptocogs__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_wiptocogs__c.label}"/>
+                            <c:inputField id="socntl_wiptocogs__c" required="false" cntr="{!controller}" tabIndex="228"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_directpo__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_directpo__c.label}"/>
+                            <c:inputField id="socntl_directpo__c" required="false" cntr="{!controller}" tabIndex="208"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nozeroquotes__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nozeroquotes__c.label}"/>
+                            <c:inputField id="socntl_nozeroquotes__c" required="false" cntr="{!controller}" tabIndex="229"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_intersystem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_intersystem__c.label}"/>
+                            <c:inputField id="socntl_intersystem__c" required="false" cntr="{!controller}" tabIndex="209"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nozeroquotdisp__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nozeroquotdisp__c.label}"/>
+                            <c:inputField id="socntl_nozeroquotdisp__c" required="false" cntr="{!controller}" tabIndex="230"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autobudgetdtl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autobudgetdtl__c.label}"/>
+                            <c:inputField id="socntl_autobudgetdtl__c" required="false" cntr="{!controller}" tabIndex="210"/>
+                        </apex:pageBlockSectionItem>
+                        
+                       <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_solineseract__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_solineseract__c.label}"/>
+                            <c:inputField id="socntl_solineseract__c" required="false" cntr="{!controller}" tabIndex="230"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_alldmdissproj__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_alldmdissproj__c.label}"/>
+                            <c:inputField id="socntl_alldmdissproj__c" required="false" cntr="{!controller}" tabIndex="290"/>
+                        </apex:pageBlockSectionItem>
+                        
+                       <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_solinelotact__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_solinelotact__c.label}"/>
+                            <c:inputField id="socntl_solinelotact__c" required="false" cntr="{!controller}" tabIndex="231"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_warrforconfig__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_warrforconfig__c.label}"/>
+                            <c:inputField id="socntl_warrforconfig__c" required="false" cntr="{!controller}" tabIndex="310"/>
+                        </apex:pageBlockSectionItem>
+                        
+                       <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ffillreqcase__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_ffillreqcase__c.label}"/>
+                            <c:inputField id="socntl_ffillreqcase__c" required="false" cntr="{!controller}" tabIndex="231"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_warrforstock__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_warrforstock__c.label}"/>
+                            <c:inputField id="socntl_warrforstock__c" required="false" cntr="{!controller}" tabIndex="311"/>
+                        </apex:pageBlockSectionItem>
+                        
+                       <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ffillreqdim__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_ffillreqdim__c.label}"/>
+                            <c:inputField id="socntl_ffillreqdim__c" required="false" cntr="{!controller}" tabIndex="232"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_reqotypeui__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_reqotypeui__c.label}"/>
+                            <c:inputField id="socntl_reqotypeui__c" required="false" cntr="{!controller}" tabIndex="237"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_hidecommissions__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_hidecommissions__c.label}"/>
+                            <c:inputField id="socntl_hidecommissions__c" required="false" cntr="{!controller}" tabIndex="235"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_costfromprod__c.inlineHelpText}" rendered="{!pageOptions.showAltPricing}">
+                            <apex:outputLabel value="{!f.rstk__socntl_costfromprod__c.label}"/>
+                            <c:inputField id="socntl_costfromprod__c" required="false" cntr="{!controller}" tabIndex="300"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem rendered="{!!pageOptions.showAltPricing}"/>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_singlediv__c.inlineHelpText}" rendered="{!pageOptions.showAltPricing}">
+                            <apex:outputLabel value="{!f.rstk__socntl_singlediv__c.label}"/>
+                            <c:inputField id="socntl_singlediv__c" required="false" cntr="{!controller}" tabIndex="301"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_noprojects__c.inlineHelpText}" rendered="{!pageOptions.showAltPricing}">
+                            <apex:outputLabel value="{!f.rstk__socntl_noprojects__c.label}"/>
+                            <c:inputField id="socntl_noprojects__c" required="false" cntr="{!controller}" tabIndex="236"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_dlftcustprodsrch__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_dlftcustprodsrch__c.label}"/>
+                            <c:inputField id="socntl_dlftcustprodsrch__c" required="false" cntr="{!controller}" tabIndex="302"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_enhqtyavail__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_enhqtyavail__c.label}"/>
+                            <c:inputField id="socntl_enhqtyavail__c" required="false" cntr="{!controller}" tabIndex="237"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_advopen__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_advopen__c.label}"/>
+                            <c:inputField id="socntl_advopen__c" required="false" cntr="{!controller}" tabIndex="303"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nosrlsel__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nosrlsel__c.label}"/>
+                            <c:inputField id="socntl_nosrlsel__c" required="false" cntr="{!controller}" tabIndex="238"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_hidecombined__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_hidecombined__c.label}"/>
+                            <c:inputField id="socntl_hidecombined__c" required="false" cntr="{!controller}" tabIndex="304"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nosofdefqty__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nosofdefqty__c.label}"/>
+                            <c:inputField id="socntl_nosofdefqty__c" required="false" cntr="{!controller}" tabIndex="239"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_hideinvbatch__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_hideinvbatch__c.label}"/>
+                            <c:inputField id="socntl_hideinvbatch__c" required="false" cntr="{!controller}" tabIndex="305"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_noaddrquotes__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_noaddrquotes__c.label}"/>
+                            <c:inputField id="socntl_noaddrquotes__c" required="false" cntr="{!controller}" tabIndex="240"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_linedateovr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_linedateovr__c.label}"/>
+                            <c:inputField id="socntl_linedateovr__c" required="false" cntr="{!controller}" tabIndex="306"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_suppressaudit__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_suppressaudit__c.label}"/>
+                            <c:inputField id="socntl_suppressaudit__c" required="false" cntr="{!controller}" tabIndex="241"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_trackingtoline__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_trackingtoline__c.label}" />
+                            <c:inputField id="socntl_trackingtoline__c" required="false" cntr="{!controller}" tabIndex="307" />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_prefixesauto_number}" name="tab_prefixes" id="tab_prefixes">
+                    <apex:pageBlockSection id="pbs_prefixes" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_ppyprefix__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_ppyprefix__c.label}"/>
+                            <c:inputField id="socntl_ppyprefix__c" required="false" cntr="{!controller}" tabIndex="601"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autonumbrma__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autonumbrma__c.label}"/>
+                            <c:inputField id="socntl_autonumbrma__c" required="false" cntr="{!controller}" tabIndex="621"/>
+                        </apex:pageBlockSectionItem>
+                        
+                         <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invprefix__c.inlineHelpText}" rendered="{!!isFFActive}">
+                            <apex:outputLabel value="{!f.rstk__socntl_invprefix__c.label}"/>
+                            <c:inputField id="socntl_invprefix__c" required="false" cntr="{!controller}" tabIndex="603"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nextrmano__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nextrmano__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_nextrmano__c}" /></apex:outputText>
+                                <apex:inputField id="socntl_nextrmano__c" value="{!o.rstk__socntl_nextrmano__c}" required="false" rendered="{!actionType != 'view'}"/>
+                                <script>pageTabIndexes["socntl_nextrmano__c"]="622";</script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+    
+                       <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_crmemoprefix__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_crmemoprefix__c.label}"/>
+                            <c:inputField id="socntl_crmemoprefix__c" required="false" cntr="{!controller}" tabIndex="604"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nextppy__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nextppy__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_nextppy__c}" /></apex:outputText>
+                                <apex:inputField id="socntl_nextppy__c" value="{!o.rstk__socntl_nextppy__c}" required="false" rendered="{!actionType != 'view'}"/>
+                                <script>pageTabIndexes["socntl_nextppy__c"]="623";</script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_rmaprefix__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_rmaprefix__c.label}"/>
+                            <c:inputField id="socntl_rmaprefix__c" required="false" cntr="{!controller}" tabIndex="605"/>
+                        </apex:pageBlockSectionItem> 
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nextinvoice__c.inlineHelpText}" rendered="{!!isFFActive}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nextinvoice__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_nextinvoice__c}" /></apex:outputText>
+                                <apex:inputField id="socntl_nextinvoice__c" value="{!o.rstk__socntl_nextinvoice__c}" required="false" rendered="{!actionType != 'view'}"/>
+                                <script>pageTabIndexes["socntl_nextinvoice__c"]="624";</script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+    
+                         <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_quoteprefix__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_quoteprefix__c.label}"/>
+                            <c:inputField id="socntl_quoteprefix__c" required="false" cntr="{!controller}" tabIndex="606"/>
+                        </apex:pageBlockSectionItem>  
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_invformatno__c.inlineHelpText}"  rendered="{!!isFFActive}">
+                            <apex:outputLabel value="{!f.rstk__socntl_invformatno__c.label}"/>
+                            <c:inputField id="socntl_invformatno__c" required="false" cntr="{!controller}" tabIndex="625"/>
+                        </apex:pageBlockSectionItem>
+                        
+                         <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_customsoprefix__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_customsoprefix__c.label}"/>
+                            <c:inputField id="socntl_customsoprefix__c" required="false" cntr="{!controller}" tabIndex="607"/>
+                        </apex:pageBlockSectionItem>  
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nextserial__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nextserial__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputText value="{0,number,##0}" rendered="{!actionType == 'view'}"><apex:param value="{!o.rstk__socntl_nextserial__c}" /></apex:outputText>
+                                <apex:inputField id="socntl_nextserial__c" value="{!o.rstk__socntl_nextserial__c}" required="false" rendered="{!actionType != 'view'}"/>
+                                <script>pageTabIndexes["socntl_nextserial__c"]="626";</script>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem rendered="{!isFFActive}" />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_contractprefix__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_contractprefix__c.label}"/>
+                            <c:inputField id="socntl_contractprefix__c" required="false" cntr="{!controller}" tabIndex="608"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_autocontract__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_autocontract__c.label}"/>
+                            <c:inputField id="socntl_autocontract__c" required="false" cntr="{!controller}" tabIndex="626"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_nextcontract__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_nextcontract__c.label}"/>
+                            <c:inputField id="socntl_nextcontract__c" required="false" cntr="{!controller}" tabIndex="627"/>
+                        </apex:pageBlockSectionItem>
+                        
+                    </apex:pageBlockSection>       
+                </apex:tab>
+            
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_price}" name="tab_Price" id="tab_Price">
+                    <apex:pageBlockSection id="pbs_Price" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_pricemethmtl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_pricemethmtl__c.label}"/>
+                            <c:inputField id="socntl_pricemethmtl__c" required="false" cntr="{!controller}" tabIndex="281"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_compthenmarkup__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_compthenmarkup__c.label}"/>
+                            <c:inputField id="socntl_compthenmarkup__c" required="false" cntr="{!controller}" tabIndex="291"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_pricemethlab__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_pricemethlab__c.label}"/>
+                            <c:inputField id="socntl_pricemethlab__c" required="false" cntr="{!controller}" tabIndex="282"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_mtlmarkuppct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_mtlmarkuppct__c.label}"/>
+                            <c:inputField id="socntl_mtlmarkuppct__c" required="false" cntr="{!controller}" tabIndex="283"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_labmarkuppct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_labmarkuppct__c.label}"/>
+                            <c:inputField id="socntl_labmarkuppct__c" required="false" cntr="{!controller}" tabIndex="284"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_labprice__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_labprice__c.label}"/>
+                            <c:inputField id="socntl_labprice__c" required="false" cntr="{!controller}" tabIndex="285"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_altcurrency__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_altcurrency__c.label}"/>
+                            <c:selectList id="socntl_altcurrency__c" required="false" cntr="{!controller}" options="{!Currencies}" tabIndex="286"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                        
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_warrantyandrma}" name="tab_rma" id="tab_rma">
+                    <apex:pageBlockSection id="pbs_rma" showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_rmainspdflt__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_rmainspdflt__c.label}"/>
+                            <c:inputField id="socntl_rmainspdflt__c" required="false" cntr="{!controller}" tabIndex="801"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_rmaadjacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_rmaadjacct__c.label}"/>
+                            <c:selectList id="socntl_rmaadjacct__c" required="false" cntr="{!controller}" options="{!RMAADJAccts}" tabIndex="802"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_sowarrtype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_sowarrtype__c.label}"/>
+                            <c:selectList id="socntl_sowarrtype__c" required="false" cntr="{!controller}" options="{!Warrtypes}" tabIndex="803"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_oowrma__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_oowrma__c.label}"/>
+                            <c:inputField id="socntl_oowrma__c" required="false" cntr="{!controller}" tabIndex="804"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>    
+                </apex:tab>       
+
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_salescontract}" name="tab_sales_contract" id="tab_sales_contract">
+                    <apex:pageBlockSection id="pbs_sales_contract" showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_actgracedays__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_actgracedays__c.label}"/>
+                            <c:inputField id="socntl_actgracedays__c" required="false" cntr="{!controller}" tabIndex="811"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_msarequired__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_msarequired__c.label}"/>
+                            <c:inputField id="socntl_msarequired__c" required="false" cntr="{!controller}" tabIndex="812"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_dfltcontterm__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_dfltcontterm__c.label}"/>
+                            <c:inputField id="socntl_dfltcontterm__c" required="false" cntr="{!controller}" tabIndex="813"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <!--<apex:pageBlockSectionItem helpText="{!f.socntl_addcontract__c.inlineHelpText}" rendered="{!isCsg}">
+                            <apex:outputLabel value="{!f.socntl_addcontract__c.label}"/>
+                            <c:inputField id="socntl_addcontract__c" required="false" cntr="{!controller}" tabIndex="814"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.socntl_adminfeepct__c.inlineHelpText}" rendered="{!isCsg}">
+                            <apex:outputLabel value="{!f.socntl_adminfeepct__c.label}"/>
+                            <c:inputField id="socntl_adminfeepct__c" required="false" cntr="{!controller}" tabIndex="815"/>
+                        </apex:pageBlockSectionItem>-->
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_pbillinprocess__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_pbillinprocess__c.label}"/>
+                            <c:inputField id="socntl_pbillinprocess__c" required="false" cntr="{!controller}" tabIndex="816"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__socntl_alwayssocondev__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__socntl_alwayssocondev__c.label}"/>
+                            <c:inputField id="socntl_alwayssocondev__c" cntr="{!controller}" tabIndex="817"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>    
+                </apex:tab>  
+                     
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                    
+                <apex:tab label="{!$Label.rstk__pagetab_socntl_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+
+        <c:GeoDialogs validationObj="validateAddr"/>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+        
+        <c:Popup popupId="cannotChangeToConsolidatedPopup" title="{!f.rstk__socntl_bypasspackage__c.label}" cancelCaption="Close" onCancel="onCannotChangeToConsolidatedClosed()">
+           <apex:pageBlockSection showHeader="false" columns="1" collapsible="false">
+               <apex:pageBlockSectionItem >
+                   <apex:outputPanel >{!$Label.rstk__cannotchangetoconsolidatedwhensolinesactive}</apex:outputPanel>
+               </apex:pageBlockSectionItem>
+               <apex:pageBlockSectionItem >
+                   <div id="allowOverrideDiv">
+                     <input type="checkbox" id="allowOverride"/>&nbsp;&nbsp;{!$Label.allowChangeToConsolidatedWhenSolinesActive}
+                   </div>
+               </apex:pageBlockSectionItem>
+           </apex:pageBlockSection>
+        </c:Popup>
+        
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var ValueMustGreater = "{!$Label.rstk__thevaluemustbegreater}";  
+        var ValueMustIntValue2000To2100 = "{!$Label.rstk__valuemustbeintvalue2000to2100}";    
+        var ValueMustIntValue1To12 = "{!$Label.rstk__valuemustbeintvalue1to12}";
+        var Percent0To100 = "{!$Label.rstk__percentfrom0to100}";
+        var EnterValueForFollowingFields = "{!$Label.rstk__entervalueforthefollowingfields}";
+        var NotBeAbleAddCustRecords = "{!$Label.rstk__notbeableaddcustrecords}";
+        var BookFiscalYear2000To2100 = "{!$Label.rstk__bookingsfiscalyear2000to2100}";
+        var BookPeriod1To12 = "{!$Label.rstk__bookingsperiod1to12}";      
+        var SalesFiscalYear2000To2100 = "{!$Label.rstk__salesfiscalyearmustbe2000to2100}"; 
+        var SalesPeriod1To12 = "{!$Label.rstk__salesperiodmustbe1to12}"; 
+        var SelectFinancialForce = "{!$Label.rstk__pleaseselectfinancialforce}"; 
+        var ProvideWONum = "{!$Label.rstk__pleaseprovidewonum}";         
+        var LABEL_ValMustBeGrtr = "{!$Label.rstk__valmustbegrtr}";
+        var LABEL_ValueMustIntValue2000To2100 = "{!$Label.rstk__valuemustintvalue2000to2100}";
+        var LABEL_ValueMustIntValue1To12 = "{!$Label.rstk__valuemustintvalue1to12}";
+        var LABEL_PercIsNumOnly = "{!$Label.rstk__percisnumonly}";
+        var LABEL_FieldOnlyAllowsIntegerVal = "{!$Label.rstk__fieldonlyallowsintegerval}";
+        var LABEL_InvalidIntegerValForField = "{!$Label.rstk__invalidintegervalforfield}";
+        var LABEL_EnterNumericInvFormattedLengthValInRange0To20 = "{!$Label.rstk__enternumericinvformattedlengthvalinrange0to20}";
+        var LABEL_FieldValMustBetween0To999 = "{!$Label.rstk__fieldvalmustbetween0to999}";
+        var LABEL_ShippingClearingAccountmustbespecified = "{!$Label.rstk__shippingclearingaccountmustbespecified}";
+        var LABEL_DefMaterialMarkupPercMustGT0_WhenDefMaterialPeiceMethEqualsCostPlusMarkupPct = "{!$Label.rstk__defmaterialmarkuppercmustgt0_whendefmaterialpeicemethequalscostplusmarkuppct}";
+        var LABEL_DefLaborMarkupPctMustGT0_WhenDefLaborPriceMethEqualsCostPlusMarkupPct = "{!$Label.rstk__deflabormarkuppctmustgt0_whendeflaborpricemethequalscostplusmarkuppct}";
+        var LABEL_DefaultLaborPriceMustGT0_WhenDefLaborPriceMethEqualsPrceFromSOLine = "{!$Label.rstk__defaultlaborpricemustgt0_whendeflaborpricemethequalsprcefromsoline}";
+        var LABEL_Invalidvaluefor = "{!$Label.rstk__invalidvaluefor}";
+        var LABEL_AutoProjectNumberMethodMustBeDefined = "{!$Label.rstk__autoprojectnumbermethodmustbedefined}";
+        var LABEL_NextSalesOrderNumberAlreadyExistForDivision = "{!$Label.rstk__nextsalesordernumberalreadyexistfordivision}";
+        var LABEL_Warning_currently_no_Shipping_Clearing_Accounts_defined = "{!$Label.rstk__warning_currently_no_shipping_clearing_accounts_defined}";
+        var LABEL_For_this_method_of_credit_checking_to_work_the_Unbilled_Orders_Amount_needs_to = "{!$Label.rstk__for_this_method_of_credit_checking_to_work_the_unbilled_orders_amount_needs_to}";
+        
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

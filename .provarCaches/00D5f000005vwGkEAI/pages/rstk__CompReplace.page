@@ -1,0 +1,172 @@
+<apex:page id="pg" standardController="rstk__icitemsrlhist__c" extensions="rstk.ControllerExtnIcitemsrlhist,rstk.RemoteQueryController" sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icitemsrlhist__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icitemsrlhist__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="Component Replace" enableAutocomplete="true" enableQuickMenu="false"/>
+    
+<script>
+	var pageMode = '';
+	var initChk = false;
+	var autoCompleteRefs = new Array();
+	
+	function pageInit(type) {
+		pageMode = type;
+		initChk = true;
+		sfffSetFieldValue('icitemsrlhist_reason__c', 'Manual Replace');
+		socustChanged();
+		newicitemChanged();
+		initChk = false;
+	}
+	
+	function createFieldChangeHandlers() {;
+		fieldChangeHandlers['icitemsrlhist_socust__c'] = socustChanged;
+		fieldChangeHandlers['icitemsrlhist_newicitem__c'] = newicitemChanged;
+	}
+	
+	function socustChanged(type, name) {
+	 	var custId = sfffGetFieldValue('icitemsrlhist_socust__c');
+	 	if (!initChk) sfffSetFieldValue('icitemsrlhist_case__c', '');
+	 
+	 	if (!isEmpty(custId)) {
+	 		sfffDisableField('icitemsrlhist_case__c', false);
+	 		var custs = execQuery("select socust_sf_account__c from socust__c where id= '" + custId + "'");
+	 		if (custs.length > 0) {
+	 			var sql = "select id, CaseNumber from Case ";
+	 			var acFld = autoCompleteRefs[getFmFld('icitemsrlhist_case__c').name];
+	 			acFld.flushCache();
+	 			sql += "where AccountId = '" + custs[0].socust_sf_account__c + "'";
+				acFld.getOptions().extraParams["query"] = sql;
+				acFld.getOptions().extraParams["codeColumn"] = 'id';
+				acFld.getOptions().extraParams["descColumn"] = 'CaseNumber';
+	 		}
+	 	} else {
+	 		sfffDisableField('icitemsrlhist_case__c', true);
+	 	}
+	}
+	
+	function newicitemChanged() {
+		var newicitemId = sfffGetFieldValue('icitemsrlhist_newicitem__c');
+		var srldiv = sfffGetFieldValue('icitemsrl_div__c');
+		var icitemsrlId = sfffGetFieldValue('icitemsrlhist_icitemsrl__c');
+		
+		if (!isEmpty(newicitemId)) {
+			sfffDisableField('icitemsrlhist_newicitemsrl__c', false);
+			var acFld = autoCompleteRefs[getFmFld('icitemsrlhist_newicitemsrl__c').name];
+			acFld.flushCache();
+			var sql = "select id, icitemsrl_srlno__c from icitemsrl__c where icitemsrl_replaceicitem__c = null and icitemsrl_div__c = '" + srldiv + "' and id != '" + icitemsrlId + "' and icitemsrl_item__c = '" + newicitemId + "'";
+			acFld.getOptions().extraParams["query"] = sql;
+			acFld.getOptions().extraParams["codeColumn"] = 'id';
+			acFld.getOptions().extraParams["descColumn"] = 'icitemsrl_srlno__c';
+		} else {
+			sfffDisableField('icitemsrlhist_newicitemsrl__c', true);
+		}
+		
+		return true;
+	}
+	
+	function saveRecord() {
+		var icitemsrlId = sfffGetFieldValue('icitemsrlhist_icitemsrl__c');
+		var newicitemId = sfffGetFieldValue('icitemsrlhist_newicitem__c');
+		var newicitemsrlId = sfffGetFieldValue('icitemsrlhist_newicitemsrl__c');
+		
+		if (isEmpty(icitemsrlId)) {
+			alert('Please provide required field Serialized Inventory Item');
+			var fld = getFmFld('icitemsrlhist_icitemsrl__c');
+			fld.focus();
+			return false;
+		}
+		
+		if (!isEmpty(newicitemId) && isEmpty(newicitemsrlId)) {
+			alert('The Replacement Serial Number is required when Replacement Item has been specified.');
+			var fld = getFmFld('icitemsrlhist_newicitemsrl__c');
+			fld.focus();
+			return false;
+		}
+		
+		return true;
+	}
+
+</script>
+    
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableCancel="true" disableSave="true"/>
+                <apex:commandButton onclick="doPageSave();parent.unblockUI();parent.compReplaceComplete();return false;" value="Save" style="width:50px"/>
+                <apex:commandButton onclick="parent.unblockUI();return false;" value="Cancel" immediate="true" style="width:50px"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            	<apex:inputhidden id="icitemsrl_div__c" value="{!icitemsrlDiv}" />
+            	<apex:inputhidden id="icitemsrlhist_icitemsrl__c" value="{!o.rstk__icitemsrlhist_icitemsrl__c}" />
+            	<apex:inputhidden id="icitemsrlhist_reason__c" value="{!o.rstk__icitemsrlhist_reason__c}" />
+            </apex:outputPanel>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="Information" columns="2" >
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrlhist_newicitem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrlhist_newicitem__c.label}"/>
+                    <apex:outputPanel >
+		            	<apex:outputPanel rendered="{!!isView}">
+		            		<c:autocomplete id="icitemsrlhist_newicitem__c" cntr="{!controller}" slDesc="{!IcitemName}" 
+		            			query="select id, name from icitem__c where icitem_div__c = '{!icitemsrlDiv}' and icitem_item__r.peitem_tracksrl_pl__c = 'Yes'" 
+		            			width="200px" tabIndex="3"/>
+		            	</apex:outputPanel>
+		            	<apex:outputField value="{!o.rstk__icitemsrlhist_newicitem__c}" rendered="{!isView}"/>
+		            </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrlhist_socust__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrlhist_socust__c.label}"/>
+		            <apex:outputPanel >
+		            	<apex:outputPanel rendered="{!!isView}">
+		            		<c:autocomplete id="icitemsrlhist_socust__c" cntr="{!controller}" slDesc="{!CustName}" 
+		            			query="select id, name from socust__c" width="200px" tabIndex="51"/>
+		            	</apex:outputPanel>
+		            	<apex:outputField value="{!o.rstk__icitemsrlhist_socust__c}" rendered="{!isView}"/>
+		            </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrlhist_newicitemsrl__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrlhist_newicitemsrl__c.label}"/>
+                    <apex:outputPanel >
+		            	<apex:outputPanel rendered="{!!isView}">
+		            		<c:autocomplete id="icitemsrlhist_newicitemsrl__c" cntr="{!controller}" slDesc="{!NewitemsrlName}" descColumn="icitemsrl_srlno__c" 
+		            			query="select id, name, icitemsrl_srlno__c from icitemsrl__c where icitemsrl_div__c = '{!icitemsrlDiv}'" 
+		            			width="200px" tabIndex="4"/>
+		            	</apex:outputPanel>
+		            	<apex:outputField value="{!o.rstk__icitemsrlhist_newicitemsrl__c}" rendered="{!isView}"/>
+		            </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrlhist_case__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitemsrlhist_case__c.label}"/>
+		            <apex:outputPanel >
+		            	<apex:outputPanel rendered="{!!isView}">
+		            		<c:autocomplete id="icitemsrlhist_case__c" cntr="{!controller}" slDesc="{!CaseName}" 
+		            			query="select id, CaseNumber from Case" codeColumn="id" descColumn="CaseNumber"
+		            			width="200px" tabIndex="52" />
+		            	</apex:outputPanel>
+		            	<apex:outputField value="{!o.rstk__icitemsrlhist_case__c}" rendered="{!isView}"/>
+		            </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection id="pbs_Comments" showHeader="false" title="Comments" columns="1" >
+            	<apex:pageBlockSectionItem helpText="{!f.rstk__icitemsrlhist_comments__c.inlineHelpText}">
+            		<apex:outputLabel value="{!f.rstk__icitemsrlhist_comments__c.label}"/>
+            		<c:inputTextarea id="icitemsrlhist_comments__c" cntr="{!controller}" cols="100" rows="2" tabIndex="99" />
+            	</apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

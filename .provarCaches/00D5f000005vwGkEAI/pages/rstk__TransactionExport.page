@@ -1,0 +1,124 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_transactionexport}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnTransactionexport,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__customext__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+    <apex:variable var="model" value="{!model}"/>
+    <apex:sectionHeader title="{!$Label.rstk__pagetitle_transactionexport}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_transactionexport}" showHeader="false"/>
+    
+    <script>
+        var isFF = {!isFF};
+        var isFfaJeBatchMode = {!isFfaJeBatchMode};
+        var isQB = {!isQB};
+        var processLogId;
+        function __updateStatus() {
+            if(__uiBlocked) {
+                console.log('processLogId:'+processLogId);
+                if(processLogId) {
+                    getController("ControllerJobStatus").getJobStatus(
+                        processLogId, 
+                        function(processlog) {
+                            console.log(processlog);
+                            var pl;
+                            if(processlog) {
+                                pl = {
+                                    status__c: sobjectValue(processlog, 'status__c'),
+                                    substatus__c: sobjectValue(processlog, 'substatus__c'),
+                                    iserror__c: sobjectValue(processlog, 'iserror__c'),
+                                    completed__c: sobjectValue(processlog, 'completed__c'),
+                                    errormessage__c: sobjectValue(processlog, 'errormessage__c')
+                                };
+                            }
+                            if(pl && pl.status__c) {
+                                setPopStatus1(pl.status__c + (pl.substatus__c ? ("...(" + pl.substatus__c + ")") : ""));
+                            }
+                            if(pl && !pl.iserror__c && !pl.completed__c)
+                                setTimeout(__updateStatus, 2000);
+                            else {
+                                if(pl.iserror__c)
+                                    alert("{!$Label.rstk__erroroccuredwhileprocessingtask_2}", (pl.errormessage__c ? pl.errormessage__c : ''))
+                                else
+                                    alert("{!$Label.rstk__taskcompletedsuccessfully}");
+                                unblockUI();
+                            }
+                        },
+                        {escape: true}
+                    );
+                } else {
+                    unblockUI();
+                }
+            }
+        }
+        
+        function exportCostTransactions() {
+            try {
+                if((isFF && isFfaJeBatchMode) || isQB) {
+                    if(isFF && isFfaJeBatchMode) {
+                        __processFn = doProcessMode;
+                        blockUI();
+                        setCurrentFFCompanyAndProcess();
+                    } else {
+                        doProcessMode();
+                    }
+                } else {
+                    alert("{!$Label.rstk__toperformtransactionexport_eitheroptionsshouldbeenabledinsysconfig}");
+                }
+            } finally {
+                return false;
+            }
+        }
+        
+        function doProcessMode() {
+            blockUI(); 
+            processMode();
+            return false;
+        }
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="processMode" action="{!processMode}" oncomplete="__updateStatus();" rerender="pageMessages, processLogId, pb"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <apex:commandButton value="{!$Label.rstk__pagebtn_transactionexport_exportcosttransactions}" onclick="return exportCostTransactions();" style="width:150px;" disabled="{!!model.isExportAvailable}"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="processLogId"><script>processLogId = "{!processLogId}";</script></apex:outputPanel>
+        
+        <apex:pageBlockSection id="pbs_Main1" showHeader="false" columns="1">
+            <apex:outputField value="{!o.rstk__sycmp__c}"/>
+            <apex:pageBlockSectionItem helpText="{!$Label.rstk__the_number_of_journals_available_to_export_for_this_company_filtered_dates_or}">
+                <apex:outputLabel value="{!$Label.rstk__journal_export_qty}"/>
+                <apex:outputText value="{!model.exportQty}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!model.isInUse}">
+                <apex:outputLabel value="{!$Label.rstk__export_begin_time}"/>
+                <apex:outputField value="{!model.currentProcessLog.rstk__begintime__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__div__c.label}"/>
+                <c:selectList id="div__c" cntr="{!controller}" options="{!sydivs}" tabIndex="2"  disabled="{!!model.isExportAvailable}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__transexport_enddate__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__transexport_enddate__c.label}" />
+                <c:inputField id="transexport_enddate__c" cntr="{!controller}" required="true" tabIndex="4" disabled="{!!model.isExportAvailable}"/>
+            </apex:pageBlockSectionItem> 
+            <apex:pageBlockSectionItem helpText="{!f.rstk__transexport_comments__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__transexport_comments__c.label}" />
+                <c:inputField id="transexport_comments__c" cntr="{!controller}" tabIndex="5" disabled="{!!model.isExportAvailable}"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

@@ -1,0 +1,1317 @@
+<apex:page id="pg" standardController="rstkf__gljetemplth__c" extensions="rstkf.ControllerExtnGljetemplthMaintenance,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">     
+    <apex:variable var="o" value="{!rstkf__gljetemplth__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__gljetemplth__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:variable var="fdim" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <c:standardHeader cntr="{!controller}" customInclude="{!$Resource.rstkf__gljetemplth_cli}" enableAutoComplete="true" displayListLink="true"/>
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstkf__BlockUI}" />
+    <apex:includeScript value="{!$Resource.rstkf__hover_popup}" />
+    <apex:includeScript value="{!$Resource.rstkf__jquerytoolsoverlay}" />
+    <style>
+        .clsCenter{
+            text-align:center;
+        }
+        
+        input[type=checkbox][disabled]{
+          opacity: 0.4;
+        }
+                
+        .ct{
+            text-align:center;
+        }
+        
+        thePopup.offset({
+            top  : topOffset + theWin.scrollTop(),
+            left  : 40
+        });
+        
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.rstkf__busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        .ac_results {
+            z-index: 9999;
+            background-color: #eee;
+        }
+        
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 2000; /* Sit on top */
+            left: 30%;
+            top: 30%;
+            width: 700px; 
+            height: 300px;
+            background-color: rgb(0,0,0); 
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal h2 {
+            margin:0px;
+            padding:10px 0 10px 45px;
+            font-size:16px;
+        }
+        
+        .modalComponents {
+            color:#efefef;
+            height:250px;
+            z-index:100;
+        }  
+        
+        .modalPopupX{
+            z-index: 96;
+        }
+        
+        .popupBackgroundX {
+            z-index: 11;
+        }
+        
+        .modalPopup{
+             background-color: white;
+             border-style: solid;
+             position: absolute;
+             z-index: 95;             
+             overflow:auto;
+         }
+        
+        .popupBackground{
+             background-color:black;
+             opacity: 0.20;
+             position:absolute;
+             width: 100%;
+             height: 100%;
+             top: 0;
+             left: 0;
+             z-index: 90;
+         }
+        
+          .ac_results {
+            padding: 0px;
+            border: 1px solid #7FB7FB;
+            overflow: scroll;
+            background-color: #AFD2FD;
+            height: 210px;
+            z-index:2000;
+        }
+        
+        .overlay {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 300;
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%;
+            text-align: center;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        
+    </style>
+    <apex:variable var="f_gljetempltd" value="{!$ObjectType.rstkf__gljetempltd__c.fields}" />    
+    <script>
+        var locl = new Locale();
+
+        function verifyDate(firstDate,secondDate,datefieldID){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnGljetemplthMaintenance.verifyDate}', //NameSpace  
+                firstDate,
+                secondDate,   
+                function(result, event){
+                    if (event.status) {
+                        var statusResult = checkResult(result,datefieldID);
+                        counterCheck = 0;
+                        console.log('statusResult  '+statusResult); 
+                        console.log('statusResult counterCheck  '+counterCheck);                        
+                        //alert('statusResult '+statusResult);
+                        returnStatusResult = statusResult;
+                    } else if (event.type === 'exception') {
+                        //alert("{!$Label.Exception}", event.message);
+                        checkException(event.message,datefieldID)
+                        returnStatusResult = false; 
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message); 
+                        returnStatusResult = false;
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function editgltempldedit(id) {
+            console.log('Inside editgltempldedit '+id);
+            setEditURL(id);
+        }
+        
+        function deletegltempldeditcheck(id,dramt,cramt,printamountsreqCheckFlag) {
+            console.log('Inside deletegltempldeditcheck '+id);
+            console.log('Inside deletegltempldeditcheck dramt '+dramt);
+            console.log('Inside deletegltempldeditcheck cramt '+cramt);
+            console.log('Inside deletegltempldeditcheck totalDebits '+totalDebits);
+            console.log('Inside deletegltempldeditcheck totalCredits '+totalCredits);       
+            console.log('Inside deletegltempldeditcheck printamountsreqCheckFlag '+printamountsreqCheckFlag);   
+            //var amountsreqCheck = sfffGetFieldValue('gljetemplth_amountsreq__c');
+            var amountsreqCheck = "{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_amountsreq__c}";
+            console.log('Inside deletegltempldeditcheck amountsreqCheck '+amountsreqCheck); 
+            
+            var amountsreqCheckFlag = document.getElementById('pg:fm:pb_add:pbs_main2:pbs_amountsreq:amountsreqView').title;  
+            console.log('Inside deletegltempldeditcheck amountsreqCheckFlag '+amountsreqCheckFlag); 
+            
+            
+            if(oldamountsreq == "true") {
+                console.log('Inside deletegltempldeditcheck totalDebits Diff '+(totalDebits - dramt));
+                console.log('Inside deletegltempldeditcheck totalCredits Diff '+(totalCredits - cramt));
+                
+                var totalDebitsDiff = totalDebits - dramt;
+                var totalCreditsDiff = totalCredits - cramt;
+                
+                if(totalDebitsDiff.toFixed(2) != totalCreditsDiff.toFixed(2)) {
+                    if(confirm("{!$Label.Template_will_be_out_of_balance_if_deleted_this_Line_Still_want_to_Delete}")) {
+                        deletegltempldedit(id);             
+                    }
+                } else {
+                    if(confirm("{!$Label.AreYouSure}")) {
+                        deletegltempldedit(id);             
+                    }
+                }
+                
+            } else {
+                if(confirm("{!$Label.AreYouSure}")) {
+                    deletegltempldedit(id);             
+                }
+            }
+            
+        }
+        
+        function check() {
+            console.log('inside check ');
+            //document.getElementById('pg:fm:journalHeader').style.display='none';
+            //document.getElementById('pg:fm:gljetemplthsShow').style.display='block';
+            getAllGljetemplths();
+        }
+        
+        function addCheck() {
+            console.log('inside addCheck ');
+            initializeAddGljetemplth();
+            //document.getElementById('pg:fm:journalHeader').style.display='block';
+            //document.getElementById('pg:fm:gljetemplthsShow').style.display='none';///
+        }
+        
+        function cancelEntryCheck() {
+            //document.getElementById('pg:fm:journalHeader').style.display='none';
+            //document.getElementById('pg:fm:gljetemplthsShow').style.display='block';        
+        }
+        
+        function saveEntryCheck() {
+            console.log('inside saveEntryCheck gljetemplID '+gljetemplID);
+            if(gljetemplID == '') {
+                //var templateid = sfffGetFieldValue('gljetemplth_templateid__c');
+                var templateid =  document.getElementById('pg:fm:pb_add:pbs_main2:pbs_templateid:gljetemplth_templateid__c').value;                
+                console.log('Inside saveEntryCheck templateid = '+templateid);
+                if(templateid == '' || templateid == null || templateid.trim() == '') {
+                    alert(Label_Please_Enter_Template_ID);
+                    return false;
+                }
+            }
+            
+            //var frmDate = sfffGetFieldValue('gljetemplth_fromdate__c'); 
+            var frmDate = document.getElementById('pg:fm:pb_add:pbs_main2:pbs_fromdate:gljetemplth_fromdate__c').value;
+            
+            //var thruDate = sfffGetFieldValue('gljetemplth_thrudate__c');
+            var thruDate = document.getElementById('pg:fm:pb_add:pbs_main2:pbs_thrudate:gljetemplth_thrudate__c').value;
+            
+            console.log(' inside saveEntryCheck() : From date changed to = '+ frmDate + ' & Thru Date changed to = '+ thruDate );            
+            //var ownerId = sfffGetFieldValue('gljetemplth_owner__c');
+            var ownerId = document.getElementById('pg:fm:pb_add:pbs_main2:pbs_owner:gljetemplth_owner__c').value;
+            console.log(' gljetemplthOwnerChanged ownerId : '+ownerId);
+            if(ownerId == '') {
+                alert("{!$Label.Please_enter_Responsible_person}");
+                return false;
+            }
+            
+            //var description = sfffGetFieldValue('gljetemplth_desc__c');
+            var description = document.getElementById('pg:fm:pb_add:pbs_main2:pbs_desc:gljetemplth_desc__c').value;
+            console.log(' description  : '+description);
+            if(description == '') {
+                alert("{!$Label.Please_enter_Description}");
+                return false;
+            }
+            
+            //var accountsonlyCheck = sfffGetFieldValue('gljetemplth_accountsonly__c');
+            //var amountsreqCheck = sfffGetFieldValue('gljetemplth_amountsreq__c');
+            var accountsonlyCheck = document.getElementById('pg:fm:pb_add:pbs_main2:pbs_accountsonly:gljetemplth_accountsonly__c').checked;
+            var amountsreqCheck = document.getElementById('pg:fm:pb_add:pbs_main2:pbs_amountsreq:gljetemplth_amountsreq__c').checked;
+            
+            if(amountsreqCheck == true && accountsonlyCheck == true) {
+                alert("{!$Label.Either_Account_Only_or_Amounts_Required_Flag_can_be_Set}");
+                return false;
+            }
+            
+            if(amountsreqCheck == true && oldamountsreq == "false" && accountsWithZeroAmount == "true") {
+                alert(Label_some_accounts_do_not_have_amounts_Please_enter_amounts);
+                document.getElementById('pg:fm:pb_add:pbs_main2:pbs_amountsreq:gljetemplth_amountsreq__c').checked = false; 
+                //sfffSetFieldValue('gljetemplth_amountsreq__c','0');
+                return false;
+            }
+            
+            if(amountsreqCheck == true && oldamountsreq == "false" && ( totalDebits != totalCredits)){
+                var confirmflag = confirm("{!$Label.Template_is_out_of_balance_still_want_to_save}");
+                if(!confirmflag) {
+                    return false;               
+                }           
+            }
+            
+            if (!frmDate || !thruDate){                
+                if(!frmDate && !thruDate) {
+                    if(confirm("{!$Label.Effective_Date_have_not_been_set_OK_to_Continue}") == false) {
+                        return false;
+                    }
+                } else {                
+                    if(!frmDate){
+                        if(confirm("{!$Label.Effective_From_Date_have_not_been_set_OK_to_Continue}") == false) {
+                            return false;
+                        }
+                    }else if(!thruDate){
+                        if(confirm("{!$Label.Effective_Through_Date_have_not_been_set_OK_to_Continue}") == false) {
+                            return false;
+                        }
+                    } 
+                }
+            }
+            
+            if (frmDate && thruDate){
+                verifyDate(frmDate,thruDate,'gljetemplth_thrudate__c');                                 
+            } else {
+                saveGljetemplth2();
+            }    
+        }
+        
+        function cancelAddOrEditCheck() {
+            console.log('inside cancelAddOrEditCheck');
+            cancelAddOrEdit();
+        }
+        
+        function domaintainEntryCheck() {
+            console.log('inside domaintainEntryCheck gljetemplthArray '+gljetemplthArray);
+            console.log('inside domaintainEntryCheck journalTemplateSelectedSize '+journalTemplateSelectedSize);
+            
+            var singleResultString = document.getElementById('pg:fm:singleResultString').value;
+            if (singleResultString != '') {
+                alert(singleResultString);
+            } else {
+                editGljetemplth();
+            }            
+                   
+        }
+        
+        function doviewEntryCheck() {
+            console.log('inside doviewEntryCheck gljetemplthArray '+gljetemplthArray);
+            console.log('inside doviewEntryCheck journalTemplateSelectedSize '+journalTemplateSelectedSize);
+            
+            var singleResultString = document.getElementById('pg:fm:singleResultString').value;
+            if (singleResultString != '') {
+                alert(singleResultString);
+            } else {
+                viewGljetemplth();
+            }              
+        }
+        
+        function doviewGljetemplthAndAddLineCheck() {
+            console.log('inside viewGljetemplthAndAddLineCheck gljetemplthArray '+gljetemplthArray);
+            console.log('inside viewGljetemplthAndAddLineCheck journalTemplateSelectedSize '+journalTemplateSelectedSize);
+                        
+            var singleResultString = document.getElementById('pg:fm:singleResultString').value;
+            if (singleResultString != '') {
+                alert(singleResultString);
+            } else {
+                viewGljetemplthAndAddLine();
+            }
+            
+        }
+        
+        
+        function addLineButtonClick() {
+            console.log('Inside addLineButtonClick');
+            jQuery(".btnPopupNotesAttachments").click();        
+            console.log('Finished addLineButtonClick');
+        }
+        
+        //var oldamountsreq = "{!o.gljetemplth_amountsreq__c}";
+        //var oldaccountsonly = "{!o.gljetemplth_accountsonly__c}";
+        //var accountsonly = sfffGetFieldValue('gljetemplth_accountsonly__c');
+        //var amountsreq = sfffGetFieldValue('gljetemplth_amountsreq__c');
+        
+        
+        var accountsWithNonZeroAmount = "{!accountsWithNonZeroAmount}";
+        var accountsWithZeroAmount = "{!accountsWithZeroAmount}";
+        //var oldstdid = "{!o.gljetemplth_stdid__c}";
+        //var oldIntermediatestdid = '0';
+        //var gljetemplID = "{!o.id}";
+        var counterCheck = 0;
+        var autoCompleteRefs = new Array();
+        
+        //var gljetemplthGlcmp = "{!o.gljetemplth_glcmp__c}";
+        var totalDebits = "{!totalDebits}";
+        var totalCredits = "{!totalCredits}";
+        
+        function _showDialogCustom(forId, width, height, top)
+        {
+          var jel = jQuery('#'+escapeId(forId));
+                    
+          // Need to show the dialog before the offeset can be changed
+          jel.show();
+          _openDialog = jel;
+          var thePopup=jel.find('.modalPopup');
+          var theWin=jQuery(window);
+          if (width != null) {
+            thePopup.width(width);
+          }
+          if (height != null) {
+            thePopup.height(height);
+          }
+                    
+          if (!height)
+            thePopup.css('max-height',theWin.height()*3/4);
+            
+          var topOffset = 200;
+          if (top != null) {
+            topOffset = top;
+          }
+        
+          thePopup.offset({
+            top  : topOffset + theWin.scrollTop(),
+            left  : 20
+          });
+          //left  : (theWin.width() - thePopup.width()) / 2          
+          fixupDialog();
+        
+          jel.find('[tabindex]:first').focus();
+          jel.keypress(function(e) {
+            if (e.which == 13) // return key pressed
+            {
+              if (!(getSourceElement(e) instanceof HTMLTextAreaElement))
+              {
+                // treat as close request unless it's a TextArea
+                e.preventDefault();
+                _closeDialog();
+              }
+            }
+          });
+        }   
+    </script>
+    <apex:pageMessages />
+    <apex:form id="fm">
+        <apex:actionStatus onstart="showTopDialog('pleaseWaitPopup');" onstop="closeTopDialog();" id="pleaseWaitStatus"/>    
+        <apex:actionFunction name="getAllGljetemplths" action="{!getAllGljetemplths}" reRender="journalHeader" immediate="false" status="pleaseWaitStatus"/>
+        <apex:actionFunction name="initializeAddGljetemplth" action="{!initializeAddGljetemplth}" immediate="false" status="pleaseWaitStatus"/>                 
+        <!--
+        <apex:actionFunction name="editGljetemplthCheck" action="{!singleSelectedCheck}" rerender="pageMessages,singleResultString,journalTemplateSelectedSize,journalHeader,op_DetailsGrid" immediate="false" status="pleaseWaitStatus" oncomplete="domaintainEntryCheck();"/>
+        <apex:actionFunction name="viewGljetemplthCheck" action="{!singleSelectedCheck}" rerender="pageMessages,singleResultString,journalTemplateSelectedSize,journalHeader,op_DetailsGrid" immediate="false" status="pleaseWaitStatus" oncomplete="doviewEntryCheck();"/>
+        -->
+        <apex:actionFunction name="saveGljetemplth2" action="{!saveGljetemplth}" rerender="pageMessages,fm" immediate="false" status="pleaseWaitStatus" /> 
+        <apex:actionFunction name="viewGljetemplth" action="{!viewGljetemplth}" rerender="pageMessages,fm,GridDetails,op_DetailsGrid" immediate="false" status="pleaseWaitStatus"/>   
+        <apex:actionFunction name="editGljetemplth" action="{!editGljetemplth}" rerender="pageMessages,fm,GridDetails,op_DetailsGrid" immediate="false" status="pleaseWaitStatus"/>
+        <!--apex:actionFunction name="viewGljetemplthAndAddLineCheck" action="{!singleSelectedCheck}" reRender="pageMessages,singleResultString,journalTemplateSelectedSize,journalHeader,op_DetailsGrid" immediate="false" oncomplete="doviewGljetemplthAndAddLineCheck();" status="pleaseWaitStatus"/-->
+        <apex:actionFunction name="viewGljetemplthAndAddLine" action="{!viewGljetemplth}" rerender="pageMessages,fm" immediate="false" oncomplete="addLineButtonClick();" status="pleaseWaitStatus"/>
+        <apex:actionFunction name="setEditURL" action="{!setEditURL}" immediate="false" status="pleaseWaitStatus" reRender="op_maintainTemplateLinesPopup" oncomplete="openFramePopup();">
+            <apex:param name="editLink" assignTo="{!editLink}" value=""/>
+        </apex:actionFunction>          
+        <apex:actionFunction name="deletegltempldedit" action="{!deletegltempldedit}" immediate="false" status="pleaseWaitStatus" reRender="journalHeader" oncomplete="getAllGljetemplthsAndRefresh()">
+            <apex:param name="deleteIDs" assignTo="{!deleteID}" value=""/>
+        </apex:actionFunction>      
+        <apex:actionFunction name="cancelAddOrEdit" action="{!cancelAddOrEdit}" reRender="journalHeader" immediate="false" status="pleaseWaitStatus"/>
+        <apex:actionFunction name="getAllGljetemplthsAndRefresh" action="{!getAllGljetemplths}" immediate="false" status="pleaseWaitStatus" oncomplete="viewGljetemplth()"/> 
+        <apex:actionFunction name="setAccountsOnlyflag" action="{!setAccountsOnlyflag}" immediate="false" status="pleaseWaitStatus" reRender="journalTemplateaccountsOnlyflag">
+            <apex:param name="accountsOnlyflag" assignTo="{!accountsOnlyflag}" value=""/>
+        </apex:actionFunction>      
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:outputPanel id="journalTemplateSelectedSize">
+             <script>
+                var journalTemplateSelectedSize = "";
+                var oldstdid = "{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_stdid__c}";
+                var oldIntermediatestdid = '0';
+                var gljetemplID = "{!currentjournalEntryTemplate.gljetemplth.id}";
+                var gljetemplthGlcmp = "{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_glcmp__c}";
+                var oldamountsreq = "{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_amountsreq__c}";
+                var oldaccountsonly = "{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_accountsonly__c}";   
+                console.log(' accountsWithNonZeroAmount '+accountsWithNonZeroAmount);
+                console.log(' accountsWithZeroAmount '+accountsWithZeroAmount);
+                console.log(' oldstdid '+oldstdid);
+                var accountsonlyCalled = false;
+                console.log(' gljetemplID '+gljetemplID);
+                console.log(' oldaccountsonly '+oldaccountsonly);
+                console.log(' oldamountsreq '+oldamountsreq);
+             </script>
+        </apex:outputPanel>
+        <apex:outputPanel id="journalTemplateaccountsOnlyflag">
+            <script>
+                var accountsOnlyflag = "{!accountsOnlyflag}";
+                console.log(' accountsOnlyflag '+accountsOnlyflag);
+             </script>
+        </apex:outputPanel>    
+        <apex:outputPanel id="journalHeader">
+            <script>
+                addRequiredFieldDecoration("input[id*=':" + "gljetemplth_templateid__c" + "']");
+                addRequiredFieldDecoration("textarea[id*=':" + "gljetemplth_desc__c" + "']");           
+            </script>
+            <apex:pageBlock id="pb_add" mode="detail" rendered="{!OR(createMode,updateMode,viewMode)}">
+                <apex:pageBlockButtons >
+                    <apex:outputPanel id="op_hdrbtns" rendered="{!OR(createMode,updateMode)}">
+                        <input type="button" id="saveEntry1" value="{!$Label.pagebtn_Save}" class="btn" onclick="saveEntryCheck();"/>
+                        <input type="button" id="cancelEntry" value="{!$Label.Cancel}" class="btn" onclick="cancelAddOrEditCheck();"/>
+                    </apex:outputPanel>
+                    
+                    <apex:outputPanel id="op_hdrbtns2" rendered="{!viewMode}">
+                        <input type="button" id="editEntry1" value="{!$Label.pagebtn_Edit}" class="btn" onclick="editGljetemplth();"/>                      
+                        <input type="button" id="details" value="{!$Label.JE_Template_Detail_Maintenance}" class="btn" onclick="_showDialogCustom('gljetempltdpopup', 1600, 400);"/>
+                    </apex:outputPanel>
+                </apex:pageBlockButtons>
+                
+                <apex:pageBlockSection id="pbs_main2" columns="1" rendered="{!OR(createMode,updateMode,viewMode)}">
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_glcmp__c.inlineHelpText}" rendered="{!OR(createMode,updateMode,viewMode)}">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_glcmp__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_glcmp__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_templateid__c.inlineHelpText}" id="pbs_templateid">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_templateid__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_templateid__c}" rendered="{!OR(updateMode,viewMode)}"/>
+                            <apex:inputField id="gljetemplth_templateid__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_templateid__c}" rendered="{!createMode}" onchange="gljetemplthTtemplateidChanged();"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>                    
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_stdid__c.inlineHelpText}" id="pbs_stdid">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_stdid__c.label}"/>
+                        <apex:outputPanel >                             
+                            <apex:selectList id="gljetemplth_stdid__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_stdid__c}" size="1" rendered="{!OR(updateMode,createMode)}" onchange="gljetemplthStdidChanged();"> 
+                                    <apex:selectOptions value="{!stdids}" />
+                            </apex:selectList>
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_stdid__c}" rendered="{!viewMode}"/>                
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_desc__c.inlineHelpText}" id="pbs_desc">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_desc__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="gljetemplth_desc__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_desc__c}" rendered="{!OR(updateMode,createMode)}" onchange="gljetemplthTtemplateidChanged()"/>
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_desc__c}" rendered="{!viewMode}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_reversing__c.inlineHelpText}" id="pbs_reversing">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_reversing__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="gljetemplth_reversing__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_reversing__c}" rendered="{!OR(updateMode,createMode)}"/>
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_reversing__c}" rendered="{!viewMode}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_accountsonly__c.inlineHelpText}" id="pbs_accountsonly">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_accountsonly__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="gljetemplth_accountsonly__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_accountsonly__c}" rendered="{!OR(updateMode,createMode)}" onchange="gljetemplthAccountsonlyChanged();"/>
+                            <apex:outputField id="accountsonlyView" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_accountsonly__c}" rendered="{!viewMode}"/>                         
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_amountsreq__c.inlineHelpText}" id="pbs_amountsreq">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_amountsreq__c.label}"/>
+                        <apex:outputPanel id="op_gljetemplth_amountsreq__c">
+                            <apex:inputField id="gljetemplth_amountsreq__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_amountsreq__c}" rendered="{!OR(updateMode,createMode)}" onchange="gljetemplthAmountsreqChanged();"/>
+                            <apex:outputField id="amountsreqView" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_amountsreq__c}" rendered="{!viewMode}"/>  
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_fromdate__c.inlineHelpText}" id="pbs_fromdate">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_fromdate__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="gljetemplth_fromdate__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_fromdate__c}" rendered="{!OR(updateMode,createMode)}" onchange="gljetemplthFromdateChanged();"/>
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_fromdate__c}" rendered="{!viewMode}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_thrudate__c.inlineHelpText}" id="pbs_thrudate">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_thrudate__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="gljetemplth_thrudate__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_thrudate__c}" rendered="{!OR(updateMode,createMode)}" onchange="gljetemplthThrudateChanged();"/>
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_thrudate__c}" rendered="{!viewMode}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_owner__c.inlineHelpText}" id="pbs_owner">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_owner__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:selectList id="gljetemplth_owner__c" value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_owner__c}" size="1" rendered="{!OR(updateMode,createMode)}"> 
+                                    <apex:selectOptions value="{!glusrs}" />
+                            </apex:selectList>
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_owner__c}" rendered="{!viewMode}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>          
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_lastxferyear__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_lastxferyear__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_lastxferyear__c}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_lastxferpd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_lastxferpd__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_lastxferpd__c}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__gljetemplth_lastxfergljh__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__gljetemplth_lastxfergljh__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputField value="{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_lastxfergljh__c}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                     <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__gljetemplthlist_totalDebits__c.inlineHelpText}" rendered="{!OR(updateMode,viewMode)}">
+                        <apex:outputLabel value="{!f_customext.rstkf__gljetemplthlist_totalDebits__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputText id="gljetempltddramttotalDebits" value="{!totalDebitsAmt}" html-decimals="2"/>                            
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                     <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__gljetemplthlist_totalCredits__c.inlineHelpText}" rendered="{!OR(updateMode,viewMode)}">
+                        <apex:outputLabel value="{!f_customext.rstkf__gljetemplthlist_totalCredits__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:outputText id="gljetempltddramttotalCredits" value="{!totalCreditsAmt}" html-decimals="2"/>                              
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>                 
+                </apex:pageBlockSection>
+                <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+                    <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                        <c:customFields cntr="{!controller}" cols="2"/>
+                    </apex:tab>
+                </apex:tabPanel>
+            </apex:pageBlock>
+            <apex:pageBlock rendered="{!viewMode}">
+                <input type="button" id="addTemplateLine" value="{!$Label.Add_New_Template_Line}" class="btn" onclick="editgltempldedit('Create');"/>
+                <apex:pageBlockTable id="gljetempltDetails" value="{!gljetempltds}" var="d">
+                    <apex:column headerValue="">
+                        <apex:outputLink value="javascript:{}" onclick="editgltempldedit('{!d.id}')">{!$Label.rstkf__edit}</apex:outputLink>
+                        <apex:outputText id="pipe" value=" | "/>
+                        <apex:outputLink value="javascript:{}" onclick="deletegltempldeditcheck('{!d.id}','{!d.rstkf__gljetempltd_dramt__c}','{!d.rstkf__gljetempltd_cramt__c}', '{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_amountsreq__c}')">{!$Label.rstkf__delete}</apex:outputLink>                        
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_lineno__c.label}">
+                        <apex:outputText id="gljetempltdlineno" value="{!d.rstkf__gljetempltd_lineno__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_glacct__c.label}">
+                        <apex:outputField id="gljetempltdglacct" value="{!d.rstkf__gljetempltd_glacct__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_dramt__c.label}">
+                        <apex:outputField id="gljetempltddramt" value="{!d.rstkf__gljetempltd_dramt__c}" />                            
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_cramt__c.label}">
+                        <apex:outputField id="gljetempltdcramt" value="{!d.rstkf__gljetempltd_cramt__c}" />                            
+                    </apex:column>
+                   
+                    <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_gldiv__c.label}">
+                        <apex:outputField id="gljetempltdgldiv" value="{!d.rstkf__gljetempltd_gldiv__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_glproj__c.label}">
+                        <apex:outputField id="gljetempltdglproj" value="{!d.rstkf__gljetempltd_glproj__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_gljetempltd.rstkf__gljetempltd_linecomment__c.label}">
+                        <apex:outputText id="gljetempltdlinecomment" value="{!d.rstkf__gljetempltd_linecomment__c}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+        </apex:pageBlock>                   
+        </apex:outputPanel>   
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+                <apex:image url="{!$Resource.rstkf__busy}"/>
+            </apex:outputPanel>
+        </div>
+        <apex:outputPanel id="GridDetails">
+            <c:Popup popupId="gljetempltdpopup" title="{!$Label.rstkf__journal_entry_template_details}" cancelCaption="Cancel">
+                <apex:outputPanel id="op_DetailsGrid" rendered="{!viewMode}" >                    
+                    <c:PageableGrid jsController="gljetempltdctl" data="{!gljetempltdGrid}" editable="true" pageSize="30"/>
+                <script>
+                        var maxgljetempltdNo = 0;
+                        var gljetempltd_gljetemplth;
+                        gljetempltdctl.onGridLoad = function() {
+                            self = this;
+                            console.log(' CHEK HERE self '+self); 
+                            //alert('Loading Grid');
+                            this.getVisibleRows().each(function (index, el) {
+                               var row = jQuery(this);
+                               var rowId = self.getRowValue(row, 'Id'); 
+                               gljetempltd_gljetemplth = self.getRowValue(row, 'gljetempltd_gljetemplth__c');  
+                               console.log('row '+row); 
+                               var gljetempltdDimVals; 
+                               if (!isEmpty(rowId)) {
+                                   var maxgljetempltdNoRow = self.getRowValue(row, 'gljetempltd_lineno__c');   
+                                   maxgljetempltdNo = parseInt(maxgljetempltdNoRow);
+                                   
+                                   gljetempltdDimVals = self.getRowValue(row, 'gljetempltd_dimvals__c'); 
+                                   console.log(' gljetempltd Dimvals'+gljetempltdDimVals);                                   
+                                   
+                               } 
+                               self.getRowObj(row, 'showDims_g').html('<button type="button" class="btn" onclick="return openCloneDialog('+index+',\''+gljetempltdDimVals+'\');">{!$Label.Show_Dimensions}</button>');                                    
+ 
+                               var divId = self.getRowValue(row, 'gljetempltd_gldiv__c'); 
+                               if (isEmpty(divId)) {
+                                   console.log(' Div is empty');
+                                   self.getRowObj(row, 'gljetempltd_glproj__c')[0].length = 0;
+                                   console.log(' self.getRowObj(row, gljetempltd_glproj__c)[0].options[0] '+self.getRowObj(row, 'gljetempltd_glproj__c')[0].options);
+                                   var projectObject = self.getRowObj(row, 'gljetempltd_glproj__c')[0].options;
+                                   if(projectObject != undefined) {
+                                       self.getRowObj(row, 'gljetempltd_glproj__c')[0].options[0] = new Option(LABEL_SelectOptionNone, "");
+                                   }    
+                               } else {
+                                   var projId = self.getRowAutoValue(row, 'gljetempltd_glproj__c');   
+                                   console.log(' already selectged projId '+projId);
+                                   /*
+                                   var gljetempltdChildren = execQuery("select id, name from glproj__c where glproj_gldiv__c = '" + divId + "' order by name");
+                                   console.log(' gljetempltdChildren ',gljetempltdChildren);
+                                   var projectObject = self.getRowObj(row, 'gljetempltd_glproj__c')[0].options;
+                                   console.log(' projectObject ',projectObject);
+                                   
+                                   if(projectObject != undefined) {
+                                        self.getRowObj(row, 'gljetempltd_glproj__c')[0].length = 0;
+                                        self.getRowObj(row, 'gljetempltd_glproj__c')[0].options[0] = new Option("--None--", "");
+                                        for(i=0; i<gljetempltdChildren.length; i++) {
+                                            self.getRowObj(row, 'gljetempltd_glproj__c')[0].options[self.getRowObj(row, 'gljetempltd_glproj__c')[0].length] = new Option( gljetempltdChildren[i].Name,gljetempltdChildren[i].Id, false, false);
+                                        }                                        
+                                   }
+                                   */
+                                   
+                                   //autoCompleteRefs[this.getRowObj(row, 'gljetempltd_glproj__c')[0].id].flushCache();
+                                    var query =  'select id, name from glproj__c where glproj_gldiv__c = \'' + divId + '\'';
+                                   //this.getAutocompleteTextField(row, 'gljetempltd_glproj__c').attr('value',"");                                   
+                                    self.getRowAutoObj(row, 'gljetempltd_glproj__c').attr('overrideQuery', query);                                   
+                                   if (!isEmpty(projId)) {
+                                       //self.setRowAutoValue(row, 'gljetempltd_glproj__c', projId);
+                                   }                
+                               }    
+                            }); 
+                            console.log('maxgljetempltdNo b4 query '+maxgljetempltdNo); 
+                            if(gljetempltd_gljetemplth != undefined) {
+                                var maxgljetempltdNoResult = execQuery("select max(gljetempltd_lineno__c) linecount from gljetempltd__c where gljetempltd_gljetemplth__c ='" + gljetempltd_gljetemplth + "'");
+                                console.log('maxgljetempltdNoResult '+maxgljetempltdNoResult[0].linecount);
+                                if(maxgljetempltdNoResult[0].linecount != null && !Number.isNaN(maxgljetempltdNoResult[0].linecount)){
+                                    maxgljetempltdNo = maxgljetempltdNoResult[0].linecount;
+                                }
+                                
+                            }
+                            
+                            console.log('maxgljetempltdNo final '+maxgljetempltdNo);                            
+                        }
+                        
+                        gljetempltdctl.resetRow = function(row) {
+                            self=this;
+                            gljetempltdctlHandler.prototype.resetRow.call(self, row);
+                            //maxgljetempltdNo = 0;
+                            self.getRows().each(function(){
+                                var row = jQuery(this);
+                                var lineNo = self.getRowValue(row, 'gljetempltd_lineno__c'); 
+                                console.log('maxgljetempltdNo resetRow lineNo '+lineNo);
+                                console.log('maxgljetempltdNo  '+maxgljetempltdNo);
+                                console.log(' lineNo '+lineNo);
+                                if (lineNo > maxgljetempltdNo) {
+                                    maxgljetempltdNo = lineNo;
+                                }
+                            });
+                            console.log('maxgljetempltdNo resetRow final '+maxgljetempltdNo);
+                        }
+                        
+                        gljetempltdctl.onSaved = function() {
+                           unblockUI();
+                           window.location.reload();
+                           
+                        }
+                        
+                         
+                        
+                        gljetempltdctl.onSaveFailed = function() {
+                            unblockUI();
+                        }
+                        
+                        gljetempltdctl.addRow = function(rowCallback) {
+                            self = this;
+                            maxgljetempltdNo = parseInt(maxgljetempltdNo);
+                            console.log('maxgljetempltdNo addRow final '+maxgljetempltdNo);
+                            gljetempltdctlHandler.prototype.addRow.call(self, rowCallback);
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                console.log('maxgljetempltdNo why is ',maxgljetempltdNo);
+                                var rowId = self.getRowValue(row, 'Id'); 
+                                var divId = self.getRowValue(row, 'gljetempltd_gldiv__c');
+                                var currentLineNo = self.getRowValue(row, 'gljetempltd_lineno__c');
+                                var gljetempltdDimVals; 
+                                var currentLineNoInt = parseInt(currentLineNo);
+                                console.log('currentLineNoInt ',currentLineNoInt);
+                                console.log('index ',index);
+                                if (!isEmpty(rowId)) {                                                                     
+                                   gljetempltdDimVals = self.getRowValue(row, 'gljetempltd_dimvals__c'); 
+                                   console.log(' gljetempltd Dimvals'+gljetempltdDimVals);
+                                } 
+                                var dimgridstorage = self.getRowValue(row, 'gljetempltd_dimgridstorage__c');  
+                                console.log('dimgridstorage ',dimgridstorage);
+                                self.getRowObj(row, 'showDims_g').html('<button type="button" class="btn" onclick="return openCloneDialog('+index+',\''+gljetempltdDimVals+'\',\''+dimgridstorage+'\');">{!$Label.Show_Dimensions}</button>');                                    
+                                //var buttonString = '<button type="button" class="btn" onclick="openCloneDialog('+index+',\'\');">##{!$Label.Show_Dimensions}</button>';
+                                //self.getRowObj(row, 'showDims_g').html(buttonString);
+                                
+                                if(currentLineNoInt > maxgljetempltdNo) {
+                                    maxgljetempltdNo = currentLineNoInt;
+                                    console.log('currentLineNoInt in if is',currentLineNoInt);
+                                }    
+                                
+                                if(currentLineNo == '') {
+                                    maxgljetempltdNo = parseInt(maxgljetempltdNo);
+                                    maxgljetempltdNo = maxgljetempltdNo +1;
+                                    self.setRowValue(row, 'gljetempltd_lineno__c', maxgljetempltdNo);
+                                }    
+                                //alert(' rowId '+rowId);
+                                if (isEmpty(rowId) && isEmpty(divId)) {
+                                    //self.getRowObj(row, 'gljetempltd_glproj__c')[0].length = 0;
+                                    //  self.getRowObj(row, 'gljetempltd_glproj__c')[0].options[0] = new Option("--None--", "");
+                                }    
+                            });
+                        }
+                        
+                        gljetempltdctl_saveAndClose = function() {
+                            if(gljetempltdctl.validate()) {
+                                 blockUI();
+                                 gljetempltdctl_save();                            
+                            }
+                                
+                        }
+                                                    
+                        gljetempltdctl.validate = function() {
+                            self = this;
+                            var isvalid = true;
+                            var totaldramt = 0;
+                            var totalcramt = 0;
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var dramt = self.getRowValue(row, 'gljetempltd_dramt__c');
+                                var line = self.getRowValue(row, 'gljetempltd_lineno__c');
+                                var cramt = self.getRowValue(row, 'gljetempltd_cramt__c');
+                                var acc = gljetempltdctl.getRowValue(row, 'gljetempltd_glacct__c');
+                                var div = gljetempltdctl.getRowValue(row, 'gljetempltd_gldiv__c');
+                                var proj = gljetempltdctl.getRowValue(row, 'gljetempltd_glproj__c');
+                                console.log('FN dramt ',dramt);
+                                console.log('FN cramt ',cramt);
+                                console.log('FN acc ',acc);
+                                console.log('FN line ',line);
+                                console.log('FN div ',div);
+                                console.log('FN proj ',proj);
+                                line = line.replace(/,/g, "");
+                                if(line == 0 || line == '' ) {
+                                    alert('{!$Label.Please_Enter_Line_No}');
+                                    isvalid = false;
+                                    return false;
+                                } else {
+                                    if(locl.isNaN(line) || (locl.parseFloat(line) < 0) ) {
+                                        alert('{!$Label.Please_enter_valid_Line_No}');
+                                        isvalid = false;
+                                        return false;
+                                    }     
+                                }
+                                if(!acc){ 
+                                    alert('{!$Label.Please_Enter_Account}');
+                                    isvalid = false;
+                                    return false;
+                                }
+                                                                
+                                if(locl.parseFloat(dramt) != 0 && locl.parseFloat(cramt) != 0 ){ 
+                                    alert('{!$Label.Either_Debit_amount_or_Credit_amount_can_be_filled}');
+                                    isvalid = false;
+                                    return false;
+                                }
+                                                                
+                                //dramt = dramt.replace(/,/g, "");
+                                if(locl.parseFloat(dramt) != 0 || dramt != '') {
+                                    if(locl.isNaN(dramt) || (locl.parseFloat(dramt) < 0) ) {
+                                        alert('{!$Label.Please_enter_valid_Debit_amount}'); 
+                                        isvalid = false;
+                                        return false; 
+                                    }    
+                                } 
+                                //cramt = cramt.replace(/,/g, "");    
+                                if(locl.parseFloat(cramt) != 0 || cramt != '') {
+                                    if(locl.isNaN(cramt) || (locl.parseFloat(cramt) < 0) ) {
+                                        alert('{!$Label.Please_enter_valid_Credit_amount}');    
+                                        isvalid = false;
+                                        return false;
+                                    }    
+                                }
+                                
+                                console.log('validate oldamountsreq '+oldamountsreq);
+                                console.log('validate oldaccountsonly '+oldaccountsonly);                                
+                                
+                                if(oldaccountsonly == 'true' && (locl.parseFloat(dramt) != 0 || locl.parseFloat(cramt) != 0) ) {
+                                    alert("{!$Label.Amount_can_not_be_entered_as_Journal_Header_Template_is_of_type_Account_only}");
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if(oldamountsreq == 'true' && (locl.parseFloat(dramt) == 0 && locl.parseFloat(cramt) == 0) ) {
+                                    alert("{!$Label.Amount_need_to_be_entered_as_Journal_Header_Template_is_of_type_Amount_Required}");
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if(div == '' && proj != '') {
+                                    alert('{!$Label.Division_is_required_if_Project_is_selected}');    
+                                    isvalid = false;
+                                    return false;                                    
+                                }    
+                            }); 
+                            return isvalid;
+                        }
+                        
+                        gljetempltdctl.entryChanged = function(row, rowNum, name, value) {
+                            if (name == 'gljetempltd_gldiv__c') {
+                                console.log(' gljetempltd_gldiv__c selected is ',value);
+                                if (!isEmpty(value)) {
+                                    /*
+                                    var gljetempltdChildren = execQuery("select id, name from glproj__c where glproj_gldiv__c = '" + value + "' order by name");
+                                    console.log(' gljetempltdChildren ',gljetempltdChildren);
+                                    gljetempltdctl.getRowObj(row, 'gljetempltd_glproj__c')[0].length = 0;
+                                    gljetempltdctl.getRowObj(row, 'gljetempltd_glproj__c')[0].options[0] = new Option("--None--", "");
+                                    for(i=0; i<gljetempltdChildren.length; i++) {
+                                        gljetempltdctl.getRowObj(row, 'gljetempltd_glproj__c')[0].options[gljetempltdctl.getRowObj(row, 'gljetempltd_glproj__c')[0].length] = new Option( gljetempltdChildren[i].Name,gljetempltdChildren[i].Id, false, false);
+                                    }
+                                    */
+                                    
+                                    autoCompleteRefs[this.getRowObj(row, 'gljetempltd_glproj__c')[0].id].flushCache();
+                                    var query =  'select id, name from glproj__c where glproj_gldiv__c = \'' + value + '\'';
+                                    this.getAutocompleteTextField(row, 'gljetempltd_glproj__c').attr('value',"");
+                                    this.getAutocompleteTextField(row, 'gljetempltd_glproj__c').attr('overrideQuery', query);
+                                    gljetempltdctl.setRowValue(row, 'gljetempltd_glproj__c', '');
+                                } else {
+                                    /*
+                                    gljetempltdctl.getRowObj(row, 'gljetempltd_glproj__c')[0].length = 0;
+                                    gljetempltdctl.getRowObj(row, 'gljetempltd_glproj__c')[0].options[0] = new Option("--None--", "");
+                                    */
+                                    autoCompleteRefs[this.getRowObj(row, 'gljetempltd_glproj__c')[0].id].flushCache();
+                                    var query;
+                                    this.getAutocompleteTextField(row, 'gljetempltd_glproj__c').attr('value',"");
+                                    this.getAutocompleteTextField(row, 'gljetempltd_glproj__c').attr('overrideQuery', query);
+                                    //console.log(' FCK '+gljetempltdctl.getRowValue(row, 'gljetempltd_glproj__c'));
+                                    gljetempltdctl.setRowValue(row, 'gljetempltd_glproj__c', '');
+                                    //.log(' FK '+gljetempltdctl.getRowValue(row, 'gljetempltd_glproj__c'));
+                                }    
+                            }
+                            
+                            if (name == 'gljetempltd_lineno__c') {                                
+                                if(value == 0 || value == '' ) {
+                                    alert('{!$Label.Please_Enter_Line_No}');
+                                    gljetempltdctl.setRowValue(row, 'gljetempltd_lineno__c', '');
+                                } else {
+                                    if(locl.isNaN(value) || (locl.parseFloat(value) < 0) ) {
+                                        alert('{!$Label.Please_enter_valid_Line_No}');
+                                        gljetempltdctl.setRowValue(row, 'gljetempltd_lineno__c', '');
+                                    } else {
+                                        var intLineValue = Math.ceil(value);
+                                        var gljHeader = gljetempltdctl.getRowValue(row, 'gljetempltd_gljetemplth__c');
+                                        if(execQuery("select count() from gljetempltd__c where gljetempltd_lineno__c = "+intLineValue+" and gljetempltd_gljetemplth__c = "+"'"+gljHeader+"'") > 0 ){
+                                            alert(intLineValue+' '+'{!$Label.Line_Number_already_exists}');
+                                            gljetempltdctl.setRowValue(row, 'gljetempltd_lineno__c', '');
+                                        } else {
+                                            gljetempltdctl.setRowValue(row, 'gljetempltd_lineno__c', intLineValue);
+                                        }    
+                                    }    
+                                }
+                                 
+                            }  
+                        
+                      }  
+                      
+                     </script> 
+                    </apex:outputPanel>
+            </c:Popup>
+        </apex:outputPanel>        
+    <div id="gljhPleaseWaitPopup" class="overlay">
+        <span style="border-radius: 5px;color: #000;background-color: #fff;">
+        </span>
+    </div>    
+    <div title="{!$Label.rstkf__dimensions}" class="modal" id="showDims" style="display:none">
+        <apex:pageBlock id="pb_dimPB"  mode="detail" title="{!$Label.rstkf__dimensions} ">
+            <apex:pageblocksection id="pb_dimPBS" columns="1">
+                <apex:pageBlockSectionItem >
+                        <apex:outputLabel value=""/>
+                        <apex:outputPanel >
+                            <span id="buttonsshow"></span>
+                            <input id="submit" type="button" value="{!$Label.Save_And_Close}" class="btn" onclick="saveDims()"/>
+                            <input id="Cancel" type="button" value="{!$Label.Close_without_Saving}" class="btn" onclick="cancelCloneDialog()"/>
+                        </apex:outputPanel>                                         
+                </apex:pageBlockSectionItem>                 
+               
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval1__c.inlineHelpText}" id="pb_dimPBSdimval1">
+                        <apex:outputLabel value="{!fdim.rstk__dimval1__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval1__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval1__c" value="{!dimvalrecord.rstk__dimval1__c}" style="width:400px;" size="1">
+                                        <apex:selectOptions value="{!dimValsOptions1}"/>
+                                </apex:selectlist>
+                                <apex:outputField id="dimvals_dimval1__c" value="{!dimvalrecord.rstk__dimval1__c}" />
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval2__c.inlineHelpText}" id="pb_dimPBSdimval2">
+                        <apex:outputLabel value="{!fdim.rstk__dimval2__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval2__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval2__c" value="{!dimvalrecord.rstk__dimval2__c}" style="width:400px;" size="1" >
+                                        <apex:selectOptions value="{!dimValsOptions2}"/>
+                                </apex:selectlist>
+                                <apex:outputField id="dimvals_dimval2__c" value="{!dimvalrecord.rstk__dimval2__c}" />
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval3__c.inlineHelpText}" id="pb_dimPBSdimval3">
+                        <apex:outputLabel value="{!fdim.rstk__dimval3__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval3__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval3__c" value="{!dimvalrecord.rstk__dimval3__c}" style="width:400px;" size="1" >
+                                        <apex:selectOptions value="{!dimValsOptions3}"/>
+                                </apex:selectlist>
+                                <apex:outputField id="dimvals_dimval3__c" value="{!dimvalrecord.rstk__dimval3__c}" />
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval4__c.inlineHelpText}" id="pb_dimPBSdimval4">
+                        <apex:outputLabel value="{!fdim.rstk__dimval4__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval4__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval4__c" value="{!dimvalrecord.rstk__dimval4__c}" style="width:400px;" size="1" >
+                                        <apex:selectOptions value="{!dimValsOptions4}"/>
+                                </apex:selectlist>
+                                <apex:outputField id="dimvals_dimval4__c" value="{!dimvalrecord.rstk__dimval4__c}" />
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval5__c.inlineHelpText}" id="pb_dimPBSdimval5">
+                        <apex:outputLabel value="{!fdim.rstk__dimval5__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval5__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval5__c" value="{!dimvalrecord.rstk__dimval5__c}" style="width:400px;" size="1" >
+                                        <apex:selectOptions value="{!dimValsOptions5}"/>
+                                </apex:selectlist>
+                                <apex:outputField id="dimvals_dimval5__c" value="{!dimvalrecord.rstk__dimval5__c}" />
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval6__c.inlineHelpText}" id="pb_dimPBSdimval6">
+                        <apex:outputLabel value="{!fdim.rstk__dimval6__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval6__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval6__c" value="{!dimvalrecord.rstk__dimval6__c}" style="width:400px;" size="1" >
+                                        <apex:selectOptions value="{!dimValsOptions6}"/>
+                                </apex:selectlist>
+                                <apex:outputField id="dimvals_dimval6__c" value="{!dimvalrecord.rstk__dimval6__c}" />
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval7__c.inlineHelpText}" id="pb_dimPBSdimval7">
+                        <apex:outputLabel value="{!fdim.rstk__dimval7__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval7__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval7__c" value="{!dimvalrecord.rstk__dimval7__c}" style="width:400px;" size="1" >
+                                        <apex:selectOptions value="{!dimValsOptions7}"/>
+                                </apex:selectlist>
+                                <apex:outputField id="dimvals_dimval7__c" value="{!dimvalrecord.rstk__dimval7__c}" />
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval8__c.inlineHelpText}" id="pb_dimPBSdimval8">
+                        <apex:outputLabel value="{!fdim.rstk__dimval8__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval8__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval8__c" value="{!dimvalrecord.rstk__dimval8__c}" style="width:400px;" size="1" >
+                                        <apex:selectOptions value="{!dimValsOptions8}"/>
+                                </apex:selectlist>
+                                <apex:outputField id="dimvals_dimval8__c" value="{!dimvalrecord.rstk__dimval8__c}" />
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>                                
+                <apex:pageBlockSectionItem />    
+                <apex:pageBlockSectionItem >
+                        <apex:outputLabel value=""/>
+                        <apex:outputPanel >
+                            <span id="buttonsshow"></span>
+                            <input id="submit" type="button" value="{!$Label.Save_And_Close}" class="btn" onclick="saveDims()"/>
+                            <input id="Cancel" type="button" value="{!$Label.Close_without_Saving}" class="btn" onclick="cancelCloneDialog()"/>
+                        </apex:outputPanel>                                         
+                </apex:pageBlockSectionItem>                
+            </apex:pageblocksection>   
+        </apex:pageBlock>
+    </div>
+        
+    </apex:form>
+    <apex:outputPanel id="op_maintainTemplateLinesPopup">
+         <div id="maintainTemplateLinesPopup" style="display:none">
+            <apex:pageBlock id="pb_maintainTemplateLinesPopup"  mode="detail">
+                <apex:iframe src="{!editLink}" id="maintainTemplateLinesPopupId" width="100%" height="600px" scrolling="true"/>
+                <p style="position:auto;text-align:left">
+                    <input type="button" name="popupCancelButton" class="btn" value="{!$Label.gljetemplthlist_ClosewithoutSaving}" onclick="cancelReloadTemplates()" tabIndex="9992"/>
+                </p>
+            </apex:pageBlock>
+        </div>        
+    </apex:outputPanel>
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>  
+    <script>        
+        var Label_value1mustbegreaterthanval2 = "{!$Label.value1mustbegreaterthanval2}";        
+        var LABEL_gljetemplth_fromdate__c = "{!f.rstkf__gljetemplth_fromdate__c.label}";
+        var LABEL_gljetemplth_thrudate__c = "{!f.rstkf__gljetemplth_thrudate__c.label}";
+        var Label_Please_Enter_Template_ID = "{!$Label.Please_Enter_Template_ID}";
+        var Label_Please_select_at_least_One_Entry = "{!$Label.Please_select_at_least_One_Entry}";
+        var Label_Please_select_Only_One_Entry = "{!$Label.Please_select_Only_One_Entry}";
+        var Label_Override_Entry_description_with_new_General_Journal_Entry_Standard_ID_selected = "{!$Label.Override_Entry_description_with_new_General_Journal_Entry_Standard_ID_selected}";
+        var Label_some_accounts_do_not_have_amounts_Please_enter_amounts = "{!$Label.some_accounts_do_not_have_amounts_Please_enter_amounts}";
+        var Label_Some_accounts_have_amounts_and_ask_whether_to_clear_those_amounts = "{!$Label.Some_accounts_have_amounts_and_ask_whether_to_clear_those_amounts}";
+        var Label_Template_ID_already_exists = "{!$Label.Template_ID_already_exists}";
+        var Label_Either_Account_Only_or_Amounts_Required_Flag_can_be_Set = "{!$Label.Either_Account_Only_or_Amounts_Required_Flag_can_be_Set}";
+        var Label_Please_enter_valid_Template_ID = "{!$Label.Please_enter_valid_Template_ID}";
+        var Label_InvalidDate = "{!$Label.InvalidDate}";
+    
+        function openFramePopup() {
+            /*if (!_isDialogOpen()) {
+                //_showNewDialog('maintainTemplateLinesPopup',650,600,100); 
+                //  showPopup('#maintainTemplateLinesPopup', 800, 400);     
+            } */
+            showPopup('#maintainTemplateLinesPopup', 860, 675);     
+            
+        }
+        
+        function cancelReloadTemplates() {
+            unblockUI();        
+        }
+        
+        function reloadTemplates() {     
+            console.log('Inside reloadTemplates');
+            //unblockUI();
+            //_closeDialog();
+            //blockUI();
+            viewGljetemplth();    
+            unblockUI();
+        }
+    
+        function getDimValues(dimValueId,dimValueString){
+            console.log('Inisde getDimValues  '+dimValueId);
+            console.log('Inisde dimValueString  '+dimValueString);
+            
+            Visualforce.remoting.Manager.invokeAction(  
+              '{!$RemoteAction.ControllerExtnGljetemplthMaintenance.getDimValues}', //NameSpace  
+              dimValueId,
+              function(result, event){
+                if (event.status) {
+                    checkDimFetchResult(result,dimValueString);
+                    console.log(result);
+                } else if (event.type === 'exception') {
+                    alert("{!$Label.Exception}", event.message);
+                } else {
+                    alert("{!$Label.UnexpectedStatus}", event.message); 
+                }
+              }, {escape:false}
+            );
+        }
+    
+        function checkDimFetchResult(result,dimValueString) {
+            console.log('IOnside checkResult result : '+result);
+            console.log('IOnside checkResult dimValueString : '+dimValueString);
+            //var gljhstatus = document.getElementById('pg:fm:glheaderEdit_pb:pb_view:pb_edit_op_status_view:gljhStatus_of').innerHTML;            
+            //var gljhperiod = document.getElementById('pg:fm:glheaderEdit_pb:pb_view:pb_edit_op_gp_view:period2').innerHTML;
+            
+            if(dimValueString != '' && dimValueString != undefined && dimValueString != null) {
+                
+                var dimsArray = dimValueString.split(";");
+                console.log('IOnside checkResult dimsArray : '+dimsArray);
+                                
+                document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval1:modal_dimvals_dimval1__c').value = dimsArray[0].substring(1);
+                document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval2:modal_dimvals_dimval2__c').value = dimsArray[1].substring(1); 
+                document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval3:modal_dimvals_dimval3__c').value = dimsArray[2].substring(1);
+                document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval4:modal_dimvals_dimval4__c').value = dimsArray[3].substring(1);
+                document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval5:modal_dimvals_dimval5__c').value = dimsArray[4].substring(1);
+                document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval6:modal_dimvals_dimval6__c').value = dimsArray[5].substring(1);
+                document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval7:modal_dimvals_dimval7__c').value = dimsArray[6].substring(1);
+                document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval8:modal_dimvals_dimval8__c').value = dimsArray[7].substring(1);                 
+            } else {
+                console.log('IOnside checkResult else part result : '+result);
+                if(result == null) {                
+                    /*
+                    if(gljhstatus == postStatus || (isClosedForAdjustments == true && gljhperiod != 13) || (yearEndAdjustmentNotOpen == true && gljhperiod == 13) ) {
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval1:dimvals_dimval1__c').innerHTML = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval2:dimvals_dimval2__c').innerHTML = ''; 
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval3:dimvals_dimval3__c').innerHTML = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval4:dimvals_dimval4__c').innerHTML = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval5:dimvals_dimval5__c').innerHTML = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval6:dimvals_dimval6__c').innerHTML = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval7:dimvals_dimval7__c').innerHTML = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval8:dimvals_dimval8__c').innerHTML = '';
+                    } else {
+                    */    
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval1:modal_dimvals_dimval1__c').value = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval2:modal_dimvals_dimval2__c').value = ''; 
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval3:modal_dimvals_dimval3__c').value = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval4:modal_dimvals_dimval4__c').value = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval5:modal_dimvals_dimval5__c').value = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval6:modal_dimvals_dimval6__c').value = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval7:modal_dimvals_dimval7__c').value = '';
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval8:modal_dimvals_dimval8__c').value = '';
+                    //}    
+                    
+                } else {
+                    console.log('IOnside checkResult else part result now setting : '+result);
+                    /*
+                    if(gljhstatus == postStatus || (isClosedForAdjustments == true && gljhperiod != 13) || (yearEndAdjustmentNotOpen == true && gljhperiod == 13) ) {
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval1:dimvals_dimval1__c').innerHTML = result.rstk__dimval1__c == undefined ? '' : result.rstk__dimval1__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval2:dimvals_dimval2__c').innerHTML = result.rstk__dimval2__c == undefined ? '' : result.rstk__dimval2__c; 
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval3:dimvals_dimval3__c').innerHTML = result.rstk__dimval3__c == undefined ? '' : result.rstk__dimval3__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval4:dimvals_dimval4__c').innerHTML = result.rstk__dimval4__c == undefined ? '' : result.rstk__dimval4__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval5:dimvals_dimval5__c').innerHTML = result.rstk__dimval5__c == undefined ? '' : result.rstk__dimval5__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval6:dimvals_dimval6__c').innerHTML = result.rstk__dimval6__c == undefined ? '' : result.rstk__dimval6__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval7:dimvals_dimval7__c').innerHTML = result.rstk__dimval7__c == undefined ? '' : result.rstk__dimval7__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval8:dimvals_dimval8__c').innerHTML = result.rstk__dimval8__c == undefined ? '' : result.rstk__dimval8__c;                
+                    } else {
+                    */
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval1:modal_dimvals_dimval1__c').value = result.rstk__dimval1__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval2:modal_dimvals_dimval2__c').value = result.rstk__dimval2__c; 
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval3:modal_dimvals_dimval3__c').value = result.rstk__dimval3__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval4:modal_dimvals_dimval4__c').value = result.rstk__dimval4__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval5:modal_dimvals_dimval5__c').value = result.rstk__dimval5__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval6:modal_dimvals_dimval6__c').value = result.rstk__dimval6__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval7:modal_dimvals_dimval7__c').value = result.rstk__dimval7__c;
+                        document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval8:modal_dimvals_dimval8__c').value = result.rstk__dimval8__c;                
+                    //}    
+                }    
+            }
+            
+            openDialogWindow('showDims');
+         }   
+    
+        function openCloneDialog(buttonId,dimValueId,dimValueString) {
+            buttonIDClicked = buttonId;
+            console.log('openCloneDialog dimValueId ',dimValueId);    
+            console.log('openCloneDialog dimValueString ',dimValueString);    
+            blockPopupUI('gljhPleaseWaitPopup');
+            if((dimValueId == null || dimValueId == '' || dimValueId == 'undefined') && (dimValueString == null || dimValueString == '' || dimValueString == 'undefined')) {
+                //openDialogWindow('showDims');
+                checkDimFetchResult(dimValueId,dimValueString) ;
+            } else {
+                getDimValues(dimValueId,dimValueString);  
+            }    
+            //showPopup('#cloneDialog', 40, 20);
+            //selectedIndexForCloneDialog = selectedIndex;
+        }
+    
+        function saveDims() {
+            var dimval1 = document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval1:modal_dimvals_dimval1__c').value;
+            var dimval2 = document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval2:modal_dimvals_dimval2__c').value;
+            var dimval3 = document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval3:modal_dimvals_dimval3__c').value;
+            var dimval4 = document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval4:modal_dimvals_dimval4__c').value;
+            var dimval5 = document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval5:modal_dimvals_dimval5__c').value;
+            var dimval6 = document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval6:modal_dimvals_dimval6__c').value;
+            var dimval7 = document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval7:modal_dimvals_dimval7__c').value;
+            var dimval8 = document.getElementById('pg:fm:pb_dimPB:pb_dimPBS:pb_dimPBSdimval8:modal_dimvals_dimval8__c').value;
+            
+            console.log('dimval1 '+dimval1);
+            console.log('dimval2 '+dimval2);
+            console.log('dimval3 '+dimval3);
+            console.log('buttonIDClicked '+buttonIDClicked);
+            
+            var dimValueString = '1'+dimval1+';2'+dimval2+';3'+dimval3+';4'+dimval4+';5'+dimval5+';6'+dimval6+';7'+dimval7+';8'+dimval8;
+            
+            gljetempltdctl.getVisibleRows().each(function (index, el) {
+                var row = jQuery(this);
+                var rowId = gljetempltdctl.getRowValue(row, 'Id'); 
+                
+                if(buttonIDClicked == index) {
+                    var state = gljetempltdctl.getRowState(row);
+                    console.log(' Here checking state ',state);
+
+                    gljetempltdctl.setRowValue(row, 'gljetempltd_dimgridstorage__c', dimValueString);
+                    var gljdDimValsRec = gljetempltdctl.getRowValue(row, 'gljetempltd_dimvals__c'); 
+                    gljetempltdctl.getRowObj(row, 'showDims_g').html('<button type="button" class="btn" onclick="return openCloneDialog('+index+',\''+gljdDimValsRec+'\',\''+dimValueString+'\');">{!$Label.Show_Dimensions}</button>');
+                    
+                    if (!isEmpty(rowId)) {
+                        gljetempltdctl.setRowState(row, 'MODIFIED');  
+                    }                    
+                    var newstate = gljetempltdctl.getRowState(row);
+                    console.log(' Here checking newstate ',newstate);
+                }    
+                
+                
+                console.log(rowId);
+            });   
+            closeDialogWindow('showDims','gljhPleaseWaitPopup');
+        }
+    
+        function cancelCloneDialog() {  
+            //unblockPopupUI('showDims');
+            closeDialogWindow('showDims','gljhPleaseWaitPopup');
+            //unblockUI();
+        } 
+    
+        var currentGlcmpId = "{!currentjournalEntryTemplate.gljetemplth.rstkf__gljetemplth_glcmp__c}";
+        function getGlyearDetails(tranDate,source){
+            console.log('Inisde getGlyearDetails tranDate '+tranDate);
+            console.log('Inisde currentGlcmpId '+currentGlcmpId);
+            
+            Visualforce.remoting.Manager.invokeAction(  
+              '{!$RemoteAction.ControllerExtnGljetemplthMaintenance.getGlyear}', //NameSpace  
+              currentGlcmpId,
+              tranDate,
+              function(result, event){
+                if (event.status) {
+                    checkGLYearPeriodResult(result,source);
+                    console.log(result);
+                } else if (event.type === 'exception') {
+                    alert("{!$Label.Exception}", event.message);
+                } else {
+                    alert("{!$Label.UnexpectedStatus}", event.message); 
+                }
+              }, {escape:false}
+            );
+        }
+    
+        function checkGLYearPeriodResult(result,source) {
+            console.log(' checkGLYearPeriodResult result [0]: '+result);
+            if(result[0] == 'Success') {
+                if(source == 'frmDate') {
+                    document.getElementById('pg:fm:pb_add:pbs_main2:pbs_fromdate:gljetemplth_fromdate__c').value = result[1];
+                }  else {
+                    document.getElementById('pg:fm:pb_add:pbs_main2:pbs_thrudate:gljetemplth_thrudate__c').value = result[2];
+                }       
+            } else {
+                if(source == 'frmDate') {
+                    document.getElementById('pg:fm:pb_add:pbs_main2:pbs_fromdate:gljetemplth_fromdate__c').value = '';
+                }  else {
+                    document.getElementById('pg:fm:pb_add:pbs_main2:pbs_thrudate:gljetemplth_thrudate__c').value = '';
+                }
+                alert(result[0]);
+            } 
+        }
+    </script>
+</apex:page>

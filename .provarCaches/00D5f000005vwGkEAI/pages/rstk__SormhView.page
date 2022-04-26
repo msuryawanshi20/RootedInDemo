@@ -1,0 +1,547 @@
+<apex:page id="pg" standardController="rstk__sormh__c" extensions="rstk.ControllerExtnSormh,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <style>
+        .modal {
+            background-color:#fff;
+            display:none;
+            width:500px;
+            padding:15px;
+            text-align:left;
+            font-size:1em;
+            border:2px solid #333;
+        
+            opacity:1.0;
+            -moz-border-radius:6px;
+            -webkit-border-radius:6px;
+            -moz-box-shadow: 0 0 50px #ccc;
+            -webkit-box-shadow: 0 0 50x #ccc;
+        }
+        
+    </style>
+    <apex:variable var="o" value="{!rstk__sormh__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sormh__c.fields}" />
+    <apex:variable var="f_sormaaddr" value="{!$ObjectType.rstk__sormaaddr__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sormhview}" alwaysDisplayListLink="true" customInclude="{!$Resource.rstk__sormh_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/> 
+   
+   <script>
+        var templateOverride = {!templateOverride};
+        var defaultTemplate = '{!defaultTemplate}';
+        var isRootDox = {!isRootDox};// RSTK-1274
+        var defaultTemplateForDox = '{!defaultTemplateForDox}';
+        var printDOXTeamplateVar;
+        
+        jQuery(document).ready(function() {
+            console.log('ready');
+            
+            jQuery("button[rel]").overlay({
+                top: 0,
+                left: 350,
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                fixed:false,
+                closeOnClick: false
+            });
+            
+        });
+   
+   </script>
+   
+    <apex:form id="fm">
+        <apex:actionStatus id="pleaseWaitStatus" onstart="showTopDialog('pleaseWaitPopup');" onstop="closeTopDialog();"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="createCreditMemo" action="{!createCreditMemo}" immediate="true" rerender="pageMessages, soinvSection" status="pleaseWaitStatus"/>
+        <apex:actionFunction name="buildPrintRecords" id="buildPrintRecords" immediate="false" action="{!buildPrintRecords}" rerender="pageMessages" oncomplete="unblockUI();doxPrint();" />
+        
+        <button style="visibility:hidden" class="modalbtnSelectTemplates" rel="#selectTemplates"></button>
+        <div class="modal" id="selectTemplates">
+            <h1>{!$Label.sormhView_Select_RMA_Templates}</h1>
+            <apex:pageBlock mode="edit">
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockSectionItem >
+                        <apex:selectList id="selected_template__c" style="width:300px" multiselect="false" size="1">
+                            <apex:selectOptions value="{!EmailTemplates}"/>
+                            </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:pageBlock>   
+
+            <button type="button" onclick="template_ok()">{!$Label.pagebtn_sormhview_OK}</button>
+            <button type="button" class="close">{!$Label.pagebtn_sormhview_Cancel}</button>
+        </div>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableDelete="{!o.rstk__sormh_closed__c}"/>
+                <apex:commandButton value="{!$Label.rstk__rmadetailmaintenancegrid}" action="{!toMassEntry}" immediate="true" disabled="{!o.rstk__sormh_closed__c}"/>
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_sormhview_quickcreatermadetails}" onclick="window.location.replace('/apex/quickcreatesorma?sormhid={!o.id}');" rendered="{!!o.rstk__sormh_closed__c}"/>
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_sormhview_rmaprint}" onclick="return printRMA();" />
+                <apex:commandButton value="{!$Label.rstk__pagebtn_sormhview_releaserma}" action="{!releaseRMA}" immediate="true" rendered="{!!o.rstk__sormh_released__c}"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_sormhview_rmadetailmassreceipt}" action="{!massReceipt}" rerender="pageMessages" immediate="true" disabled="{!!AND(!o.rstk__sormh_closed__c, o.rstk__sormh_released__c)}"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_sormhview_rmadetailmassship}" action="{!massShip}" rerender="pageMessages" immediate="true" disabled="{!!AND(!o.rstk__sormh_closed__c, o.rstk__sormh_released__c)}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+                
+            </apex:outputPanel>
+            
+            <c:division id="sormh_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_MainView" showHeader="false" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_rmano__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_rmano__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_rmano__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_date__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_date__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_date__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_custno__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_custno__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_released__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_released__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_released__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_reason__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_reason__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_reason__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_advreplace__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_advreplace__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_advreplace__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_action__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_action__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_action__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_returnonly__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_returnonly__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_returnonly__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_btaddr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_btaddr__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_btaddr__c}"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_closed__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_closed__c.label}"/>
+                    <apex:outputField value="{!o.rstk__sormh_closed__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_soinv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sormh_soinv__c.label}"/>
+                    <apex:outputPanel id="soinvSection">
+                        <apex:outputPanel rendered="{!allowCreateCreditMemo}">
+                            <a name='createCreditMemoLink' href="#" onclick="createCreditMemo(); return false;">
+                             {!$Label.pagebtn_createnewinvoice_CreateCreditMemo}
+                            </a>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!!allowCreateCreditMemo}">
+                            <apex:outputField value="{!o.rstk__sormh_soinv__c}"/>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            <br/>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_ShipToAddrView">
+                <apex:tab label="{!$Label.rstk__pagetab_sormhview_ship_toaddress}" name="tab_ShipToAddrView">
+                    <apex:pageBlockSection id="pbs_ShipToAddrView" showHeader="false" columns="2" >
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_ovrshiptoaddr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sormh_ovrshiptoaddr__c.label}"/>
+                            <apex:outputField value="{!o.rstk__sormh_ovrshiptoaddr__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__sormh_socaddr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__sormh_socaddr__c.label}"/>
+                            <apex:outputField value="{!o.rstk__sormh_socaddr__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_address1__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_address1__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_address1__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_name__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_name__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_name__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_address2__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_address2__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_address2__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_phone__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_phone__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_phone__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_address3__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_address3__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_address3__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_fax__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_fax__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_fax__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_city__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_city__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_city__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_email__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_email__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_email__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_state__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_state__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_state__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_contact__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_contact__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_contact__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_country__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_country__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_country__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_conmethod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_conmethod__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_conmethod__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_zip__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_zip__c.label}"/>
+                            <apex:outputField value="{!sormaaddr.rstk__sormaaddr_zip__c}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f_sormaaddr.rstk__sormaaddr_taxloc__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f_sormaaddr.rstk__sormaaddr_taxloc__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputField value="{!sormaaddr.rstk__sormaaddr_taxloc__c}"/> &nbsp;
+                                <apex:inputText html-decimals="3" id="totalrate__c" value="{!taxRate}" style="width:50px;" disabled="true" />%
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_sormh_installationaddress}" name="tab_InstallationAddress">
+                    <apex:pageBlockSection id="pbs_InstallationAddress" showHeader="false" columns="2" >
+                        <apex:outputField value="{!o.rstk__sormh_installcust__c}"/>
+                        
+                        <apex:outputField value="{!o.rstk__sormh_installaddr__c}"/>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_sormhview_info}" name="tab_Info" id="tab_InfoView">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+            
+            <!-- Ticket # 6225 - Code for PagableGrid to add RMADetails
+            <c:Popup popupId="rmaDetailGridPopup" title="RMA Detail" onOk="newRmaDetail_saveAndClose();">
+                <c:PageableGrid jsController="newRmaDetail" width="1500" data="{!rmaDetailGrid}" pageSize="10" editable="true" ispopup="true" />
+                <script>
+                     var autoCompleteRefs = {};
+                     function serialDetails(rowId){
+                        window.open('/apex/Rmaserialdetails?id='+rowId);
+                        return false;
+                     }
+                     
+                     newRmaDetail.onGridLoad = function() {
+                           self = this;
+                           this.getVisibleRows().each(function (index, el) {
+                              var row = jQuery(this);
+                              var rowId = self.getRowValue(row, 'Id');
+                              if (isEmpty(rowId)) rowId = newRmaDetail.rowIds[index];
+                              if (!isEmpty(rowId)) {
+                                    self.getRowObj(row, 'serialDet__g').html('<button type="button" class="btn" onclick="serialDetails(\'' + rowId + '\');">Serial Detail</button>');
+                              }
+                          });   
+                        }
+                          
+                        newRmaDetail.addRow = function(rowCallback) {
+                            self = this;
+                            newRmaDetailHandler.prototype.addRow.call(self, rowCallback);
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                                if(rowId ==''){
+                                    newRmaDetail.setRowValue(row, 'sorma_qtyauth__c', 1);
+                                    if(self.getRowValue(row, 'sorma_div__c') == '')
+                                        newRmaDetail.getRowObj(row, 'sorma_site__c').attr('disabled', true);
+                                    if(self.getRowValue(row, 'sorma_soline__c') == '')  
+                                        newRmaDetail.getRowObj(row, 'sorma_soshipline__c').attr('disabled', true);
+                                }
+                            });
+                        }
+                        
+                        newRmaDetail.validate = function() {
+                        self = this;
+                        var isvalid = true;
+                        this.getVisibleRows().each(function (index, el) {
+                            var row = jQuery(this);
+                            var product = self.getRowValue(row, 'sorma_soprod__c');
+                            var authQty = self.getRowValue(row, 'sorma_qtyauth__c');
+                            var date = self.getRowValue(row, 'sorma_date__c');
+                            var invDiv = self.getRowValue(row, 'sorma_invdiv__c');
+                            var project = self.getRowValue(row, 'sorma_project__c');
+                            var recToSite = self.getRowValue(row, 'sorma_site__c');
+                            var soline = self.getRowValue(row, 'sorma_soline__c');
+                            var soshipline = self.getRowValue(row, 'sorma_soshipline__c');
+                            
+                            if(!product){
+                                alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelproduct}");
+                                newRmaDetail.getRowObj(row, 'sorma_soprod__c').focus();
+                                isvalid = false;
+                                return false;
+                            }
+                            if(!authQty || authQty == '0'){
+                                alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelquantityauthorized}");
+                                newRmaDetail.getRowObj(row, 'sorma_qtyauth__c').focus();
+                                isvalid = false;
+                                return false;
+                            }
+                            if(!date){
+                                alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labeldateIssued}");
+                                newRmaDetail.getRowObj(row, 'sorma_date__c').focus();
+                                isvalid = false;
+                                return false;
+                            }
+                            if(!invDiv){
+                                alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelinvdiv}");
+                                isvalid = false;
+                                return false;
+                            }
+                            if(!recToSite){
+                                alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelreceivetosite}");
+                                isvalid = false;
+                                return false;
+                            }
+                            if(!soline && soshipline){
+                                alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelsoline}");
+                                isvalid = false;
+                                return false;
+                            }
+                            if(soline && !soshipline){
+                                alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelshipperline}");
+                                isvalid = false;
+                                return false;
+                            }
+                            if(!project){
+                                alert("{!$Label.EnterValueForReqiredFields}","{!$Label.labelproject}");
+                                newRmaDetail.getRowObj(row, 'sorma_project__c').focus();
+                                isvalid = false;
+                                return false;
+                            }
+                        }); 
+                      return isvalid;
+                       }
+                       
+                       newRmaDetail.entryChanged = function(row, rowNum, name, value) {
+                       
+                        if(name == 'sorma_soprod__c'){
+                        
+                            var productId = newRmaDetail.getRowValue(row, 'sorma_soprod__c');
+                            var sormaDivId = newRmaDetail.getRowObj(row, 'sorma_div__c')[0].value;
+                            var sormaCustNo = newRmaDetail.getRowObj(row, 'sorma_custno__c')[0].value;
+                            
+                            //re-populate soline auto-complete list
+                            var elName = newRmaDetail.getRowObj(row, 'sorma_soline__c').attr('name');
+                            var records = execQuery("select Id, Name from soline__c where soline_sohdr__r.sohdr_div__c = '" 
+                                                      + sormaDivId + "' and soline_sohdr__r.sohdr_custno__c = '" 
+                                                      + sormaCustNo + "' and soline_prod__c = "+ quote(productId) +" and soline_qtyship__c > 0");
+                            var newData = [];
+                            for (i = 0; i < records.length; i++) {
+                                var rec = records[i];
+                                newData.push([  getColumnValue(rec, 'Name'), getColumnValue(rec, 'Id') ]);
+                            }
+                            if(records.length == 0){
+                                newData.push(['','']);
+                            }
+                            autoCompleteRefs[elName].getOptions().minChars = 0;
+                            autoCompleteRefs[elName].updateData(newData);
+                            
+                            //re-populating select list for inventory division based on product
+                            var updInvDiv = execQuery("select sopdiv_shipdiv__c divid, sopdiv_shipdiv__r.Name divname from sopdiv__c where sopdiv_soprod__c =  '" 
+                                                      + productId + "' " +" group by sopdiv_shipdiv__c, sopdiv_shipdiv__r.Name order by sopdiv_shipdiv__r.Name");
+                            newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0].length = 0;
+                            if(updInvDiv.length == 0){
+                                newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0].options[0] = new Option("--None--", "");
+                            }
+                            for(i=0; i<updInvDiv.length; i++) {
+                                newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0].options[newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0].length] = new Option( updInvDiv[i].divname,updInvDiv[i].divid, false, false);
+                            }
+                            
+                            // based on inventory division re-populate receive site to select list and project list.
+                            var selectedInvDiv = newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0].value;
+                            if(selectedInvDiv){
+                                newRmaDetail.getRowObj(row, 'sorma_site__c').attr('disabled', false);
+                                newRmaDetail.getRowObj(row, 'sorma_site__c')[0].length = 0;
+                                newRmaDetail.getRowObj(row, 'sorma_site__c')[0].options[0] = new Option("--None--", "");
+                                var updSites = execQuery("select Id, Name from sysite__c where sysite_div__c =  '"+selectedInvDiv+"' order by name");
+                                for(i=0; i<updSites.length; i++) {
+                                    newRmaDetail.getRowObj(row, 'sorma_site__c')[0].options[newRmaDetail.getRowObj(row, 'sorma_site__c')[0].length] = new Option( updSites[i].Name,updSites[i].Id, false, false);
+                                }
+                            }else{
+                                newRmaDetail.getRowObj(row, 'sorma_site__c')[0].length = 0;
+                                newRmaDetail.getRowObj(row, 'sorma_site__c')[0].options[0] = new Option("--None--", "");
+                                newRmaDetail.getRowObj(row, 'sorma_site__c').attr('disabled', true);
+                            }
+                        
+                            // based on inventory division re-populate project list.
+                            var elName = newRmaDetail.getRowObj(row, 'sorma_project__c').attr('name');
+                            var records = execQuery("select id, name from pjproj__c where pjproj_sochrgallowind__c = true and pjproj_soshipallowind__c = true and pjproj_div__c = '"
+                                                    +selectedInvDiv+"' and pjproj_completed__c = false");
+                            var newData = [];
+                            for (i = 0; i < records.length; i++) {
+                                var rec = records[i];
+                                newData.push([  getColumnValue(rec, 'Name'), getColumnValue(rec, 'Id') ]);
+                            }
+                            if(records.length == 0){
+                                newData.push(['','']);
+                            }
+                            autoCompleteRefs[elName].getOptions().minChars = 0;
+                            autoCompleteRefs[elName].updateData(newData);
+                            
+                        }//end of product change condition
+                        
+                        //If inventory division changes, re-populate site list and project list
+                        if(name == 'sorma_invdiv__c'){
+                        
+                            var soInvDiv = newRmaDetail.getRowObj(row, 'sorma_invdiv__c')[0].value;
+                            if(soInvDiv){
+                                // on change of inventory division, re-populate site list
+                                newRmaDetail.getRowObj(row, 'sorma_site__c').attr('disabled', false);
+                                var updSites = execQuery("select Id, Name from sysite__c where sysite_div__c =  '" + soInvDiv + "' " +" order by name");
+                                newRmaDetail.getRowObj(row, 'sorma_site__c')[0].length = 0;
+                                newRmaDetail.getRowObj(row, 'sorma_site__c')[0].options[0] = new Option("--None--", "");
+                                for(i=0; i<updSites.length; i++) {
+                                    newRmaDetail.getRowObj(row, 'sorma_site__c')[0].options[newRmaDetail.getRowObj(row, 'sorma_site__c')[0].length] = new Option( updSites[i].Name,updSites[i].Id, false, false);
+                                }
+                                
+                                // on change of inventory division, re-populate project list
+                                newRmaDetail.setRowValue(row, 'sorma_project__c', '');
+                                var elName = newRmaDetail.getRowObj(row, 'sorma_project__c').attr('name');
+                                var records = execQuery("select id, name from pjproj__c where pjproj_sochrgallowind__c = true and pjproj_soshipallowind__c = true and pjproj_div__c = "
+                                                        +quote(soInvDiv)+" and pjproj_completed__c = false");
+                                var newData = [];
+                                for (i = 0; i < records.length; i++) {
+                                    var rec = records[i];
+                                    newData.push([  getColumnValue(rec, 'Name'), getColumnValue(rec, 'Id') ]);
+                                }if(records.length == 0){
+                                    newData.push(['','']);
+                                }
+                                autoCompleteRefs[elName].getOptions().minChars = 0;
+                                autoCompleteRefs[elName].updateData(newData);
+                            }else{
+                                //disabling receive site to list 
+                                newRmaDetail.getRowObj(row, 'sorma_site__c')[0].length = 0;
+                                newRmaDetail.getRowObj(row, 'sorma_site__c')[0].options[0] = new Option("--None--", "");
+                                newRmaDetail.getRowObj(row, 'sorma_site__c').attr('disabled', true);
+                            }
+                        }
+                        
+                        // if soline changes, repopulate shipper line select list
+                        if(name == 'sorma_soline__c'){
+                            
+                            // re-populate Soshipline Select list based on Soline value
+                            var sormaSoline = newRmaDetail.getRowValue(row, 'sorma_soline__c');
+                            if(sormaSoline){
+                                newRmaDetail.getRowObj(row, 'sorma_soshipline__c').attr('disabled', false);
+                                // if sormaSoline have some value, then re-calculate Soshipline select list based on soline value
+                                // else populate it with "--None--" value as default.
+                                var sormaSoshipline = execQuery("select id, name from soshipline__c where soshipline_line__c = '" 
+                                                                + sormaSoline  + "' and soshipline_qtyship__c > 0 order by name");
+                                newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0].length = 0;
+                                newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0].options[0] = new Option("--None--", "");
+                                for(i=0; i<sormaSoshipline.length; i++) {
+                                    newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0].options[newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0].length] = 
+                                                                                                    new Option( sormaSoshipline[i].name,sormaSoshipline[i].id, false, false);
+                                }
+                            }else{
+                                //disabling Soshipline list 
+                                newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0].length = 0;
+                                newRmaDetail.getRowObj(row, 'sorma_soshipline__c')[0].options[0] = new Option("--None--", "");
+                                newRmaDetail.getRowObj(row, 'sorma_soshipline__c').attr('disabled', true);
+                            }
+                            
+                        }
+                        
+                    }//end of newRmaDetail.entryChanged
+                </script>
+            </c:Popup> -->
+                <div id="pleaseWaitPopup" style="display: none">
+                    <apex:outputPanel styleClass="topPopupBackground" layout="block" />
+                    <apex:outputPanel styleClass="topPopup">
+                        <apex:image url="{!$Resource.rstk__busy}" />
+                    </apex:outputPanel>
+                </div>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <apex:tabPanel switchType="client" selectedTab="tab_RMADetails" id="theTabPanel">
+        <apex:tab label="{!$Label.rstk__pagetab_sormhview_rmadetails}" name="tab_RMADetails" id="tab_RMADetails">
+            <apex:relatedList list="sormas__r"/>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_sormhview_notesandattachments}" name="tab_NotesAndAttachments" id="tab_NotesAndAttachments">
+            <apex:relatedList list="NotesAndAttachments" subject="{!o.id}" rendered="true"/>
+        </apex:tab>
+    </apex:tabPanel>
+    
+    <apex:relatedList list="ProcessSteps" subject="{!o.id}" rendered="{!approvalsActive}"></apex:relatedList>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+     <script>
+        var LABEL_OnSave_ActionOfAnyUnreleasedRMADetailsWillBeSetTo = "{!$Label.rstk__onsave_actionofanyunreleasedrmadetailswillbesetto}";
+        var LABEL_OnSave_AttemptWillBeMadeToReleaseAnyUnreleasedRMADetails = "{!$Label.rstk__onsave_attemptwillbemadetoreleaseanyunreleasedrmadetails}";
+        var LABEL_OnSaveAttemptWillBeMadeToUnreleaseAnyUnreleasedRMADetails = "{!$Label.rstk__onsaveattemptwillbemadetounreleaseanyunreleasedrmadetails}";
+        var LABEL_ThisWouldClearOutOverrideAddrressInformation_Continue = "{!$Label.rstk__thiswouldclearoutoverrideaddrressinformation_continue}";
+        
+        /*newRMADetail_isloading = false;
+        function openFramePopup0() {
+            if (!_isDialogOpen()) {
+                _showDialog('rmaDetailGridPopup',1200);
+                newRMADetail_load();
+            }
+        }*/
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

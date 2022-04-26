@@ -1,0 +1,335 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_iclocitemqtyveri}" standardController="rstk__icitem__c" extensions="rstk.ControllerExtnIclocitemQtyVeri,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icitem__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icitem__c.fields}"/>
+   
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_iclocitemqtyveri}" enableAutocomplete="true"/>
+
+    <script>
+        function filterChanged()
+        {
+            blockUI(); 
+            doReloadPage(); 
+            return false;
+        }
+        
+        function ReportBtn()
+        {
+            var divid = sfffGetFieldValue('div__c');
+            
+            if (isEmpty(divid)) {
+                alert("{!$Label.ProvideDivision}");
+                return false;
+            }
+            var itemId = sfffGetFieldValue('icitem_item__c');
+            
+            blockUI();
+            doReport();
+            return false;
+        }
+        
+        //RSTK-5130 - Added paramter to check 'fix All discrepancies' button is clicked
+        //Updated by: Parthiban c 
+        function ReportFixBtn(updateAll)
+        {
+            var divid = sfffGetFieldValue('div__c');
+            
+            if (isEmpty(divid)) {
+                alert("{!$Label.ProvideDivision}");
+                return false;
+            }
+            
+            blockUI(); 
+            doReportFix(updateAll); 
+            return false;
+        }
+        //
+        
+        function checkAll(checked, tabName)
+        {
+            var body = document.getElementById('pg:fm:pb:pbs_Report:' +  tabName).tBodies[0];
+            var rowCount = body.rows.length;
+            for(var i = 0; i < rowCount; i++) {
+                document.getElementById('pg:fm:pb:pbs_Report:' + tabName + ':' + i + ':sel').checked = checked;
+            }
+        }
+        
+		function SelectItem(checked, selId)
+        {
+            if (!checked) {
+                if (document.getElementById('pg:fm:pb:pbs_Report:' + selId).checked) {
+                    document.getElementById('pg:fm:pb:pbs_Report:' + selId).checked = false;
+                } 
+            } 
+        }  
+        
+        function refreshReport() {
+            //console.log('refreshReport:'+isLoading);
+			if (isLoading == 'true') {
+                setTimeout(refreshAction, 2000);
+			} else {
+				checkJobStatus();
+			}
+		}
+        
+         
+    </script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doReloadPage" action="{!doReloadPage}" 
+            oncomplete="formatLocaleOutputFields();unblockUI();" rerender="pageMessages, pbs_Main" immediate="false"/>
+        <apex:actionFunction name="doReport" action="{!doReport}" 
+            oncomplete="formatLocaleOutputFields();refreshAction();" rerender="pageMessages, pbs_Main, pbs_Report, op_JobStatus" immediate="false"/>
+        <!-- RSTK-5130 -->
+        <apex:actionFunction name="doReportFix" action="{!doReportFix}" 
+            oncomplete="formatLocaleOutputFields();refreshAction();" rerender="pageMessages, totaldiscrepancies, pbs_Report, op_JobStatus" immediate="false">
+            <apex:param name="updateAll" value=""/>
+        </apex:actionFunction>
+        <!--  -->
+        <apex:actionFunction name="refreshAction" action="{!reloadReport}" oncomplete="refreshReport();" rerender="pbs_Main, pbs_Report, op_JobStatus" immediate="false"/>
+            
+        <apex:pageBlock id="pb" mode="detail">
+            
+            <apex:outputPanel id="op_JobStatus">
+        		<input type="hidden" id="processlogId" value="{!processlogId}"/>
+				<script>
+	                var logId = '{!processlogId}';
+	            </script>
+        		
+        	</apex:outputPanel>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+ 				<apex:pageBlockSection id="pbs_head" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icitem_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icitem_div__c.label}"/>
+                    <apex:selectList id="div__c" value="{!divId}" onchange="filterChanged()" size="1" style="width:250px">
+                        <apex:selectOptions value="{!sl.Sydivs}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem id="ac_comp" helpText="{!f.rstk__icitem_item__c.inlineHelpText}">
+		                <apex:outputLabel value="{!f.rstk__icitem_item__c.label}"/>
+		                <c:autocomplete id="icitem_item__c" cntr="{!controller}" codeColumn="id" descColumn="name" secondarySearchColumn="icitem_descr__c" query="select id, icitem_item__c, name, icitem_descr__c from icitem__c where icitem_item__r.peitem_inactivests__c != 'I' and formula_disassmind__c = false and icitem_div__c = '{!divId}'" queryParms="[]" minChars="{!minCharForAutoComplete}" tabIndex="4"/>
+		        </apex:pageBlockSectionItem>
+				</apex:pageBlockSection>
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+	            <script>
+	                var isLoading = '{!inProgress}';
+	            </script>
+
+                <apex:pageBlockSectionItem >
+                	<apex:outputLabel value="{!$Label.rstk__iclocitemqtyverif_checked + ' : ' + TEXT(itemsProcessed) + ' / ' + TEXT(itemCount)}" />
+                    <!-- apex:outputLabel value="{!$Label.IclocItemQtyVerif_Checked}" />  <apex:outputLabel value="{!TEXT(itemsProcessed) + ' / ' + TEXT(itemCount)}" /> -->
+	                <apex:commandButton value="Check Discrepancies" onclick="return ReportBtn();" style="width:150px;"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel id="totaldiscrepancies"  value="{!$Label.rstk__totalinventoryitemswithdiscrepancies + ' : ' +TEXT(totalrec)}" />
+                    <!--  apex:outputLabel value="{!totalrec}" />-->
+                    <!-- RSTK-5130: Added a button for 'Fix All Discrepancies' -->
+                    <!-- Added by: Parthiban C -->
+                    <apex:outputPanel >
+	                    <apex:commandButton value="{!$Label.rstk__pagebtn_iclocitemqtyveri_fixdiscrepancies}" onclick="return ReportFixBtn(false);" style="width:150px;" rendered="{!totalrec > 0}"/>
+                        <apex:commandButton value="{!$Label.rstk__pagebtn_iclocitemqtyveri_fixalldiscrepancies}" onclick="return ReportFixBtn(true);" style="width:150px;" rendered="{!totalrec > 0}"/>
+                    </apex:outputPanel>
+                    <!--  -->
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            <br /> 
+
+            <apex:pageBlockSection id="pbs_Report" showHeader="false" columns="1" title="" collapsible="false">
+                <apex:outputPanel rendered="{!icitemcstrec == 0 && icitemprojrec == 0 && icitemsiterec == 0 && icitemsiteprojrec == 0}" >
+                    <apex:outputLabel value="{!$Label.rstk__noinventoryitemdiscrepanciesfound}" />
+                </apex:outputPanel>
+
+                <apex:tabPanel switchType="client" selectedTab="tab_icitemcst" id="theTabPanel" rendered="{!icitemcstrec > 0 || icitemprojrec > 0 || icitemsiterec > 0 || icitemsiteprojrec > 0}" >
+                    <apex:tab label="{!$Label.rstk__pagetab_iclocitemqtyveri_invitemcosts_qty}" name="tab_icitemcst" id="tab_icitemcst" rendered="{!icitemcstrec > 0}">
+                        <apex:inputCheckbox id="invcstsAllChk" value="{!invcstsAllChk}" onclick="checkAll(this.checked, 'pbt_Icitemcst');"/>&nbsp;&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}" />
+                        <apex:pageBlockTable id="pbt_Icitemcst" value="{!Icitemcstrep}" var="i">
+                            <apex:column headerValue="{!$Label.rstk__sel}" style="width:3px;">
+                                <apex:inputCheckbox id="sel" value="{!i.selected}" onclick="SelectItem(this.checked, 'invcstsAllChk');"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__inventoryitem}" style="width:150px;">
+                                 <!--RSTK-4783 -->
+                                 <apex:outputLink value="/{!i.icitemId}">{!i.icitemName}</apex:outputLink>
+                                 <!-- <apex:outputLink value="/apex/icitemcst?actionType=view&id={!i.icitemId}">{!i.icitemName}</apex:outputLink> -->
+                                 <!--  -->
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__costohqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.ohitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locohqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.ohlocQty}" rendered="{!i.ohlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.ohlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__costconsqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.consitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locconsqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.conslocQty}" rendered="{!i.conslocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.conslocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__costnonnetqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.ohnnitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locnonnetqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.ohnnlocQty}" rendered="{!i.ohnnlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.ohnnlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__costvmiqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.vmiitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locvmiqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.vmilocQty}" rendered="{!i.vmilocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.vmilocQty == null}" />
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstk__pagetab_iclocitemqtyveri_invbyitem_project}" name="tab_icitemproj" id="tab_icitemproj" rendered="{!icitemprojrec > 0}">
+                        <apex:inputCheckbox id="invProjAllChk" value="{!invProjAllChk}" onclick="checkAll(this.checked, 'pbt_Icitemproj');"/>&nbsp;&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}" />
+                        <apex:pageBlockTable id="pbt_Icitemproj" value="{!Icitemprojrep}" var="i">
+                            <apex:column headerValue="{!$Label.rstk__sel}" style="width:3px;">
+                                <apex:inputCheckbox id="sel" value="{!i.selected}" onclick="SelectItem(this.checked, 'invProjAllChk');"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__inventoryitem}" style="width:150px;">
+                                 <!-- RSTK-4783 -->
+                                 <apex:outputLink value="/{!i.icitemId}">{!i.icitemName}</apex:outputLink>
+                                  <!-- <apex:outputLink value="/apex/icitemproj?actionType=view&id={!i.icitemId}">{!i.icitemName}</apex:outputLink> -->
+                                 <!--  -->
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__project}" style="width:150px;">
+                                <apex:outputLabel value="{!i.projName}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__projohqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.ohitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locohqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.ohlocQty}" rendered="{!i.ohlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.ohlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__projconsqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.consitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locconsqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.conslocQty}" rendered="{!i.conslocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.conslocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__projnonnetqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.ohnnitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locnonnetqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.ohnnlocQty}" rendered="{!i.ohnnlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.ohnnlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__projvmiqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.vmiitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locvmiqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.vmilocQty}" rendered="{!i.vmilocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.vmilocQty == null}" />
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+
+                    <apex:tab label="{!$Label.rstk__pagetab_iclocitemqtyveri_invitembysite}" name="tab_icitemsite" id="tab_icitemsite" rendered="{!icitemsiterec > 0}">
+                        <apex:inputCheckbox id="invSiteAllChk" value="{!invSiteAllChk}" onclick="checkAll(this.checked, 'pbt_Icitemsite');"/>&nbsp;&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}" />
+                        <apex:pageBlockTable id="pbt_Icitemsite" value="{!Icitemsiterep}" var="i">
+                            <apex:column headerValue="{!$Label.rstk__sel}" style="width:3px;">
+                                <apex:inputCheckbox id="sel" value="{!i.selected}" onclick="SelectItem(this.checked, 'invSiteAllChk');"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__inventoryitem}" style="width:150px;">
+                                <apex:outputLink value="/{!i.icitemId}">{!i.icitemName}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.site}" style="width:150px;">
+                                <apex:outputLabel value="{!i.siteName}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__siteohqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.ohitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locohqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.ohlocQty}" rendered="{!i.ohlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.ohlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__siteconsqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.consitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locconsqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.conslocQty}" rendered="{!i.conslocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.conslocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__sitenonnetqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.ohnnitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locnonnetqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.ohnnlocQty}" rendered="{!i.ohnnlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.ohnnlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__sitevmiqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.vmiitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locvmiqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.vmilocQty}" rendered="{!i.vmilocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.vmilocQty == null}" />
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstk__pagetab_iclocitemqtyveri_invitembysite_project}" name="tab_icitemsiteproj" id="tab_icitemsiteproj" rendered="{!icitemsiteprojrec > 0}">
+                        <apex:inputCheckbox id="invSiteProjAllChk" value="{!invSiteProjAllChk}" onclick="checkAll(this.checked, 'pbt_Icitemsiteproj');"/>&nbsp;&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}" />
+                        <apex:pageBlockTable id="pbt_Icitemsiteproj" value="{!Icitemsiteprojrep}" var="i">
+                            <apex:column headerValue="{!$Label.rstk__sel}" style="width:3px;">
+                                <apex:inputCheckbox id="sel" value="{!i.selected}" onclick="SelectItem(this.checked, 'invSiteProjAllChk');"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__inventoryitem}" style="width:150px;">
+                                <apex:outputLink value="/{!i.icitemId}">{!i.icitemName}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__siteproject}" style="width:150px;">
+                                <apex:outputLabel value="{!i.siteName} / {!i.projName}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__siteprojohqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.ohitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locohqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.ohlocQty}" rendered="{!i.ohlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.ohlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__site_proj_avail_qty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.availitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__loc_avail_qty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.availlocQty}" rendered="{!i.availlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.availlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__siteprojconsqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.consitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locconsqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.conslocQty}" rendered="{!i.conslocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.conslocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__siteprojnonnetqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.ohnnitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locnonnetqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.ohnnlocQty}" rendered="{!i.ohnnlocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.ohnnlocQty == null}" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__siteprojvmiqty}" style="width:70px;text-align:right;color:#ff0000;">
+                                <apex:outputText html-decimals="2" value="{!i.vmiitemQty}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__locvmiqty}" style="width:70px;text-align:right;color:#009966;">
+                                <apex:outputText html-decimals="2" value="{!i.vmilocQty}" rendered="{!i.vmilocQty != null}"/>
+                                <apex:outputLabel value="{!$Label.rstk__nolocdtl}" style="color:#ff00ff;" rendered="{!i.vmilocQty == null}" />
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+                </apex:tabPanel>
+                <br />
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

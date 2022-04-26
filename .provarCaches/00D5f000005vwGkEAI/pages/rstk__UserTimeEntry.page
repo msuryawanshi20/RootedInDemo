@@ -1,0 +1,140 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_usertimeentry}" standardController="rstk__icclocktxn__c" extensions="rstk.ControllerExtnUserTimeEntry,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <apex:variable var="o" value="{!rstk__icclocktxn__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icclocktxn__c.fields}" />
+    <apex:variable var="f_txndtl" value="{!$ObjectType.rstk__icclockdtl__c.fields}" />
+    <apex:variable var="f_wocst" value="{!$ObjectType.rstk__wocst__c.fields}"/>
+    <apex:variable var="f_woordop" value="{!$ObjectType.rstk__woordop__c.fields}"/>
+    <apex:variable var="f_wopsch" value="{!$ObjectType.rstk__wopsch__c.fields}"/>
+    <apex:variable var="f_customext" value="{!$ObjectType.rstk__customext__c.fields}"/>
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_usertimeentry}" customInclude="{!$Resource.rstk__usertimeentry}" enableAutocomplete="true"/>
+    
+    <style>
+			@media (min-width: 30em) {
+			    body input[type="text"],.slds-scope input[type="text"] {
+			        min-width:5rem;
+			    }
+			}
+    </style>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="loadOperations" action="{!loadOperations}" oncomplete="afterLoadOperations()" rerender="pageMessages, op_buttons, op_operations"/>
+        <apex:actionFunction name="saveBookings" action="{!saveBookings}" oncomplete="checkJobStatus()" rerender="pageMessages, op_hidden"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+	        <apex:outputPanel id="op_hidden" style="display:none">
+	            <input type="text" id="validationError" value="{!errorFound}"/>
+	            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+	        </apex:outputPanel>
+	        
+	        <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="1">
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__icclocktxn_syusr__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__icclocktxn_syusr__c.label}"/>
+	                <apex:outputPanel >
+		                <apex:selectList id="icclocktxn_syusr__c" value="{!o.rstk__icclocktxn_syusr__c}" size="1" style="width:250px;" rendered="{!isSuper}">
+							<apex:selectOptions value="{!employees}"/>
+						</apex:selectList>
+						<apex:outputField value="{!o.rstk__icclocktxn_syusr__c}" rendered="{!!isSuper}"/>
+					</apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem helpText="{!f.rstk__icclocktxn_div__c.inlineHelpText}">
+	                <apex:outputLabel value="{!f.rstk__icclocktxn_div__c.label}"/>
+	                <apex:outputPanel >
+		                <apex:selectList id="icclocktxn_div__c" value="{!o.rstk__icclocktxn_div__c}" size="1" style="width:250px;" rendered="{!isMultidiv}">
+							<apex:selectOptions value="{!divisions}"/>
+						</apex:selectList>
+						<apex:outputField value="{!o.rstk__icclocktxn_div__c}" rendered="{!!isMultidiv}"/>
+					</apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem >
+	            	<apex:outputLabel value="{!$Label.rstk__includeunreleasedoperations}"/>
+	            	<apex:inputCheckbox id="includeUnreleasedOperations" value="{!includeUnreleasedOperations}"/>
+	            </apex:pageBlockSectionItem>
+	            
+	            <apex:pageBlockSectionItem >
+	                <apex:outputLabel value=""/>
+	                <apex:outputPanel id="op_buttons">
+	                	<c:nosubmitbutton label="{!displayButtonLabel}" onclick="doLoadOperations();" style="width:150px;" rendered="true"/>
+	                	<c:nosubmitbutton label="{!$Label.rstk__pagebtn_save}" onclick="if(doValidate()){doSetFFCompanyAndProcess(doSaveBookings);}" style="width:100px;" rendered="{!showSaveButton}"/>
+	                </apex:outputPanel>
+	            </apex:pageBlockSectionItem>
+	        </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <apex:outputPanel id="op_operations">
+        <apex:pageBlock mode="detail" rendered="{!showSaveButton}">
+        	<apex:pageBlockSection columns="1">
+        		<apex:pageBlockTable value="{!operations}" var="oper" >
+        			<apex:column headerValue="{!f_txndtl.rstk__icclockdtl_wocst__c.label}">
+        				<!-- <apex:outputField value="{!oper.woordop.woordop_ordno__c}"/> -->
+        				<apex:outputLink value="{!URLFOR($Action.rstk__wocst__c.View, oper.woordop.rstk__woordop_ordno__c)}" target="_blank">{!oper.woordop.woordop_ordno__r.rstk__formula_altname__c}</apex:outputLink>
+        			</apex:column>
+        			<apex:column headerValue="{!f_txndtl.rstk__icclockdtl_woordop__c.label}">
+        				<apex:outputLink value="{!URLFOR($Action.rstk__woordop__c.View, oper.woordop.id)}" target="_blank">{!oper.woordop.rstk__woordop_oper__c}</apex:outputLink>
+        			</apex:column>
+        			<apex:column headerValue="{!f_woordop.rstk__woordop_wctr__c.label}">
+        				<apex:outputField value="{!oper.woordop.rstk__woordop_wctr__c}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!f_wocst.rstk__wocst_proj__c.label}">
+        				<apex:outputField value="{!oper.woordop.woordop_ordno__r.rstk__wocst_proj__c}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!f_wocst.rstk__wocst_ordsts_pl__c.label}">
+        				<apex:outputField value="{!oper.woordop.woordop_ordno__r.rstk__wocst_ordsts_pl__c}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!f_woordop.rstk__woordop_released__c.label}">
+        				<apex:outputField value="{!oper.woordop.rstk__woordop_released__c}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!f_customext.rstk__usertimeentry_started__c.label}">
+        				<apex:outputField value="{!oper.customext.rstk__usertimeentry_started__c}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!f_wopsch.rstk__wopsch_schstartdate__c.label}">
+        				<apex:outputField value="{!oper.wopsch.rstk__wopsch_schstartdate__c}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!f_wopsch.rstk__wopsch_schcompdate__c.label}">
+        				<apex:outputField value="{!oper.wopsch.rstk__wopsch_schcompdate__c}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!$Label.rstk__scheduledhours}">
+        				<apex:outputText value="{!oper.scheduledHours}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!$Label.rstk__actualhours}">
+        				<apex:outputText value="{!oper.actualHours}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!f_customext.rstk__usertimeentry_currenthours__c.label}">
+        				<apex:inputField id="currenthours" value="{!oper.customext.rstk__usertimeentry_currenthours__c}" style="width:50px;" onkeypress="return filterNonNumeric(event, this)" onblur="onblurCurrenthours(this)" rendered="{!oper.allowhourbooking}"/>
+        			</apex:column>
+					<!-- 
+					<apex:column headerValue="{!$Label.qtyReq}">
+        				<apex:outputField value="{!oper.woordop.woordop_ordno__r.wocst_qtyreq__c}"/>
+        			</apex:column>
+        			<apex:column headerValue="{!$Label.qtyAvail}">
+        				<apex:outputField value="{!oper.woordopact.woordopact_qtyavail__c}"/>
+        			</apex:column>
+        			 -->
+        			<apex:column headerValue="{!$Label.rstk__completed}">
+        				<apex:outputPanel >
+        					<apex:inputField value="{!oper.customext.rstk__usertimeentry_completed__c}" rendered="{!(oper.allowqtybooking || oper.allowreversecomplete)}"/>
+        					<apex:outputField value="{!oper.customext.rstk__usertimeentry_completed__c}" rendered="{!!(oper.allowqtybooking || oper.allowreversecomplete)}"/>
+        				</apex:outputPanel>
+        			</apex:column>
+        			<apex:column headerValue="">
+        				<apex:image url="{!URLFOR($Resource.rstk__rstkimages, 'info.png')}" height="14" width="14" title="{!oper.title}"/>
+        			</apex:column>
+        		</apex:pageBlockTable>
+        	</apex:pageBlockSection>
+        </apex:pageBlock>
+        </apex:outputPanel>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+     <script>
+        var LABEL_InvalidNonNumericValueSpecified = "{!$Label.rstk__invalidnonnumericvaluespecified}";                                                                                           
+        var LABEL_ValueMustBeGreaterThanZERO = "{!$Label.rstk__valuemustbegreaterthanzero}";                                                                                           
+        var LABEL_ValueMustBeLessThan999_99 = "{!$Label.rstk__valuemustbelessthan999_99}";                                                                                           
+        var LABEL_PleaseWaitLoadingOperations = "{!$Label.rstk__pleasewaitloadingoperations}";                                                                                           
+        var LABEL_PleaseWaitSavingLaborBookingEntries = "{!$Label.rstk__pleasewaitsavinglaborbookingentries}";                                                                                           
+        var LABEL_PleaseWaitReloadingOperations = "{!$Label.rstk__pleasewaitreloadingoperations}";                                                                                                                                                                                  
+    </script>
+</apex:page>

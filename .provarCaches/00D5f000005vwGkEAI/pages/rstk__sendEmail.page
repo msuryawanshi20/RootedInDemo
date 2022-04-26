@@ -1,0 +1,111 @@
+<apex:page id="pg" standardController="rstk__sendemail__c" extensions="rstk.ControllerExtnSendEmail,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sendemail__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sendemail__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$ObjectType.rstk__sendemail__c.Label}" enableAutocomplete="true"/>
+    
+    <script>
+    var autoCompleteRefs = {};
+    var projIdField = null;
+    var projNameField = null;
+    
+    function pageInitView() {
+		pageInit();
+	}
+    
+	function pageInit() {
+		if ({!isNew}) {
+			projNameField = jQuery("input[id*=endemail_pjproj__c]");
+			projIdField = projNameField.next();
+		}
+	
+	}
+	
+	function onDivisionChanged() {
+		if ({!isNew}) {
+			projNameField.val('');
+			projIdField.val('');
+		}
+	}
+	
+    </script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+ 
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+ 
+			<apex:pageBlockSectionItem >
+				<apex:outputLabel value="{!f.rstk__sendemail_emailtempl__c.label}"/>
+				<apex:outputPanel >
+				<div class="requiredInput"><div class="requiredBlock"></div>
+					<apex:selectList id="sendemail_emailtempl__c" value="{!o.rstk__sendemail_emailtempl__c}" size="1" rendered="{!isNew}" tabIndex="1">
+						<apex:selectOptions value="{!emailTemplates}"/>
+					</apex:selectList>
+					<c:ObjectLink valueName="{!emailTemplateName}" valueId="{!o.rstk__sendemail_emailtempl__c}" rendered="{!!isNew}"/>
+				</div>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+
+			<apex:pageBlockSectionItem >
+				<apex:outputLabel value="{!f.rstk__sendemail_div__c.label}"/>
+				<apex:outputPanel >
+				<div class="requiredInput"><div class="requiredBlock"></div>
+					<apex:selectList id="sendemail_div__c" value="{!o.rstk__sendemail_div__c}" size="1" rendered="{!isNew}" tabIndex="2" onchange="onDivisionChanged();">
+						<apex:selectOptions value="{!divisions}"/>
+					</apex:selectList>
+					<c:ObjectLink valueName="{!emailDivName}" valueId="{!o.rstk__sendemail_div__c}" rendered="{!!isNew}"/>
+				</div>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+
+			<apex:pageBlockSectionItem >
+				<apex:outputLabel value="{!f.rstk__sendemail_pjproj__c.label}"/>
+				<apex:outputPanel >
+				<div class="requiredInput"><div class="requiredBlock"></div>
+					<c:autocomplete id="sendemail_pjproj__c" cntr="{!controller}" slDesc="{!emailProjName}"
+                                query="select id, name from pjproj__c where pjproj_div__c = 'prm'" 
+                                queryParms="[['sendemail_div__c','Division']]" width="250px" rendered="{!isNew}" tabIndex="3" />
+					<c:ObjectLink valueName="{!emailProjName}" valueId="{!o.rstk__sendemail_pjproj__c}" rendered="{!!isNew}"/>
+				</div>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+
+			<apex:pageBlockSectionItem >
+				<apex:outputLabel value="{!f.rstk__sendemail_email__c.label}"/>
+				<apex:outputPanel >
+				<div class="requiredInput"><div class="requiredBlock"></div>
+					<c:inputField id="sendemail_email__c" cntr="{!controller}" tabIndex="4" width="250px"/>
+				</div>
+				</apex:outputPanel>
+			</apex:pageBlockSectionItem>
+
+			<apex:pageBlockSectionItem >
+				<apex:outputLabel value="{!f.rstk__sendemail_comment__c.label}"/>
+				<c:inputField id="sendemail_comment__c" cntr="{!controller}" tabIndex="5" width="250px"/>
+			</apex:pageBlockSectionItem>
+           
+            </apex:pageBlockSection>
+            <apex:tabPanel switchType="client" selectedTab="tab_Info" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__info}" name="tab_Info" id="tab_Info" rendered="{!!isNew}">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

@@ -1,0 +1,88 @@
+<apex:page id="pg" standardController="rstk__featcat__c" extensions="rstk.ControllerExtnFeatcat" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__featcat__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__featcat__c.fields}" />
+    <apex:variable var="f_featcat" value="{!$ObjectType.rstk__feature__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+    <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+    <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+    <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+    <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+    <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+    <apex:actionFunction name="doSave" action="{!save}"/>
+    <apex:actionFunction name="doRefreshFeatures" rerender="op_Features" immediate="true"/>
+    
+    <apex:pageBlock id="pb" mode="detail">
+    <apex:pageBlockButtons >
+        <c:standardButtons cntr="{!controller}"/>
+    </apex:pageBlockButtons>
+    <apex:outputPanel style="display:none">
+    </apex:outputPanel>
+    
+    <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="1">
+        <apex:pageBlockSectionItem helpText="{!f.rstk__featcat_category__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__featcat_category__c.label}"/>
+            <apex:outputPanel >
+                <apex:outputField value="{!o.rstk__featcat_category__c}" rendered="{!!isNew}"/>
+                <apex:inputField value="{!o.rstk__featcat_category__c}" required="true" rendered="{!isNew}"/>
+            </apex:outputPanel>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem helpText="{!f.rstk__featcat_desc__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__featcat_desc__c.label}"/>
+            <c:inputField id="featcat_desc__c" cntr="{!controller}"/>
+        </apex:pageBlockSectionItem>
+         
+        <apex:pageBlockSectionItem helpText="{!f.rstk__featcat_dfltselseq__c.inlineHelpText}">
+            <apex:outputLabel value="{!f.rstk__featcat_dfltselseq__c.label}"/>
+            <c:inputField id="featcat_dfltselseq__c" cntr="{!controller}" filterNonNumeric="true"/>
+        </apex:pageBlockSectionItem>
+
+    </apex:pageBlockSection>
+    <apex:tabPanel switchType="client" selectedTab="tab_Features" id="theTabPanel">
+        <apex:tab label="{!$Label.rstk__pagetab_featcat_features}" name="tab_Features" id="tab_Features" rendered="{!isView}">
+            <apex:pageBlockSection id="pbs_features" showHeader="false" columns="1">
+            	<input type="button" class="btn" value="{!$Label.pagebtn_featcat_add_delete}" onclick="_showDialog('featuresPopup');" />
+            	<apex:outputPanel id="op_Features">
+	                <apex:pageBlockTable value="{!features}" var="rec">
+	                    <apex:column headerValue="{!f_featcat.Name.label}" value="{!rec.Name}"/>
+	                    <apex:column headerValue="{!f_featcat.rstk__feature_desc__c.label}" value="{!rec.rstk__feature_desc__c}"/>
+	                </apex:pageBlockTable>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+			<c:customFields cntr="{!controller}" cols="2"/>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__tab_info}" name="tab_Info" id="tab_Info">
+            <c:infoSection cntr="{!controller}" showHeader="false"/>
+        </apex:tab>
+    </apex:tabPanel>
+    </apex:pageBlock>
+    
+    <div id="pleaseWaitPopup" style="display:none">
+        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+        <apex:outputPanel styleClass="topPopup">
+           <apex:image url="{!$Resource.rstk__busy}"/>
+        </apex:outputPanel>
+    </div>
+    
+    <c:Popup popupId="featuresPopup" title="{!$Label.rstk__pagetab_featcat_features}" onOk="features_saveAndClose();">
+            <c:PageableGrid width="880" jsController="features" data="{!FeatureGrid}" pageSize="15" editable="true" ispopup="true" disableSave="false"/>
+            <script>
+                    features.onSaved = function(row) {
+                        doRefreshFeatures();
+                    }
+            </script>
+    </c:Popup>
+    
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

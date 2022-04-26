@@ -1,0 +1,253 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_stocklocadd}" standardController="rstk__locadd__c" extensions="rstk.ControllerExtnStocklocadd2,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__locadd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__locadd__c.fields}" />
+    <apex:variable var="f2" value="{!$ObjectType.rstk__process_locadd__c.fields}" />
+    
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_stocklocadd}" customInclude="{!$Resource.rstk__locadd_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}" />
+    
+    <script>
+        var usesSylocnum = {!usesSylocnum};
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="displayLoacaddentries" action="{!displayLoacaddentries}" oncomplete="initializeFormFields();unblockUI();" rerender="pageMessages, op_locaddentries, op_moveselected"/>
+        <apex:actionFunction name="resetPage" action="{!resetPage}" oncomplete="initializeFormFields();unblockUI();" rerender="pageMessages, op_locaddentries, op_moveselected"/>
+        <apex:actionFunction name="doLocadds" action="{!doLocadds}" oncomplete="checkJobStatus();" rerender="pageMessages, op_JobStatus,op_moveselected, op_locaddentries,"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputHidden id="locmove_selecteditemslist__c" value="{!o.rstk__locmove_selecteditemslist__c}"/>
+            <apex:inputField id="sydiv_avgcostbylot__c" value="{!currDivision.rstk__sydiv_avgcostbylot__c}"/>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+            <input type="hidden" id="validationError" value="{!errorFound}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlockSection showHeader="false" columns="2">
+            <apex:pageBlockSectionItem >
+                <apex:outputPanel >
+                    <c:division id="locadd_div__c" cntr="{!controller}" disabled="false"/>
+                    <apex:pageBlockSection showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__locadd_site__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__locadd_site__c.label}"/>
+                            <c:selectList id="locadd_site__c" cntr="{!controller}" options="{!sysites}" required="true" tabIndex="2"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_icitem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!$Label.rstk__searchitem}"/>
+                            <c:autocomplete id="locmove_icitem__c" cntr="{!controller}" query="select icitemcst_item__c, icitemcst_item__r.name from icitemcst__c where icitemcst_div__c = 'prm' and icitemcst_item__r.icitem_item__r.peitem_inactivests__c != 'I'" codeColumn="icitemcst_item__c" descColumn="icitemcst_item__r.name" queryParms="[['locadd_div__c','Division']]" minChars="{!minCharForAutoComplete}" tabIndex="12"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__locmove_selecteditems__c.inlineHelpText}">
+                            <apex:commandButton value="{!$Label.rstk__pagebtn_stocklocadd_clearselected}" onclick="clearSelected(); return false;" style="width:100px;" immediate="true"/>
+                            <c:selectList id="locmove_selecteditems__c" cntr="{!controller}" options="{!empty}" size="5" width="400px"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputPanel >
+                    <apex:pageBlockSection showHeader="false" columns="1">
+                    </apex:pageBlockSection>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        
+        <apex:commandButton value="{!$Label.rstk__pagebtn_stocklocadd_displaylocaddentries}" onclick="return doSearchLocadds();" style="width:150px;"/>&nbsp;
+        <apex:outputPanel id="op_moveselected">
+            <c:nosubmitbutton label="{!$Label.rstk__pagebtn_stocklocadd_additemstoinventory}" onclick="if(doValidate()){doSetFFCompanyAndProcess(performLocadds);}" rendered="{!displayLocaddentries}" style="width:200px;"/>
+        </apex:outputPanel>
+    </apex:pageBlock>
+    
+    <script>var rowdtls = [];var rowcosts = [];var txndatefld;</script>
+    <apex:outputPanel id="op_locaddentries">
+    <apex:pageBlock mode="detail" rendered="{!displayLocaddentries}">
+        <script>usesSylocnum = {!usesSylocnum};</script>
+        <apex:pageBlockSection showHeader="false" columns="1" collapsible="false">
+            <apex:repeat value="{!locaddentries}" var="d">
+                <apex:tabPanel switchType="client" selectedTab="tab_Details" id="theTabPanel">
+                    <apex:tab label="{!$Label.rstk__pagetab_stocklocadd_locadddetails}" name="tab_Details" id="tab_Details">
+                        <apex:pageBlockTable value="{!d.rows}" var="l" columnsWidth="50px,150px,150px,150px,100px,275px,{!IF(csacctcntl.rstk__csacctcntl_invadddateovr__c, '100px,150px,', '')}100px,100px,100px,200px">
+                            <apex:column headerValue="{!f2.rstk__selected__c.label}">
+                                <apex:inputCheckbox id="selected" value="{!d.plocadd.rstk__selected__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__icitem__c.label}">
+                                <apex:outputText value="{!d.plocadd.name}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__proj__c.label}">
+                                <apex:outputPanel >
+                                    <input type="text" id="projentry{!d.rowkey}_autocomplete" class="ac_input" style="width:140px;" value="{!projectDesc}" />
+                                    <apex:inputText id="proj" value="{!d.plocadd.rstk__proj__c}" style="display:none"/>
+                                    <script>
+                                        var acId    = document.getElementById('{!$Component.proj}');
+                                        var acInput = document.getElementById('projentry{!d.rowkey}_autocomplete');
+                                        acId.onchange=function() { projChanged({!d.rowindex}); return false;  }
+                                        var opts = {
+                                            query:"select id, name from pjproj__c where pjproj_div__c = '{!currDivision.Id}' and pjproj_completed__c = false", 
+                                            queryParms:[], 
+                                            codeColumn:"id", 
+                                            descColumn:"name", 
+                                            displayColumn:"name", 
+                                            minChars:1, 
+                                            secondarySearchColumn: "",
+                                            useCustomAutocomplete: false,
+                                            autocompleteController: "",
+                                            autocompleteMethodParms: ""
+                                        };
+                                        setupAutocompleteObj(acInput,acId, opts);
+                                    </script>
+                                </apex:outputPanel>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__locid__c.label}">
+                                <c:largeSelectList id="locid" objKey="{!d.rowkey}" ref="locid__c" cntr="{!controller}" options="{!sylocids}" width="140px" onchange="locidChanged({!d.rowindex})"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__locnum__c.label}">
+                                <apex:outputPanel >
+                                    <apex:inputText id="locnum" value="{!d.plocadd.rstk__locnum__c}" size="10" maxlength="20" onchange="locnumChanged({!d.rowindex})" style="width:142px;display:{!IF(usesSylocnum,'none','inline')};"/>
+                                    <select id="locnumsl_{!d.rowindex}" size="1" style="width:100px;display:{!IF(usesSylocnum,'inline','none')};" onchange="setSylocnum({!d.rowindex});"/>
+                                </apex:outputPanel>
+                            </apex:column>
+                            <apex:column headerValue="{!IF(d.issrl,f2.rstk__srlnos__c.label,f2.rstk__qty__c.label)}">
+                                <apex:inputField id="qty" value="{!d.plocadd.rstk__qty__c}" rendered="{!!d.issrl}" onchange="qtyChanged({!d.rowindex})"/>
+                                <apex:inputTextArea id="srlnos" value="{!d.plocadd.rstk__srlnos__c}" cols="45" rows="3" rendered="{!d.issrl}" onchange="srlnosChanged({!d.rowindex})" />
+                                <br/><apex:outputLabel value="{!$Label.rstk__serialcount}" rendered="{!d.issrl}"/><apex:inputText id="srlcount" disabled="true" rendered="{!d.issrl}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__transactiondate}" rendered="{!csacctcntl.rstk__csacctcntl_invadddateovr__c}">
+                                <c:inputDateNoLink >
+                                <apex:inputField id="txndate__c" value="{!d.plocadd.rstk__acctgdateovr__c}"/>
+                                <script>txndatefld = document.getElementById('{!$Component.txndate__c}');</script>
+                                </c:inputDateNoLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__adjclracct__c.label}" rendered="{!csacctcntl.rstk__csacctcntl_invadddateovr__c}">
+                                <apex:selectList id="adjclracctid__c" value="{!d.plocadd.rstk__adjclracct__c}" size="1" style="width:90%;">
+                                    <apex:selectOptions value="{!adjaccts}"/> 
+                                </apex:selectList>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__docno__c.label}">
+                                <apex:inputText value="{!d.plocadd.rstk__docno__c}" size="10" maxlength="10"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__comments__c.label}">
+                                <apex:inputText value="{!d.plocadd.rstk__comments__c}" size="10" maxlength="100"/>
+                            </apex:column>
+                            <apex:column headerValue="{!IF(d.islot, f2.rstk__lotno__c.label, '')}">
+                                <apex:inputText id="lotno" value="{!d.plocadd.rstk__lotno__c}" size="10" maxlength="30" rendered="{!d.islot}" onchange="lotnoChanged({!d.rowindex})"/>
+                            </apex:column>
+                            <apex:column headerValue="{!IF(d.islot, f2.rstk__lotexpiredate__c.label, '')}">
+                                <apex:inputField id="lotexpiredate" value="{!d.plocadd.rstk__lotexpiredate__c}" rendered="{!d.islot}"/>
+                                <script>
+                                    rowdtls[{!d.rowindex}] = {
+                                        'icitemid': "{!d.plocadd.icitem__c}",
+                                        'islot': {!d.islot},
+                                        'issrl': {!d.issrl},
+                                        'selected': document.getElementById('{!$Component.selected}'),
+                                        'proj': document.getElementById('{!$Component.proj}'),
+                                        'projauto': document.getElementById('projentry{!d.rowkey}_autocomplete'),
+                                        'locid': document.getElementById('{!$Component.locid}'),
+                                        'locnum': document.getElementById('{!$Component.locnum}'),
+                                        'locnumsl': document.getElementById('locnumsl_{!d.rowindex}'),
+                                        'qty': document.getElementById('{!$Component.qty}'),
+                                        'srlnos': document.getElementById('{!$Component.srlnos}'),
+                                        'srlcount': document.getElementById('{!$Component.srlcount}'),
+                                        'lotno': document.getElementById('{!$Component.lotno}'),
+//RCB: RSTK-2738
+                                        'expdatereqdfrm': {!d.expdatereqdfrm},
+                                        'lotexpiredate': document.getElementById('{!$Component.lotexpiredate}'),
+                                        'txndatefld': txndatefld,
+                                        'adjclracctidfld': document.getElementById('{!$Component.adjclracctid__c}'),
+                                    };
+                                </script>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__pagetab_stocklocadd_costs}" name="tab_Costs" id="tab_Costs">
+                        <apex:pageBlockTable value="{!d.rows}" var="l" columnsWidth="100px,100px,100px,100px,100px,100px,100px,100px,100px,100px">
+                            <apex:column headerValue="{!f2.rstk__actucstmtl__c.label}">
+                                <apex:inputField id="actucstmtl" value="{!d.plocadd.rstk__actucstmtl__c}" rendered="{!d.allowmtlcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstmtl__c}" rendered="{!!d.allowmtlcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstlab__c.label}">
+                                <apex:inputField id="actucstlab" value="{!d.plocadd.rstk__actucstlab__c}" rendered="{!d.allowlabcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstlab__c}" rendered="{!!d.allowlabcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstohdmtl__c.label}">
+                                <apex:inputField id="actucstohdmtl" value="{!d.plocadd.rstk__actucstohdmtl__c}" rendered="{!d.allowohdmtlcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstohdmtl__c}" rendered="{!!d.allowohdmtlcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstohdlab__c.label}">
+                                <apex:inputField id="actucstohdlab" value="{!d.plocadd.rstk__actucstohdlab__c}" rendered="{!d.allowohdlabcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstohdlab__c}" rendered="{!!d.allowohdlabcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstohdfrng__c.label}">
+                                <apex:inputField id="actucstohdfrng" value="{!d.plocadd.rstk__actucstohdfrng__c}" rendered="{!d.allowohdfrngcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstohdfrng__c}" rendered="{!!d.allowohdfrngcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstohdmach__c.label}">
+                                <apex:inputField id="actucstohdmach" value="{!d.plocadd.rstk__actucstohdmach__c}" rendered="{!d.allowohdmachcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstohdmach__c}" rendered="{!!d.allowohdmachcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstsubmtl__c.label}">
+                                <apex:inputField id="actucstsubmtl" value="{!d.plocadd.rstk__actucstsubmtl__c}" rendered="{!d.allowsubmtlcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstsubmtl__c}" rendered="{!!d.allowsubmtlcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstsublab__c.label}">
+                                <apex:inputField id="actucstsublab" value="{!d.plocadd.rstk__actucstsublab__c}" rendered="{!d.allowsublabcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstsublab__c}" rendered="{!!d.allowsublabcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstfrght__c.label}">
+                                <apex:inputField id="actucstfrght" value="{!d.plocadd.rstk__actucstfrght__c}" rendered="{!d.allowfrghtcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstfrght__c}" rendered="{!!d.allowfrghtcost}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f2.rstk__actucstothlnd__c.label}">
+                                <apex:inputField id="actucstothlnd" value="{!d.plocadd.rstk__actucstothlnd__c}" rendered="{!d.allowothlndcost}"/>
+                                <apex:outputField value="{!d.plocadd.rstk__actucstothlnd__c}" rendered="{!!d.allowothlndcost}"/>
+                                <script>
+                                    rowcosts[{!d.rowindex}] = {
+                                        'actucstmtl': document.getElementById('{!$Component.actucstmtl}'),
+                                        'actucstlab': document.getElementById('{!$Component.actucstlab}'),
+                                        'actucstohdmtl': document.getElementById('{!$Component.actucstohdmtl}'),
+                                        'actucstohdlab': document.getElementById('{!$Component.actucstohdlab}'),
+                                        'actucstohdfrng': document.getElementById('{!$Component.actucstohdfrng}'),
+                                        'actucstohdmach': document.getElementById('{!$Component.actucstohdmach}'),
+                                        'actucstsubmtl': document.getElementById('{!$Component.actucstsubmtl}'),
+                                        'actucstsublab': document.getElementById('{!$Component.actucstsublab}'),
+                                        'actucstfrght': document.getElementById('{!$Component.actucstfrght}'),
+                                        'actucstothlnd': document.getElementById('{!$Component.actucstothlnd}')
+                                    };
+                                </script>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:tab>
+                </apex:tabPanel>
+            </apex:repeat>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    </apex:outputPanel>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    
+    <script>
+        var LABEL_InvalidQtySpecified = "{!$Label.InvalidQtySpecified}";
+        var LABEL_EnteredSrls_MaxOf100SrlsCanBeEnteredAtTime_ToAddMoreSrlsEnterMultiLinesForItem = "{!$Label.EnteredSrls_MaxOf100SrlsCanBeEnteredAtTime_ToAddMoreSrlsEnterMultiLinesForItem}";
+        var LABEL_InventoryLocAlreadyExistForLotNum_UseInventoryLocAdjustToModifyQty = "{!$Label.InventoryLocAlreadyExistForLotNum_UseInventoryLocAdjustToModifyQty}";
+        var LABEL_InventoryLocAlreadyExists_UseInventoryLocAdjustToModifyQty = "{!$Label.InventoryLocAlreadyExists_UseInventoryLocAdjustToModifyQty}";
+        var LABEL_InventoryLocAlreadyExistForSrlNums_UseInventoryLocAdjustToModifyQty = "{!$Label.InventoryLocAlreadyExistForSrlNums_UseInventoryLocAdjustToModifyQty}";
+        var LABEL_OneEntryMustBeSelToPerfMove = "{!$Label.OneEntryMustBeSelToPerfMove}";
+        var LABEL_ProjCantBeEmpty = "{!$Label.ProjCantBeEmpty}";
+        var LABEL_StockLocIdCantBeEmpty = "{!$Label.StockLocIdCantBeEmpty}";
+        var LABEL_StockLocNoCantBeEmpty = "{!$Label.StockLocNoCantBeEmpty}";
+        var LABEL_QtyCantBeEmpty = "{!$Label.QtyCantBeEmpty}";
+        var LABEL_SrlNumsCantBeEmpty = "{!$Label.SrlNumsCantBeEmpty}";
+        var LABEL_DuplicateSrlNumsFound = "{!$Label.DuplicateSrlNumsFound}";
+        var LABEL_LotNumCantBeEmpty = "{!$Label.LotNumCantBeEmpty}";
+		var LABEL_Adjustment_Account_cannot_be_empty = "{!$Label.Adjustment_Account_cannot_be_empty}";
+		var LABEL_Transaction_Date_cannot_be_empty = "{!$Label.Transaction_Date_cannot_be_empty}";
+//RCB: RSTK-2738
+        var LABEL_Lot_Expiration_Date_must_be_greater_than_today_s_date = "{!$Label.Lot_Expiration_Date_must_be_greater_than_today_s_date}";		
+    </script>
+
+</apex:page>

@@ -1,0 +1,416 @@
+<apex:page id="pg" standardController="rstkf__arcashd__c" extensions="rstkf.ControllerExtnArcashd,rstkf.ControllerJobStatus,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstkf__arcashd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__arcashd__c.fields}" />
+    <apex:variable var="f_arapplic" value="{!$ObjectType.rstkf__arapplic__c.fields}" />
+    <apex:variable var="f_arinvdue" value="{!$ObjectType.rstkf__arinvdue__c.fields}" />
+    <apex:variable var="f_arinvtxn" value="{!$ObjectType.rstkf__arinvtxn__c.fields}" />
+    <apex:variable var="f_arcashddist" value="{!$ObjectType.rstkf__arcashddist__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" displayListLink="true" title="{!$Label.rstkf__title_cashreceiptsdetail}" enableAutocomplete="true"/>
+    
+    <style>
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 2000; /* Sit on top */
+            left: 30%;
+            top: 30%;
+            width: 800px; 
+            height: 500px;
+            background-color: transparent;
+        }
+        
+        /* Modal Content */
+        .modal-content {
+            background-color: #fefefe;
+            margin: -100px;
+            padding: 15px;
+            border: 1px solid #888;
+            width: 800px;
+            height: 500px;
+        }
+        
+        .overlay {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 300;
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%;
+            text-align: center;
+            background-color: rgba(0,0,0,0.4);
+        }
+         
+        .modalPopupX{
+             z-index: 30011;
+         }
+        .popupBackgroundX{
+             z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+        
+        input:disabled {
+            background: #dddddd;
+        }
+        
+        .sort {display:inline}
+        .numSort {display:inline}
+        
+        .floatingStyle { 
+            background-color:#829DC0 !important;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessingCashRcpts" startStyleClass="Processing"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="false"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="false"/>
+        <apex:actionFunction name="doDelete" action="{!deletePayment}" immediate="false"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="false"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="paycustChanged" action="{!paycustChanged}" 
+            rerender="pageMessages, op_arcashd_mainthomeexchrate__c, op_arcashd_paycurr__c" 
+            immediate="false" status="statusProcessingCashRcpts"/>
+        
+        <apex:actionFunction name="newPaymentApplications" action="{!newPaymentApplications}" rendered="{!!isPosted && allowPayments}" onComplete="openNewApplications();" rerender="op_vars,pageMessages,op_arinvdue_popup" immediate="false" status="statusProcessingCashRcpts"/>
+        <apex:actionFunction name="editPaymentApplications" action="{!editPaymentApplications}" rendered="{!!isPosted && allowPayments}" onComplete="openEditApplications();" rerender="op_vars,pageMessages,op_arapplic_popup" immediate="false" status="statusProcessingCashRcpts"/>
+        <apex:actionFunction name="createUnappliedCashItem" action="{!createUnappliedCashItem}" rendered="{!!isPosted && allowPayments}" immediate="false" oncomplete="unblockUI();" rerender="pageMessages,op_main,op_vars" status="statusProcessingCashRcpts"/>
+        
+        <apex:outputpanel id="op_vars">
+            <script>
+                var isNew = {!isNew};
+                var isEdit = {!isEdit};
+                var nopay = '{!o.rstkf__arcashd_nopay__c}';
+                var sycmp_homecurr = '{!currCompany.glcmp_cmpno__r.rstk__sycmp_homecurr__c}';
+                var bankcurr = '{!o.arcashd_arcashh__r.arcashh_glbankacct__r.glbankacct_curr__c}';
+                var syCmpid = '{!currCompany.glcmp_cmpno__c}';
+                var arcashhId = '{!o.rstkf__arcashd_arcashh__c}';
+                var isError = {!isError};
+            </script>
+        </apex:outputpanel>
+        
+        <apex:outputpanel id="op_main">
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons rendered="{!!isPosted && canMaintainDeposit}">
+                <c:standardButtons cntr="{!controller}" />
+                <apex:commandButton id="createUnappliedCash" value="{!$Label.rstkf__btn_remaindertounappliedcash}" onclick="createUnappliedCashItem(); return false;" rendered="{!isView && arcashd.rstkf__arcashd_homeunapplied__c > 0 && !isPosted && allowPayments}"/>
+                <apex:commandButton id="newPaymentApplications" value="{!$Label.rstkf__btn_newapplications}" onclick="doNewPaymentApplications(); return false;" rendered="{!isView && !isPosted && allowPayments}"/>
+                <apex:commandButton id="editPaymentApplications" value="{!$Label.rstkf__btn_editapplications}" onclick="doEditPaymentApplications(); return false;" rendered="{!isView && !isPosted && allowPayments}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main" columns="2" rendered="{!OR(isNew,isEdit)}">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_arcashh__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_arcashh__c.label}" />
+                    <apex:outputField value="{!o.rstkf__arcashd_arcashh__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_payseq__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_payseq__c.label}" />
+                    <apex:outputField value="{!o.rstkf__arcashd_payseq__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_paycust__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_paycust__c.label}" />
+                    <apex:outputpanel id="op_arcashd_paycust__c">
+                        
+                        <apex:outputpanel id="op_ac_arcashd_paycust__c" rendered="{!isNew}">
+                            <input type="text" name="arcashd_paycust__c_autocomplete" id="arcashd_paycust__c_autocomplete" class="ac_input" style="width:200px;" tabIndex="11" value="{!custName}" />
+                            <apex:inputText id="arcashd_paycust__c" value="{!o.rstkf__arcashd_paycust__c}" style="display:none" onchange="paycustChanged();"/>   	
+                        	<script>autocompleteParms["arcashd_paycust__c"] = {query:"select socustcmpno_socust__c, socustcmpno_socust__r.Name from socustcmpno__c where socustcmpno_cmpno__c = '{!currCompany.id}'", queryParms:[], codeColumn:"socustcmpno_socust__c", descColumn:"socustcmpno_socust__r.Name"};</script>
+                        </apex:outputpanel>
+                        <apex:outputField value="{!o.rstkf__arcashd_paycust__c}" rendered="{!isEdit}"/>
+                    </apex:outputpanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_paycurr__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_paycurr__c.label}" />
+                    <apex:outputpanel id="op_arcashd_paycurr__c">
+                        <apex:selectList id="arcashd_paycurr__c" value="{!o.rstkf__arcashd_paycurr__c}" 
+                                         size="1" style="width:250px;" tabindex="4"> 
+                            <apex:selectOptions value="{!sycurrCurrencys}" /> 
+                        </apex:selectList>
+                        <script>
+                            jQuery('select[id*=arcashd_paycurr__c]')[0].disabled = true;
+                        </script>
+                    </apex:outputpanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_payamt__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_payamt__c.label}" />
+                        <apex:inputField id="arcashd_payamt__c" value="{!o.rstkf__arcashd_payamt__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_mainthomeexchrate__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_mainthomeexchrate__c.label}" />
+                    <apex:outputpanel id="op_arcashd_mainthomeexchrate__c">
+	                    <apex:inputField id="arcashd_mainthomeexchrate__c" 
+	                                     value="{!o.rstkf__arcashd_mainthomeexchrate__c}"
+	                                     taborderhint="10"/>
+	                    <script>jQuery('input[id*=arcashd_mainthomeexchrate__c]')[0].disabled = true;</script>
+                    </apex:outputpanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_paymenttype__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_paymenttype__c.label}" />
+                        <apex:inputField id="arcashd_paymenttype__c" value="{!o.rstkf__arcashd_paymenttype__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_checkorref__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_checkorref__c.label}" />
+                    <apex:outputpanel >
+                        <apex:inputField id="arcashd_checkorref__c" value="{!o.rstkf__arcashd_checkorref__c}" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstkf__arcashd_checkorref__c}" rendered="{!isEdit}"/>
+                    </apex:outputpanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_homeunapplied__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_homeunapplied__c.label}" />
+                    <apex:outputField value="{!o.rstkf__arcashd_homeunapplied__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__arcashd_nopay__c.inlineHelpText}" labelStyle="width:13%">
+                    <apex:outputLabel value="{!f.rstkf__arcashd_nopay__c.label}" />
+                    <apex:outputpanel id="op_arcashd_paycurr__c">
+                        <apex:inputField id="arcashd_nopay__c" value="{!o.rstkf__arcashd_nopay__c}" onchange="nopayChanged();" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstkf__arcashd_nopay__c}" rendered="{!isEdit}"/>
+                    </apex:outputpanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            
+            
+            <apex:pageBlockSection id="pbs_main2" columns="2" rendered="{!isView}"  >
+                <apex:outputField value="{!arcashd.rstkf__arcashd_arcashh__c}"/>
+                <apex:outputField value="{!arcashd.rstkf__arcashd_payseq__c}"/>
+                
+                <apex:outputField value="{!arcashd.rstkf__arcashd_paycust__c}"/>
+                <apex:outputField value="{!arcashd.rstkf__arcashd_paycurr__c}"/>
+                
+                <apex:outputField value="{!arcashd.rstkf__arcashd_payamt__c}"/>
+                <apex:outputField value="{!arcashd.rstkf__arcashd_mainthomeexchrate__c}"/>
+                
+                <apex:outputField value="{!arcashd.rstkf__arcashd_paymenttype__c}"/>
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputField value="{!arcashd.rstkf__arcashd_checkorref__c}"/>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputField value="{!arcashd.rstkf__arcashd_homeunapplied__c}"/>
+                <apex:pageBlockSectionItem />
+                
+                <apex:outputField value="{!arcashd.rstkf__arcashd_nopay__c}"/>
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_advanced" columns="1" collapsible="true" showHeader="true" title="{!$Label.rstkf__tab_advanced}">
+                <apex:tabPanel switchType="client" selectedtab="tab_Info" id="paymentsTabPanel">
+                    <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                        <c:customFields cntr="{!controller}" cols="2"/>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstkf__pagetab_info}" name="tab_Info" id="tab_Info">
+                        <c:InfoSection cntr="{!controller}" showHeader="flase"/>
+                    </apex:tab>
+                </apex:tabPanel>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_relatedlists" columns="1" rendered="{!isView}" collapsible="false">
+                <apex:tabPanel switchType="client" selectedtab="tab_paymentdetails" id="paymentsTabPanel">
+                    <apex:tab label="{!$Label.rstkf__tab_paymentdetails}" name="tab_paymentdetails" id="tab_paymentdetails">
+                        <apex:pageBlock >
+                            <apex:pageBlockSection columns="1">
+                                <apex:pageBlockTable id="pbt_paymentdetails" value="{!arapplicRecs}" var="rec">
+                                    <apex:column headerValue="{!f_arapplic.rstkf__arapplic_transeq__c.label}" value="{!rec.rstkf__arapplic_transeq__c}" />
+                                    <apex:column headerValue="{!f_arinvdue.rstkf__arinvdue_arinvtxn__c.label}" value="{!rec.arapplic_arinvdue__r.rstkf__arinvdue_arinvtxn__c}" />
+                                    <apex:column headerValue="{!f_arinvtxn.rstkf__arinvtxn_soinv__c.label}" value="{!rec.arapplic_arinvdue__r.arinvdue_arinvtxn__r.rstkf__arinvtxn_soinv__c}" />
+                                    <apex:column headerValue="{!f_arinvdue.rstkf__arinvdue_duedate__c.label}" value="{!rec.arapplic_arinvdue__r.rstkf__arinvdue_duedate__c}" />
+                                    <apex:column headerValue="{!f_arinvdue.rstkf__arinvdue_maintamt__c.label}" value="{!rec.arapplic_arinvdue__r.rstkf__arinvdue_maintamt__c}" />
+                                    <apex:column headerValue="{!f_arapplic.rstkf__arapplic_amtmaint__c.label}" value="{!rec.rstkf__arapplic_amtmaint__c}" />
+                                </apex:pageBlockTable>
+                            </apex:pageBlockSection>
+                        </apex:pageBlock>
+                    </apex:tab>
+                    
+                    <apex:tab label="{!$Label.rstkf__tab_paymentaccountdistributions}" name="tab_paymentdistribution" id="tab_paymentdistribution">
+                        <apex:pageBlock >
+                            <apex:pageBlockSection columns="1">
+                                <apex:pageBlockTable id="pbt_paymentdistribution" value="{!arcashddistRecs}" var="rec">
+                                    <apex:column headerValue="{!f_arcashddist.rstkf__arcashddist_seq__c.label}" value="{!rec.rstkf__arcashddist_seq__c}" />
+                                    <apex:column headerValue="{!f_arcashddist.rstkf__arcashddist_arapplic__c.label}" value="{!rec.rstkf__arcashddist_arapplic__c}" />
+                                    <apex:column headerValue="{!f_arcashddist.rstkf__arcashddist_glacct__c.label}" value="{!rec.rstkf__arcashddist_glacct__c}" />
+                                    <apex:column headerValue="{!f_arcashddist.rstkf__arcashddist_source__c.label}" value="{!rec.rstkf__arcashddist_source__c}" />
+                                    <apex:column headerValue="{!f_arcashddist.rstkf__arcashddist_dramt__c.label}" value="{!rec.rstkf__arcashddist_dramt__c}" />
+                                    <apex:column headerValue="{!f_arcashddist.rstkf__arcashddist_cramt__c.label}" value="{!rec.rstkf__arcashddist_cramt__c}" />
+                                </apex:pageBlockTable>
+                            </apex:pageBlockSection>
+                        </apex:pageBlock>
+                    </apex:tab>
+                </apex:tabPanel>
+                
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    	</apex:outputpanel>
+    </apex:form>
+    
+    <apex:outputpanel id="op_arinvdue_popup">
+        <apex:outputpanel >
+        <div id="arinvdue" style="display:none">
+            <iframe id="popArinvdue" src="" width="100%" height="500px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+        </div>
+        </apex:outputpanel>
+    </apex:outputpanel>
+    
+    <apex:outputpanel id="op_arapplic_popup">
+        <apex:outputpanel >
+        <div id="arapplic" style="display:none">
+            <iframe id="popArapplic" src="" width="100%" height="500px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+        </div>
+        </apex:outputpanel>
+    </apex:outputpanel>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+        setRequired('arcashd_paycust__c', true);
+        setRequired('arcashd_checkorref__c', true);
+        
+        function pageInit(){
+            if(isNew || isEdit) {
+            	if(isEdit) {
+	                jQuery('input[id*=arcashd_payhomeexchrate__c]')[0].disabled = true;
+                }
+                
+                if(nopay == 'true') {
+                    jQuery('input[id*=arcashd_payamt__c]')[0].disabled = true;
+                    jQuery('select[id*=arcashd_paymenttype__c]')[0].disabled = true;
+                    jQuery('select[id*=arcashd_paycurr__c]')[0].disabled = true;
+                    jQuery('input[id*=arcashd_payhomeexchrate__c]')[0].disabled = true;
+	                
+	                if(isNew) {
+	                	jQuery('input[id*=arcashd_nopay__c]')[0].disabled = true;
+	                }
+                }
+            }
+        }
+        
+        function nopayChanged() {
+            var isnopay = jQuery('input[id*=arcashd_nopay__c]')[0].checked;
+            if(isnopay == true) {
+                jQuery('input[id*=arcashd_payamt__c]')[0].value='';
+                jQuery('input[id*=arcashd_payamt__c]')[0].disabled = true;
+                jQuery('select[id*=arcashd_paymenttype__c]')[0].value='';
+                jQuery('select[id*=arcashd_paymenttype__c]')[0].disabled = true;
+                jQuery('input[id*=arcashd_payhomeexchrate__c]')[0].value='';
+                jQuery('input[id*=arcashd_payhomeexchrate__c]')[0].disabled = true;
+                jQuery('input[id*=arcashd_checkorref__c]')[0].disabled = true;
+                jQuery('input[id*=arcashd_checkorref__c]')[0].value='';
+            }
+            else {
+                jQuery('input[id*=arcashd_payamt__c]')[0].disabled = false;
+                jQuery('select[id*=arcashd_paymenttype__c]')[0].disabled = false;
+                jQuery('input[id*=arcashd_payhomeexchrate__c]')[0].disabled = false;
+                jQuery('input[id*=arcashd_checkorref__c]')[0].disabled = false;
+            }   
+        }
+        
+        function doNewPaymentApplications() {
+        	var isDisabled = jQuery('input[id*=newPaymentApplications]')[0].disabled;
+        	if(!isDisabled) {
+        		jQuery('input[id*=newPaymentApplications]')[0].disabled = true;
+        		newPaymentApplications();
+        	}
+        	return true;
+        }
+        
+        function doEditPaymentApplications() {
+        	var isDisabled = jQuery('input[id*=editPaymentApplications]')[0].disabled;
+        	if(!isDisabled) {
+        		jQuery('input[id*=editPaymentApplications]')[0].disabled = true;
+        		editPaymentApplications();
+        	}
+        	return true;
+        }
+            
+        var arcashhId = "{!o.rstkf__arcashd_arcashh__c}";
+        var arcashdId = "{!o.Id}";
+        function openNewApplications() {
+           if(!isError) {
+	            var arinvdueFrame = jQuery('iframe[id*=popArinvdue]')[0];
+	            arinvdueFrame.src = "/apex/newpaymentapplication?arcashdId=" + arcashdId + "&arcashhId="+ arcashhId;
+	            showPopup('#arinvdue', 1300, 570);
+	       }else{
+           		jQuery('input[id*=newPaymentApplications]')[0].disabled = false;
+ 				return false;          
+           }
+        }
+        
+        function openEditApplications() {
+            
+           if(!isError) {
+	            var arinvdueFrame = jQuery('iframe[id*=popArapplic]')[0];
+	            arinvdueFrame.src = "/apex/editpaymentapplication?arcashdId=" + arcashdId + "&arcashhId="+ arcashhId;
+	            showPopup('#arapplic', 1300, 570);
+           }else{
+           		jQuery('input[id*=editPaymentApplications]')[0].disabled = false;
+ 				return false;          
+           }
+        }
+        
+        function showPopup(popName, popWidth, popHeight) {
+            var top = ((jQuery(window).height() - popHeight) / 2);
+            var width = jQuery(window).width();
+            var left = (width - popWidth) / 2;
+            if (popWidth > width) {
+                left = 0;
+            } else {
+                width = popWidth;
+            }
+            
+            jQuery.blockUI({
+                message: jQuery(popName),
+                baseZ: 1,
+                css: {
+                    backgroundColor:'#fff',
+                    left: (left + 'px'),
+                    top: (top + 'px'),
+                    width:(width + 'px'),
+                    height:(popHeight + 'px'),
+                    padding:'15px',
+                    textAlign:'left',
+                    fontSize:'1em',
+                    border:'2px solid #333',
+                    
+                    opacity:'1.0',
+                    '-moz-border-radius':'6px',
+                    '-webkit-border-radius':'6px',
+                    '-moz-box-shadow': '0 0 50px #ccc',
+                    '-webkit-box-shadow': '0 0 50x #ccc'
+                }
+            });
+        }
+        
+        function getLocaleFloat(val) {
+            return !isNumber(val) ? 0 : parseLocaleFloat(val);
+        }
+    </script>
+</apex:page>

@@ -1,0 +1,255 @@
+<apex:page id="pg" title="{!$Label.rstkf__initializecompaniesanduserstitle}" standardController="rstk__syconfig__c" extensions="rstkf.ControllerExtnInitializeCompAndUsrs,rstkf.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:sectionHeader subtitle="{!$Label.rstkf__initializecompaniesanduserstitle}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__initializecompaniesanduserstitle}" customInclude="{!$Resource.rstkf__initializeCompAndUsrs_cli}" showHeader="false"/>    
+    <style>
+        
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <script> var sycmprows = {}; var selectsycmpcbxs = []; var syusrrows = {}; var selectsyusrcbxs = [];</script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="validatePreCompanyAndUserCreation" action="{!validatePreCompanyAndUserCreation}" immediate="false" reRender="pageMessages,op_ackMessage" oncomplete="validationResultPreCompAndUsrCreation(); return false;" status="statusProcessing"/>
+        <apex:actionFunction name="processCompanyAndUsers" action="{!processCompanyAndUsers}" oncomplete="checkJobStatus();" reRender="pageMessages, op_JobStatus" />        
+        <apex:actionFunction name="processcreateCustCompaniesAndVendorCompanies" action="{!processcreateCustCompaniesAndVendorCompanies}" immediate="false" oncomplete="checkJobStatus();" reRender="pageMessages, op_JobStatus" />    
+        
+        <apex:outputPanel id="op_JobStatus">
+           <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+                
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel id="op_ackMessage">
+                <script>
+                    var message = "{!ackMessage}";
+                </script>
+            </apex:outputPanel>
+            <apex:pageBlockSection id="pbs_main" columns="1">
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstkf__initializecompandusrsdesc}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstkf__createfindivsformanufacturingdivs}"/>
+                    <apex:inputCheckbox id="createDivs" value="{!createDivs}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstkf__createfinprojsformanufacturingprojs}"/>
+                    <apex:inputCheckbox id="createProjs" value="{!createProjs}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem >
+                    <apex:outputPanel >
+                        <!-- <c:nosubmitbutton label="{!$Label.rstkf__labelinitializecompaniesandusers}" onclick="validateCompAndUsrs();" style="width:200px;"/> -->
+                        <c:nosubmitbutton label="{!$Label.rstkf__labelinitializecompaniesandusers}" onclick="validatePreCompanyAndUserCreation();" style="width:200px;"/>
+                        <c:nosubmitbutton label="{!$Label.rstkf__create_customer_and_vendor_company_detail}" onclick="openFramePopup();" style="width:250px;"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+
+        <apex:pageBlock id="pb_sycmp" title="{!$Label.rstkf__relatedlistcompanies}">
+            <apex:pageBlockSection id="pbs_sycmp"  columns="1" collapsible="false">
+                <apex:outputPanel id="sycmpSelectAll" layout="block">
+                    <input type="checkbox" id="sycmpselAllcbx" onclick="selectAll(this,'sycmp')" />
+                    <apex:outputLabel value="{!$Label.rstkf__selectallrec}"  />
+                </apex:outputPanel>
+                
+                <apex:outputPanel id="op_sycmp" layout="block" style="overflow: auto; height:200px;">
+                    <apex:pageBlockTable value="{!sycmpRecords}" var="s" id="pbt_sycmp">
+                        <apex:column headerValue="{!$Label.rstkf__select}">
+                            <apex:inputCheckbox id="selected" value="{!s.selected}" onchange="selectRecord('sycmp')" rendered="{!!s.isDisable}"/>
+                            <script>selectsycmpcbxs[selectsycmpcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstkf__companynumber}" value="{!s.sycmp.rstk__sycmp_cmpno__c}" />
+                        <apex:column headerValue="{!$Label.rstkf__companydescription}">
+                            <apex:outputField value="{!s.sycmp.rstk__sycmp_descr__c}"/>
+                            <script>
+                                sycmprows["{!s.key}"] = {
+                                    cbxdisable:"{!s.isDisable}",
+                                    selected: document.getElementById("{!$Component.selected}")
+                                };
+                            </script>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                    <apex:panelGrid columns="6" rendered="{!hasSycmpRecords}">
+                        <apex:commandButton status="fetchStatus" reRender="sycmpSelectAll,op_sycmp" value="|<" action="{!firstSycmpPopup}" disabled="{!!setSycmpConPopup.hasPrevious}" title="{!$Label.rstkf__labelfirstpage}"/>
+                        <apex:commandButton status="fetchStatus" reRender="sycmpSelectAll,op_sycmp" value="<" action="{!previousSycmpPopup}" disabled="{!!setSycmpConPopup.hasPrevious}" title="{!$Label.rstkf__labelpreviouspage}"/>
+                        <apex:commandButton status="fetchStatus" reRender="sycmpSelectAll,op_sycmp" value=">" action="{!nextSycmpPopup}" disabled="{!!setSycmpConPopup.hasNext}" title="{!$Label.rstkf__labelnextpage}"/>
+                        <apex:commandButton status="fetchStatus" reRender="sycmpSelectAll,op_sycmp" value=">|" action="{!lastSycmpPopup}" disabled="{!!setSycmpConPopup.hasNext}" title="{!$Label.rstkf__labellastpage}"/>
+                        <apex:outputText >{!(setSycmpConPopup.pageNumber * sycmpRecsPerPage)+1-sycmpRecsPerPage}-{!IF((setSycmpConPopup.pageNumber * sycmpRecsPerPage)>totSycmpRecords, totSycmpRecords,(setSycmpConPopup.pageNumber * sycmpRecsPerPage))} of {!totSycmpRecords}</apex:outputText>
+                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                        <apex:actionStatus id="fetchStatus" startText="Fetching..." stopText=""/>
+                        </apex:outputPanel>
+                    </apex:panelGrid>
+                </apex:outputPanel>
+                
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <apex:pageBlock id="pb_syusr" title="{!$Label.rstkf__relatedlistusers}">
+            <apex:pageBlockSection id="pbs_syusr" columns="1" collapsible="false">
+            
+                <apex:outputPanel id="syusrSelectAll" layout="block">
+                    <input id="syusrselAllcbx" type="checkbox" onclick="selectAll(this,'syusr')" />
+                    <apex:outputLabel value="{!$Label.rstkf__selectallrec}"  />
+                </apex:outputPanel>
+                
+                <apex:outputPanel id="op_syusr" layout="block" style="overflow: auto; height:200px;">
+                    <apex:pageBlockTable value="{!syusrRecords}" var="s" id="pbt_syusr">
+                        <apex:column headerValue="{!$Label.rstkf__select}">
+                            <apex:inputCheckbox id="selected" value="{!s.selected}" onchange="selectRecord('syusr')" rendered="{!!s.isDisable}"/>
+                            <script>selectsyusrcbxs[selectsyusrcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstkf__usernumber}" value="{!s.syusr.rstk__syusr_usrno__c}" />
+                        <apex:column headerValue="{!$Label.rstkf__username}" >
+                            <apex:outputField value="{!s.syusr.Name}"/>
+                            <script>
+                                syusrrows["{!s.key}"] = {
+                                    cbxdisable:"{!s.isDisable}",
+                                    selected: document.getElementById("{!$Component.selected}")
+                                };
+                            </script>
+                        </apex:column>  
+                    </apex:pageBlockTable>
+                    <apex:panelGrid columns="6" rendered="{!hasSyusrRecords}">
+                        <apex:commandButton status="fetchStatus2" reRender="syusrSelectAll,op_syusr" value="|<" action="{!firstSyusrPopup}" disabled="{!!setSyusrConPopup.hasPrevious}" title="{!$Label.rstkf__labelfirstpage}"/>
+                        <apex:commandButton status="fetchStatus2" reRender="syusrSelectAll,op_syusr" value="<" action="{!previousSyusrPopup}" disabled="{!!setSyusrConPopup.hasPrevious}" title="{!$Label.rstkf__labelpreviouspage}"/>
+                        <apex:commandButton status="fetchStatus2" reRender="syusrSelectAll,op_syusr" value=">" action="{!nextSyusrPopup}" disabled="{!!setSyusrConPopup.hasNext}" title="{!$Label.rstkf__labelnextpage}"/>
+                        <apex:commandButton status="fetchStatus2" reRender="syusrSelectAll,op_syusr" value=">|" action="{!lastSyusrPopup}" disabled="{!!setSyusrConPopup.hasNext}" title="{!$Label.rstkf__labellastpage}"/>
+                        <apex:outputText >{!(setSyusrConPopup.pageNumber * syusrRecsPerPage)+1-syusrRecsPerPage}-{!IF((setSyusrConPopup.pageNumber * syusrRecsPerPage)>totSyusrRecords, totSyusrRecords,(setSyusrConPopup.pageNumber * syusrRecsPerPage))} of {!totSyusrRecords}</apex:outputText>
+                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                        <apex:actionStatus id="fetchStatus2" startText="Fetching..." stopText=""/>
+                        </apex:outputPanel>
+                    </apex:panelGrid>
+                </apex:outputPanel>
+                
+            </apex:pageBlockSection>
+        </apex:pageBlock>  
+		<apex:outputPanel id="compDialogBox">
+            <div id="compDialog" title="Dialog Form" mode="detail" style="display:none">
+                <apex:pageBlock id="pb_compDialog"  mode="detail">
+                    <apex:pageblocksection id="pb_edit_compDialog" columns="1">
+                            <apex:pageBlockSectionItem id="pbs_pb_compDialog_titles">
+                                <apex:outputLabel value="{!$Label.rstkf__please_enter_following_details}"/>
+                            </apex:pageBlockSectionItem>	
+                            
+                            <apex:pageBlockSectionItem id="pbs_company">
+                                <apex:outputPanel style="width:300px">
+                                	<apex:outputLabel value="{!$Label.rstkf__company}" style="width:300px"/>     
+                                </apex:outputPanel>    
+                                <apex:selectList id="glcmpSelected" value="{!selectedGlcmpRecords}" multiselect="true" size="5">
+                                        <apex:selectOptions value="{!glcmps}"/> 
+                                </apex:selectList>
+                            </apex:pageBlockSectionItem>	
+                            
+                            <apex:pageBlockSectionItem id="pbs_createCustComp">
+                                <apex:outputPanel style="width:300px">
+                            		<apex:outputLabel value="{!$Label.rstkf__create_customer_company_detail}" style="width:300px"/>
+                                </apex:outputPanel>     
+                                <apex:inputCheckbox id="createCustComp" value="{!createCustComp}" selected="true"/>
+                                <!--
+                                <input id="createCustComp" name="createCustComp" type="checkbox" checked="true"/> -->
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem id="pbs_createVendorComp">
+                                <apex:outputLabel value="{!$Label.rstkf__create_vendor_company_detail}" style="width:300px"/>
+                                <apex:inputCheckbox id="createVendorComp" value="{!createVendorComp}" selected="true"/>
+                                <!--
+                                <input id="createVendorComp" name="createVendorComp" type="checkbox" checked="true"/> -->
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:pageBlockSectionItem >
+                                <apex:outputPanel >
+                                    <input id="submit" type="button" value="{!$Label.Submit}" class="btn" onclick="reloadcompDialog()"/>
+                                    <input id="Cancel" type="button" value="{!$Label.Cancel}" class="btn" onclick="cancelcompDialog()"/>
+                                </apex:outputPanel>						
+                            </apex:pageBlockSectionItem>					
+                    </apex:pageblocksection>
+                </apex:pageBlock>
+            </div>
+        </apex:outputPanel>
+    </apex:form>	
+    <c:footerInclude cntr="{!controller}"/>
+    <script>
+        var taskCompletedSuccessfully = "{!$Label.Taskcompletedsuccessfully}";
+		function openFramePopup() { 
+     		showPopup('#compDialog', 700, 240);
+		}
+		
+		function reloadcompDialog() {
+			var alertMessage = '';
+			var glcmpSelected = document.getElementById('pg:fm:pb_compDialog:pb_edit_compDialog:pbs_company:glcmpSelected').value;
+            var createCustComp = document.getElementById('pg:fm:pb_compDialog:pb_edit_compDialog:pbs_createCustComp:createCustComp').checked;
+            var createVendorComp = document.getElementById('pg:fm:pb_compDialog:pb_edit_compDialog:pbs_createVendorComp:createVendorComp').checked;
+            
+            console.log('glcmpSelected  '+glcmpSelected);
+            console.log('createCustComp  '+createCustComp);
+            console.log('createVendorComp  '+createVendorComp);
+            if(glcmpSelected == '') {
+            	alert("{!$Label.Please_select_Company}"); 
+            } else {
+                if(createCustComp == false && createVendorComp == false) {
+                    alert("{!$Label.Please_select_at_least_one_Checkbox_to_proceed}"); 
+                } else {
+                    blockUI();
+                    //processcreateCustCompaniesAndVendorCompanies(''+glcmpSelected,createCustComp,createVendorComp);
+                    processcreateCustCompaniesAndVendorCompanies();
+                }
+            }            
+        }    
+
+		function cancelcompDialog() {
+			document.getElementById('pg:fm:pb_compDialog:pb_edit_compDialog:pbs_company:glcmpSelected').value = '';
+			document.getElementById('pg:fm:pb_compDialog:pb_edit_compDialog:pbs_createCustComp:createCustComp').checked = true;
+			document.getElementById('pg:fm:pb_compDialog:pb_edit_compDialog:pbs_createVendorComp:createVendorComp').checked = true;
+			unblockUI();
+		}
+
+		function showPopup(popName, popWidth, popHeight) {
+		console.log(' jQuery(window).height() '+jQuery(window).height());
+		console.log('jQuery(window).width() '+jQuery(window).width());
+		console.log(' popWidth '+popWidth);
+		console.log(' popHeight '+popHeight);
+		
+		var top = ((jQuery(window).height() - popHeight) / 2);
+		var width = jQuery(window).width();
+		var left = (width - popWidth) / 2;
+		if (popWidth > width) {
+			left = 0;
+		} else {
+			width = popWidth;
+		}
+		
+		jQuery.blockUI({
+			message: jQuery(popName),
+			baseZ: 50,
+			css: {
+				backgroundColor:'#fff',
+				left: (left + 'px'),
+				top: (top + 'px'),
+				width:(width + 'px'),
+				height:(popHeight + 'px'),
+				padding:'15px',
+				textAlign:'left',
+				fontSize:'1em',
+				border:'2px solid #333',
+				
+				opacity:'1.0',
+				'-moz-border-radius':'6px',
+				'-webkit-border-radius':'6px',
+				'-moz-box-shadow': '0 0 50px #ccc',
+				'-webkit-box-shadow': '0 0 50x #ccc'
+			}
+		});
+	}
+    </script>
+</apex:page>

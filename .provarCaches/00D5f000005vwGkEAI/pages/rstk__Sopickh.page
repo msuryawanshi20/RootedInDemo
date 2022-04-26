@@ -1,0 +1,386 @@
+<apex:page id="pg" standardController="rstk__sopickh__c" extensions="rstk.ControllerExtnSopickh,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sopickh__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sopickh__c.fields}" />
+    <apex:variable var="fe" value="{!$ObjectType.rstk__sohdrextn__c.fields}" />
+    <apex:variable var="f_sohdr" value="{!$ObjectType.rstk__sohdr__c.fields}" />
+    <apex:variable var="f_sl" value="{!$ObjectType.rstk__soline__c.fields}" />
+    <apex:variable var="f_pickloc" value="{!$ObjectType.rstk__icdmdpickloc__c.fields}" />
+    <apex:variable var="f_labels" value="{!$ObjectType.rstk__fieldlabels__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" customInclude="{!$Resource.rstk__sopickh_cli}" enableAutocomplete="true"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <style>
+        .checkBlocks {
+            width:225px;
+            height:175px;
+            border:1px solid #dddddd;
+            border-radius:5px;
+            float:left;
+        }
+        
+        .checkBlocksConsolidate {
+            width:225px;
+            height:110px;
+            border:1px solid #dddddd;
+            border-radius:5px;
+            float:left;
+        }
+        
+        .searchBlocks {
+            width:100%;
+            height:165px;
+            border:2px solid #dddddd;
+            border-radius:5px;
+            float:left;
+        }
+        
+
+      .ui-autocomplete {
+        max-height: 200px;
+        overflow-y: auto;
+        /* prevent horizontal scrollbar */
+        overflow-x: hidden;
+      }
+      /* IE 6 doesn't support max-height
+       * use height instead, but this forces the menu to always be this tall
+       */
+      * html .ui-autocomplete {
+        height: 200px;
+      }
+      
+       input.elwarning {
+         }
+
+       span.spwarning {
+           color:#FF6347;
+           font-size:90%;
+           padding-left: 6px; 
+        }
+        
+        .oddrowhighlight {
+          background-color: #F5F5DC;
+        }
+        .evenrowhighlight {
+          background-color: #EEE8AA;
+        }
+
+        .allocationDue {
+          color: red;
+          font-weight:bold;
+        }
+
+        .allocationOk {
+          color: green;
+          font-weight:bold;
+        }
+        
+        .totalSummary {
+          font-size:80%;
+          font-weight:bold;
+        }
+        
+        .overridemarker {
+          color: red;
+          font-weight:bold;
+        }
+    </style>
+    <apex:outputPanel rendered="{!isNew}">
+    <script>
+        var solines = [];
+        function blockUI()   { showTopDialog('pleaseWaitPopup'); }
+        function unblockUI() { closeTopDialog(); }
+    </script>
+    </apex:outputPanel>
+    <apex:outputPanel rendered="{!isView}">
+    <script> 
+    	var rootFormTemplate = '{!rootFormTemplate}';
+        var isRootDox = {!isRootDox};
+        function doCreatePicklistReport() {
+            try {
+	            if(isRootDox){
+	            	if(rootFormTemplate){
+	            		window.open('/apex/printDOX?oid={!o.id}&t=' + rootFormTemplate );
+	            	}else{
+	            		alert('{!$Label.InvalidTemplateId}');
+	            	}
+	        	}else{
+	            	window.open('{!pdfPage}?sopickhid={!o.id}&barcode=true&picklistSequence=' + picklistSequenceField.value + 
+	                '&printSOLineInternalNotes=' + printSOLineInternalNotesFld.checked + 
+	                '&printSOLineExternalNotes=' + printSOLineExternalNotesFld.checked + 
+	                '&printCustProdNameAndDesc=' + printCustProdNameAndDescFld.checked + 
+	                '&printItemDescription=' + printItemDescriptionFld.checked + 
+	                '&printEnhancedCustInfoInHdr=' + printEnhancedCustInfoInHdrFld.checked, 'toolbar=0,resizeable=0');
+	                
+	                updateCreatePicklistSettings();
+	            }
+            } catch (e) {
+                alert(e);
+            } finally {
+                return false;
+            }
+        }
+        function picklistSequenceChanged(el, numsohdrs) {
+            var isOrderBySalesOrderAndLine = (el.value == 'Order By Sales Order and Line');
+            printSOLineInternalNotesFld.disabled = !isOrderBySalesOrderAndLine;
+            printSOLineExternalNotesFld.disabled = !isOrderBySalesOrderAndLine;
+            printCustProdNameAndDescFld.disabled = !isOrderBySalesOrderAndLine;
+            if (!isOrderBySalesOrderAndLine) {
+                printSOLineInternalNotesFld.checked = false;
+                printSOLineExternalNotesFld.checked = false;
+                printCustProdNameAndDescFld.checked = false;
+            }
+            if (typeof numsohdrs == 'number' && numsohdrs > 1) {
+                printEnhancedCustInfoInHdrFld.checked = false;
+            }
+        }
+    </script>
+    </apex:outputPanel>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}" oncomplete="doAfterSave();" rerender="pageMessages"/>
+        <apex:actionFunction name="generatePicklistDetail" action="{!generatePicklistDetail}" oncomplete="checkJobStatus();" rerender="pageMessages, op_JobStatus"/>
+        <apex:actionFunction name="refreshPicklistDetails" action="{!refreshPicklistDetails}" oncomplete="unblockUI()" rerender="pageMessages, op_PicklistDetails"/>
+        <apex:actionFunction name="updateCreatePicklistSettings" action="{!updateCreatePicklistSettings}" rerender="pageMessages"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:nosubmitbutton label="{!$Label.rstk__pagebtn_save}" onclick="performSave();" style="width:75px;" rendered="{!!isView}"/>
+            <c:standardButtons cntr="{!controller}" disableSave="true"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+            <apex:outputField value="{!o.rstk__sopickh_div__c}"/>
+            
+            <apex:outputField value="{!o.rstk__sopickh_picklistno__c}" rendered="{!!isNew}"/>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sopickh_comment__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__sopickh_comment__c.label}" />
+                <apex:outputPanel >
+                    <apex:inputText id="sopickh_comment__c" value="{!o.rstk__sopickh_comment__c}" style="width:200px;" rendered="{!!isView}"/>
+                    <apex:outputField value="{!o.rstk__sopickh_comment__c}" rendered="{!isView}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        
+        <apex:outputPanel rendered="{!isNew}">
+       
+        <apex:actionRegion >
+        <apex:pageBlockSection id="SearchSection" collapsible="false" showHeader="true" title="{!$Label.rstk__pagetab_sopickh_searchcriteria}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f_sohdr.rstk__sohdr_order__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sohdr.rstk__sohdr_order__c.label}"/>
+                <c:autocompleteSearchItem id="salesorders" sItem="{!sosearch.order}" editable="{!sosearch.headerEditable}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f_sohdr.rstk__sohdr_otype__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sohdr.rstk__sohdr_otype__c.label}"/>
+                <apex:selectList id="orderTypes" value="{!sosearch.orderType.Id}" required="false" size="1" style="width:250px;">
+                    <apex:selectOptions value="{!orderTypes}" />
+                </apex:selectList>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_sohdr.rstk__sohdr_custno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sohdr.rstk__sohdr_custno__c.label}"/>
+                <c:autocompleteSearchItem id="customers" sItem="{!sosearch.customer}" editable="{!sosearch.headerEditable}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f_sohdr.rstk__sohdr_ustat__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__sopickh_order} {!f_sohdr.rstk__sohdr_ustat__c.label}"/>
+                <apex:selectList id="userStatus" value="{!sosearch.userStatusOnOrder.Id}" required="false" size="1" style="width:250px;">
+                    <apex:selectOptions value="{!userStatus}" />
+                </apex:selectList>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_prod__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sl.rstk__soline_prod__c.label}"/>
+                <c:autocompleteSearchItem id="products" sItem="{!sosearch.product}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_ustat__c.inlineHelpText}">
+                <apex:outputLabel value="{!$Label.rstk__order_line} {!f_sl.rstk__soline_ustat__c.label}"/>
+                <apex:selectList id="userStatus" value="{!sosearch.userStatusOnOrderLine.id}" required="false" size="1" style="width:250px;">
+                    <apex:selectOptions value="{!userStatus}" />
+                </apex:selectList>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_project__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sl.rstk__soline_project__c.label}"/>
+                <c:autocompleteSearchItem id="projects" sItem="{!sosearch.project}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_duedate__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sl.rstk__soline_duedate__c.label}"/>
+                <apex:inputField id="searchDueDate" value="{!sosearch.searchDate.rstk__soline_duedate__c}"/>
+            </apex:pageBlockSectionItem>
+                        
+            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shipdiv__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sl.rstk__soline_shipdiv__c.label}"/>
+                <apex:selectList id="soline_shipdiv__c" value="{!sosearch.invdiv.Id}" required="false" size="1" style="width:250px;">
+                    <apex:selectOptions value="{!shipdivs}" />
+                </apex:selectList>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_sl.rstk__soline_shipsite__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_sl.rstk__soline_shipsite__c.label}"/>
+                <apex:selectList id="soline_shipsite__c" value="{!sosearch.invsite.Id}" required="false" size="1" style="width:250px;">
+                    <apex:selectOptions value="{!shipsites}" />
+                </apex:selectList>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!$Label.rstk__click_to_refresh_the_order_line_data_using_the_search_criteria_entered}">
+                <apex:outputLabel value=""/>
+                <apex:commandButton action="{!refreshOrderLineDisplay}" value="{!$Label.rstk__pagebtn_sopickh_refreshorderlinedisplay}" rerender="pageMessages, op_SubList"
+                    onclick="blockUI();" oncomplete="unblockUI();"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+        </apex:pageBlockSection>
+        </apex:actionRegion>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_SubList" style="width:100%; scroll:auto;" rendered="{!isNew}">
+            <apex:pageBlockSection collapsible="false" showHeader="true" title="{!$Label.rstk__pagetab_sopickh_salesorderlines}" columns="1" rendered="{!(linecount > 0)}">
+                <apex:pageBlock >
+                    <apex:outputPanel >
+                        <apex:inputCheckbox id="selectall" onchange="selectAll(this)"/>
+                        <apex:outputLabel value="{!$Label.rstk__selectall}"/>
+                        <script>solines = [];</script>
+                    </apex:outputPanel>
+                    <apex:pageBlockTable value="{!lines}" var="l" columnsWidth="">
+                        <apex:column headerValue="{!$Label.rstk__select}" style="vertical-align:top;">
+                            <apex:inputCheckbox id="selected" value="{!l.selected}"/>
+                            <script>solines.push(document.getElementById("{!$Component.selected}"));</script>
+                        </apex:column>
+                        
+                        <apex:column headerValue="{!f_sl.rstk__soline_sohdr__c.label}" value="{!l.soline.rstk__soline_sohdr__c}"/>
+                        
+                        <apex:column headerValue="{!f_sl.rstk__soline_line__c.label}" value="{!l.soline.rstk__soline_line__c}"/>
+                        
+                        <apex:column headerValue="{!f_sl.rstk__soline_prod__c.label}" value="{!l.soline.rstk__soline_prod__c}"/>
+                        
+                        <apex:column headerValue="{!f_sl.rstk__soline_shipdiv__c.label}" value="{!l.soline.rstk__soline_shipdiv__c}"/>
+                        
+                        <apex:column headerValue="{!f_sl.rstk__soline_duedate__c.label}" value="{!l.soline.rstk__soline_duedate__c}"/>
+                        
+                        <apex:column headerValue="{!f_sl.rstk__soline_qtyorder__c.label}" value="{!l.soline.rstk__soline_qtyorder__c}"/>
+                        
+                        <apex:column headerValue="{!f_sl.rstk__soline_qtyissue__c.label}" value="{!l.soline.rstk__soline_qtyissue__c}"/>
+                    </apex:pageBlockTable>
+                </apex:pageBlock>
+            </apex:pageBlockSection>
+        </apex:outputPanel>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:pageBlock>
+    
+    <apex:pageBlock rendered="{!isView}">
+        <apex:outputPanel >
+            <apex:commandButton value="{!$Label.rstk__pagebtn_sopickh_generatepicklistdetail}" onclick="return doGeneratePicklistDetail();" style="width:150px;" disabled="{!hasPicklistRecords}"/>&nbsp;&nbsp;&nbsp;
+            <apex:inputCheckbox value="{!showPreselectedLocationsOnly}" disabled="{!hasPicklistRecords}"/><apex:outputLabel value="{!f_labels.rstk__sopickh_showpreselectedlocsonly__c.label}" />&nbsp;&nbsp;&nbsp;
+            <br/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_sopickh_createpicklistreport}" onclick="return doCreatePicklistReport();" style="width:150px;" disabled="{!!hasPicklistRecords}"/>&nbsp;&nbsp;&nbsp;
+            <apex:outputLabel value="{!$Label.rstk__picklistsequence}" />&nbsp;&nbsp;
+            <apex:selectList id="picklistSequenceId" value="{!picklistSequence}" size="1" style="width:200px;" disabled="{!!hasPicklistRecords}" onchange="picklistSequenceChanged(this, {!numberofsohdrs})">
+                <apex:selectOptions value="{!PicklistSequences}" />
+            </apex:selectList>
+            <script>var picklistSequenceField = document.getElementById("{!$Component.picklistSequenceId}");</script>
+            <apex:inputCheckbox id="printSOLineInternalNotes" value="{!printSOLineInternalNotes}" disabled="false"/><apex:outputLabel value="{!f_labels.rstk__sopickh_printsolineinternalnotes__c.label}" />&nbsp;&nbsp;&nbsp;
+            <apex:inputCheckbox id="printSOLineExternalNotes" value="{!printSOLineExternalNotes}" disabled="false"/><apex:outputLabel value="{!f_labels.rstk__sopickh_printsolineexternalnotes__c.label}" />&nbsp;&nbsp;&nbsp;
+            <apex:inputCheckbox id="printCustProdNameAndDesc" value="{!printCustProdNameAndDesc}" disabled="false"/><apex:outputLabel value="{!f_labels.rstk__sopickh_printcustprodnameanddesc__c.label}" />&nbsp;&nbsp;&nbsp;
+            <apex:inputCheckbox id="printEnhancedCustInfoInHdr" value="{!printEnhancedCustInfoInHdr}" disabled="{!(numberofsohdrs > 1)}"/><apex:outputLabel value="{!f_labels.rstk__sopickh_enhancedcustinfoinhdr__c.label}" />&nbsp;&nbsp;&nbsp;
+            <apex:inputCheckbox id="printItemDescription" value="{!printItemDescription}" disabled="false"/><apex:outputLabel value="{!f_labels.rstk__sopickh_printitemdescription__c.label}" />
+            <script>
+                var printSOLineInternalNotesFld = document.getElementById("{!$Component.printSOLineInternalNotes}");
+                var printSOLineExternalNotesFld = document.getElementById("{!$Component.printSOLineExternalNotes}");
+                var printCustProdNameAndDescFld = document.getElementById("{!$Component.printCustProdNameAndDesc}");
+                var printEnhancedCustInfoInHdrFld = document.getElementById("{!$Component.printEnhancedCustInfoInHdr}");
+                var printItemDescriptionFld = document.getElementById("{!$Component.printItemDescription}");
+                picklistSequenceChanged(picklistSequenceField, {!numberofsohdrs});
+            </script>
+        </apex:outputPanel>
+        <table><tr><td>&nbsp;</td></tr></table>
+        <apex:tabPanel switchType="client" selectedTab="tab_Orderlines" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_sopickh_orderlines}" name="tab_Orderlines" id="tab_Orderlines">
+                <apex:pageBlockSection id="pbs_Orderlines" showHeader="false" columns="1">
+                    <apex:pageBlockTable value="{!SalesOrderPickDetails}" var="rec">
+                        <apex:column headerValue="{!f_sl.rstk__soline_sohdr__c.label}" value="{!rec.sopickd.sopickd_soline__r.rstk__soline_sohdr__c}"/>
+                        <apex:column headerValue="{!f_sl.rstk__soline_line__c.label}" value="{!rec.sopickd.sopickd_soline__r.rstk__soline_line__c}"/>
+                        <apex:column headerValue="{!f_sl.rstk__soline_prod__c.label}" value="{!rec.sopickd.sopickd_soline__r.rstk__soline_prod__c}"/>
+                        <apex:column headerValue="{!f_sl.rstk__soline_shipdiv__c.label}" value="{!rec.sopickd.sopickd_soline__r.rstk__soline_shipdiv__c}"/>
+                        <apex:column headerValue="{!f_sl.rstk__soline_duedate__c.label}" value="{!rec.sopickd.sopickd_soline__r.rstk__soline_duedate__c}"/>
+                        <apex:column headerValue="{!f_sl.rstk__soline_qtyorder__c.label}" value="{!rec.sopickd.sopickd_soline__r.rstk__soline_qtyorder__c}"/>
+                        <apex:column headerValue="{!f_sl.rstk__soline_qtyissue__c.label}" value="{!rec.sopickd.sopickd_soline__r.rstk__soline_qtyissue__c}"/>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_sopickh_picklistdetail}" name="tab_Picklistdetail" id="tab_Picklistdetail">
+                <apex:outputPanel id="op_PicklistDetails">
+                <apex:pageBlockSection id="pbs_Picklistdetail" showHeader="false" columns="1">
+                    <apex:outputPanel rendered="{!hasPicklistRecords}">
+                        <apex:inputCheckbox value="{!displayInPickSequence}" onclick="blockUI(); refreshPicklistDetails();"/><apex:outputLabel value="Display in Pick Sequence" />
+                    </apex:outputPanel>
+                    
+                    <apex:repeat value="{!PicklistWrapperDetails}" var="block">
+                    <apex:pageBlockTable value="{!block.obs}" var="rec">
+                        <apex:column headerValue="{!f_sl.rstk__soline_sohdr__c.label}" value="{!rec.rstk__icdmdpickloc_ordno__c}"/>
+                        <apex:column headerValue="{!f_sl.rstk__soline_line__c.label}" value="{!rec.rstk__icdmdpickloc_ordlne__c}"/>
+                        <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_compitem__c.label}" value="{!rec.rstk__icdmdpickloc_compitem__c}"/>
+                        <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_proj__c.label}" value="{!rec.rstk__icdmdpickloc_proj__c}"/>
+                        <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_dtereqd__c.label}" value="{!rec.rstk__icdmdpickloc_dtereqd__c}"/>
+                        <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_dmdqtyoutstdg__c.label}" value="{!rec.rstk__icdmdpickloc_dmdqtyoutstdg__c}"/>
+                        <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_locid__c.label}" value="{!rec.rstk__icdmdpickloc_locid__c}"/>
+                        <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_locnum__c.label}" value="{!rec.rstk__icdmdpickloc_locnum__c}"/>
+                        <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_pickseq__c.label}" value="{!rec.rstk__icdmdpickloc_pickseq__c}"/>
+                        <!-- <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_locsec__c.label}" value="{!rec.rstk__icdmdpickloc_locsec__c}"/>
+                         -->
+                        <apex:column >
+			                <apex:facet name="header">{!f_pickloc.rstk__icdmdpickloc_locsec__c.label}</apex:facet>
+			                <apex:outputText value="{!rec.rstk__icdmdpickloc_locsec__c}" rendered="{!rec.rstk__icdmdpickloc_serials__c == ''}"/>
+			            	<apex:outputPanel rendered="{!rec.rstk__icdmdpickloc_serials__c != ''}">
+	                    		<apex:inputTextarea id="serials" value="{!rec.rstk__icdmdpickloc_serials__c}" rows="3" />
+								<script>document.getElementById("{!$Component.serials}").disabled = true;</script>
+	                    	</apex:outputPanel>
+			            </apex:column>
+                        
+                        <!-- 
+                        <apex:column headerValue="{!f_pickloc.rstk__icdmdpickloc_locsec__c.label}" value="{!rec.rstk__icdmdpickloc_locsec__c}" rendered="{!!rec.icdmdpickloc_compitem__r.icitem_picklistsrloptfrm__c}"  />
+                    	<apex:outputPanel rendered="{!rec.icdmdpickloc_compitem__r.icitem_picklistsrloptfrm__c == true}">
+                    		<apex:inputTextarea id="serials" value="{!rec.rstk__icdmdpickloc_serials__c}" rows="3" />
+							<script>document.getElementById("{!$Component.serials}").disabled = true;</script>
+                    	</apex:outputPanel>
+                    	 -->
+                    </apex:pageBlockTable>
+                    </apex:repeat>
+                </apex:pageBlockSection>
+                </apex:outputPanel>
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

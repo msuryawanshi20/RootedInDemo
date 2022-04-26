@@ -1,0 +1,241 @@
+<apex:page id="pg" standardController="rstk__poitemvend__c" extensions="rstk.ControllerExtnReqsToPOs,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <style>
+    	#vendor_selection {
+    		 z-index: 9999;
+    	}
+    </style>
+    <apex:variable var="f" value="{!$ObjectType.rstk__icreq__c.fields}" />
+    <apex:variable var="fv" value="{!$ObjectType.rstk__povend__c.fields}" />
+    <apex:variable var="fiv" value="{!$ObjectType.rstk__poitemvend__c.fields}" />
+    <apex:variable var="fva" value="{!$ObjectType.rstk__povendpoaddr__c.fields}" />
+    <apex:variable var="fpa" value="{!$ObjectType.rstk__poagrhdr__c.fields}" />
+    <apex:variable var="fpal" value="{!$ObjectType.rstk__poagrlne__c.fields}" />
+    <apex:variable var="fpohdr" value="{!$ObjectType.rstk__pohdr__c.fields}" />
+    <apex:variable var="fpoline" value="{!$ObjectType.rstk__poline__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_reqstopos}" customInclude="{!$Resource.rstk__reqsToPOs_cli}" /> 
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" /> 
+    
+    <script>
+     	var allReqs = [];
+     	var selectedVendorId = '{!JSENCODE(vendorId)}';
+		var selectedVendorName = "{!JSENCODE(vendorDesc)}";
+		var selectedPoitemvendId = '{!JSENCODE(poitemvendId)}';
+		var selectedPrice = '';
+     	var showProject = {!showProject};
+     	var disableCombine = {!disableCombineLines};
+     	var vendorMode = {!vendorMode};
+     	var itemDecimals = {!itemDecimals};
+		//RSTK-8320
+        var priceDecimal = {!priceDecimal};
+		//
+     	
+     	function setFocusOnLoad() {}
+     	
+        jQuery(document).ready(function() {
+        	console.log('ready');
+            
+            initHoverPopups(jQuery("#bodyTable"));
+			jQuery('input[type=text]').keypress(
+				function (e) { 
+					var code = null; 
+					code = (e.keyCode ? e.keyCode : e.which); 
+					return (code == 13) ? false : true; 
+				}
+			);
+        });
+    </script>
+    
+    <apex:form id="fm">
+    	<apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doConvert" action="{!convertReqsToPO}" oncomplete="checkJobStatus();return false;" rerender="pageMessages, op_JobStatus" />/>
+    	<apex:actionFunction name="processVendorChange" action="{!doProcessVendorChange}" oncomplete="unblockUI();postVendorChange();" 
+    		rerender="pageMessages, ids_panel, combine_reqs__c, quantity__c, duedte__c, poDetail, op_SubList, op_pohdrs" />
+        
+        <apex:outputPanel id="ids_panel" style="display:none">
+        	<apex:inputText value="{!vendorId}" id="poitemvend_vendno__c" />
+        	<apex:inputText value="{!poitemvendId}" id="poitemvend_id__c" />
+        	<apex:inputText value="{!pohdrId}" id="pohdr_ordno__c" />
+        </apex:outputPanel>
+
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+        <div class="overlayStyle" id="vendor_selection" style="padding-top:7px;">
+	        <apex:pageBlock id="pb_vendors">
+				<apex:pageBlockTable id="pbt_vendors" value="{!vendors}" var="vendor">
+					<apex:column headerValue="{!$Label.rstk__select}">
+	        			<apex:inputCheckbox id="vendor_selected" value="{!vendor.rstk__poitemvend_temp_select__c}" 
+	        				onchange="vendorSelected(this, '{!vendor.rstk__poitemvend_vendno__c}', '{!vendor.poitemvend_vendno__r.povend_sf_account__r.Name}', '{!vendor.Id}', '{!vendor.rstk__poitemvend_poprice__c}');"/>
+       				</apex:column>
+       				<apex:column headerValue="{!fiv.rstk__poitemvend_vendno__c.label}">
+	        			<apex:outputLink value="{!URLFOR($Action.rstk__poitemvend__c.View, vendor.id)}">{!vendor.poitemvend_vendno__r.povend_sf_account__r.Name}</apex:outputLink>
+	        		</apex:column>
+	            	<apex:column headerValue="{!fva.rstk__povendpoaddr_city__c.label}" value="{!vendor.poitemvend_vendno__r.povend_sf_account__r.BillingCity}"/>
+	               	<apex:column headerValue="{!fv.rstk__formula_leadtime__c.label}" value="{!vendor.poitemvend_vendno__r.rstk__formula_leadtime__c}"/>
+					<apex:column headerValue="{!fv.rstk__povend_terms__c.label}" value="{!vendor.poitemvend_vendno__r.rstk__povend_terms__c}"/>
+					<apex:column headerValue="{!fv.rstk__povend_shipviatype__c.label}" value="{!vendor.poitemvend_vendno__r.rstk__povend_shipviatype__c}"/>
+	        		<apex:column headerValue="{!fiv.rstk__poitemvend_poprice__c.label}" >
+	        			<!-- 
+	        			<apex:outputText value="{0,Number,currency}">
+	                		<apex:param value="{!vendor.poitemvend_poprice__c * (IF(vendor.poitemvend_vendno__r.povend_exchangerate__c != null, vendor.poitemvend_vendno__r.povend_exchangerate__c, 1))}" />
+	        			</apex:outputText>
+	        			 -->
+	        			 <apex:outputText value="{0,Number,currency}">
+	                		<apex:param value="{!vendor.rstk__poitemvend_poprice__c}" />
+	        			</apex:outputText>
+	        		</apex:column>
+					<apex:column headerValue="{!fiv.rstk__poitemvend_primeind__c.label}" value="{!vendor.rstk__poitemvend_primeind__c}"/>
+					<apex:column headerValue="{!fv.rstk__povend_buyusrno__c.label}" value="{!vendor.poitemvend_vendno__r.rstk__povend_buyusrno__c}"/>
+				</apex:pageBlockTable>
+	        </apex:pageBlock>
+			<a class='close' href='#' onclick='closeVendorSelection();'>close</a>
+		</div>
+	
+               <apex:pageBlock id="pb" mode="detail">
+	        <apex:pageBlockButtons >
+	            <apex:commandButton id="btn_convert" value="{!$Label.rstk__pagebtn_reqstopos_convertrequisitionstopo}" onclick="if(checkSelected()) { blockUI(); if(!convert()) unblockUI(); } return false;" />
+	        </apex:pageBlockButtons>
+        
+        	<apex:outputPanel id="mainform">
+	        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+<!-- RCB: RSTK-1732 -->	            
+	        	<apex:pageBlockSectionItem rendered="{!hasVendor && assignedVendor == null}">
+	        		<a rel="#vendor_selection" href="javascript:{}">Vendor</a>
+                    <apex:inputText id="vendor_descr__c" value="{!vendorDesc}" required="true" disabled="true" 
+                    	onchange="onVendorChanged();" style="width:200px"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!!hasVendor || assignedVendor != null}">
+                    <apex:outputLabel value="{!$Label.rstk__vendor}"/>
+	           			<c:selectList id="povend__c" cntr="{!controller}" options="{!allVendors}" onchange="onVendorChanged();" 
+	           				value="{!vendorId}" objKey="custom" required="true"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!showCombineLines}">
+                    <c:inputField id="combine_reqs__c" cntr="{!controller}" objKey="custom" ref="custom_checkbox__c" onchange="onCombineLinesChanged();" />
+                    <apex:outputLabel value="{!combineLabel}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!!showCombineLines}" />
+                
+                <apex:pageBlockSectionItem >
+					<apex:outputLabel value="{!$Label.rstk__addtoexistingpo}"/>
+					<apex:outputPanel id="op_pohdrs">
+					<c:selectList id="pohdr__c" cntr="{!controller}" options="{!pohdrs}" 
+						onchange="poNumberChanged(this.value);"
+						objKey="custom" ref="pohdr__c" width="120px" />
+					</apex:outputPanel>
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem rendered="{!showOneReqOnePO}">
+                    <c:inputField id="custom_checkbox2__c" cntr="{!controller}" objKey="custom" ref="custom_checkbox2__c" />
+                    <apex:outputLabel value="{!oneReqOnePOLabel}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!!showOneReqOnePO}" />
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem >
+                    <c:inputField id="custom_returntopo__c" cntr="{!controller}" objKey="custom" />
+                    <apex:outputLabel value="{!$Label.rstk__navigatetorelatedpoafterconversion}"/>
+                </apex:pageBlockSectionItem>
+                
+	        </apex:pageBlockSection>
+	        </apex:outputPanel>
+	        
+	        <apex:pageBlockSection title="{!$Label.rstk__pagetab_reqstopos_purchaseorder}" showHeader="true" collapsible="true" columns="1">
+	        <apex:outputPanel id="poDetail" style="width:100%; scroll:auto;">
+		        	<apex:pageBlock >
+		        	<apex:pageBlockTable id="pbt_po" value="{!pos}" var="po">
+		        		<apex:column headerValue="{!$Label.rstk__select}">
+<!-- RCB: RSTK-955 -->		        		    
+		        			<apex:inputCheckbox id="po_selected" value="{!po.poline.rstk__poline_temp_select__c}" HTML-ordno="{!po.pohdr.rstk__pohdr_ordno__c}"
+		        				onchange="poSelected(this, '{!po.poline.rstk__poline_ordno__c}', '{!po.poline.rstk__poline_unitprice__c}');" />
+	       				</apex:column>
+		        		<apex:column headerValue="{!fpohdr.rstk__pohdr_div__c.label}" value="{!po.pohdr.rstk__pohdr_div__c}" />
+		        		<apex:column headerValue="{!fpohdr.rstk__pohdr_ordno__c.label}">
+		        			<apex:outputLink id="pohdrno" value="{!URLFOR($Action.rstk__pohdr__c.Edit, po.pohdr.id)}">{!po.pohdr.rstk__pohdr_ordno__c}</apex:outputLink>
+		        		</apex:column>
+		        		<apex:column headerValue="{!fpohdr.rstk__pohdr_vendno__c.label}" value="{!po.pohdr.rstk__pohdr_vendno__c}" />
+		        		<apex:column headerValue="{!fpohdr.rstk__pohdr_ordsts__c.label}" value="{!po.pohdr.rstk__pohdr_ordsts__c}" />
+		        		<apex:column headerValue="{!fpoline.rstk__poline_item__c.label}" value="{!po.poline.rstk__poline_item__c}" />
+		        		<apex:column headerValue="{!fpoline.rstk__poline_qtyreq__c.label}" headerClass="rl-rightalign" styleClass="rl-rightalign">
+		        			<c:outputFormattedNumber decimals="{!2}" value="{!po.poline.rstk__poline_qtyreq__c}"/>
+		        		</apex:column>
+		        		<apex:column headerValue="{!fpoline.rstk__poline_puruom__c.label}" value="{!po.poline.rstk__poline_puruom__c}" />
+		        		<apex:column headerValue="{!fpoline.rstk__poline_invdiv__c.label}" value="{!po.poline.rstk__poline_invdiv__c}" />
+		        		<apex:column headerValue="{!fpoline.rstk__poline_unitprice__c.label}" headerClass="rl-rightalign" styleClass="rl-rightalign">
+		        			<c:outputFormattedNumber decimals="{!6}" value="{!po.poline.rstk__poline_unitprice__c}"/>
+		        		</apex:column>
+		        		<apex:column headerValue="{!fpoline.rstk__poline_duedte__c.label}" value="{!po.poline.rstk__poline_duedte__c}" />
+		        	</apex:pageBlockTable>
+		        	</apex:pageBlock>
+		        </apex:outputPanel>
+			</apex:pageBlockSection>
+	        
+	        <apex:pageBlockSection title="{!$Label.rstk__pagetab_reqstopos_requisitions}" showHeader="true" collapsible="false" columns="1">
+	        <apex:outputPanel id="op_SubList" style="width:100%; scroll:auto;">
+	        	<apex:pageBlock >
+	        	<apex:pageBlockTable id="pbt" value="{!icreqs}" var="rec">
+	        		<apex:column headerValue="{!$Label.rstk__select}">
+	        			<apex:inputHidden id="icreq_popriceovr__c" value="{!rec.rstk__icreq_popriceovr__c}"/>
+	        			<apex:inputCheckbox id="icreq_selected" value="{!rec.rstk__icreq_temp_select__c}"
+	        				onchange="recSelected(this, '{!rec.Id}');" />
+	        			<script>allReqs.push(document.getElementById("{!$Component.icreq_selected}"));</script>
+       				</apex:column>
+	        		<apex:column headerValue="{!f.rstk__icreq_div__c.label}" value="{!rec.rstk__icreq_div__c}" />
+	        		<apex:column headerValue="{!f.rstk__icreq_ordno__c.label}">
+	        			<apex:outputLink value="{!URLFOR($Action.rstk__icreq__c.View, rec.id)}">{!rec.rstk__icreq_ordno__c}</apex:outputLink>
+	        		</apex:column>
+	        		<apex:column id="itemno" headerValue="{!f.rstk__icreq_item__c.label}" value="{!rec.rstk__icreq_item__c}" />
+	        		<apex:column headerValue="{!$Label.rstk__description}" value="{!rec.icreq_item__r.Name}" />
+	        		<apex:column headerValue="{!f.rstk__formula_qtyremain__c.label}" headerClass="rl-rightalign" styleClass="rl-rightalign">
+	        			<c:outputFormattedNumber id="qtyremain__c" decimals="{!rec.rstk__icreq_qtydecimal__c}" value="{!rec.rstk__formula_qtyremain__c}"/>
+	        		</apex:column>
+	        		<apex:column id="duedate" headerValue="{!f.rstk__icreq_dckdte__c.label}" >
+	        			<c:inputDateNoLink >
+	        			<apex:inputField id="icreq_dckdte__c" value="{!rec.rstk__icreq_dckdte__c}" 
+	        				onchange="dueDateChanged(this);" />
+	        			</c:inputDateNoLink>
+	        		</apex:column>
+	        		<apex:column headerValue="{!f.rstk__icreq_qtytoconvert__c.label}" headerClass="rl-rightalign" styleClass="rl-rightalign">
+	        			<apex:inputField id="icreq_qtytoconvert__c" value="{!rec.rstk__icreq_qtytoconvert__c}" 
+	        				onchange="qtyChanged(this, '{!rec.rstk__icreq_umcf__c}', {!rec.rstk__icreq_qtydecimal__c});" style="width:50px"/>
+	        		</apex:column>
+	        		<apex:column headerValue="{!f.rstk__icreq_invuom__c.label}" value="{!rec.rstk__icreq_invuom__c}" />
+	        		<apex:column headerValue="{!f.rstk__icreq_unitprice__c.label}" headerClass="rl-rightalign" styleClass="rl-rightalign">
+	        			<apex:inputField id="icreq_unitprice__c" value="{!rec.rstk__icreq_unitprice__c}" 
+	        				onchange="unitPriceChanged(this);" style="width:80px"/>
+	        		</apex:column>
+	        		<apex:column headerValue="{!f.rstk__icreq_puruom__c.label}" value="{!rec.rstk__icreq_puruom__c}" />
+	        		<apex:column id="icreq_poqty__c" headerValue="{!f.rstk__icreq_poqty__c.label}"  
+	        			headerClass="rl-rightalign" styleClass="rl-rightalign" >
+	        			<c:outputFormattedNumber decimals="{!rec.rstk__icreq_qtydecimal__c}" value="{!rec.rstk__icreq_poqty__c}"/>
+	        		</apex:column>
+	        		<apex:column id="icreq_buydiv__c" headerValue="{!f.rstk__icreq_buydiv__c.label}" value="{!rec.rstk__icreq_buydiv__c}" />
+	        		<apex:column id="icreq_proj__c" headerValue="{!f.rstk__icreq_proj__c.label}" value="{!rec.rstk__icreq_proj__c}" rendered="{!showProject}" />
+	        		<!--  
+	        		<apex:column id="icreq_wbs__c" headerValue="{!f.icreq_wbs__c.label}" value="{!rec.icreq_wbs__c}" rendered="{!showProject}" />
+	        		-->
+	        	</apex:pageBlockTable>
+	        	</apex:pageBlock>
+	        </apex:outputPanel>
+	        </apex:pageBlockSection>
+    	</apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+		var LABEL_SelectVendorForPOConversion = "{!$Label.SelectVendorForPOConversion}";
+		var LABEL_SpecifySchedDockDt = "{!$Label.SpecifySchedDockDt}";
+		var LABEL_SchedDockDtCantBeEarlierThanToday = "{!$Label.SchedDockDtCantBeEarlierThanToday}";
+		var LABEL_UnitPriceForPOToBeConvertedHasToBeGrtrThan0 = "{!$Label.UnitPriceForPOToBeConvertedHasToBeGrtrThan0}";
+		var LABEL_SelectOneOrMoreRequisitionsToStartConversionProcess = "{!$Label.SelectOneOrMoreRequisitionsToStartConversionProcess}";
+		var LABEL_AltleastOneVendorHasToBeSelected = "{!$Label.AltleastOneVendorHasToBeSelected}";
+		var LABEL_AtleastOneRequisitionHasToBeSelected = "{!$Label.AtleastOneRequisitionHasToBeSelected}";
+		var LABEL_QtyToConvertExceedsRequisitionQty_IsItOkay = "{!$Label.QtyToConvertExceedsRequisitionQty_IsItOkay}";
+	</script>
+</apex:page>

@@ -1,0 +1,1059 @@
+<apex:page id="pg" standardController="rstk__sohdr__c" extensions="rstk.ControllerExtnCreateSOFrom,rstk.ControllerJobStatus,rstk.RemoteQueryController" 
+    action="{!doBeforePageLoad}" sideBar="false">
+	<div style="visibility:{!IF(autoPassThrough, 'hidden', '')};">
+	<apex:variable var="o" value="{!rstk__sohdr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sohdr__c.fields}" />
+    <apex:variable var="f_sl" value="{!$ObjectType.rstk__soline__c.fields}" />
+    <apex:variable var="f_socust" value="{!$ObjectType.rstk__socust__c.fields}" />
+    <apex:variable var="f_peitem" value="{!$ObjectType.rstk__peitem__c.fields}" />
+    <apex:variable var="f_soprod" value="{!$ObjectType.rstk__soprod__c.fields}" />
+	<apex:variable var="f_iccomcod" value="{!$ObjectType.rstk__iccomcod__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_createsalesorderfrom}" enableAutocomplete="true" showHeader="{!!autoPassThrough}"/>
+    <apex:includeScript value="{!$Resource.rstk__messageformat}" />
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <style>
+    	.amount {text-align:right; vertical-align:top;}
+    	.quantity {text-align:right; vertical-align:top;}
+    	
+    	.modalPopup{
+		     background-color: white;
+		     border-style: solid;
+		     border-width: 3px;
+		     padding:1px;
+		     position: absolute;
+		     z-index: 10011;
+		     width: 650px;
+		     top:100px;
+		     overflow:auto;
+		 }
+		.topPopup{
+		     background-color: transparent;
+		     border-style: none;
+		     position: absolute;
+		     z-index: 20001;
+		     width: 50px;
+		     top:100px;
+		 }
+		.popupBackground{
+		     background-color:black;
+		     opacity: 0.20;
+		     position:absolute;
+		     width: 100%;
+		     height: 100%;
+		     top: 0;
+		     left: 0;
+		     z-index: 10010;
+		 }
+		.topPopupBackground{
+		     background-color:green;
+		     opacity: 0.10;
+		     position:absolute;
+		     width: 100%;
+		     height: 100%;
+		     top: 0;
+		     left: 0;
+		     z-index: 20000;
+		 }
+		 span.spwarning {
+			color:#FF6347;
+		    font-size:90%;
+			padding-left: 6px; 
+ 		 }
+    </style>
+    <script>
+        var projOptions = {!projectOptionsJSON};
+        var projectDimensions = {!projectDimensionsJSON};
+         var divId = "{!o.rstk__sohdr_div__c}";
+         var custId = "{!o.rstk__sohdr_custno__c}";
+         var oppId = "{!o.rstk__sohdr_opportunity__c}";
+        /* Checks the thousand and decimal mark characters */
+		var currentProdId;
+        var saveSOAsBatch = {!saveAsBatch};
+		var autoCompleteRefs = {};
+		var minCharForProjAutoComplete = {!MinCharForProjAutoComplete};
+
+		function getJobFailMessage(processLog) { displayProcessErrorsAsPageMessage("{!$Label.errors}:", processLog); return null; }
+
+		function getJobSuccessMessage(processLog) {
+		  // The job message will be displayed in the info section, nothing to do here
+		  return null;
+		}
+		
+		function doAfterJobComplete(processLog) {
+		  if (!processLog.iserror__c) { 
+		  	console.log('Fetching tax....');
+		  	doFetchTax(); 
+		  } else { 
+		  	console.log('Unblocking after an error....');
+		  	
+		    unblockUI(); 
+		  }
+		}
+		
+		function setDecimalsForQtys(els) {
+			els.change(function () {
+				var val = jQuery(this).val();
+				var floatVal = 0;
+				if (isEmpty(val)) return;
+				var parent = jQuery(this).parent();
+				setQtyMsg( parent, '' );
+				var decimals = parent.find("input[id$=':qtyDecimal']").val();
+				if (decimals == null || decimals == '') {
+					decimals = 0;
+				} else {
+					decimals = parseFloat(decimals);
+				}
+				var enfMinQtyOrd = parent.find("input[id$=':enfMinQtyOrd']").val();
+				var enfLotQtyOrd = parent.find("input[id$=':enfLotQtyOrd']").val();
+				var minQtyOrd = parseLocaleFloat(parent.find("input[id$=':minQtyOrd']").val());
+				var lotQtyOrd = parseLocaleFloat(parent.find("input[id$=':lotQtyOrd']").val());
+				if (decimals != null) {
+					try {
+						floatVal = parseLocaleFloat(val);
+						if (floatVal == 'NaN') throw "NaN";
+						var decAdjVal = parseFloat(floatVal.toFixed(decimals));
+						if (decAdjVal != floatVal) {
+							setQtyMsg( parent, "Quantity adjusted to "+decimals+" decimal places.");
+						}
+						floatVal = decAdjVal;
+					} catch (e) {
+						floatVal = 0;
+						jQuery(this).val('');
+					}
+				}
+				if (enfMinQtyOrd=='true') {
+					if (floatVal < minQtyOrd) {
+						floatVal = minQtyOrd;
+						setQtyMsg( parent, "Quantity increased to mimimum order quantity.");
+					}
+				}
+				if (enfLotQtyOrd=='true') {
+					var mult = Math.round(floatVal/lotQtyOrd);
+					var multVal = mult * lotQtyOrd;
+					if (multVal != floatVal) {
+						setQtyMsg( parent, "Quantity adjusted to nearest multiple of lot quantity ("+lotQtyOrd+").");
+					}
+					floatVal = multVal;
+				}
+				jQuery(this).val(formatLocaleFloat(floatVal, decimals));
+			});
+			els.change();
+		}
+
+		function setQtyMsg( el, msg ) {
+			el.closest('tr').find("span[id$=':qtyMsg']").text(msg);
+		}
+
+		function saveRecord() {
+			sfffSetFieldValue('lineproducts__c', JSON.stringify(lineProducts));
+			return true;
+		}
+        function jqueryOnReady() {
+        }
+
+		function getLineElement(row, fieldName, eltype) {
+		  if (eltype == null) { eltype = 'input'; }
+		  return jQuery(eltype+"[id$="+fieldName+"]:eq("+(row-1)+")");
+		}
+
+		function getSpanElement(row, fieldName) {
+		  return jQuery("span[name$="+fieldName+"]:eq("+(row-1)+")");
+		}
+		
+		function getLineValue(row, fieldName, eltype) {
+		  return getLineElement(row, fieldName, eltype).val();
+		}
+		
+		function setLineValue(row, fieldName, value, eltype) {
+		  return getLineElement(row, fieldName, eltype).val(value);
+		}
+		
+		function getLineProduct(row)
+		{
+			return getLineValue(row, "prodId");
+		}
+		
+		function getLineDiv(row)
+		{
+			return getLineValue(row, "soline_shipdiv__c", "select");
+		}
+
+		function setLineDiv(row, value)
+		{
+			return setLineValue(row, "soline_shipdiv__c", value, "select");
+		}
+
+		function getLineProjDims(row)
+		{
+			return getLineValue(row, "lineProjDims", "select");
+		}
+				
+		function getLineProject(row)
+		{
+			return getLineValue(row, "soline_project__c");
+		}
+		
+		function setLineProject(row, value)
+		{
+			return setLineValue(row, "soline_project__c", value);
+		}
+		
+		function getHeaderProjDims() {
+			return jQuery("#hdrProjDims").val();
+		}
+		
+		function populateProjDims(row) {
+			var se; 
+			if (row == 0) {
+		  	  sel = jQuery("#hdrProjDims");
+			} else {
+		  	  sel = getLineElement(row, "lineProjDims", "select");
+		  	}
+		  	sel.find("option").remove();
+		  	for (var i=0;i<projectDimensions.length;i++) {
+		  		var o = projectDimensions[i];
+			  	sel.append('<option value="'+o.Id+'">'+escapeHtml(o.Name)+'</option>');
+		  	}
+		  	sel.val('');
+		  	overrideSelect(row, "lineProjDims", "defaultDimValue");
+		}
+		
+		function populateLineProjectSelection(row, projOverride)
+		{
+			var srcDivId = getLineDiv(row);
+			var projId = projOverride;
+			if (!projId) {
+				projId = getLineProject(row);
+			}
+			var projField = getLineElement(row, "soline_project__c", "input");
+			if (projField.length > 0) {
+				var projFieldEl = projField[0];
+				var lineQuerySOQL = getProjectQuery(srcDivId, false, projId);
+				
+                setAutoCompete(projFieldEl, lineQuerySOQL, minCharForProjAutoComplete, projId, true);
+			}
+
+			var projTextField = getAutocompleteTextField(projField);
+			if (projTextField.length > 0) {
+				projTextField[0].disabled = (projOptions.auto && projOptions.alwaysInitLine);
+			} 
+		}
+		
+		function getProjectName(projId) {
+		  var pjproj = getProject(projId);
+		  if (pjproj) {
+		  	return pjproj.Name;
+		  }
+		  return null;
+		}
+		
+		function getProject(projId) {
+		  if (projId) {
+		    var pjprojs = execQuery("select Id, Name from pjproj__c where Id="+quote(projId));
+		    if (pjprojs.length > 0) {
+		      return pjprojs[0];
+		    }
+		  }
+		  return null;
+		}
+		
+		function autoIfClearProjectName(boolCond, projName) {
+			if (!projName && boolCond) {
+			  return "--{!JSENCODE($Label.AutoProjectLabel)}--";
+			}
+			return projName;
+		}
+
+		function autoIfClearProjectHeaderName(projName) {
+			return autoIfClearProjectName(projOptions.auto, projName);
+		}
+
+		function autoIfClearProjectLineName(projName) {
+			return autoIfClearProjectName((projOptions.autoLine || (projOptions.auto && projOptions.initLine)), projName);
+		}
+		
+		function toStringOfStrings(stringArray) {
+			var s = '';
+			if (stringArray) {
+				for (var i=0; i<stringArray.length; i++) {
+					if (stringArray[i]) {
+						if (s != '') { s+=','; }
+						s += "'"+escapeQuote(stringArray[i])+"'";
+					}
+				}
+			}
+			return s;
+		}
+		
+		function getProjectQuery(srcDiv, allowValueReset, defaultProject)
+		{
+			var clauseStr = "pjproj_div__c = "+quote(srcDiv)+" and (pjproj_completed__c=false"
+			if (!allowValueReset && defaultProject)
+			{
+				// Keep any existing project from the opportunity
+					clauseStr +=" or Id ="+quote(defaultProject);
+			}
+			clauseStr += ')';
+			var queryStr = "select Id, Name from pjproj__c where ("+clauseStr+")";
+			
+			return queryStr;
+		}
+		
+        function setAutoCompete(field, soqlQry, minChars, value, forLine) {
+            forLine = !!forLine;
+			var ac = autoCompleteRefs[field.id];
+			if (ac) {
+				ac.updateData(soqlQry, minChars);
+			}
+			var idValue = value;
+			var textValue = '';
+			if (value) {
+				var res = execQuery(soqlQry+" and Id="+quote(value));
+				if (res.length > 0) {
+				  // Valid value, set its text field
+				  textValue = res[0].Name;
+				} else {
+				  // The value is no longer valid, reset it
+				  idValue = null;
+				}
+			}
+			jQuery(field).val(idValue);
+            if (forLine) {
+                textValue = autoIfClearProjectLineName(textValue);
+            } else {
+                textValue = autoIfClearProjectHeaderName(textValue);
+            }
+            getAutocompleteTextField(field).val(textValue);
+				  
+		}
+		
+		function populateHeaderProjectSelection()
+		{
+			var projText= jQuery('#sohdr_textproj__c');
+			var proj = sfffGetFieldValue('sohdr_proj__c');
+			setAutoCompete(getFmFld('sohdr_proj__c'), getProjectQuery(divId, false, proj), minCharForProjAutoComplete);
+		}
+		
+		function lineProjectChanged(element)
+		{
+			var rowEl = jQuery(element).closest('tr');
+		 	var projSelect = jQuery(element);
+			rowEl.find('input[id$=soline_project__c]').val(projSelect.val());
+			if (projOptions.autoLine) {
+				var projDims = rowEl.find('select[id$=lineProjDims]');
+				if (projDims.size() > 0) {
+					var isAuto = (projSelect.val() == '');
+				    // only enable Dim selection if the project is an auto create for each line
+					projDims[0].disabled = !isAuto;
+					if (!isAuto) {
+						projDims.val('');
+					}
+					updateProjDims();
+				}
+			}
+		}
+		
+		function getRowNumber(element) {
+			var rowEl = jQuery(element).closest('tr');
+			return parseInt(rowEl.find('span[id$=lineNumber]').text()) | 0;
+		}
+		
+		function lineDivChanged(element) {
+			var row = getRowNumber(element);
+			populateLineProjectSelection(row);
+		}
+		
+		function headerProjectChanged(  )
+		{
+			var projSelect = jQuery('#sohdr_textproj__c');
+			sfffSetFieldValue('sohdr_proj__c', projSelect.val());
+			
+			if (projOptions.auto) {
+				var projDims = jQuery('#hdrProjDims');
+				if (projDims.size() > 0) {
+					var isAuto = (projSelect.val() == '');
+				    // only enable Dim selection if the project is an auto create for the header
+					projDims[0].disabled = !isAuto;
+					if (!isAuto) {
+						projDims.val('');
+					}
+					updateProjDims();
+				}
+			}
+
+			if (projOptions.alwaysInitLine || projOptions.initLine) {
+				for (var row=1; row<=numRows(); row++) {
+					populateLineProjectSelection(row, projSelect.val());
+					lineProjectChanged(getLineElement(row, "soline_textproject__c", "select"));
+				}
+			}
+		}
+		
+		var shipDivCache = null;
+		function clearShipDivisionSelectionCache() { shipDivCache = null; }
+		function getShipDivOptionsCache(key, shipDivision, product)
+		{
+			if (shipDivCache == null)
+			{ 
+				shipDivCache = {};
+			}
+			
+			return shipDivCache[key+'|'+shipDivision+'|'+product];
+		}
+		function setShipDivOptionsCache(key, shipDivision, product, options)
+		{
+			if (shipDivCache == null)
+			{ 
+				shipDivCache = {};
+			}
+			shipDivCache[key+'|'+shipDivision+'|'+product] = options;
+		}
+		
+		/**
+		 * Update the ship division for the current soline
+		 */
+		function populateShipDivisionSelection(row, divOverride)
+		{
+		//	console.log('populateShipDivisionSelection row '+row);
+			var product = getLineProduct(row);
+			var lineShipDivSelect = getLineElement(row, "soline_shipdiv__c", "select");
+		
+			if (lineShipDivSelect.length > 0)
+			{
+				var shipDivision = divOverride!= null?divOverride:getLineDiv(row);
+				lineShipDivSelect.find("option").remove();
+				var selectOptions = getShipDivOptionsCache("OPTS", shipDivision, product);
+				if (selectOptions == null)
+				{	
+					selectOptions=[];
+				  	if (shipDivision != '' && shipDivision != null)
+					{
+						var divOptions = execQuery("select id, Name from sydiv__c where id ='" + shipDivision + "'");
+						for (var i=0;i<divOptions.length;i++)
+						{
+							selectOptions.push(new Option(divOptions[i].Name, divOptions[i].Id, false, false));
+						}
+					}
+					if (product != '' && product != null) 
+					{
+				   		var prodDivs = execQuery("select sopdiv_shipdiv__c, sopdiv_shipdiv__r.Name, sopdiv_shiplocid__c, "+
+				   		                         "sopdiv_shiplocnum__c, sopdiv_shipsite__c from sopdiv__c where sopdiv_soprod__c ='" + 
+							                     product + "' and sopdiv_active__c = true order by sopdiv_shipdiv__r.Name");
+				   		for (var i=0; i<prodDivs.length;i++)
+				   		{
+					     	setShipDivOptionsCache("SOPDIV", prodDivs[i].sopdiv_shipdiv__c, product, prodDivs[i]);
+							if (prodDivs[i].sopdiv_shipdiv__c != shipDivision)
+							{
+								selectOptions.push(new Option(prodDivs[i].sopdiv_shipdiv__r.Name, prodDivs[i].sopdiv_shipdiv__c, false, false));
+							}
+							
+				     	}
+			     	}
+			     	setShipDivOptionsCache("OPTS", shipDivision, product, selectOptions);
+			    }
+			    lineShipDivSelect.append(jQuery(selectOptions).clone());
+			    // Workaround for a IE8 bug, the text part of the option isn't updated on the screen until it's written to directly
+			    for (var i=0;i < selectOptions.length; i++) {
+			      lineShipDivSelect[0].options[i].text = selectOptions[i].text; 
+			    }
+			    lineShipDivSelect.val(shipDivision);
+			    
+			}
+		}
+		
+		function updateProjDims() {
+		  var dims = {};
+		  if (projOptions.getDimValues) {
+			  if (projOptions.auto) {
+			  	var hdrProjDims = getHeaderProjDims();
+			  	if (hdrProjDims != '') {
+			  		dims['0'] = hdrProjDims;
+			  	}
+			  } else if (projOptions.autoLine) {
+			  	for (var row=1; row<=numRows(); row++) {
+				  	var lineProjDims = getLineProjDims(row);
+				  	if (lineProjDims != '') {
+				  		dims[''+row] = lineProjDims;
+				  	}
+				}
+			  }
+		  }
+		  jQuery("input[id$=projectDimValues]").val(JSON.stringify(dims));
+		}
+		
+	function overrideSelect(rowNum, selectId, valueSpan) {
+	  var value = getSpanElement(rowNum, valueSpan).text();
+	  var selEl = getLineElement(rowNum, selectId, 'select');
+	  setWarningEl(selEl, null);
+	  if (value != null && value != '') {
+	    if (selEl.length > 0) {
+	      var options = selEl.find("option");
+	      var idValue = null;
+	      var idCandidateValue = null;
+	      var lowerCaseValue = value.toLowerCase();
+	      for (var i=0;i<options.length;i++) {
+	        var o = options[i];
+	        if (o.text.toLowerCase() == lowerCaseValue || o.value == value ||  o.value.substr(0,15) == value) {
+	          idValue = o.value;
+	          break;
+	        }
+	        if (o.text.indexOf(' (') > 0) {
+	          var withoutDesc = o.text.substr(0, o.text.indexOf(' ('));
+	          if (withoutDesc.toLowerCase() == lowerCaseValue) {
+	            idCandidateValue = o.value;
+	          }
+	        }
+	      }
+	      if (idValue == null) { idValue = idCandidateValue; }
+	      if (idValue != null) {
+	      	selEl.val(idValue);
+	      } else {
+	      	setWarningEl(selEl, 'Override of "'+value+'" not available for selection');
+	      }
+	    }
+	  }
+	}
+
+	function socommChanged(sfprodId) {
+		var socomm = sfffGetFieldValue('soprod_comcod__c');
+		if (socomm) {
+			var socommQuery = execQuery("select socomm_prodtype__c, socomm_slsuom__c from socomm__c " +
+				"where id = '" + socomm + "'");
+			if (socommQuery) {
+				setFieldText(jQuery('span[id*=product_type__c]')[0], socommQuery[0].socomm_prodtype__c);
+				
+				if (!sfprodId) sfprodId = currentProdId;
+				var prodrow = jQuery('span[name=in_soprod_sf_product__c]:contains(' + sfprodId + ')').parent();
+				setLineValue(getRowNumber(prodrow), "soline_uom__c", socommQuery[0].socomm_slsuom__c, "select");
+				overrideSelect(getRowNumber(prodrow), "soline_uom__c", "defaultUOM");
+			}
+		}
+	}
+	
+	function invdivChanged(div) {
+		if (div) {
+			populateSelectList("soprod_iccomcod__c", "select id, name from iccomcod__c " +
+        		"where iccomcod_div__c = '" + div + "' order by name");
+		}
+	}
+	
+	function openCreateProduct(sfprodId) {
+		var prodspan = jQuery('span[name=in_soprod_sf_product__c]:contains(' + sfprodId + ')').parent();
+		var productField = prodspan.find('input[id*=in_soprod_prod__c]');
+		var descField = prodspan.find('input[id*=in_soprod_descr__c]');
+		var socommField = prodspan.find('input[id*=in_soprod_comcod__c]');
+		var invDivField = prodspan.find('input[id*=in_soprod_shipdiv__c]');
+		var iccomcodField = prodspan.find('input[id*=in_soprod_shiplocid__c]');
+		
+		addRequiredFieldDecoration("select[name*='soprod_comcod__c']");
+		addRequiredFieldDecoration("select[id*='soprod_shipdiv__c']");
+		addRequiredFieldDecoration("input[id*='soprod_prod__c']");
+		addRequiredFieldDecoration("input[id*='soprod_descr__c']");
+		addRequiredFieldDecoration("select[id*='soprod_iccomcod__c']");
+		
+		jQuery('input[id*=:soprod_prod__c]')[0].value = productField.val() ? productField.val() : '';
+		jQuery('input[id*=:soprod_descr__c]')[0].value = descField.val() ? descField.val() : '';
+		jQuery('select[name*=:soprod_comcod__c]')[0].value = socommField.val() ? socommField.val() : '';
+		jQuery('select[id*=:soprod_shipdiv__c]')[0].value = invDivField.val() ? invDivField.val() : '';
+		jQuery('select[id*=:soprod_iccomcod__c]')[0].value = iccomcodField.val() ? iccomcodField.val() : '';
+		
+		socommChanged(sfprodId);
+		invdivChanged(invDivField.val());
+		
+		currentProdId = sfprodId;
+		_showDialog('newProductPopup', 500); 
+		return false;
+	}
+	
+	function createNewProduct() {
+		if (sfffGetFieldValue('soprod_comcod__c') == '' ||
+			sfffGetFieldValue('soprod_shipdiv__c') == '' ||
+			sfffGetFieldValue('soprod_prod__c') == '' ||
+			sfffGetFieldValue('soprod_descr__c') == '' ||
+			sfffGetFieldValue('soprod_iccomcod__c') == '') {
+			alert("{!$Label.ProdGroup_InventoryDiv_ItemNum_ItemDescAndCommCodeAreAllReqd}");
+		} else {
+			var prodspans = jQuery('span[name=in_soprod_sf_product__c]:contains(' + currentProdId + ')').parent();
+			
+			for (var psIdx=0; psIdx<prodspans.length;psIdx++) {
+				var prodspan = jQuery(prodspans[psIdx]);
+				
+				var comcodId = jQuery('select[name*=:soprod_comcod__c]').val();
+				prodspan.find('input[id*=in_soprod_prod__c]').val(jQuery('input[id*=:soprod_prod__c]').val());
+				prodspan.find('input[id*=in_soprod_descr__c]').val(jQuery('input[id*=:soprod_descr__c]').val());
+				prodspan.find('input[id*=in_soprod_comcod__c]').val(comcodId);
+				prodspan.find('input[id*=in_soprod_shipdiv__c]').val(jQuery('select[id*=:soprod_shipdiv__c]').val());
+				prodspan.find('input[id*=in_soprod_shiplocid__c]').val(jQuery('select[id*=:soprod_iccomcod__c]').val());
+				
+				var divField=prodspan.find('input[id*=in_soprod_shipdiv__c]');
+				var row = getRowNumber(divField);
+				populateShipDivisionSelection(row, divField.val());
+				var proj = jQuery('input[id$=sohdr_proj__c]').val();
+				if (proj == '' || proj == null || projOptions.defaultHomeProject) {
+                    if (!(projOptions.autoLine || (projOptions.auto && (projOptions.initLine || projOptions.alwaysInitLine)))) {
+                        var divproj = execQuery("select sydiv_dflthomeproj__c from sydiv__c where id ='" + divField.val() + "'");
+                        if (divproj && divproj.length > 0) {
+                            proj = divproj[0].sydiv_dflthomeproj__c;
+                        } else if (proj == '') {
+                            proj = null;
+                        }
+                    }
+                }
+				setLineProject(row, proj);
+				populateLineProjectSelection(row);
+				populateProjDims(row);
+	
+				var comcods = execQuery("select socomm_prodtype__c, socomm_slsuom__c from socomm__c where Id="+quote(comcodId));
+				if (comcods.length > 0) {
+					setLineValue(row, "prodType", comcods[0].socomm_prodtype__c);
+					setLineValue(row, "invUOM", comcods[0].socomm_slsuom__c);
+					setLineValue(row, "soline_uom__c", comcods[0].socomm_slsuom__c);
+					overrideSelect(row, "soline_uom__c", "defaultUOM");
+				}
+				setLineUOMs(row);
+			}
+			jQuery('#newProductPopup').find('.btn[value=Cancel]').click();	
+		} 
+		
+		return false;
+	}
+	
+	function addProductCompleted() {
+		unblockUI();
+	}
+	
+	function markAll(checked) {
+		jQuery('input[id*=selected]').each(function(index, node){
+			if (!node.disabled) {
+				node.checked = checked;
+			}
+		});
+	}
+	
+	function numRows() {
+	  return jQuery("table[id$=pbt_lineitems] > tbody > tr").size();
+	}
+
+	function populateProjectSelections() {
+		populateHeaderProjectSelection();
+		populateProjDims(0);
+		for (var row=1; row<=numRows(); row++) {
+			populateShipDivisionSelection(row);
+			populateLineProjectSelection(row);
+			populateProjDims(row);
+		}
+		updateProjDims();
+	}
+	
+	function getUom(uomId) {
+	   	var uoms = execQuery('select Name, Id from syuom__c where Id = '+quote(uomId));
+	   	if (uoms.length > 0) {
+	   		return uoms[0];
+	   	}
+		return null;
+	}
+	
+	function validUOMs(invuomId) {
+		if (invuomId != null && invuomId != '') {
+			var syuomcf = execQuery("select id, syumcf_fruom__c, syumcf_fruom__r.Name, syumcf_umcf__c from syumcf__c where syumcf_type_pl__c ='Sales to Inventory' and syumcf_touom__c = " + quote(invuomId) +" order by syumcf_fruom__r.Name");
+			var validUomList = [];
+			var targetUom = getUom(invuomId);
+			var targetUomAdded = (targetUom == null);
+			for (var i=0;i<syuomcf.length; i++) {
+				var el = {Id:syuomcf[i].syumcf_fruom__c, Name:syuomcf[i].syumcf_fruom__r.Name};
+				if (!targetUomAdded) {
+				  if (el['Name'] > targetUom['Name']) {
+				    validUomList.push(targetUom);
+				    targetUomAdded = true;
+				  } else if (el['Id'] == targetUom['Id']) {
+				    targetUomAdded = true;
+				  }
+				}
+				
+				validUomList.push(el);
+			}
+			if (!targetUomAdded) {
+		      validUomList.push(targetUom);
+			}
+			
+			return validUomList;
+		}
+		return execQuery("select id, name from syuom__c order by name");
+	}
+	
+	function setLineUOMs(row) {
+		var prodType = getLineValue(row, 'prodType');
+		var uomEls = getLineElement(row, 'soline_uom__c', 'select');
+		var uomElVal = uomEls.val();
+		var uomEl = uomEls.length>0?uomEls[0]:null;
+		if (uomEl != null) {
+			uomEl.disabled = false;
+			if (prodType == 'Kit' || prodType == 'Configured' || prodType == 'Entitlement') {
+				uomEl.disabled = true;
+			} else {
+				var uoms;
+				if (prodType == 'Stock') {
+					var invUom = getLineValue(row, 'invUom');
+					uoms = validUOMs(invUom);
+				} else {
+					uoms = validUOMs(null);
+				}
+				populateSelects(uomEl, uoms);
+				uomEls.val(uomElVal);
+				overrideSelect(row, "soline_uom__c", "defaultUOM");
+			}
+		}
+	}
+
+	function populateSelects(selectObj, options, dataField, textField) {
+		var sList = jQuery(selectObj);
+		sList.find("option").remove();
+		if (typeof dataField == 'undefined' || dataField == null) {
+			dataField = 'Id';
+		}
+		if (typeof textField == 'undefined' || textField == null) {
+			textField = 'Name';
+		}
+		
+		for (i = 0; i < options.length; i++) {
+			sList.append(new Option(options[i][textField], options[i][dataField]), false, false);
+		}
+	}
+
+	function setUOMs() {
+		for (var row=1; row<=numRows(); row++) {
+			setLineUOMs(row);
+		}
+	}
+	
+	function updateHeaderOptions() {
+	  headerOptionsChanged(jQuery("[id$=headerOptions]").val());
+	}
+
+	function headerOptionsChanged(val) {
+	  var disableSohdrFields = !isEmpty(val);
+	  showOrHide("selectedSohdrtext__c", false);
+	  showOrHide("sohdr_order__c", !disableSohdrFields);
+	  showOrHide("sohdr_custpo__c", !disableSohdrFields);
+	  showOrHide("sohdr_custref__c", !disableSohdrFields);
+	  showOrHide("sohdr_orderdate__c", !disableSohdrFields, true);
+	  showOrHide("sohdr_textproj__c", !disableSohdrFields);
+	  showOrHide("sohdr_freightamt__c", !disableSohdrFields);
+	  
+	  if (!isEmpty(val)) {
+	    populateSelectableHeaders(val=='C');
+		showOrHide("selectedSohdrtext__c", true);
+	  }
+	}
+	
+	function populateSelectableHeaders(populateBycustomer) {
+		var oppClause = (populateBycustomer)?(""):(" and sohdr_opportunity__c="+quote(oppId));
+		var quoteClause = " and sohdr_isquote__c="+quoteSelected();
+		
+		var selectStr = "select Id, Name from sohdr__c where sohdr_custno__c="+quote(custId)+
+		                " and sohdr_div__c = "+quote(divId)+
+		                " and sohdr_closed__c=false"+
+		                " and sohdr_cancelled__c=false"+
+		                oppClause+
+		                quoteClause+
+		                " order by Name";
+		
+		var vals = execQuery(selectStr);
+		populateSelects(jQuery("[id$=selectedSohdrtext__c]"), vals);
+		selectedSohdr_syncIdField();
+	}
+	
+	function quoteSelected() {
+	  return jQuery("[id$=createAsQuote]").is(":checked");
+	}
+	
+	function showOrHide(el, doShow, hideParent) {
+	  var jEl;
+	  if (typeof el == "string") {
+		  var jEl= jQuery("[id$="+el+"]");
+	  } else {
+	    jEl = jQuery(el);
+	  }
+	  
+	  if (!!hideParent) { jEl=jEl.parent(); }
+	  
+	  if (!!doShow) {
+	    jEl.show();
+	  } else {
+	    jEl.hide();
+	  }
+	}
+
+	var lineProducts = {};
+	function productChange(line, value) {
+		lineProducts[line] = value;
+	}
+
+    function getErrorDivs() {
+      var errDivs = jQuery("span[id$=pageMessages]").find('div[class*=error]');
+      
+      return errDivs;
+    }
+                 
+    function hasAnyErrors() {
+      return getErrorDivs().length > 0;
+    }
+	
+	window.afterPageLoad = function() {
+       	setDecimalsForEls(jQuery("input.amount"), 2);
+       	setDecimalsForEls(jQuery("input.priceAmount"), {!priceDecimals});
+       	setDecimalsForQtys(jQuery("input[id$=':soline_qtyorder__c']"));
+		populateProjectSelections();
+		setUOMs();
+		updateHeaderOptions();
+		if ({!autoPassThrough}) {
+			setTimeout(function() { doPageSubmit(); }, 100);
+		}
+	};
+    </script>
+        
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doCancel" action="{!cancel}" />
+        <apex:actionFunction name="doSave" action="{!save}" oncomplete="if (saveSOAsBatch) { checkJobStatus(); } else { if (!hasAnyErrors()) { doFetchTax(); } else { unblockUI(); } }" rerender="pageMessages,op_JobStatus"/>
+        <apex:actionFunction name="doFetchTax" action="{!fetchTax}" oncomplete="unblockUI();" rerender="pageMessages"/>
+            
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+
+        <apex:inputHidden value="{!lineProductString}" id="lineproducts__c"/> 
+        
+		<c:Popup popupId="newProductPopup" title="{!$Label.rstk__pagepopup_createsalesorderfrom_newproductvalues}" onOk="createNewProduct();" rendered="{!addNewProductEnabled}">
+				<apex:pageBlockSection columns="1">
+					<apex:pageBlockSectionItem >
+	                    <apex:outputLabel value="{!f_soprod.rstk__soprod_comcod__c.label}"/>
+	                    <c:largeSelectList id="soprod_comcod__c" objKey="soprod"
+	                    	onchange="socommChanged();" cntr="{!controller}" options="{!socomms}" />
+	                </apex:pageBlockSectionItem>
+	                <apex:pageBlockSectionItem >
+	                    <apex:outputLabel value="{!f_soprod.rstk__soprod_prodtype__c.label}"/>
+	                    <apex:outputText id="product_type__c" value="{!soprod.rstk__soprod_prodtype__c}"></apex:outputText>
+	                </apex:pageBlockSectionItem>
+	                <apex:pageBlockSectionItem >
+                    	<apex:outputLabel value="{!f_soprod.rstk__soprod_shipdiv__c.label}"/>
+                    	<apex:selectlist id="soprod_shipdiv__c" value="{!soprod.rstk__soprod_shipdiv__c}" 
+                    		onchange="invdivChanged(this.value);" size="1" style="width:250px">
+                    		<apex:selectOptions value="{!invdivs}" />
+                    	</apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                    	<apex:outputLabel value="{!$Label.rstk__itemnumber}"/>
+	                    <apex:inputText id="soprod_prod__c" value="{!soprod.rstk__soprod_prod__c}" maxlength="50" style="width:250px"/>
+	                </apex:pageBlockSectionItem>
+	                <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f_soprod.rstk__soprod_descr__c.label}"/>
+                        <apex:inputText id="soprod_descr__c" value="{!soprod.rstk__soprod_descr__c}" maxlength="100" style="width:250px"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f_iccomcod.rstk__iccomcod_comcod__c.label}"/>
+                        <apex:selectlist id="soprod_iccomcod__c" value="{!soprod.rstk__soprod_shiplocid__c}" size="1" style="width:250px">
+							<apex:selectOptions value="{!iccomcods}"/>
+						</apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+      	</c:Popup>
+      	
+        <apex:pageBlock id="pb" mode="detail" rendered="{!showPage}">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>        
+            
+                <apex:pageBlockSection columns="2">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__createdfrom}"/>
+                        <apex:outputPanel >
+					        <apex:inputHidden id="projectDimValues" value="{!projectDimValues}"/>
+	                        <apex:outputField value="{!o.rstk__sohdr_opportunity__c}" rendered="{!AND(!ISBLANK(o.rstk__sohdr_opportunity__c),ISBLANK(o.rstk__sohdr_quotesf__c))}"/>
+                            <apex:outputField value="{!o.rstk__sohdr_quotesf__c}" rendered="{!!ISBLANK(o.rstk__sohdr_quotesf__c)}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+					<apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__sohdr_div__c.label}"/>
+                        <apex:outputField value="{!o.rstk__sohdr_div__c}"/>
+                    </apex:pageBlockSectionItem>
+					<apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__sohdr_custno__c.label}"/>
+                        <apex:outputField value="{!o.rstk__sohdr_custno__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__rootstockorderheaderoptions}"/>
+                   		<apex:selectlist size="1" id="headerOptions" value="{!headerOptions}" style="width:350px" onchange="headerOptionsChanged(this.value)" >
+                           	<apex:selectOptions value="{!headerOptionValues}"/>
+                       	</apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__sohdr_order__c.label}"/>
+                        <apex:inputField id="sohdr_order__c" value="{!o.rstk__sohdr_order__c}" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__existingquoteorder}"/>
+                   		<c:LocalSelect id="selectedSohdr__c" value="{!selectedSohdr}" width="350px" loadingText="" style="display:none;" link="true"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__sohdr_custpo__c.label}"/>
+                        <apex:inputField id="sohdr_custpo__c" value="{!o.rstk__sohdr_custpo__c}" />
+                    </apex:pageBlockSectionItem>
+					<apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__sohdr_custref__c.label}"/>
+                        <apex:inputField id="sohdr_custref__c" value="{!o.rstk__sohdr_custref__c}" />
+                    </apex:pageBlockSectionItem>
+					<apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__sohdr_orderdate__c.label}"/>
+                        <apex:inputField id="sohdr_orderdate__c" value="{!o.rstk__sohdr_orderdate__c}" required="true"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__rootstockquotation}"/>
+                        <apex:inputCheckbox id="createAsQuote" value="{!createAsQuote}" onchange="updateHeaderOptions()"/>
+                     </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__sohdr_proj__c.label}"/>
+		            	<apex:outputPanel >
+							<apex:inputHidden id="sohdr_proj__c" value="{!o.rstk__sohdr_proj__c}"/>
+                            <input id="sohdr_textproj__c" name="AC_autocomplete" styleClass="ac_input" style="width:250px"/>
+                            <script>
+                             var acId    = document.getElementById('{!$Component.sohdr_proj__c}');
+                             var acInput = jQuery(document.getElementById('sohdr_textproj__c'));
+                             setupAutocompleteFieldData(acInput[0],acId, []);
+                             acInput.val(autoIfClearProjectHeaderName({!JSENCODE(headerProjectName)}));
+                            </script>
+		            	</apex:outputPanel>
+                     </apex:pageBlockSectionItem>
+                     <apex:pageBlockSectionItem rendered="{!pageOptions.showContract}">
+                        <apex:outputLabel value="{!$Label.rstk__autoaddcontract}"/>
+                        <apex:inputCheckbox id="autoAddContract" value="{!autoAddContract}"/>
+                     </apex:pageBlockSectionItem>
+ 					<apex:pageBlockSectionItem rendered="{!NOT(pageOptions.showContract)}"/>
+                     <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!f.rstk__sohdr_freightamt__c.label}"/>
+                        <apex:inputField id="sohdr_freightamt__c" value="{!o.rstk__sohdr_freightamt__c}" />
+                    </apex:pageBlockSectionItem>
+ 					<apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem rendered="{!AND(projOptions.auto, projOptions.getDimValues)}">
+                        <apex:outputLabel value="{!$Label.rstk__projectdimvalue}"/>
+                       <select size="1" id="hdrProjDims" style="width:120px" onchange="updateProjDims();"></select>
+                    </apex:pageBlockSectionItem>
+					<apex:pageBlockSectionItem rendered="{!AND(projOptions.auto, projOptions.getDimValues)}"/>
+               </apex:pageBlockSection>
+                <apex:pageBlock id="productItems" >
+                <apex:outputPanel style="height:35px">
+                	<apex:inputCheckbox id="selectAll" onclick="markAll(this.checked)"/>&nbsp;<apex:outputLabel value="{!$Label.rstk__selectall}"/>
+                </apex:outputPanel>
+                <apex:pageBlockTable id="pbt_lineitems" value="{!lineItems}" var="d">
+                    <apex:column headerValue="" style="width:25px;">
+                        <apex:inputCheckbox id="selected" value="{!d.selected}" style="width:25px" disabled="{!!d.hasProd && !addNewProductEnabled}"/>
+                       	<apex:outputPanel style="display:none;">
+                        	<apex:outputText id="lineNumber" value="{!d.line}"/>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soline_prod__c.label}" >
+                    	<apex:outputPanel >
+                    		<apex:selectlist size="1" id="soline_prod__c" value="{!d.soline.rstk__soline_prod__c}" style="width:200px" 
+                        		rendered="{!d.hasProd }" onchange="productChange('{!d.line}', this.value)" >
+                            	<apex:selectOptions value="{!d.soprodOptions}"/>
+                        	</apex:selectlist>
+						</apex:outputPanel>
+						<apex:outputPanel rendered="{!!d.hasProd}">
+                        		<apex:outputPanel rendered="{!d.productOverridden}">
+  									{!d.soprod.rstk__soprod_prod__c}<br/>
+  									<apex:outputField value="{!d.soprod.rstk__soprod_sf_product__c}"/><br/>
+  									<a href="#" onclick="return openCreateProduct('{!d.soprod.rstk__soprod_sf_product__c}');"><font color="blue">Create Rootstock Product</font></a>                      	
+  								</apex:outputPanel>
+                       			<apex:outputPanel rendered="{!!d.productOverridden}">
+                        			<apex:outputPanel rendered="{!!autoCreateProduct}">No corresponding Rootstock product exists for</apex:outputPanel>
+                       				<apex:outputPanel rendered="{!autoCreateProduct}">{!$Label.rstk__autocreaterootstockproduct}</apex:outputPanel>
+                        			<span style="font-weight: bold"><apex:outputField value="{!d.soprod.rstk__soprod_prod__c}"/></span>.
+  									<apex:outputPanel rendered="{!AND(addNewProductEnabled, !autoCreateProduct)}">
+  										<a href="#" onclick="return openCreateProduct('{!d.soprod.rstk__soprod_sf_product__c}');"><font color="blue">New Rootstock Product Values</font></a>                      	
+                        			</apex:outputPanel>
+                        		</apex:outputPanel>
+                        	</apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soline_qtyorder__c.label}" style="width:75px;" >
+                    	<apex:outputPanel rendered="{!d.hasProd || addNewProductEnabled}">
+                        <apex:inputField id="soline_qtyorder__c" value="{!d.soline.rstk__soline_qtyorder__c}" style="width:75px" styleClass="quantity" />
+	                        <apex:inputHidden id="prodId" value="{!d.soline.rstk__soline_prod__c}"/>
+	                        <apex:inputHidden id="prodType" value="{!d.soline.rstk__soline_prodtype__c}"/>
+	                        <apex:inputHidden id="invUom" value="{!d.invUom}"/>
+	                        <apex:inputHidden id="qtyDecimal" value="{!d.qtyDecimal}"/>
+	                        <apex:inputHidden id="enfMinQtyOrd" value="{!d.enfMinQtyOrd}"/>
+	                        <apex:inputHidden id="enfLotQtyOrd" value="{!d.enfLotQtyOrd}"/>
+	                        <apex:inputHidden id="minQtyOrd" value="{!d.minQtyOrd}"/>
+	                        <apex:inputHidden id="lotQtyOrd" value="{!d.lotQtyOrd}"/>
+	                        <apex:inputHidden id="maxOrderQty" value="{!d.maxOrderQty}"/>
+	                        <apex:inputHidden id="totQtyOrdered" value="{!d.totQtyOrdered}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel >
+                        	<span name="in_soprod_sf_product__c" style="display:none;">{!d.soprod.rstk__soprod_sf_product__c}</span>
+                        	<span name="defaultDimValue" style="display:none;">{!d.defaultDimValue}</span>
+                        	<span name="defaultUOM"  style="display:none;">{!d.defaultUOM}</span>
+                        	<apex:inputHidden id="in_soprod_prod__c" value="{!d.soprod.rstk__soprod_prod__c}"/>
+	                        <apex:inputHidden id="in_soprod_descr__c" value="{!d.soprod.rstk__soprod_descr__c}"/>
+	                        <apex:inputHidden id="in_soprod_comcod__c" value="{!d.soprod.rstk__soprod_comcod__c}"/>
+	                        <apex:inputHidden id="in_soprod_shipdiv__c" value="{!d.soprod.rstk__soprod_shipdiv__c}"/>
+	                        <apex:inputHidden id="in_soprod_shiplocid__c" value="{!d.soprod.rstk__soprod_shiplocid__c}"/>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__quantitymessage}">
+                    	<apex:outputPanel id="qtyMsg" style="color:red;"></apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soline_price__c.label}" >
+                        <apex:inputField id="soline_price__c" value="{!d.soline.rstk__soline_price__c}" style="width:85px" styleClass="priceAmount" 
+                        	rendered="{!d.hasProd || addNewProductEnabled}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soline_discpct__c.label}" >
+                        <apex:inputField id="soline_discpct__c" value="{!d.soline.rstk__soline_discpct__c}" style="width:85px" styleClass="amount" 
+                        	rendered="{!d.hasProd || addNewProductEnabled}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soline_duedate__c.label}" >
+                        <c:inputDateNoLink rendered="{!d.hasProd || addNewProductEnabled}"> 
+                        <apex:inputField id="soline_duedate__c" value="{!d.soline.rstk__soline_duedate__c}" style="width:75px" />
+                        </c:inputDateNoLink>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soline_shipdiv__c.label}" title="{!f_sl.rstk__soline_shipdiv__c.inlineHelpText}" >
+                        <apex:selectlist id="soline_shipdiv__c" value="{!d.soline.rstk__soline_shipdiv__c}" size="1" style="width:120px" 
+                        	onchange="lineDivChanged(this);" rendered="{!d.hasProd || addNewProductEnabled}">
+                            <apex:selectOptions value="{!divisions}"/>
+                        </apex:selectlist>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soline_project__c.label}" title="{!f_sl.rstk__soline_project__c.inlineHelpText}">
+                    	<apex:outputPanel rendered="{!d.hasProd || addNewProductEnabled}">
+                        <apex:inputHidden id="soline_project__c" value="{!d.soline.rstk__soline_project__c}"/>
+                        <input type="text" id="soline_textproject__c_{!d.line}" name="AC_autocomplete" styleClass="ac_input" style="width:240px"/>
+                        <script>
+                            var acId    = document.getElementById('{!$Component.soline_project__c}');
+                            var acInput = jQuery(document.getElementById('soline_textproject__c_{!d.line}'));
+                            setupAutocompleteFieldData(acInput[0],acId, []);
+                            acInput.val(autoIfClearProjectLineName({!JSENCODE(d.projectName)}));
+                            acId.onchange=function() { lineProjectChanged(acId); };
+                        </script>
+                        </apex:outputPanel>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__projectdimvalue}" title="{!$Label.rstk__accountingdimensionvaluefortheautocreatedproject}" rendered="{!AND(projOptions.autoLine, projOptions.getDimValues)}">
+                        <select size="1" id="lineProjDims" style="width:120px" onchange="updateProjDims();"></select>
+                    </apex:column>
+                    <apex:column headerValue="{!f_sl.rstk__soline_uom__c.label}" >
+						<apex:selectlist size="1" id="soline_uom__c" value="{!d.soline.rstk__soline_uom__c}" style="width:75px" 
+							rendered="{!d.hasProd || addNewProductEnabled}">
+							<apex:selectOptions value="{!UOMs}"/>
+						</apex:selectlist>
+                    </apex:column>
+                 </apex:pageBlockTable>
+       			 </apex:pageBlock>
+        </apex:pageBlock>
+        
+    </apex:form>
+    <c:footerInclude cntr="{!controller}"/>
+    
+</div>
+</apex:page>

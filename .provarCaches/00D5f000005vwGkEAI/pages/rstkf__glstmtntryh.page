@@ -1,0 +1,849 @@
+<apex:page id="pg" standardController="rstkf__glstmtntryh__c" extensions="rstkf.ControllerExtnStatement,rstkf.RemoteQueryController" action="{!doBeforePageLoad}"> 
+<apex:variable var="o" value="{!rstkf__glstmtntryh__c}" />
+<apex:variable var="f" value="{!$ObjectType.rstkf__glstmtntryh__c.fields}" />
+<apex:variable var="f_glstmtd" value="{!$ObjectType.rstkf__glstmtntryd__c.fields}" />
+<apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+<apex:sectionHeader subtitle="{!$Label.rstkf__generalstatements}" help="{!helpUrl}"/>
+
+<script>
+    var glcompid = "{!currentGlcmp.id}";
+    var locl = new Locale();
+    
+    function saveStatementHeaderCheck(ID) {
+        if(ID == null || ID == '') {
+            var glstmtntryhentryno = document.getElementById('pg:fm:glstmtHeaderEdit_pb:pb_edit:pb_edit_op_gjno:glstmtntryh_entryno__c').value;
+            glstmtntryhentryno = glstmtntryhentryno.trim();
+            if(glstmtntryhentryno == '' || isNaN(glstmtntryhentryno) || (parseFloat(glstmtntryhentryno) < 0)) {
+                alert("{!$Label.PleasEenterValidEntryNumber}");
+                return false;
+            } else {
+                saveStatementHeader();
+            }
+        } else {
+            saveStatementHeader();
+        }       
+    }
+    
+    function glstmtntryhsCheck() {
+        var filterGlstYearElement = document.getElementById('pg:fm:glstmtHeaderEdit_pb:pb_edit:fllterGlYear:gljhglyear__c');
+        var filterGlstYearID = filterGlstYearElement.value;
+        var filterGlstYear = filterGlstYearElement.options[filterGlstYearElement.selectedIndex].innerHTML;
+        var filterGlstPeriod = document.getElementById('pg:fm:glstmtHeaderEdit_pb:pb_edit:fllterGlPeriod:gljhperiod__c').value;
+        
+        if(filterGlstYearID == '') {
+            alert("{!$Label.PleaseEnterGLYear}");
+            return false;
+        }
+        
+        if(filterGlstPeriod == '') {
+            alert("{!$Label.PleaseEnterGLPeriod}");
+            return false;
+        }
+        
+        console.log('lastClosedPeriodPost '+lastClosedPeriodPost);
+        console.log(' lastClosedGlyear '+lastClosedGlyear);
+        console.log('filterGlstYear '+filterGlstYear);
+        console.log(' filterGlstPeriod '+filterGlstPeriod);
+        var nextPeriod =  parseInt(lastClosedPeriodPost); //lastClosedPeriodPost == 13 ? 1 : parseInt(lastClosedPeriodPost) + 1;
+        var nextYear = parseInt(lastClosedGlyear); //lastClosedPeriodPost == 13 ? parseInt(lastClosedGlyear) + 1 : parseInt(lastClosedGlyear);          
+        filterGlstYear = parseInt(filterGlstYear);
+        filterGlstPeriod = parseInt(filterGlstPeriod);          
+        
+        if( filterGlstYear > nextYear) {            
+            alert("{!$Label.PleaseselectCurrentOpenGLPeriodorPreviousGLPeriods}");      
+            document.getElementById('pg:fm:glstmtHeaderEdit_pb:pb_edit:fllterGlPeriod:gljhperiod__c').value = lastClosedPeriodPost; 
+            document.getElementById('pg:fm:glstmtHeaderEdit_pb:pb_edit:fllterGlYear:gljhglyear__c').value = lastClosedGlyearID;
+        } else if( (filterGlstPeriod > nextPeriod) && (filterGlstYear == nextYear) ) {
+            alert("{!$Label.PleaseselectCurrentOpenGLPeriodorPreviousGLPeriods}");
+            document.getElementById('pg:fm:glstmtHeaderEdit_pb:pb_edit:fllterGlPeriod:gljhperiod__c').value = lastClosedPeriodPost; 
+            document.getElementById('pg:fm:glstmtHeaderEdit_pb:pb_edit:fllterGlYear:gljhglyear__c').value = lastClosedGlyearID;
+        } else {
+            //getAllglstmtntryhs();
+        }           
+    }
+        
+    function changeStatementCheck() {
+        console.log(' Inside changeStatementCheck ');
+        /*
+        console.log(' Inside changeStatementCheck glstmtArray '+glstmtArray);
+        var selectedCounter = 0;
+        var selectedIndex;
+        var status = '';
+        //var jeNo ='';
+        //var samePageEntry = false;
+        
+        for (var i=0; i< glstmtArray.length; i++) { 
+            console.log('defaultValue '+glstmtArray[i].selected.checked);
+            console.log('selectedIndex '+glstmtArray[i].selectedIndex);
+                        
+            if (glstmtArray[i].selected.checked == true) {
+                selectedCounter++;
+                selectedIndex = glstmtArray[i].selectedIndex;
+                status = glstmtArray[i].status.innerHTML;
+                //jeNo = glstmtArray[i].jeID.innerHTML;
+            }
+        }
+        
+        if (selectedCounter == 0) {
+            alert(Label_Please_select_at_least_One_Entry);
+        } else if (selectedCounter > 1 ) {
+            alert(Label_Please_select_Only_One_Entry);
+        } else {
+            changeStatement(selectedIndex);
+        }   */    
+        changeStatement();
+    } 
+        
+    function deleteEnryCheck() {
+        console.log(' Inside deleteEnryCheck ');
+        if(confirm("{!$Label.AreYouSure}")) {
+            initiateDeleteStatement();
+        }
+    }
+    
+    
+    function postEntryCheck() {
+        console.log(' Inside postEntryCheck ');
+        /*
+        console.log(' Inside postEntryCheck glstmtArray '+glstmtArray);
+        var selectedCounter = 0;
+        var selectedIndex;
+        var status = '';
+        //var jeNo ='';
+        //var samePageEntry = false;
+        
+        for (var i=0; i< glstmtArray.length; i++) { 
+            console.log('defaultValue '+glstmtArray[i].selected.checked);
+            console.log('selectedIndex '+glstmtArray[i].selectedIndex);
+                        
+            if (glstmtArray[i].selected.checked == true) {
+                selectedCounter++;
+                selectedIndex = glstmtArray[i].selectedIndex;
+                status = glstmtArray[i].status.innerHTML;
+                //jeNo = glstmtArray[i].jeID.innerHTML;
+            }
+        }
+        
+        if (selectedCounter == 0) {
+            alert(Label_Please_select_at_least_One_Entry);
+        } else if (selectedCounter > 1 ) {
+            alert(Label_Please_select_Only_One_Entry);
+        } else {
+            var selectedEntryStatus = document.getElementById('pg:fm:selectedEntryStatus').value;
+            if(selectedEntryStatus == 'Transferred to GLAYSTMT') {
+                alert("{!$Label.StatementcannotbePostedasitisalreadyposted}");
+            } else {
+                    postStatement(selectedIndex);               
+            }                   
+        }*/       
+        postStatement();
+    }
+    function editglstmtntryd(id,flag) {
+        console.log('Inside editglstmtntryd '+id);
+        setEditURL(id,flag);
+    }
+    
+    function maintainoldJeno() {        
+        oldJeno =   document.getElementById('pg:fm:glstmtHeaderEdit_pb:pb_edit:pb_edit_op_gjno:glstmtntryh_entryno__c').value;
+    }   
+    
+    function completeStatementCheck() {
+        /*
+        console.log(' completeStatementCheck ');
+        var result = checkForSelectedEntries();
+        console.log( ' result '+result);
+        if(result[0] == true) {                     
+            completeStatement(result[2]);
+        } else {
+            return false;
+        }*/
+        completeStatement();
+    }
+    
+    function approveStatementCheck() {
+        /*
+        console.log(' approveStatementCheck ');
+        var result = checkForSelectedEntries();
+        console.log( ' result '+result);
+        if(result[0] == true) {                     
+            approveStatement(result[2]);
+        } else {
+            return false;
+        }*/
+        approveStatement();
+    }
+    
+    function unapproveStatementCheck() {
+        /*
+        console.log(' unapproveStatementCheck ');
+        var result = checkForSelectedEntries();
+        console.log( ' result '+result);
+        if(result[0] == true) {                     
+            unapproveStatement(result[2]);
+        } else {
+            return false;
+        }*/
+        unapproveStatement();
+    }
+    
+    function inCompleteStatementCheck() {
+        /*
+        console.log(' inCompleteStatementCheck ');
+        var result = checkForSelectedEntries();
+        console.log( ' result '+result);
+        if(result[0] == true) {                     
+            inCompleteStatement(result[2]);
+        } else {
+            return false;
+        }*/
+        inCompleteStatement();
+    }
+    
+    function applytoChangeStatementCheck() {
+        /*
+        console.log(' applytoChangeStatementCheck ');
+        var result = checkForSelectedEntries();
+        console.log( ' result '+result);
+        if(result[0] == true) {                     
+            applytoChangeStatement(result[2]);
+        } else {
+            return false;
+        }*/
+        applytoChangeStatement();
+    }
+    
+    function unPostStatementCheck() {
+        /*
+        console.log(' applytoChangeStatementCheck ');
+        var result = checkForSelectedEntries();
+        console.log( ' result '+result);
+        if(result[0] == true) {                     
+            unPostStatement(result[2]);
+        } else {
+            return false;
+        }*/
+        unPostStatement();
+    }
+    
+    
+    function unPostAndChangeStatementCheck() {
+        /*
+        console.log(' applytoChangeStatementCheck ');
+        var result = checkForSelectedEntries();
+        console.log( ' result '+result);
+        if(result[0] == true) {                     
+            unPostAndChangeStatement(result[2]);
+        } else {
+            return false;
+        }*/
+        unPostAndChangeStatement();
+    }
+    
+    function unPostAndLogicalDeleteStatementCheck() {
+        /*
+        console.log(' applytoChangeStatementCheck ');
+        var result = checkForSelectedEntries();
+        console.log( ' result '+result);
+        if(result[0] == true) {                     
+            unPostAndLogicalDeleteStatement(result[2]);
+        } else {
+            return false;
+        }*/
+        unPostAndLogicalDeleteStatement();
+    }
+    
+    function checkForSelectedEntries() {
+        console.log(' Inside checkForSelectedEntries ');
+        console.log(' Inside postEntryCheck glstmtArray '+glstmtArray);
+        var selectedCounter = 0;
+        var selectedIndex;
+        var status = '';
+        var returnArray = [false,''];
+        
+        for (var i=0; i< glstmtArray.length; i++) { 
+            console.log('defaultValue '+glstmtArray[i].selected.checked);
+            console.log('selectedIndex '+glstmtArray[i].selectedIndex);
+                        
+            if (glstmtArray[i].selected.checked == true) {
+                selectedCounter++;
+                selectedIndex = glstmtArray[i].selectedIndex;
+                status = glstmtArray[i].status.innerHTML;
+            }
+        }
+        
+        if (selectedCounter == 0) {
+            alert(Label_Please_select_at_least_One_Entry);
+            returnArray = [false,status,selectedIndex];
+        } else if (selectedCounter > 1 ) {
+            alert(Label_Please_select_Only_One_Entry);
+            returnValue = [false,status,selectedIndex];
+        } else {
+            returnValue = [true,status,selectedIndex];
+        }
+        return returnValue;
+    }
+    
+    function postProcessResult(source) {
+        var testResultString = document.getElementById('pg:fm:testResultString').value;
+    }
+    
+    var oldEno = "{!o.glstmtntryh_entryno__c}";
+    var oldstatus = "{!JSENCODE(editStatement.stmtHeader.glstmtntryh_status__c)}";
+    var lastClosedPeriodPost = "{!lastClosedPeriodPost}";
+    var lastClosedGlyear = "{!lastClosedGlyear.glyear_year__c}";
+    var lastClosedGlyearID = "{!lastClosedGlyear.Id}";
+    
+</script>
+<c:standardHeader cntr="{!controller}" customInclude="{!$Resource.rstkf__glstmtntryh_cli}" showHeader="false" enableAutocomplete="true"/>
+<apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+<apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+<apex:includeScript value="{!$Resource.rstkf__BlockUI}" />
+<apex:form id="fm">
+    <apex:actionFunction name="getAllglstmtntryhs" action="{!getAllglstmtntryhs}" reRender="glstmtHeaderEdit" immediate="false" status="pleaseWaitStatus"/>     <apex:actionStatus onstart="showTopDialog('pleaseWaitPopup');" onstop="closeTopDialog();" id="pleaseWaitStatus"/>
+    <apex:actionFunction name="addnewStatementHeader" action="{!addnewStatementHeader}" immediate="false" rerender="pageMessages,glStmtList,glstmtHeaderEdit,selectedEntryStatus" status="pleaseWaitStatus" oncomplete="maintainoldJeno();"/> 
+    <apex:actionFunction name="saveStatementHeader" action="{!saveStatementHeader}" immediate="false" rerender="pageMessages" status="pleaseWaitStatus" />    
+    <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+    <apex:actionFunction name="cancelAddOrEdit" action="{!cancelAddOrEdit}" immediate="false" status="pleaseWaitStatus"/>    
+    <apex:actionFunction name="setEditURL" action="{!setEditURL}" immediate="false" status="pleaseWaitStatus" reRender="op_maintainLinesPopup,testResultString,selectedEntryStatus" oncomplete="openFramePopup();">
+        <apex:param name="editLink" assignTo="{!editLink}" value=""/>
+        <apex:param name="glstmtntrydViewMode" assignTo="{!glstmtntrydViewMode}" value=""/>
+    </apex:actionFunction>
+    <apex:actionFunction name="initiateDeleteStatement" action="{!initiateDeleteStatement}" rerender="pageMessages,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus">
+    </apex:actionFunction>  
+    <apex:actionFunction name="postStatement" action="{!postStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>
+    <apex:actionFunction name="disableGlstmtntryhs" action="{!disableGlstmtntryhs}" reRender="glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus"/>
+    <apex:actionFunction name="unPostStatement" action="{!unPostStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>
+    <apex:actionFunction name="unPostAndChangeStatement" action="{!unPostAndChangeStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>
+    <apex:actionFunction name="unPostAndLogicalDeleteStatement" action="{!unPostAndLogicalDeleteStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>
+    <apex:actionFunction name="applytoChangeStatement" action="{!applytoChangeStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>
+    <apex:actionFunction name="approveStatement" action="{!approveStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>  
+    <apex:actionFunction name="unapproveStatement" action="{!unapproveStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>
+    <apex:actionFunction name="completeStatement" action="{!completeStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>
+    <apex:actionFunction name="inCompleteStatement" action="{!inCompleteStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();">
+    </apex:actionFunction>
+    <apex:actionFunction name="changeStatement" action="{!changeStatement}" rerender="pageMessages,testResultString,glStmtList,glstmtHeaderEdit,glstmtDetail,selectedEntryStatus" immediate="false" status="pleaseWaitStatus" oncomplete="postProcessResult();maintainEntryCheck();">
+    </apex:actionFunction>  
+    
+    <apex:inputHidden id="selectedEntryStatus" value="{!selectedEntryStatus}" />
+    <apex:actionFunction name="getAllglstmtntryhsAndRefresh" action="{!getAllglstmtntryhs}" immediate="false" status="pleaseWaitStatus" oncomplete="viewEntryCheck()"/>     
+    <apex:inputHidden id="testResultString" value="{!testResultString}" />
+        
+    <apex:outputPanel id="glstmtHeaderEdit">
+        <apex:pageBlock title="{!$Label.rstkf__general_statement}" id="glstmtHeaderEdit_pb" rendered="{!OR(createMode,updateMode,viewMode)}">
+            <apex:pageBlockButtons >
+                <apex:outputPanel id="op_hdrbtns">
+                    <apex:outputPanel id="op_hdrbtnsEditCreateMode" rendered="{!OR(createMode,AND(updateMode,OR(editStatement.stmtHeader.rstkf__glstmtntryh_status__c == completeNeedsApprovalStatus,editStatement.stmtHeader.rstkf__glstmtntryh_status__c == incomplete)))}">
+                        <input type="button" id="saveEntry" value="{!$Label.pageval_Save}" class="btn" onclick="saveStatementHeaderCheck('{!editStatement.stmtHeader.Id}');"/>                        
+                    </apex:outputPanel>
+                    
+                    <apex:outputPanel id="op_hdrbtnsEditUpdateMode" rendered="{!AND(updateMode,!isPriorClosedMode)}">
+                        <apex:outputPanel rendered="{!approve_entry_ok}">
+                            <input type="button" id="approveStatement" value="{!$Label.Approve_Entry}" class="btn" onclick="approveStatementCheck();" />
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!applyto_change_ok}">
+                            <input type="button" id="applytoChangeStatement" value="{!$Label.All_Statements_Or_Consolidated_Only}" class="btn" onclick="applytoChangeStatementCheck();" />  
+                        </apex:outputPanel> 
+                        <apex:outputPanel rendered="{!unapprove_entry_ok}">
+                            <input type="button" id="unapproveStatement" value="{!$Label.Set_Status_to_Un_Approved}" class="btn" onclick="unapproveStatementCheck();" />
+                        </apex:outputPanel>                     
+                        <apex:outputPanel rendered="{!complete_entry_ok}">
+                            <input type="button" id="completeStatement" value="{!$Label.Set_Status_to_Complete}" class="btn" onclick="completeStatementCheck();" /> 
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!uncomplete_entry_ok}">
+                            <input type="button" id="inCompleteStatement" value="{!$Label.Set_Status_to_Incomplete}" class="btn" onclick="inCompleteStatementCheck();" />
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c == reversedLogicallyDeleted}">
+                            <input type="button" id="repostEntry" value="{!$Label.Re_Post_Entry}" class="btn" onclick="postEntryCheck();" />                            
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c == completeNeedsApprovalStatus}">
+                            <input type="button" id="approveandPostEntry" value="{!$Label.Approve_and_Post_Entry}" class="btn" onclick="postEntryCheck();" />
+                        </apex:outputPanel>
+                        
+                        <apex:outputPanel rendered="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c == approvedNotTransferred}">
+                            <input type="button" id="postEntry" value="{!$Label.Post_Entry}" class="btn" onclick="postEntryCheck();" />
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c == transferredToGLAYSTMT}">
+                            <input type="button" id="unPostStatement" value="{!$Label.Un_Post_Entry}" class="btn" onclick="unPostStatementCheck();" />
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c == transferredToGLAYSTMT}">
+                            <input type="button" id="unPostAndChangeStatement" value="{!$Label.Un_Post_and_Change_Entry}" class="btn" onclick="unPostAndChangeStatementCheck();" />
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c == transferredToGLAYSTMT}">
+                            <input type="button" id="unPostAndLogicalDeleteStatement" value="{!$Label.Un_Post_and_logically_Delete_Entry}" class="btn" onclick="unPostAndLogicalDeleteStatementCheck();" />
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c == incomplete}">
+                            <input type="button" id="deleteEntry" value="{!$Label.Delete_Entry}" class="btn" onclick="deleteEnryCheck();" />
+                        </apex:outputPanel>                                                 
+                    </apex:outputPanel>
+                    <apex:outputPanel id="op_hdrbtnsView" rendered="{!AND(viewMode,!isPriorClosedMode)}">
+                        <apex:outputPanel rendered="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c == incomplete}">
+                            <input type="button" id="details" value="{!$Label.Statement_Detail_Maintenance}" class="btn" onclick="_showDialogCustom('gljdpopup', 1600, 400)"/> 
+                        </apex:outputPanel>
+                        
+                        <apex:outputPanel rendered="{!OR(editStatement.stmtHeader.rstkf__glstmtntryh_status__c == completeNeedsApprovalStatus,editStatement.stmtHeader.rstkf__glstmtntryh_status__c == approvedNotTransferred,editStatement.stmtHeader.rstkf__glstmtntryh_status__c == incomplete)}">
+                            <input type="button" id="changeEntry" value="{!$Label.Change_Entry}" class="btn" onclick="changeStatementCheck();" />
+                        </apex:outputPanel>
+                                                
+                        
+                        
+                        
+                    </apex:outputPanel>                                     
+                    <input type="button" id="cancelEntry" value="{!$Label.pageval_Cancel}" class="btn" onclick="cancelAddOrEdit();"/>
+                </apex:outputPanel>
+            </apex:pageBlockButtons>
+            
+            <apex:pageblocksection id="pb_edit" columns="1">
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glstmtntryh_glcmp__c.inlineHelpText}">
+                   <apex:outputLabel value="{!f_customext.rstkf__glstmtntryh_glcmp__c.label}"/>
+                   <apex:outputPanel >
+                    <apex:outputLink value="/{!currentGlcmp.id}">
+                        <apex:outputField value="{!currentGlcmp.name}" />
+                    </apex:outputLink>
+                   </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+               
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_glyear__c.inlineHelpText}" id="fllterGlYear">
+                   <apex:outputLabel value="{!f.rstkf__glstmtntryh_glyear__c.label}"/>
+                   <apex:outputPanel >
+                    <apex:selectList id="gljhglyear__c" value="{!editStatement.stmtHeader.rstkf__glstmtntryh_glyear__c}" size="1" onchange="glstmtntryhsCheck()" rendered="{!createMode}"> 
+                        <apex:selectOptions value="{!fiscalyears}" /> 
+                    </apex:selectList>
+                    <apex:outputField id="glstmtntryh_glyear__c" value="{!editStatement.stmtHeader.rstkf__glstmtntryh_glyear__c}" rendered="{!OR(viewMode,updateMode)}"/>                                 
+                   </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+               
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_period__c.inlineHelpText}" id="fllterGlPeriod">
+                   <apex:outputLabel value="{!f.rstkf__glstmtntryh_period__c.label}"/>
+                   <apex:outputPanel >
+                    <apex:selectList id="gljhperiod__c" value="{!editStatement.stmtHeader.rstkf__glstmtntryh_period__c}" size="1" onchange="glstmtntryhsCheck()" rendered="{!createMode}"> 
+                        <apex:selectOptions value="{!periods}" /> 
+                    </apex:selectList>
+                    <apex:outputField id="glstmtntryh_period__c" value="{!editStatement.stmtHeader.rstkf__glstmtntryh_period__c}" rendered="{!OR(viewMode,updateMode)}"/>                                                       
+                   </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_descr__c.inlineHelpText}" id="pb_edit_op_des">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_descr__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="glstmtntryh_descr__c" value="{!editStatement.stmtHeader.rstkf__glstmtntryh_descr__c}" rendered="{!OR(createMode,AND(updateMode,OR(editStatement.stmtHeader.rstkf__glstmtntryh_status__c == completeNeedsApprovalStatus,editStatement.stmtHeader.rstkf__glstmtntryh_status__c == incomplete)))}"/>
+                        <apex:outputField value="{!editStatement.stmtHeader.rstkf__glstmtntryh_descr__c}" rendered="{!OR(viewMode,AND(updateMode,editStatement.stmtHeader.rstkf__glstmtntryh_status__c != completeNeedsApprovalStatus,editStatement.stmtHeader.rstkf__glstmtntryh_status__c != incomplete))}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_applyto__c.inlineHelpText}" id="pb_edit_op_appl">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_applyto__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!editStatement.stmtHeader.rstkf__glstmtntryh_applyto__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_status__c.inlineHelpText}" id="pb_edit_op_status">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_status__c.label}"/>
+                    <apex:outputPanel >                                                 
+                        <apex:outputField id="glstmtntryh_of" value="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_owner__c.inlineHelpText}" id="pb_edit_op_owner">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_owner__c.label}"/>
+                    <apex:outputPanel >                        
+                        <apex:outputField value="{!editStatement.stmtHeader.rstkf__glstmtntryh_owner__c}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_entryno__c.inlineHelpText}" id="pb_edit_op_gjno">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_entryno__c.label}"/>
+                    <apex:outputPanel >
+                           <apex:inputField id="glstmtntryh_entryno__c" value="{!editStatement.stmtHeader.rstkf__glstmtntryh_entryno__c}" rendered="{!createMode}" onchange="glstmtntryhjenoChanged()"/>
+                           <apex:outputField value="{!editStatement.stmtHeader.rstkf__glstmtntryh_entryno__c}" rendered="{!OR(viewMode,updateMode)}"/>
+                           <apex:outputText id="glstmt_id" value="{!editStatement.stmtHeader.Id}" style="display:none"/>                            
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_entrydate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_entrydate__c.label}"/>
+                    <apex:outputPanel >                     
+                        <apex:outputField value="{!editStatement.stmtHeader.rstkf__glstmtntryh_entrydate__c}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_approvedby__c.inlineHelpText}" id="pb_edit_op_approvedby">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_approvedby__c.label}"/>
+                    <apex:outputPanel >                        
+                        <apex:outputField value="{!editStatement.stmtHeader.rstkf__glstmtntryh_approvedby__c}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_approvaldate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_approvaldate__c.label}"/>
+                    <apex:outputPanel >                     
+                        <apex:outputField value="{!editStatement.stmtHeader.rstkf__glstmtntryh_approvaldate__c}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glstmtntryh_statusdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glstmtntryh_statusdate__c.label}"/>
+                    <apex:outputPanel >                     
+                        <apex:outputField value="{!editStatement.stmtHeader.rstkf__glstmtntryh_statusdate__c}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>                
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glstmtntryhList_totalDebits__c.inlineHelpText}" rendered="{!!createMode}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glstmtntryhList_totalDebits__c.label}"/>
+                    <apex:outputPanel >                     
+                        <apex:outputText id="glstmtntryhtotalDebits" value="{!totalDebits}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem helpText="{!f_customext.rstkf__glstmtntryhList_totalCredits__c.inlineHelpText}" rendered="{!!createMode}">
+                    <apex:outputLabel value="{!f_customext.rstkf__glstmtntryhList_totalCredits__c.label}"/>
+                    <apex:outputPanel >                     
+                        <apex:outputText id="glstmtntryhtotalCredits" value="{!totalCredits}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+             </apex:pageblocksection>   
+        </apex:pageBlock>
+    </apex:outputPanel>
+    
+    <!--
+    <apex:outputPanel id="glstmtDetail">
+        <apex:pageBlock title="{!$Label.Statement_Entry_Detail}" id="glstmtds" mode="detail" rendered="{!viewMode}">                
+                <apex:pageBlockTable id="glstmtdData" value="{!editStatement.stmtLines}" var="d">
+                    <apex:column headerValue="Action">
+                        <apex:outputPanel rendered="{!If(AND(editStatement.stmtHeader.rstkf__glstmtntryh_status__c == incomplete,!isPriorClosedMode),true,false)}">
+                            <apex:outputLink value="javascript:{}" onclick="editglstmtntryd('{!d.id}',false)">{!$Label.Edit}</apex:outputLink>
+                                <apex:outputText id="pipe" value=" | "/>
+                            <apex:outputLink value="javascript:{}" onclick="deleteglstmtntrydCheck('{!d.id}')">{!$Label.Delete}</apex:outputLink>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!If(OR(editStatement.stmtHeader.rstkf__glstmtntryh_status__c != incomplete,isPriorClosedMode),true,false)}">
+                            <apex:outputLink value="javascript:{}" onclick="editglstmtntryd('{!d.id}',true)">{!$Label.View}</apex:outputLink>
+                        </apex:outputPanel>                                         
+                    </apex:column>
+                       
+                    <apex:column headerValue="{!f_glstmtd.glstmtntryd_line__c.label}">
+                        <apex:outputText id="glstmtntrydlineno" value="{!d.glstmtntryd_line__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_glstmtd.glstmtntryd_glacct__c.label}">
+                        <apex:outputField id="glstmtntrydglacct" value="{!d.glstmtntryd_glacct__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_glstmtd.glstmtntryd_dramt__c.label}">
+                        <apex:outputField value="{!d.glstmtntryd_dramt__c}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!f_glstmtd.glstmtntryd_cramt__c.label}">
+                        <apex:outputField value="{!d.glstmtntryd_cramt__c}"/>
+                    </apex:column>                                 
+                </apex:pageBlockTable>  
+            </apex:pageBlock>
+    </apex:outputPanel-->
+    
+    <apex:outputPanel >
+        <c:Popup popupId="gljdpopup" title="{!$Label.rstkf__journal_entry_details}" cancelCaption="{!$Label.rstkf__pagebtn_cancel}">  
+            <apex:outputPanel id="op_DetailsGrid">
+                <!--c:EditableGrid jsController="glstmtdctl" saveCaption="{!$Label.Save_And_Close}" data="{!gljdGrid}" editable="true" disableAdd="{!editjournal.header.gljh_status__c == postStatus}" disableSave="{!editjournal.header.gljh_status__c == postStatus}" disableDelete="{!editjournal.header.gljh_status__c == postStatus}"/-->
+                <c:PageableGrid jsController="glstmtdctl" data="{!glstmtntrydGrid}" editable="true" disableAdd="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c != incomplete}" disableSave="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c != incomplete}" disableDelete="{!editStatement.stmtHeader.rstkf__glstmtntryh_status__c != incomplete}" pageSize="30"/>
+                <script>
+                var maxglstmtntrydNo = 0;
+                var glstmtntryd_glstmtntryh;
+                glstmtdctl.onGridLoad = function() {
+                    self = this;
+                    console.log('self '+self); 
+                    this.getVisibleRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        var rowId = self.getRowValue(row, 'Id'); 
+                        glstmtntryd_glstmtntryh = self.getRowValue(row, 'glstmtntryd_glstmtntryh__c');  
+                        console.log('row '+row); 
+                        if (!isEmpty(rowId)) {
+                            var maxglstmtntrydNoRow = self.getRowValue(row, 'glstmtntryd_line__c');   
+                            maxglstmtntrydNo = parseInt(maxglstmtntrydNoRow);      
+                            glstmtdctl.setRowValue(row, 'triggeroptions__c', '{"apikey":"API_STMTDTL"}');
+                        } 
+                        
+   
+                    }); 
+                    
+                    console.log('maxglstmtntrydNo b4 query '+maxglstmtntrydNo); 
+                    if(glstmtntryd_glstmtntryh != undefined) {
+                        var maxglstmtntrydNoResult = execQuery("select max(glstmtntryd_line__c) linecount from glstmtntryd__c where glstmtntryd_glstmtntryh__c ='" + glstmtntryd_glstmtntryh + "'");
+                        console.log('maxglstmtntrydNoResult '+maxglstmtntrydNoResult[0].linecount);
+                        maxglstmtntrydNo = maxglstmtntrydNoResult[0].linecount;
+                    }
+                    
+                    console.log('maxglstmtntrydNo final '+maxglstmtntrydNo);                            
+                }
+                        
+                glstmtdctl.resetRow = function(row) {
+                    self=this;
+                    glstmtdctlHandler.prototype.resetRow.call(self, row);
+                    //maxglstmtntrydNo = 0;
+                    self.getRows().each(function(){
+                        var row = jQuery(this);
+                        var lineNo = self.getRowValue(row, 'glstmtntryd_line__c'); 
+                        console.log('maxglstmtntrydNo resetRow lineNo '+lineNo);
+                        if (lineNo > maxglstmtntrydNo) {
+                            maxglstmtntrydNo = lineNo;
+                        }
+                    });
+                    console.log('maxglstmtntrydNo resetRow final '+maxglstmtntrydNo);
+                }
+                        
+                glstmtdctl.onSaved = function() {
+                    unblockUI();
+                    window.location.reload();
+                    
+                }
+                        
+                        
+                        
+                glstmtdctl.onSaveFailed = function() {
+                    unblockUI();
+                }
+                        
+                glstmtdctl.addRow = function(rowCallback) {
+                    self = this;
+                    maxglstmtntrydNo = parseInt(maxglstmtntrydNo);
+                    console.log('maxglstmtntrydNo addRow final '+maxglstmtntrydNo);
+                    glstmtdctlHandler.prototype.addRow.call(self, rowCallback);
+                    this.getVisibleRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        console.log('maxglstmtntrydNo why is ',maxglstmtntrydNo);
+                        var rowId = self.getRowValue(row, 'Id'); 
+                        var currentLineNo = self.getRowValue(row, 'glstmtntryd_line__c');
+                        var currentLineNoInt = parseInt(currentLineNo);
+                        console.log('currentLineNoInt ',currentLineNoInt);
+                        console.log('index ',index);
+                        
+                        if(currentLineNoInt > maxglstmtntrydNo) {
+                            maxglstmtntrydNo = currentLineNoInt;
+                            console.log('currentLineNoInt in if is',currentLineNoInt);
+                        }    
+                        
+                        if(currentLineNo == '') {
+                            maxglstmtntrydNo = parseInt(maxglstmtntrydNo);
+                            maxglstmtntrydNo = maxglstmtntrydNo + 1;
+                            self.setRowValue(row, 'glstmtntryd_line__c', maxglstmtntrydNo);
+                        }   
+                        glstmtdctl.setRowValue(row, 'triggeroptions__c', '{"apikey":"API_STMTDTL"}');   
+                    });
+                }
+                
+                glstmtdctl_saveAndClose = function() {
+                    if(glstmtdctl.validate()) {
+                        blockUI();
+                        glstmtdctl_save();                            
+                    }
+                    
+                }
+                        
+                glstmtdctl.validate = function() {
+                    self = this;
+                    var isvalid = true;
+                    var totaldramt = 0;
+                    var totalcramt = 0;
+                    var localeZero = locl.parseFloat('0.00');
+                    this.getVisibleRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        var dramt = self.getRowValue(row, 'glstmtntryd_dramt__c');
+                        var line = self.getRowValue(row, 'glstmtntryd_line__c');
+                        var cramt = self.getRowValue(row, 'glstmtntryd_cramt__c');
+                        var acc = glstmtdctl.getRowValue(row, 'glstmtntryd_glacct__c');
+                        
+                        console.log('FN dramt ',dramt);
+                        console.log('FN cramt ',cramt);
+                        console.log('FN acc ',acc);
+                        console.log('FN line ',line);
+                        console.log('FN localeZero ',localeZero);
+                        
+                        line = line.replace(/,/g, "");
+                        if(line == 0 || line == '' ) {
+                            alert('{!$Label.Please_Enter_Line_No}');
+                            isvalid = false;
+                            return false;
+                        } else {
+                            if(locl.isNaN(line) || (locl.parseFloat(line) < 0) ) {
+                                alert('{!$Label.Please_enter_valid_Line_No}');
+                                isvalid = false;
+                                return false;
+                            }     
+                        }
+                        if(!acc){ 
+                            alert('{!$Label.Please_Enter_Account}');
+                            isvalid = false;
+                            return false;
+                        }
+                        
+                        //dramt = dramt.replace(/,/g, "");
+                        if(locl.parseFloat(dramt) != 0 || dramt != '') {
+                            if(locl.isNaN(dramt) || (locl.parseFloat(dramt) < 0) ) {
+                                alert('{!$Label.Please_enter_valid_Debit_amount}'); 
+                                isvalid = false;
+                                return false; 
+                            } else {
+                                if(locl.isNaN(cramt) || (locl.parseFloat(cramt) < 0) ) {
+                                    alert('{!$Label.Please_enter_valid_Credit_amount}');    
+                                    isvalid = false;
+                                    return false;
+                                }
+                            }    
+                        }     
+                            
+                        //cramt = cramt.replace(/,/g, "");    
+                        if(locl.parseFloat(cramt) != 0 || cramt != '') {
+                            if(locl.isNaN(cramt) || (locl.parseFloat(cramt) < 0) ) {
+                                alert('{!$Label.Please_enter_valid_Credit_amount}');    
+                                isvalid = false;
+                                return false;
+                            } else {
+                                if(locl.isNaN(dramt) || (locl.parseFloat(dramt) < 0) ) {
+                                    alert('{!$Label.Please_enter_valid_Debit_amount}'); 
+                                    isvalid = false;
+                                    return false; 
+                                }
+                            }    
+                        } 
+                        
+                        if( (locl.parseFloat(dramt) == 0 || dramt == '') && (locl.parseFloat(cramt) == 0 || cramt == '') ){ 
+                            alert('{!$Label.Please_enter_valid_Debit_amount}'); 
+                            isvalid = false;
+                            return false;
+                        }
+                        
+                        if(locl.parseFloat(dramt) != 0 && locl.parseFloat(cramt) != 0 ){ 
+                            alert('{!$Label.Either_Debit_amount_or_Credit_amount_can_be_filled}');
+                            isvalid = false;
+                            return false;
+                        }
+                    }); 
+                    return isvalid;
+                }
+                
+                glstmtdctl.entryChanged = function(row, rowNum, name, value) {                    
+                    if (name == 'glstmtntryd_line__c') {                                
+                        if(value == 0 || value == '' ) {
+                            alert('{!$Label.Please_Enter_Line_No}');
+                            glstmtdctl.setRowValue(row, 'glstmtntryd_line__c', '');
+                        } else {
+                            if(locl.isNaN(value) || (locl.parseFloat(value) < 0) ) {
+                                alert('{!$Label.Please_enter_valid_Line_No}');
+                                glstmtdctl.setRowValue(row, 'glstmtntryd_line__c', '');
+                            } else {
+                                var intLineValue = Math.ceil(value);
+                                var glstmtntryhHeader = glstmtdctl.getRowValue(row, 'glstmtntryd_glstmtntryh__c');
+                                if(execQuery("select count() from glstmtntryd__c where glstmtntryd_line__c = "+intLineValue+" and glstmtntryd_glstmtntryh__c = "+"'"+glstmtntryhHeader+"'") > 0 ){
+                                    alert(intLineValue+' '+'{!$Label.Line_Number_already_exists}');
+                                    glstmtdctl.setRowValue(row, 'glstmtntryd_line__c', '');
+                                } else {
+                                    glstmtdctl.setRowValue(row, 'glstmtntryd_line__c', intLineValue);
+                                }    
+                            }    
+                        }
+                        
+                    }  
+                    
+                }  
+                        
+         </script>   
+         </apex:outputPanel>
+        </c:Popup>
+    </apex:outputPanel>
+    
+    <div id="pleaseWaitPopup" style="display:none">
+        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+        <apex:outputPanel styleClass="topPopup">
+            <apex:image url="{!$Resource.rstkf__busy}"/>
+        </apex:outputPanel>
+    </div>
+</apex:form>
+<br />
+<apex:relatedList list="glstmtntryds__r" />    
+<apex:outputPanel id="op_maintainLinesPopup">
+     <div id="maintainLinesPopup" style="display:none">
+        <apex:pageBlock id="pb_maintainLinesPopup"  mode="detail">
+            <apex:iframe src="{!editLink}" id="maintainStatementLinesPopupId" width="100%" height="365px" scrolling="true"/>
+            <p style="position:auto;text-align:left">               
+                <apex:outputPanel rendered="{!If(AND(editStatement.stmtHeader.rstkf__glstmtntryh_status__c == incomplete,!isPriorClosedMode),true,false)}">
+                    <input type="button" name="popupCancelButton" class="btn" value="Close without Saving" onclick="noreloadStatements()" tabIndex="9992"/>
+                </apex:outputPanel>
+                <apex:outputPanel rendered="{!If(OR(editStatement.stmtHeader.rstkf__glstmtntryh_status__c != incomplete,isPriorClosedMode),true,false)}">
+                    <input type="button" name="popupCancelButton" class="btn" value="Close" onclick="noreloadStatements()" tabIndex="9992"/>
+                </apex:outputPanel>             
+            </p>
+        </apex:pageBlock> 
+    </div>        
+</apex:outputPanel>
+<c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+<script>
+        function noreloadStatements() {
+            unblockUI();        
+        }
+        
+        function reloadStatements() {
+            unblockUI();        
+            blockUI();          
+            //getAllglstmtntryhsAndRefresh(); 
+        }
+        
+        function openFramePopup() {
+            showPopup('#maintainLinesPopup', 800, 405);
+        }
+        
+        function _showDialogCustom(forId, width, height, top)
+        {
+          var jel = jQuery('#'+escapeId(forId));
+                    
+          // Need to show the dialog before the offeset can be changed
+          jel.show();
+          _openDialog = jel;
+          var thePopup=jel.find('.modalPopup');
+          var theWin=jQuery(window);
+          if (width != null) {
+            thePopup.width(width);
+          }
+          if (height != null) {
+            thePopup.height(height);
+          }
+                    
+          if (!height)
+            thePopup.css('max-height',theWin.height()*3/4);
+            
+          var topOffset = 200;
+          if (top != null) {
+            topOffset = top;
+          }
+        
+          thePopup.offset({
+            top  : topOffset + theWin.scrollTop(),
+            left  : 20
+          });
+          //left  : (theWin.width() - thePopup.width()) / 2          
+          fixupDialog();
+        
+          jel.find('[tabindex]:first').focus();
+          jel.keypress(function(e) {
+            if (e.which == 13) // return key pressed
+            {
+              if (!(getSourceElement(e) instanceof HTMLTextAreaElement))
+              {
+                // treat as close request unless it's a TextArea
+                e.preventDefault();
+                _closeDialog();
+              }
+            }
+          });
+        }   
+    
+        var Label_Please_select_at_least_One_Entry = "{!$Label.Please_select_at_least_One_Entry}";
+        var Label_Please_select_Only_One_Entry = "{!$Label.Please_select_Only_One_Entry}";      
+        var selectedIndexForCloneDialog = ''; 
+</script>       
+</apex:page>

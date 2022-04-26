@@ -1,0 +1,308 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_salescommission}" standardController="rstk__soinv__c" extensions="rstk.ControllerExtnSalesCommission,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__soinv__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soinv__c.fields}"/>
+    <apex:variable var="f_isales" value="{!$ObjectType.rstk__soisales__c.fields}" />
+    <apex:variable var="f_invline" value="{!$ObjectType.rstk__soinvline__c.fields}" />
+    <apex:variable var="f_sohdrextn" value="{!$ObjectType.rstk__sohdrextn__c.fields}" />
+    <apex:variable var="f_soisalespay" value="{!$ObjectType.rstk__soisalespay__c.fields}" />
+    <apex:variable var="f_soinvline" value="{!$ObjectType.rstk__soinvline__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_salescommission}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__salescommission_cli}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <style> 
+		.modal {
+			background-color:#fff;
+			display:none;
+			width:850px;
+			padding:15px;
+			text-align:left;
+			font-size:1em;
+			border:2px solid #333;
+
+			opacity:1.0;
+			-moz-border-radius:6px;
+			-webkit-border-radius:6px;
+			-moz-box-shadow: 0 0 50px #ccc;
+			-webkit-box-shadow: 0 0 50x #ccc;
+		}
+		
+		.ac_results
+		{
+			z-index: 9999;
+	        background-color:#eee;
+		}
+		
+		#datePicker
+		{
+			z-index: 9999;
+		}  
+	
+	     .helpText
+        {
+            z-index:11000;
+        }
+
+   	
+	</style>
+	
+    <script>
+	    jQuery(document).ready(function() {
+	    	jQuery("button[rel]").overlay({
+			
+				top: "10%",
+			
+				// some mask tweaks suitable for modal dialogs
+				mask: {
+					color: '#ebecff',
+					loadSpeed: 200,
+					opacity: 0.8
+				},
+				
+				fixed: false,
+				
+				closeOnClick: false
+			});
+			
+	    	initHoverPopups(jQuery("table[id$=':pbt_commissiondetails']"), {manualLoad:false, displayUp:true});
+	    });
+    </script>
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+		<apex:actionFunction name="commissionPaymentDetails" action="{!commissionPaymentDetails}" 
+			oncomplete="unblockUI();" rerender="pageMessages, pbt_commpaydetails" immediate="false"/>
+		<apex:actionFunction name="refreshdetail" action="{!refreshdetail}" 
+			oncomplete="formatLocaleOutputFields(); unblockUI();" rerender="pageMessages, pbs_commissiondetails" immediate="false"/>
+			
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <button onclick="return makeSalesCommissionPayments();" style="width:200px;height:20px;">{!$Label.MakeCommissionPayments}</button>
+                <button onclick="commPayDetailsBtn(); return commPayDetail_refresh();" class="modalbtn" rel="#CommPayDetails" style="width:200px;">{!$Label.CommissionPaymentsDetails}</button>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            </apex:outputPanel>
+
+			<c:division id="soinv_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f_isales.rstk__soisales_spersn__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_isales.rstk__soisales_spersn__c.label}"/>
+                    <apex:outputPanel layout="block">
+					    <input type="text" name="salespersonid__c_autocomplete" id="salespersonid__c_autocomplete" class="ac_input" style="width:300px;" tabindex="2" value="{!Salesperson}" />
+					    <apex:inputText id="salespersonid__c" value="{!sosalesId}" style="display:none"/>
+					    <script>autocompleteParms["salespersonid__c"] = {query:"select Id, Name from sosales__c", queryParms:[], codeColumn:"Id", descColumn:"Name"};</script>
+				    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_sohdrextn.rstk__sohdrextn_soregion__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sohdrextn.rstk__sohdrextn_soregion__c.label}"/>
+                    <apex:outputPanel layout="block">
+					    <input type="text" name="soregionid__c_autocomplete" id="soregionid__c_autocomplete" class="ac_input" style="width:300px;" tabindex="2" value="{!Soregion}" />
+					    <apex:inputText id="soregionid__c" value="{!soregionId}" style="display:none"/>
+					    <script>autocompleteParms["soregionid__c"] = {query:"select Id, Name from soregion__c", queryParms:[], codeColumn:"Id", descColumn:"Name"};</script>
+				    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_custno__c.label}"/>
+                    <apex:outputPanel layout="block">
+					    <input type="text" name="socustid__c_autocomplete" id="socustid__c_autocomplete" class="ac_input" style="width:300px;" tabindex="2" value="{!CustNo}" />
+					    <apex:inputText id="socustid__c" value="{!socustId}" style="display:none"/>
+					    <script>autocompleteParms["socustid__c"] = {query:"select Id, Name from socust__c", queryParms:[], codeColumn:"Id", descColumn:"Name"};</script>
+				    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_year__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_year__c.label}"/>
+                    <apex:inputText id="salesyear__c" value="{!salesyear}" maxlength="4" size="10" tabindex="52"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_invline.rstk__soinvline_invoice__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_invline.rstk__soinvline_invoice__c.label}"/>
+                    <apex:outputPanel layout="block">
+					    <input type="text" name="soinvid__c_autocomplete" id="soinvid__c_autocomplete" class="ac_input" style="width:300px;" tabindex="2" value="{!SoinvNo}" />
+					    <apex:inputText id="soinvid__c" value="{!soinvId}" style="display:none"/>
+					    <script>autocompleteParms["soinvid__c"] = {query:"select Id, Name from soinv__c where soinv_div__c = 'prm'", queryParms:[['soinv_div__c', 'Division']], codeColumn:"Id", descColumn:"Name"};</script>
+				    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_period__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soinv_period__c.label}"/>
+                    <apex:selectList id="salesperiod__c" value="{!salesperiod}" size="1" tabIndex="53">
+            			<apex:selectOptions value="{!Salesperiods}"/>
+        			</apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_invline.rstk__soinvline_prod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_invline.rstk__soinvline_prod__c.label}"/>
+                    <apex:outputPanel layout="block">
+					    <input type="text" name="soprodid__c_autocomplete" id="soprodid__c_autocomplete" class="ac_input" style="width:300px;" tabindex="2" value="{!SoprodNo}" />
+					    <apex:inputText id="soprodid__c" value="{!soprodId}" style="display:none"/>
+					    <script>autocompleteParms["soprodid__c"] = {query:"select Id, Name from soprod__c where soprod_div__c = 'prm'", queryParms:[['soinv_div__c', 'Division']], codeColumn:"Id", descColumn:"Name"};</script>
+				    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__onlyunpaidtransactions}"/>
+                    <apex:inputCheckbox id="unpaidtxns__c" value="{!unPaidTxns}" tabindex="54"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_salescommission_refreshdetaildisplay}" onclick="blockUI();refreshdetail();return false;" style="width:150px"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$Label.rstk__onlypaidtransactions}"/>
+                    <apex:inputCheckbox id="paidtxns__c" value="{!paidTxns}" tabindex="55"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection id="pbs_commissiondetails" showHeader="false" columns="1" title="{!$Label.rstk__salescommissiondetail}" collapsible="false">
+            	<apex:pageBlockTable id="pbt_commissiondetails" value="{!commissionDetails}" var="c">
+            		<apex:column headerValue="{!$Label.rstk__salesperson}" style="width:150px;">
+            			<c:hoverDetail recId="{!c.spersnId}" recName="{!c.salesperson}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!$Label.rstk__invoice1}" style="width:100px;">
+            			<c:hoverDetail recId="{!c.invid}" recName="{!c.invoice}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!$Label.rstk__invline}" style="width:20px;">
+            			<apex:outputText value="{0,number,##0}"><apex:param value="{!c.invline}" /></apex:outputText>
+            		</apex:column>
+            		<apex:column headerValue="{!$Label.rstk__customer}" style="width:130px;">
+            			<c:hoverDetail recId="{!c.custid}" recName="{!c.custno}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!$Label.rstk__product1}" style="width:200px;">
+            			<c:hoverDetail recId="{!c.prodid}" recName="{!c.prodno}"/>
+            		</apex:column>
+            		<apex:column headerValue="{!$Label.rstk__commissionamt}" style="width:120px;text-align:right;">
+            			<apex:outputText html-decimals="2" style="align:right;" value="{!c.commamt}" />
+            		</apex:column>
+            		<apex:column headerValue="{!$Label.rstk__amountpaid}" style="width:120px;text-align:right;">
+            			<a rel="#paidlnk{!c.ispersnId}" href="javascript:{}">
+            				<c:outputFormattedNumber value="{!c.paidamt}" decimals="2"/>
+            			</a>
+            			<apex:outputPanel >
+            			<div class="overlayStyle" id="paidlnk{!c.ispersnId}" style="text-align:center; margin-top:300px;">
+            				<apex:pageBlockTable id="spersnPaidAmt_details" value="{!c.spersnpaids}" var="p">
+            					<apex:column headerValue="{!$Label.rstk__date}" value="{!p.rstk__soisalespay_paiddate__c}" style="width:75px;text-align:right;">
+			            		</apex:column>
+			            		<apex:column headerValue="{!$Label.rstk__amount}" style="width:120px;text-align:right;">
+			            			<c:outputFormattedNumber value="{!p.rstk__soisalespay_paidamount__c}" decimals="2"/>
+			            		</apex:column>
+			            		<apex:column headerValue="{!$Label.rstk__checkno}" style="width:100px;text-align:right;">
+			            			<apex:outputLabel value="{!p.rstk__soisalespay_checkno__c}" />
+			            		</apex:column>
+            				</apex:pageBlockTable>
+            			</div>
+            			</apex:outputPanel>
+            		</apex:column>
+            	</apex:pageBlockTable>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <!-- For Commission Payment Details -->
+        <div class="overlayStyle" id="CommPayDetails">
+        	<apex:outputLabel value="{!$Label.rstk__commissionpaymentdetails}" style="font-size:16px;"/>
+            <br />
+            <apex:pageBlock id="ovr_commPayDel">
+            	<apex:pageBlockSection id="pbs_commpaydetails" showHeader="false" title="{!$Label.rstk__commissionpaymentdetails}" columns="2">
+            		<apex:pageBlockSectionItem helpText="{!f_isales.rstk__soisales_spersn__c.inlineHelpText}">
+		            	<apex:outputLabel value="{!$Label.rstk__salespersonid}"/>
+		                <apex:outputPanel layout="block">
+							<input type="text" name="ispersnpayId__c_autocomplete" id="ispersnpayId__c_autocomplete" class="ac_input" style="z-index: 9999;width:300px;" tabindex="1" value="{!IspersnpayName}" />
+							<apex:inputText id="ispersnpayId__c" value="{!soisalespayId}" style="display:none"/>
+							<script>autocompleteParms["ispersnpayId__c"] = {query:"select Id, Name from sosales__c group by Id, Name", queryParms:[], codeColumn:"Id", descColumn:"Name"};</script>
+						</apex:outputPanel>
+		            </apex:pageBlockSectionItem>
+		                
+		            <apex:pageBlockSectionItem helpText="{!f_sohdrextn.rstk__sohdrextn_soregion__c.inlineHelpText}">
+		            	<apex:outputLabel value="{!$Label.rstk__salesregion}"/>
+		                <apex:outputPanel layout="block">
+							<input type="text" name="psoregionid__c_autocomplete" id="psoregionid__c_autocomplete" class="ac_input" style="z-index: 9999;width:300px;" tabindex="51" value="{!PsoregionName}" />
+							<apex:inputText id="psoregionid__c" value="{!psoregionId}" style="display:none"/>
+							<script>autocompleteParms["psoregionid__c"] = {query:"select Id, Name from soregion__c", queryParms:[], codeColumn:"Id", descColumn:"Name"};</script>
+						</apex:outputPanel>
+		            </apex:pageBlockSectionItem>
+		                
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_custno__c.inlineHelpText}">
+		            	<apex:outputLabel value="{!$Label.rstk__customer}"/>
+		                <apex:outputPanel layout="block">
+							<input type="text" name="psocustid__c_autocomplete" id="psocustid__c_autocomplete" class="ac_input" style="z-index: 9999;width:300px;" tabindex="2" value="{!PcustName}" />
+							<apex:inputText id="psocustid__c" value="{!psocustId}" style="display:none"/>
+							<script>autocompleteParms["psocustid__c"] = {query:"select Id, Name from socust__c", queryParms:[], codeColumn:"Id", descColumn:"Name"};</script>
+						</apex:outputPanel>
+		            </apex:pageBlockSectionItem>
+		                
+		            <apex:pageBlockSectionItem >
+		            	<apex:outputLabel value="{!$Label.rstk__firstpaymentdate}" />
+		              	<apex:inputText id="ispersnpayfdt__c" value="{!soisalespayFdate}" styleClass="cssbody" size="10" style="width:70px;" onfocus="DatePicker.pickDate(false, '{!$Component.ispersnpayfdt__c}', false);" tabIndex="52"/>
+		            </apex:pageBlockSectionItem>
+		                
+		            <apex:pageBlockSectionItem helpText="{!f_invline.rstk__soinvline_invoice__c.inlineHelpText}">
+		                <apex:outputLabel value="{!$Label.rstk__invoicenumber}"/>
+		                <apex:outputPanel layout="block">
+							<input type="text" name="psoinvid__c_autocomplete" id="psoinvid__c_autocomplete" class="ac_input" style="z-index: 9999;width:300px;" tabindex="3" value="{!PsoinvName}" />
+							<apex:inputText id="psoinvid__c" value="{!psoinvId}" style="display:none"/>
+							<script>autocompleteParms["psoinvid__c"] = {query:"select Id, Name from soinv__c where soinv_div__c = 'prm'", queryParms:[['soinv_div__c', 'Division']], codeColumn:"Id", descColumn:"Name"};</script>
+						</apex:outputPanel>
+		            </apex:pageBlockSectionItem>
+		                
+		            <apex:pageBlockSectionItem >
+		            	<apex:outputLabel value="{!$Label.rstk__lastpaymentdate}" />
+		                <apex:inputText id="ispersnpayldt__c" value="{!soisalespayLdate}" styleClass="cssbody" size="10" style="width:70px;" onfocus="DatePicker.pickDate(false, '{!$Component.ispersnpayldt__c}', false);" tabIndex="53"/>
+		            </apex:pageBlockSectionItem>
+		                
+		            <apex:pageBlockSectionItem helpText="{!f_invline.rstk__soinvline_prod__c.inlineHelpText}">
+		                <apex:outputLabel value="{!$Label.rstk__product1}"/>
+		                <apex:outputPanel layout="block">
+							<input type="text" name="psoprodid__c_autocomplete" id="psoprodid__c_autocomplete" class="ac_input" style="z-index: 9999;width:300px;" tabindex="4" value="{!PprodName}" />
+							<apex:inputText id="psoprodid__c" value="{!psoprodId}" style="display:none"/>
+							<script>autocompleteParms["psoprodid__c"] = {query:"select Id, Name from soprod__c where soprod_div__c = 'prm'", queryParms:[['soinv_div__c', 'Division']], codeColumn:"Id", descColumn:"Name"};</script>
+						</apex:outputPanel>
+		            </apex:pageBlockSectionItem>
+           		</apex:pageBlockSection>
+                <br />
+                <apex:pageBlockSection columns="1">
+                	<apex:pageBlockTable id="pbt_commpaydetails" value="{!Soisalespaies}" var="s">
+                		<apex:column headerValue="{!$Label.rstk__date}" value="{!s.rstk__soisalespay_paiddate__c}" style="width:100px;">
+            			</apex:column>
+            			<apex:column headerValue="{!$Label.rstk__payamount}" style="width:250px;text-align:right;">
+		            		<apex:outputText html-decimals="2" style="align:right;" value="{!s.rstk__soisalespay_paidamount__c}" />
+		            	</apex:column>
+		            	<apex:column headerValue="{!f_soisalespay.rstk__soisalespay_checkno__c.label}" style="width:300px;">
+		            		<apex:outputLabel value="{!s.rstk__soisalespay_checkno__c}" />
+		            	</apex:column> 
+		            	<apex:column headerValue="{!$Label.rstk__voucherno}" style="width:300px;">
+		            		<apex:outputLabel value="{!s.rstk__soisalespay_voucher__c}" />
+		            	</apex:column> 
+		            	<apex:column headerValue="{!$Label.rstk__invoice1}" style="width:300px;">
+		            		<apex:outputLabel value="{!s.soisalespay_soisales__r.soisales_invline__r.soinvline_invoice__r.name}" />
+		            	</apex:column> 
+                		<apex:column headerValue="{!f_soinvline.rstk__soinvline_invline__c.label}" style="width:50px;">
+            				<apex:outputText value="{0,number,##0}"><apex:param value="{!s.soisalespay_soisales__r.soisales_invline__r.rstk__soinvline_invline__c}" /></apex:outputText>
+            			</apex:column>
+                	</apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+            <button type="button" onclick="return commPayDetail_refresh();"> {!$Label.pagebtn_salescommission_Refresh} </button>
+			<button type="button" class="close" onclick="commPayDetail_cancel()"> {!$Label.so_pagebtn_Cancel} </button>
+    	</div>
+    </apex:form>
+    
+    
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+	    var LABEL_InvalidValueForSalesYear = "{!$Label.InvalidValueForSalesYear}";
+		var LABEL_FIrstPaymentDateCantGrtrThanLastPaymentDate = "{!$Label.FIrstPaymentDateCantGrtrThanLastPaymentDate}";
+	</script>
+</apex:page>

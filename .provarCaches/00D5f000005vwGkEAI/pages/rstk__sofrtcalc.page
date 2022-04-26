@@ -1,0 +1,107 @@
+<apex:page id="pg" standardController="rstk__sofrtcalc__c" extensions="rstk.ControllerExtnsofrtcalc,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sofrtcalc__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sofrtcalc__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__freight_calculations_maintenance}" customInclude="{!$Resource.rstk__sofrtcalc_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__fields_cli_lib}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSaveAndNew="false"/>
+            </apex:pageBlockButtons>
+        
+            <apex:pageBlockSection id="pbs_Main" columns="1" rendered="{!OR(isNew,isEdit)}">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sofrtcalc_desc__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sofrtcalc_desc__c.label}"/>
+                <apex:outputPanel >
+                    <apex:inputField id="sofrtcalc_desc__c" value="{!o.rstk__sofrtcalc_desc__c}" taborderhint="1"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sofrtcalc_frsozone__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sofrtcalc_frsozone__c.label}"/>
+                <apex:outputPanel >
+                    <c:selectList id="sofrtcalc_frsozone__c" required="false" cntr="{!controller}" options="{!Frzones}" tabIndex="2" rendered="{!isNew}" />
+                    <apex:outputField value="{!o.rstk__sofrtcalc_frsozone__c}" rendered="{!!isNew}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sofrtcalc_tosozone__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sofrtcalc_tosozone__c.label}"/>
+                <apex:outputPanel >
+                    <c:selectList id="sofrtcalc_tosozone__c" required="false" cntr="{!controller}" options="{!Tozones}" tabIndex="2" rendered="{!isNew}" />
+                    <apex:outputField value="{!o.rstk__sofrtcalc_tosozone__c}" rendered="{!!isNew}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sofrtcalc_shipvia__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sofrtcalc_shipvia__c.label}"/>
+                <apex:outputPanel >
+                    <c:selectList id="sofrtcalc_shipvia__c" required="false" cntr="{!controller}" options="{!Shipvias}" tabIndex="2" rendered="{!isNew}" />
+                    <apex:outputField value="{!o.rstk__sofrtcalc_shipvia__c}" rendered="{!!isNew}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sofrtcalc_calcmethod__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sofrtcalc_calcmethod__c.label}"/>
+                <apex:outputPanel >
+                    <apex:inputField id="sofrtcalc_calcmethod__c" value="{!o.rstk__sofrtcalc_calcmethod__c}" taborderhint="5" required="true"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__sofrtcalc_priceperlb__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__sofrtcalc_priceperlb__c.label}"/>
+                <apex:outputPanel >
+                    <apex:inputField id="sofrtcalc_priceperlb__c" value="{!o.rstk__sofrtcalc_priceperlb__c}" taborderhint="6"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_Main2" columns="1" rendered="{!isView}" >
+                <apex:outputField value="{!o.rstk__sofrtcalc_desc__c}" />
+                <apex:outputField value="{!o.rstk__sofrtcalc_frsozone__c}" />
+                <apex:outputField value="{!o.rstk__sofrtcalc_tosozone__c}" />
+                <apex:outputField value="{!o.rstk__sofrtcalc_shipvia__c}" />
+                <apex:outputField value="{!o.rstk__sofrtcalc_calcmethod__c}" />
+                <apex:outputField value="{!o.rstk__sofrtcalc_priceperlb__c}" />
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_sofrtcalc" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__weight_range_detail}" name="tab_sofrtcalc" id="tab_sofrtcalc" rendered="{!!isNew && o.rstk__sofrtcalc_calcmethod__c != 'Price per Pound'}">
+                    <c:PageableGrid width="1550" jsController="sofrtcalc" data="{!sofrtcalcs}" pageSize="5" editable="{!isView}" ispopup="false" disableSave="{!!isView}"/>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_sotax_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_PricePerPoundCantBeLessThanZero = "{!$Label.rstk__priceperpoundcantbelessthanzero}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

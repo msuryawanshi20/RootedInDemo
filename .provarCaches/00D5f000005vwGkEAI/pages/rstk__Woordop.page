@@ -1,0 +1,401 @@
+<apex:page id="pg" standardController="rstk__woordop__c" extensions="rstk.ControllerExtnWoordop" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__woordop__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__woordop__c.fields}" />
+    <apex:variable var="f_wocst" value="{!$ObjectType.rstk__wocst__c.fields}" />
+    <apex:variable var="f_wopsch" value="{!$ObjectType.rstk__wopsch__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!pageTitle}" customInclude="{!$Resource.rstk__woordop_cli}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/> 
+    <apex:includeScript value="{!$Resource.rstk__messageformat}"/>
+    <script>var existTask = {!taskCount};</script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+        </apex:pageBlockButtons>
+
+        <apex:outputPanel style="display:none">
+            <apex:inputHidden id="custpage_woordop_origvalues__c" value="{!o.rstk__custpage_woordop_origvalues__c}"/>
+            <apex:inputHidden id="custpage_woordop_optype_pl__c" value="{!o.rstk__custpage_woordop_optype_pl__c}"/>
+            <apex:inputHidden id="woordop_site__c" value="{!o.rstk__woordop_site__c}"/>
+            <apex:inputHidden id="woordop_ordno__c" value="{!o.rstk__woordop_ordno__c}"/>
+            <apex:inputHidden id="woordopact_actsetuphrs__c" value="{!woordopact.rstk__woordopact_actsetuphrs__c}"/>
+            <apex:inputHidden id="woordopact_qtycomp__c" value="{!woordopact.rstk__woordopact_qtycomp__c}"/>
+            <apex:inputHidden id="maxoper__c" value="{!maxOper}"/>
+            <c:inputText id="woordop_scrapfactor__c" cntr="{!controller}"/>
+            <c:inputCheckbox id="woordop_allowscrapind__c" cntr="{!controller}"/>
+            <c:inputField id="woordop_machtype_pl__c" cntr="{!controller}" rendered="{!isLaborOnly}"/>
+            <c:selectList id="woordop_machno__c" cntr="{!controller}" options="{!MfgMachineMasters}" rendered="{!isLaborOnly}"/>
+            <c:inputText id="woordop_machhrstd__c" cntr="{!controller}" rendered="{!isLaborOnly}"/>
+        </apex:outputPanel>
+        
+        <c:Popup popupId="taskpopup" title="{!$Label.rstk__pagepopup_woordop_tasks}" onOk="task_saveAndClose()">
+            <c:EditableGrid jsController="task" data="{!TaskDetails}" editable="true" ispopup="true"/>
+        </c:Popup>
+        
+        <script>
+            // Initial
+            function onTasksClicked() {     
+                task.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    if (index < existTask) {
+                        task.getRowObj(row, 'woopertask_taskid__c').attr('disabled', true);
+                    }
+                });
+            }
+            
+            task.resetRow = function(row) { 
+                self=this;
+                taskHandler.prototype.resetRow.call(self, row);
+
+                self.getSelectableRows().each(function (index, el) {
+                    if (index < existTask) {
+                        self.getRowObj(row, 'woopertask_taskid__c').attr('disabled', true);
+                    }
+                });
+                self.getRowObj(row, 'woopertask_taskid__c').attr('disabled', false);
+            };
+            
+            task.validate = function() {
+                var self = this;
+                var valid = true;
+                var rowcnt = 0;
+                self.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    if (isEmpty(self.getRowValue(row, 'woopertask_taskid__c'))) {
+                        alert("{!$Label.rstk__enterreqdfieldtaskid}");
+                        valid = false;
+                    }
+                    rowcnt++;
+                });
+                existTask = rowcnt;
+                return valid;
+            }
+        </script>
+
+        <c:division id="woordop_div__c" cntr="{!controller}" />
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="2">            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_ordno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_ordno__c.label}"/>
+                <apex:outputField value="{!o.rstk__woordop_ordno__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_item__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_item__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_oper__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_oper__c.label}"/>
+                <c:inputText id="woordop_oper__c" required="true" cntr="{!controller}" tabIndex="90"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_proj__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_proj__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_proj__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_descr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_descr__c.label}"/>
+                <c:inputText id="woordop_descr__c" cntr="{!controller}" tabIndex="100"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_qtyreq__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_qtyreq__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_qtyreq__c}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_procno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_procno__c.label}"/>
+                <c:selectList id="woordop_procno__c" required="true" cntr="{!controller}" options="{!MfgProcesses}" tabIndex="110"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f_wocst.rstk__wocst_qtyinwip__c.inlineHelpText}">
+                <apex:outputLabel value="{!f_wocst.rstk__wocst_qtyinwip__c.label}"/>
+                <apex:outputField value="{!wocst.rstk__wocst_qtyinwip__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_wctr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_wctr__c.label}"/>
+                <c:selectList id="woordop_wctr__c" required="true" cntr="{!controller}" options="{!MfgWorkCenters}" tabIndex="120"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_labonlyind__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_labonlyind__c.label}"/>
+                <c:inputCheckbox id="woordop_labonlyind__c" cntr="{!controller}" tabIndex="80"/>
+            </apex:pageBlockSectionItem>            
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_assignedto__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_assignedto__c.label}"/>
+                <c:selectList id="woordop_assignedto__c" cntr="{!controller}" options="{!Users}" tabIndex="130"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_opereffective__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_opereffective__c.label}"/>
+                <c:inputCheckbox id="woordop_opereffective__c" cntr="{!controller}" tabIndex="140"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_concurseqno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_concurseqno__c.label}"/>
+                <apex:outputPanel >
+                    <apex:inputText id="woordop_concurseqno__c" html-decimals="0" value="{!o.rstk__woordop_concurseqno__c}" rendered="{!!isView}"/>
+                    <apex:outputText html-decimals="0" value="{!o.rstk__woordop_concurseqno__c}" rendered="{!isView}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_released__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_released__c.label}"/>
+                <c:inputCheckbox id="woordop_released__c" cntr="{!controller}" tabIndex="140"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_subflag__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__woordop_subflag__c.label}"/>
+                <c:inputCheckbox id="woordop_subflag__c" cntr="{!controller}" tabIndex="150"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem rendered="{!isView}">
+                <apex:commandbutton value="{!$Label.rstk__pagebtn_woordop_tasks}" onclick="_showDialog('taskpopup',1000);onTasksClicked();return false;" style="width:80px;"/>
+            </apex:pageBlockSectionItem>
+            
+        </apex:pageBlockSection>
+        <br/>
+        <apex:tabPanel switchType="client" selectedTab="tab_Qty_Reporting_Options" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_woordop_qtyreportingoptions}" name="tab_Qty_Reporting_Options" id="tab_Qty_Reporting_Options">
+                <apex:pageBlockSection id="pbs_Qty_Reporting_Options" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_allowaccind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_allowaccind__c.label}"/>
+                        <c:inputCheckbox id="woordop_allowaccind__c" cntr="{!controller}" tabIndex="150"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_labbackflush__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_labbackflush__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputCheckbox id="woordop_labbackflush__c" value="{!o.rstk__woordop_labbackflush__c}" tabIndex="160" rendered="{!AND(OR(isEdit, isNew), currDivision.rstk__sydiv_labbackflush__c)}"/>
+                            <apex:outputField value="{!o.rstk__woordop_labbackflush__c}" rendered="{!!AND(OR(isEdit, isNew), currDivision.rstk__sydiv_labbackflush__c)}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_movcompind_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_movcompind_pl__c.label}"/>
+                        <c:inputField id="woordop_movcompind_pl__c" cntr="{!controller}" tabIndex="151"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_labbfclock__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_labbfclock__c.label}"/>
+                        <apex:outputPanel >
+                            <c:selectList id="woordop_labbfclock__c" cntr="{!controller}" options="{!bfusers}" tabIndex="161" rendered="{!currDivision.rstk__sydiv_labbackflush__c}" disabled="{!!o.rstk__woordop_labbackflush__c}"/>
+                            <apex:outputField value="{!o.rstk__woordop_labbfclock__c}" rendered="{!!currDivision.rstk__sydiv_labbackflush__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_isscomptocompl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_isscomptocompl__c.label}"/>
+                        <c:inputCheckbox id="woordop_isscomptocompl__c" cntr="{!controller}" tabIndex="153"/>
+                    </apex:pageBlockSectionItem>
+                    
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_insptempl__c.inlineHelpText}">
+		                <apex:outputLabel value="{!f.rstk__woordop_insptempl__c.label}"/>
+		                <c:selectList id="woordop_insptempl__c" cntr="{!controller}" options="{!Insptemls}" tabIndex="171"/>
+		            </apex:pageBlockSectionItem>
+                    
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woordop_modifiers}" name="tab_Modifiers" id="tab_Modifiers">
+                <apex:pageBlockSection id="pbs_Modifiers" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_stddivideby__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_stddivideby__c.label}"/>
+                        <c:inputText id="woordop_stddivideby__c" cntr="{!controller}" tabIndex="180"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_labmachschtype_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_labmachschtype_pl__c.label}"/>
+                        <c:selectList id="woordop_labmachschtype_pl__c" cntr="{!controller}" options="{!SchedTypes}" tabIndex="200"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woordop_laborstds}" name="tab_Labor_Stds" id="tab_Labor_Stds">
+                <apex:pageBlockSection id="pbs_Labor_Stds" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_setuptype_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_setuptype_pl__c.label}"/>
+                        <c:selectList id="woordop_setuptype_pl__c" cntr="{!controller}" options="{!OpTypes}" tabIndex="210"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_runtype_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_runtype_pl__c.label}"/>
+                        <c:selectList id="woordop_runtype_pl__c" cntr="{!controller}" options="{!OpTypes}" tabIndex="240"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_setuplabgrd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_setuplabgrd__c.label}"/>
+                        <c:selectList id="woordop_setuplabgrd__c" cntr="{!controller}" options="{!MfgLaborGrades}" tabIndex="220"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_runlabgrd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_runlabgrd__c.label}"/>
+                        <c:selectList id="woordop_runlabgrd__c" cntr="{!controller}" options="{!MfgLaborGrades}" tabIndex="250"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_setuphrstd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_setuphrstd__c.label}"/>
+                        <c:inputField id="woordop_setuphrstd__c" cntr="{!controller}" tabIndex="230"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_runhrstd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_runhrstd__c.label}"/>
+                        <c:inputField id="woordop_runhrstd__c" cntr="{!controller}" tabIndex="260"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woordop_machinestds}" name="tab_Machine_Stds" id="tab_Machine_Stds" rendered="{!!isLaborOnly}">
+                <apex:pageBlockSection id="pbs_Machine_Stds" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_machtype_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_machtype_pl__c.label}"/>
+                        <c:selectList id="woordop_machtype_pl__c" cntr="{!controller}" options="{!OpTypes}" tabIndex="270"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_machno__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_machno__c.label}"/>
+                        <c:selectList id="woordop_machno__c" cntr="{!controller}" options="{!MfgMachineMasters}" tabIndex="280"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_machhrstd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_machhrstd__c.label}"/>
+                        <c:inputField id="woordop_machhrstd__c" cntr="{!controller}" tabIndex="290"/>
+                    </apex:pageBlockSectionItem>
+                 </apex:pageBlockSection>
+            </apex:tab> 
+            <apex:tab label="{!$Label.rstk__pagetab_woordop_moveleadtimes}" name="tab_Move_Lead_Times" id="tab_Move_Lead_Times">
+                <apex:pageBlockSection id="pbs_Move_Lead_Times" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_subltdays__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_subltdays__c.label}"/>
+                        <c:inputText id="woordop_subltdays__c" cntr="{!controller}" tabIndex="300"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_movehr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_movehr__c.label}"/>
+                        <c:inputText id="woordop_movehr__c" cntr="{!controller}" tabIndex="310"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woordop_schedule}" name="tab_Schedule" id="tab_Schedule">
+                <apex:pageBlockSection id="pbs_Schedule" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_priority__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_priority__c.label}"/>
+                        <apex:outputText id="wopsch_priority__c" value="{!wopsch.rstk__wopsch_priority__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_schstartdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_schstartdate__c.label}"/>
+                        <apex:outputText id="wopsch_schstartdate__c" value="{!wopsch.rstk__wopsch_schstartdate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_usrsetpriority__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_usrsetpriority__c.label}"/>
+                        <apex:outputText id="wopsch_usrsetpriority__c" value="{!wopsch.rstk__wopsch_usrsetpriority__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_usrsetstartdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_usrsetstartdate__c.label}"/>
+                        <apex:outputText id="wopsch_usrsetstartdate__c" value="{!wopsch.rstk__wopsch_usrsetstartdate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_schsetuphrs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_schsetuphrs__c.label}"/>
+                        <apex:outputText id="wopsch_schsetuphrs__c" value="{!wopsch.rstk__wopsch_schsetuphrs__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_schcompdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_schcompdate__c.label}"/>
+                        <apex:outputText id="wopsch_schcompdate__c" value="{!wopsch.rstk__wopsch_schcompdate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_schmachhrs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_schmachhrs__c.label}"/>
+                        <apex:outputText id="wopsch_schmachhrs__c" value="{!wopsch.rstk__wopsch_schmachhrs__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_schdovrcomment__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_schdovrcomment__c.label}"/>
+                        <apex:outputText id="wopsch_schdovrcomment__c" value="{!wopsch.rstk__wopsch_schdovrcomment__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_wopsch.rstk__wopsch_schrunhrs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_wopsch.rstk__wopsch_schrunhrs__c.label}"/>
+                        <apex:outputText id="wopsch_schrunhrs__c" value="{!wopsch.rstk__wopsch_schrunhrs__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woordop_notes}" name="tab_Notes" id="tab_Notes">
+                <apex:pageBlockSection id="pbs_Notes" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__woordop_rsnotes__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__woordop_rsnotes__c.label}"/>
+                        <apex:outputPanel >
+                            <c:inputField id="woordop_rsnotes__c" cntr="{!controller}" tabIndex="1001" width="800px" rendered="{!!isView}"/>
+                            <apex:outputPanel rendered="{!isView}">
+                                <table width="100%">
+                                    <apex:repeat value="{!noteLines}" var="n">
+                                        <tr width="100%">
+                                            <td width="100%" style="white-space: pre;">{!n}</td>
+                                        </tr>
+                                    </apex:repeat>
+                                </table>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_woordop_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    
+    <div id="pleaseWaitPopup" style="display:none">
+        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+        <apex:outputPanel styleClass="topPopup">
+            <apex:image url="{!$Resource.rstk__busy}"/>
+        </apex:outputPanel>
+    </div>
+    
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var SomeFieldsDisabled = "{!$Label.rstk__somefieldshavebeendisabled}";
+        var OnlyValidForOpetation = "{!$Label.rstk__onlyvalidforconcurrentoperation}";
+        var NotValidForLastOperation = "{!$Label.rstk__valuenotvalidforlastoperation}";       
+        var DivideByRequired = "{!$Label.rstk__dividebyisrequired}";
+        var DivideByNotZero = "{!$Label.rstk__dividebycannotbezero}";
+        var ScrapFactorNotGreater = "{!$Label.rstk__scrapfactorcannotbegreater}";     
+        var SetupTypeMustBeSet = "{!$Label.rstk__setuptypemustbeset}";
+        var CannotChangeSetupTypeToNone = "{!$Label.rstk__cannotchangesetuptypetonone}";
+        var SetupStdHrsMustBeGreater = "{!$Label.rstk__setupstdhrsmustbegreater}";        
+        var ChangeRunTypeToNone = "{!$Label.rstk__cannotchangeruntypetonone}";
+        var MachineTypeMustBeSet = "{!$Label.rstk__machinetypemustbeset}";
+        var ChangeMachTypeToNone = "{!$Label.rstk__cannotchangemachtypetonone}";      
+        var MachineNoMustBeSet = "{!$Label.rstk__machinenomustbeset}";
+        var MachineHrsMustBeGreater = "{!$Label.rstk__machinehrsmustbegreater}";
+        var ConcurrentSeqMustBeGreater = "{!$Label.rstk__concurrentseqmustbegreater}";
+        var LaborStdMachinStdIsRequired = "{!$Label.rstk__laborstdmachinstdisrequired}";        
+        var LABEL_RunStdHrsMustBeGrtrThan0 = "{!$Label.rstk__runstdhrsmustbegrtrthan0}";
+        var LABEL_LaborStdReqd = "{!$Label.rstk__laborstdreqd}";
+        var LABEL_MachineStdReqd = "{!$Label.rstk__machinestdreqd}";
+        var LABEL_SettingAllowAcceptIndicatorAsItIsRequiredForInspectionOperations = "{!$Label.rstk__settingallowacceptindicatorasitisrequiredforinspectionoperations}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

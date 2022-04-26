@@ -1,0 +1,551 @@
+<apex:page id="pg" standardController="rstk__poreq__c" extensions="rstk.ControllerExtnPoreq,rstk.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__poreq__c}" />
+	<apex:outputPanel >
+		<script type="text/javascript">var __sfdcSessionId = '{!GETSESSIONID()}';</script>
+		<script type="text/javascript">var __siteUrlPrefix = '{!$Site.Prefix}';</script>
+		<script type="text/javascript">var __busySpinner = "{!$Resource.rstk__busy}";</script>
+		<script type="text/javascript">var __iconpath = "{!URLFOR($Resource.rstk__treeIcons)}";</script>
+		<apex:includeScript value="{!$Resource.rstk__jquery144min}"/>
+		<apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+		<apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+		
+	    <style>
+	        .Processing
+	        {
+	            position: fixed;
+	            background: url({!$Resource.rstk__busy});
+	            background-repeat: no-repeat;
+	            background-position: center;
+	            width: 100%;
+	            height: 100%;
+	            z-index: 2004;
+	            left: 0%;
+	            top: 0%;
+	        }
+	    </style>
+		
+		<apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+		<apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+		<!-- RSTK-4487 - Changed URL forming as in standardHeader.component to work in lightning -->
+		<apex:outputLink value="{!URLFOR('/'+$ObjectType[controller.objectName].keyPrefix)}" >&nbsp;«&nbsp;{!$Label.back_to_list}: {!objectLabelPlural} </apex:outputlink>
+		<!-- <apex:outputLink value="{!URLFOR($Page.Listview)+'?recType=poreq'}" >&nbsp;«&nbsp;{!$Label.back_to_list}: {!objectLabelPlural} </apex:outputlink> -->
+		<!--  -->
+		<c:standardHeader cntr="{!controller}" enableAutocomplete="true" showHeader="false"/>
+		<apex:detail />		
+		<apex:form id="fm">
+			<apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+			<apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" status="statusProcessing" rerender="pageMessages"/>
+			<apex:actionFunction name="doConvertToPO" action="{!doConvertToPO}" immediate="false" status="statusProcessing" oncomplete="postProcessLog('{!erromessage}');"/>
+			<c:Popup popupId="gridPopup1" title="{!$Label.rstk__inventoryrequisition}" onOk="icreqgrid_saveAndClose();" >
+			    <c:PageableGrid width="1600" jsController="icreqgrid" data="{!icreqGrid}" editable="true" ispopup="true" pageSize="10" />
+			</c:Popup>	
+			<c:Popup popupId="gridPopup2" title="{!$Label.rstk__indirectrequisition}" onOk="syreqind_saveAndClose();" >
+			    <c:PageableGrid width="1600" jsController="syreqind" data="{!SyReqIndGrid}" editable="true" ispopup="true" pageSize="10" disableSave="false"/>
+			</c:Popup>
+			<apex:inputHidden id="poreq_status__c" value="{!o.rstk__poreq_status__c}"/>
+			<apex:inputHidden id="poreq_id" value="{!o.id}"/>			
+			<script>
+// RCB: RSTK-2579				
+				var latestrowId = '';  
+				var errormessage;
+				
+				function checkConvertToPO() {
+            		var poreqStatus = "{!o.rstk__poreq_status__c}"; //sfffGetFieldValue('poreq_status__c');
+            		var poreqId = "{!o.id}";
+            		var poreqChildren = execQuery("select id, (select id from icreqs__r),(select id from syreqinds__r ) from poreq__c where id = '"+poreqId+"'");            		
+            	   	if(poreqStatus=='Approved') {
+            			if(poreqChildren[0].icreqs__r == null && poreqChildren[0].syreqinds__r == null) {
+            				alert("{!$Label.TherearenoRequisitionsCannotconverttoPurchaseOrder}");       				
+            			} else {           				
+            				doConvertToPO();     
+            			}
+            		} else {
+            			alert("{!$Label.PurchaseRequisitionmustbeApprovedforconvertingtoPurchaseOrder}");
+            		}
+            	}
+            	
+            	function postProcessLog(check) {
+            		if (check != ''){
+            			alert(check);
+            		}
+            	}
+            	function checkdelete() {
+            		dodeletePO();
+            	}
+            	
+            	function checkIcreqGrid() {
+            		var poreqStatus = sfffGetFieldValue('poreq_status__c');   
+            		//alert('poreqStatus '+poreqStatus);         		
+            		if(poreqStatus !='Converted') {
+            			_showDialog('gridPopup1',window.innerWidth * .90);
+            			
+            		} else {
+            			alert("{!$Label.InventoryRequisitionscannotbeaddedasPurchaseRequisitionisalreadyconvertedtoPurch}");
+            		}
+            	
+            	} 
+            	
+            	function checkSyreqIndGrid() {
+            		var poreqStatus = sfffGetFieldValue('poreq_status__c');            		
+            		if(poreqStatus !='Converted') {
+            			_showDialog('gridPopup2',window.innerWidth * .90);
+            		} else {
+            			alert("{!$Label.IndirectRequisitioncannotbeaddedasPurchaseRequisitionisalreadyconvertedtoPurchas}");
+            		}
+            	
+            	}
+				
+				icreqgrid.onGridLoad = function() {
+                    var pjprojids = '';
+                    icreqgrid.getVisibleRows().each(function(){
+                        var row = jQuery(this);
+                        var pjprojid = icreqgrid.getRowValue(row, 'icreq_proj__c');
+                        if (pjprojid) {
+                            pjprojids += (pjprojids ? "," : "") + "'" + pjprojid + "'";
+                        }
+                    });
+
+					if (pjprojids) {
+						var pjprojs = execQuery("select Id, (select Id, Name from pjprojwbss__r order by Name) from pjproj__c where Id in (" + pjprojids + ")");
+						icreqgrid.getSelectableRows().each(function (index, el) {
+							var row = jQuery(this);
+							var recId = icreqgrid.getRowValue(row, 'Id');
+							if (!isEmpty(recId)) {
+								icreqgrid.getRowObj(row, 'icreq_item__c').closest('td').find('.ac_input').attr('disabled', true);
+								icreqgrid.getRowObj(row, 'icreq_ordno__c').attr('disabled', true);							
+							}
+							
+							var pjprojid = icreqgrid.getRowValue(row, "icreq_proj__c");
+							var pjprojwbss = [];
+	                        for (i = 0; i < pjprojs.length; i++) {
+	                            if (pjprojid == pjprojs[i].Id) {
+	                                if (pjprojs[i].pjprojwbss__r && pjprojs[i].pjprojwbss__r.size > 0) {
+	                                    pjprojwbss = pjprojs[i].pjprojwbss__r.size > 1 ? pjprojs[i].pjprojwbss__r.records : [pjprojs[i].pjprojwbss__r.records];
+	                                }
+	                                break;
+	                            }
+	                        }
+	
+		                    var col = icreqgrid.getRowObj(row, 'icreq_pjprojwbs__g');
+		                    var nameOf = icreqgrid.nameOf();
+		                    col.children().remove();
+		                    col.html('<select style="max-width:90%;" class="'+nameOf+'-'+icreqgrid.getRowNum(row)+'-select_icreq_pjprojwbs__g" onchange="'+nameOf+'.rowChanged(event);"/>');
+		                    var theSel = col.find('select');
+	
+		                    theSel.append('<option value="">--None--</option>');
+		                    for (var i=0;i <pjprojwbss.length; i++) {
+		                        theSel.append('<option value="'+pjprojwbss[i].Id+'">'+escapeHtml(pjprojwbss[i].Name)+'</option>');
+		                    }
+	                        jQuery(theSel).val(icreqgrid.getRowValue(row, 'icreq_pjprojwbs__c'));
+		                    var theval = icreqgrid.getRowValue(row, "icreq_pjprojwbs__c");
+		                    icreqgrid.setRowValue(row, "select_icreq_pjprojwbs__g", theval);
+		                    
+						});		
+					}
+				}
+				
+				icreqgrid.entryChanged = function(row, rowNum, name, value) {
+					console.log(name+':'+value);
+					if(name == 'icreq_proj__c') {
+						var pjprojwbsSl = icreqgrid.getRowObj(row, 'icreq_pjprojwbs__g').find('select')[0];
+						if (pjprojwbsSl) {
+						pjprojwbsSl.value = '';
+							if (value) {
+								populateHtmlSelectList(pjprojwbsSl, "select id, name from pjprojwbs__c where pjprojwbs_proj__c = '" + value + "' order by Name");
+							} else {
+								populateHtmlSelectList(pjprojwbsSl, []);
+							}							
+						} else {
+						    var col = icreqgrid.getRowObj(row, 'icreq_pjprojwbs__g');
+		                    var nameOf = icreqgrid.nameOf();
+		                    col.children().remove();
+		                    col.html('<select style="max-width:90%;" class="'+nameOf+'-'+icreqgrid.getRowNum(row)+'-select_icreq_pjprojwbs__g" onchange="'+nameOf+'.rowChanged(event);"/>');
+		                    var theSel = col.find('select');
+	
+		                    theSel.append('<option value="">--None--</option>');
+		                    if (value) {
+		                        var jwbs = execQuery("select id, name from pjprojwbs__c where pjprojwbs_proj__c = '" + value + "' order by Name");
+		                        for (i = 0; i < jwbs.length; i++) {
+		                            theSel.append('<option value="'+jwbs[i].Id+'">'+escapeHtml(jwbs[i].Name)+'</option>');
+		                        }
+		                    }
+						}
+					} else if(name == 'select_icreq_pjprojwbs__g') {
+						icreqgrid.setRowValue(row, "icreq_pjprojwbs__c", value);
+					}
+				}
+				
+				icreqgrid.addRow = function(rowCallback) {
+                       		self = this;
+                       		showTopDialog('pleaseWaitPopup');
+                       		icreqgridHandler.prototype.addRow.call(self, rowCallback);
+                       		var counter = 0;                       		 
+                       		var poreqId = "{!o.id}";    
+                       		var rowNotSaved = false;          
+	                       	var ordno = 'P'+"{!o.poreq_ordno__c}";     		
+                      		this.getVisibleRows().each(function (index, el) {
+	                       	    var row = jQuery(this);
+	                       		var rowId = self.getRowValue(row, 'Id');
+	                       		var oldOrdno = '';
+	                       		
+	                       		if(rowId ==''){	                       				                 				                       			
+	                       				if (rowNotSaved==false) {
+	                       					var oldOrdnoArray = execQuery("select icreq_ordno__c from icreq__c where icreq_poreq__c = '" + poreqId + "' order by icreq_ordno__c desc");
+	                       					if(oldOrdnoArray != null && oldOrdnoArray[0] != null) {
+	                       						var oldOrdno = oldOrdnoArray[0].icreq_ordno__c;
+		                       					var n = oldOrdno.lastIndexOf("-"); 
+				                       			if(n > 0) {
+				                       				counter = oldOrdno.substr(n+1);
+				                       				counter = counter.replace(/\b0+/g, '');
+				                       			}
+				                       		}	
+	                       				}
+	                       		
+		                      			counter++;
+		                      			var padCounter ='';
+		                      			padCounter = counter.toString();
+		                      			padCounter = padCounter.lpad('0', 3);
+		                      			icreqgrid.setRowValue(row, 'icreq_ordno__c', ordno+'-'+padCounter);
+		                      			rowNotSaved = true;
+		                      				                      			
+		                      			if(self.getRowValue(row, 'icreq_proj__c') == '') {
+		                      				icreqgrid.setRowValue(row, 'icreq_proj__c', "{!o.poreq_pjproj__c}");
+		                      				var projects = execQuery("select id, name from pjproj__c where id = '"+"{!o.poreq_pjproj__c}"+"'");
+						                    if (projects != '') {
+						                        icreqgrid.setRowAutoValue(row, 'icreq_proj__c', projects[0].Name);
+						                    }
+		                      			}
+		                      			var col = icreqgrid.getRowObj(row, 'icreq_pjprojwbs__g');
+		                                var nameOf = icreqgrid.nameOf();
+		                                col.children().remove();
+		                                col.html('<select style="max-width:90%;" class="'+nameOf+'-'+icreqgrid.getRowNum(row)+'-select_icreq_pjprojwbs__g" onchange="'+nameOf+'.rowChanged(event);"/>');
+		                                var theSel = col.find('select');
+	
+		                                theSel.append('<option value="">--None--</option>');
+		                                var jwbs = execQuery("select id, name from pjprojwbs__c where pjprojwbs_proj__c = '"+"{!o.poreq_pjproj__c}"+"' order by Name");
+		                                for (i = 0; i < jwbs.length; i++) {
+		                                    theSel.append('<option value="'+jwbs[i].Id+'">'+escapeHtml(jwbs[i].Name)+'</option>');
+		                                }
+		                            }
+	                      		
+	                      		
+                       		});
+                       		closeTopDialog();
+                 }        
+				
+				icreqgrid.onSaved = function() {
+		 		   unblockUI();
+		 		   window.location.reload();
+        		}
+        		
+        		icreqgrid.onSaveFailed = function() {
+                	unblockUI();
+            	}
+            	
+				icreqgrid.validate = function() {
+                	var visibleRows = this.getVisibleRows();
+                   	for(i = 0; i < visibleRows.length; i++) {
+                   		var row = jQuery(visibleRows[i]);
+                   		var qtyreq = icreqgrid.getRowValue(row, 'icreq_qtyreq__c');
+                   		var project = icreqgrid.getRowValue(row, 'icreq_proj__c');
+                   		var item = icreqgrid.getRowValue(row, 'icreq_item__c');
+                   		var ordno = icreqgrid.getRowValue(row, 'icreq_ordno__c');
+                        var duedate = icreqgrid.getRowValue(row, 'icreq_duedte__c');
+                           
+                           if(ordno == '') {
+						   		alert("{!$Label.RequisitionNumberisRequired}");
+								icreqgrid.getRowObj(row, 'icreq_ordno__c').focus();
+                           		return false;
+                           }	
+                           
+                   		   if(item == '') {
+						   		alert("{!$Label.Itemisrequired}");
+								icreqgrid.getRowObj(row, 'icreq_item__c').focus();
+                           		return false;
+                           }	
+                   			
+                           if(!qtyreq || qtyreq <= 0) {
+						   		alert("{!$Label.QuantityisRequiredandmustbegreaterthanzero}");
+								icreqgrid.getRowObj(row, 'icreq_qtyreq__c').focus();
+                           		return false;
+                           }
+                           
+                           if(project == '') {
+						   		alert("{!$Label.Projectisrequired}");
+								icreqgrid.getRowObj(row, 'icreq_proj__c').focus();
+                           		return false;
+                           }
+                           
+                           if(trim(duedate) == '' && !isEmpty(icreqgrid.getRowValue(row, 'Id')) ) {                           		
+                           		alert("{!$Label.DueDateReqd}");
+								icreqgrid.getRowObj(row, 'icreq_duedte__c').focus();
+                           		return false;
+                           }
+                                                      
+                    }
+                	return true;
+                }
+				
+				syreqind.onGridLoad = function() {
+                    var pjprojids = '';
+                    syreqind.getVisibleRows().each(function(){
+                        var row = jQuery(this);
+                        var pjprojid = syreqind.getRowValue(row, 'syreqind_proj__c');
+                        if (pjprojid) {
+                            pjprojids += (pjprojids ? "," : "") + "'" + pjprojid + "'";
+                        }
+                    });
+                    if (pjprojids) {
+						var pjprojs = execQuery("select Id, (select Id, Name from pjprojwbss__r order by Name) from pjproj__c where Id in (" + pjprojids + ")");
+				
+						syreqind.getSelectableRows().each(function (index, el) {
+							var row = jQuery(this);
+							var recId = syreqind.getRowValue(row, 'Id');
+							if (!isEmpty(recId)) {
+								syreqind.getRowObj(row, 'syreqind_item__c').closest('td').find('.ac_input').attr('disabled', true);
+								syreqind.getRowObj(row, 'syreqind_ordno__c').attr('disabled', true);							
+							}
+							
+							var pjprojid = syreqind.getRowValue(row, "syreqind_proj__c");
+							var pjprojwbss = [];
+	                        for (i = 0; i < pjprojs.length; i++) {
+	                            if (pjprojid == pjprojs[i].Id) {
+	                                if (pjprojs[i].pjprojwbss__r && pjprojs[i].pjprojwbss__r.size > 0) {
+	                                    pjprojwbss = pjprojs[i].pjprojwbss__r.size > 1 ? pjprojs[i].pjprojwbss__r.records : [pjprojs[i].pjprojwbss__r.records];
+	                                }
+	                                break;
+	                            }
+	                        }
+	
+		                    var col = syreqind.getRowObj(row, 'syreqind_pjprojwbs__g');
+		                    var nameOf = syreqind.nameOf();
+		                    col.children().remove();
+		                    col.html('<select style="max-width:90%;" class="'+nameOf+'-'+syreqind.getRowNum(row)+'-select_syreqind_pjprojwbs__g" onchange="'+nameOf+'.rowChanged(event);"/>');
+		                    var theSel = col.find('select');
+	
+		                    theSel.append('<option value="">--None--</option>');
+		                    for (var i=0;i <pjprojwbss.length; i++) {
+		                        theSel.append('<option value="'+pjprojwbss[i].Id+'">'+escapeHtml(pjprojwbss[i].Name)+'</option>');
+		                    }
+	                        jQuery(theSel).val(syreqind.getRowValue(row, 'syreqind_pjprojwbs__c'));
+		                    var theval = syreqind.getRowValue(row, "syreqind_pjprojwbs__c");
+		                    syreqind.setRowValue(row, "select_syreqind_pjprojwbs__g", theval);
+							
+						});	
+					}
+				}
+			
+				syreqind.addRow = function(rowCallback) {
+                 		self = this;
+                 		icreqgrid.pleaseWait();
+                 		syreqindHandler.prototype.addRow.call(self, rowCallback);
+                 		var counter = 0;
+                 		var poreqId = "{!o.id}";   
+                       	var rowsyreqindNotSaved = false; 
+	                  	var ordno = 'P'+"{!o.poreq_ordno__c}";
+                       	                		                       		
+                		this.getVisibleRows().each(function (index, el) {
+	                  	    var row = jQuery(this);
+	                  		var rowId = self.getRowValue(row, 'Id');
+	                  		var oldOrdno = '';
+	                  		if(rowId ==''){
+	                  			if ( rowsyreqindNotSaved==false ) {
+	                  				var oldOrdnoArray = execQuery("select syreqind_ordno__c from syreqind__c where syreqind_poreq__c = '" + poreqId + "' order by syreqind_ordno__c desc");
+		                       		if(oldOrdnoArray != null && oldOrdnoArray[0] != null) {
+		                       			var oldOrdno = oldOrdnoArray[0].syreqind_ordno__c;
+		                       			var n = oldOrdno.lastIndexOf("-"); 
+				                       	if(n > 0) {
+				                       		counter = oldOrdno.substr(n+1);
+				                       		counter = counter.replace(/\b0+/g, '');
+				                       	}	
+				                    }   	     
+	                  			}
+	                  		
+	                  			counter++;
+	                  			var padCounter ='';
+		                      	padCounter = counter.toString();
+		                      	padCounter = padCounter.lpad('0', 3);
+	                  			syreqind.setRowValue(row, 'syreqind_ordno__c', ordno+'-'+padCounter);
+	                  			rowsyreqindNotSaved = true; 
+	                  			if(self.getRowValue(row, 'syreqind_proj__c') == '') {
+		                      		syreqind.setRowValue(row, 'syreqind_proj__c', "{!o.poreq_pjproj__c}");
+		                      		var projects = execQuery("select id, name from pjproj__c where id = '"+"{!o.poreq_pjproj__c}"+"'");
+						            if (projects != '') {
+					                    syreqind.setRowAutoValue(row, 'syreqind_proj__c', projects[0].Name);
+						            }
+						       	}
+		                      	var col = syreqind.getRowObj(row, 'syreqind_pjprojwbs__g');
+		                        var nameOf = syreqind.nameOf();
+		                        col.children().remove();
+		                        col.html('<select style="max-width:90%;" class="'+nameOf+'-'+syreqind.getRowNum(row)+'-select_icreq_pjprojwbs__g" onchange="'+nameOf+'.rowChanged(event);"/>');
+		                        var theSel = col.find('select');
+	
+		                        theSel.append('<option value="">--None--</option>');
+		                        var jwbs = execQuery("select id, name from pjprojwbs__c where pjprojwbs_proj__c = '"+"{!o.poreq_pjproj__c}"+"' order by Name");
+		                        for (i = 0; i < jwbs.length; i++) {
+		                            theSel.append('<option value="'+jwbs[i].Id+'">'+escapeHtml(jwbs[i].Name)+'</option>');
+		                        }
+	                 		}
+                 		});
+                }
+				
+				syreqind.onSaved = function() {
+		 		   unblockUI();
+		 		   window.location.reload();
+		 		   
+        		}
+        		
+        		syreqind.onSaveFailed = function() {
+                	unblockUI();
+            	}
+            	
+            	syreqind.entryChanged = function(row, rowNum, name, value) {
+					if (name == 'syreqind_item__c') {
+						if (!isEmpty(value)) {
+							var poreqpovend = "{!o.poreq_povend__c}";
+							console.log('poreqpovend ',poreqpovend);
+							var poitemvends = execQuery("select poitemvend_expenseacct__c, poitemvend_poprice__c from poitemvend__c where poitemvend_item__c = '"+value +"' and poitemvend_vendno__c = '"+poreqpovend+"'");
+							if( poitemvends != null && poitemvends[0] != null) {
+								console.log('poitemvends[0].poitemvend_poprice__c ',poitemvends[0].poitemvend_poprice__c);
+								console.log('poitemvends[0].poitemvend_expenseacct__c ',poitemvends[0].poitemvend_expenseacct__c);
+								this.setRowValue(row, 'syreqind_unitprice__c', poitemvends[0].poitemvend_poprice__c == null ? 0 : poitemvends[0].poitemvend_poprice__c );
+								this.setRowValue(row, 'syreqind_expenseacct__c', poitemvends[0].poitemvend_expenseacct__c);
+							} else {
+								this.setRowValue(row, 'syreqind_unitprice__c', 0);
+								this.setRowValue(row, 'syreqind_expenseacct__c', '');
+							}								
+						} else {
+							this.setRowValue(row, 'syreqind_unitprice__c', '');
+							this.setRowValue(row, 'syreqind_expenseacct__c', '');
+						}
+					} else if (name == 'syreqind_proj__c') {
+						var pjprojwbsSl = syreqind.getRowObj(row, 'syreqind_pjprojwbs__g').find('select')[0];
+						if (pjprojwbsSl) {
+							pjprojwbsSl.value = '';
+							if (value) {
+								populateHtmlSelectList(pjprojwbsSl, "select id, name from pjprojwbs__c where pjprojwbs_proj__c = '" + value + "' order by Name");
+							} else {
+								populateHtmlSelectList(pjprojwbsSl, []);
+							}
+						} else {
+						    var col = syreqind.getRowObj(row, 'syreqind_pjprojwbs__g');
+		                    var nameOf = syreqind.nameOf();
+		                    col.children().remove();
+		                    col.html('<select style="max-width:90%;" class="'+nameOf+'-'+syreqind.getRowNum(row)+'-select_icreq_pjprojwbs__g" onchange="'+nameOf+'.rowChanged(event);"/>');
+		                    var theSel = col.find('select');
+	
+		                    theSel.append('<option value="">--None--</option>');
+		                    if (value) {
+		                        var jwbs = execQuery("select id, name from pjprojwbs__c where pjprojwbs_proj__c = '" + value + "' order by Name");
+		                        for (i = 0; i < jwbs.length; i++) {
+		                            theSel.append('<option value="'+jwbs[i].Id+'">'+escapeHtml(jwbs[i].Name)+'</option>');
+		                        }
+		                    }
+						}
+					} else if(name == 'select_icreq_pjprojwbs__g') {
+						syreqind.setRowValue(row, "syreqind_pjprojwbs__c", value);
+					}
+				}
+            	
+            	syreqind.validate = function() {
+                	var visibleRows = this.getVisibleRows();
+					var poitemIds = '';
+					for(i = 0; i < visibleRows.length; i++) {
+						var row = jQuery(visibleRows[i]);
+						var poitemId = syreqind.getRowValue(row, 'syreqind_item__c');
+                        if (poitemId) {
+                            poitemIds += (poitemIds ? "," : "") + "'" + poitemId + "'";
+                        }
+					}
+
+					//RSTK-10009
+					var poitemMap = {};
+					if(poitemIds) {
+						var poitems = execQuery("select Id, poitem_servicetype__c from poitem__c where Id in (" + poitemIds + ")");
+
+						for (i = 0; i < poitems.length; i++) {
+							poitemMap[poitems[i].Id] = poitems[i].poitem_servicetype__c;
+						}
+					}
+					//
+
+                   	for(i = 0; i < visibleRows.length; i++) {
+                   		var row = jQuery(visibleRows[i]);
+                   		var qtyreq = syreqind.getRowValue(row, 'syreqind_qtyreq__c');
+                   		var unitprice = syreqind.getRowValue(row, 'syreqind_unitprice__c');                   		
+                   		var project = syreqind.getRowValue(row, 'syreqind_proj__c');
+                   		var item = syreqind.getRowValue(row, 'syreqind_item__c');
+                   		var ordno = syreqind.getRowValue(row, 'syreqind_ordno__c');                   		
+                   		var duedate = syreqind.getRowValue(row, 'syreqind_duedte__c');
+                   			
+                   		   if(ordno == '') {
+						   		alert("{!$Label.RequisitionNumberisRequired}");
+								syreqind.getRowObj(row, 'syreqind_ordno__c').focus();
+                           		return false;
+                           }
+                           
+                           if(item == '') {
+						   		alert("{!$Label.Itemisrequired}");
+								syreqind.getRowObj(row, 'syreqind_item__c').focus();
+                           		return false;
+                           }
+                           		
+                           if(!qtyreq || qtyreq <= 0) {
+						   		alert("{!$Label.QuantityisRequiredandmustbegreaterthanzero}");
+								syreqind.getRowObj(row, 'syreqind_qtyreq__c').focus();
+                           		return false;
+                           } else if (poitemMap[item] == 'Dollar Amount' && qtyreq > 1) {
+								alert("{!$Label.QtyReqCannotBeGreaterThan1WhenItemServiceTypeIsDollarAmount}");
+								syreqind.getRowObj(row, 'syreqind_qtyreq__c').focus();
+                           		return false;
+						   }
+                           
+                           if(unitprice < 0) {
+						   		alert("{!$Label.Unitpricecannotbelessthanzero}");
+								syreqind.getRowObj(row, 'syreqind_unitprice__c').focus();
+                           		return false;
+                           }
+                           
+                           if(project == '') {
+						   		alert("{!$Label.Projectisrequired}");
+								syreqind.getRowObj(row, 'syreqind_proj__c').focus();
+                           		return false;
+                           }
+                           
+                           if(trim(duedate) == '' && !isEmpty(syreqind.getRowValue(row, 'Id')) ) { 
+                           		alert("{!$Label.DueDateReqd}");
+								syreqind.getRowObj(row, 'syreqind_duedte__c').focus();
+                           		return false;
+                           }
+                           
+                    }
+                	return true;
+                }
+            	
+            	String.prototype.lpad = function(padString, length) {
+					var str = this;
+				    while (str.length < length)
+				        str = padString + str;
+				    return str;
+				}
+				
+				function dodeleteConfirm(){
+					if(confirm('{!$Label.deleteThisRecord}')){
+						doDelete();
+						return false;
+					}else{
+						return false;
+					}
+				}
+            	
+			</script>
+			<div id="pleaseWaitPopup" style="display:none">
+            	<apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            	<apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+		</apex:form>		
+		</apex:outputPanel>	
+	<c:footerInclude cntr="{!controller}" />
+</apex:page>

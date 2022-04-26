@@ -1,0 +1,305 @@
+<apex:page id="pg" standardController="rstk__poline__c" extensions="rstk.ControllerExtnPOReceiptMulLotPopup,rstk.RemoteQueryController" 
+	action="{!doBeforePageLoad}" sideBar="false" showHeader="false">
+    <apex:variable var="o" value="{!rstk__poline__c}" />
+	
+    <c:standardHeader cntr="{!controller}" enableAutocomplete="true" showHeader="false" enableQuickMenu="false"/>
+    <c:popupPageHeader enableAutocomplete="true" querysupport="true" nsprefix="{!NamespacePrefix}"/>
+    
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+
+    <apex:form id="fm">
+	<apex:pageBlock id="pb" mode="detail">
+	
+ 	<c:EditableGrid jsController="multiplelotjscnt{!id}" data="{!multipleLotData}" editable="true" ispopup="false" tableSort="false" />
+ 	<script>
+ 		{!controller.initPage}
+ 		var Quantity = "{!$Label.PleaseEnterQuantityGraeterThanZero}";     
+	    var WholeNumber = "{!$Label.QuantityMustBeWholeNumber}"; 
+	    var Decimal = "{!$Label.QuantityCannotExceedDecimal}";
+	    var LotRequired = "{!$Label.Lot_Number_Required}";
+	    var QuantityTotal = "{!$Label.PleaseEnterQuantityTotalQuantityReceipt}";
+	    var LotExpDateCannotBeInPast = "{!$Label.LotExpDateCannotBeInPast}";
+	    var LotExpDateRequired = "{!$Label.LotExpDateRequired}";
+	    var Cannothavesamelotno = "{!$Label.Cannothavesamelotno}";
+	    var LotExpDateCannotBeTodays = "{!$Label.Lot_Expiration_Date_must_be_greater_than_today_s_date}";
+	    
+ 		multiplelotjscnt{!id}.onSaved = function() {
+		    alert("{!$Label.saveComplete}");
+		    unblockUI();
+        }
+	    
+	    multiplelotjscnt{!id}.onSaveFailed = function() {
+            unblockUI();
+        }
+        
+ 		multiplelotjscnt{!id}.onGridLoad = function() {
+			self=this;
+			var rows = self.getVisibleRows();
+			for (var i=0;i<rows.length;i++) {
+				var row = jQuery(rows[i]);
+				ongridloadlotexpdate(multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotno__c'), row);
+				disableLotNoField(row);
+			}
+		}
+ 		multiplelotjscnt{!id}.validate = function() {
+ 			var isvalid = true;
+ 			var rcptqty = ensureFloat({!receiptqty});
+ 			var qtysum = 0;
+ 			var cnt = 1;
+ 			this.getVisibleRows().each(function (index, el) {
+        		var row = jQuery(this);
+        		var tmpqty = ensureFloat(multiplelotjscnt{!id}.getRowValue(row, 'porcptline_receiptqty__c'));
+        		qtysum = qtysum + tmpqty;
+        	});
+        	var qtyDecimal = parseInt({!qtydecimal});
+        	qtysum = qtysum.toFixed(qtyDecimal);
+        	if((qtysum < rcptqty) || (qtysum > rcptqty)) {
+		        alert(QuantityTotal.replace('#receiptqty#', rcptqty));
+		        isvalid = false;
+		        return false;
+            }
+ 			this.getVisibleRows().each(function (index, el) {
+ 				var row = jQuery(this);
+ 				var qty = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_receiptqty__c');
+ 				if(!qty) {
+	                alert(Quantity.replace('#errMsgPrefix#', ''));
+	                isvalid = false;
+	                return false;
+                }
+                var lotnum = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotno__c');
+                if(!lotnum) {
+	                alert(LotRequired);
+	                isvalid = false;
+	                return false;
+                }
+                var lotexpdate = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotexpirationdate__c');
+                var expdatereqdfrm = {!expdatereqdfrm};
+                if(expdatereqdfrm == true && !lotexpdate) {
+                	alert(LotExpDateRequired);
+                	isvalid = false;
+                	return false;
+                }
+                if(expdatereqdfrm == true && isTodaysDate(lotexpdate)) {
+                	alert(LotExpDateCannotBeTodays);
+                	isvalid = false;
+                	return false;
+                }
+                multiplelotjscnt{!id}.setRowValue(row, 'porcv_packslipno__c', 'dummy'+cnt);
+                cnt++;
+ 			});
+ 			var rows = this.getVisibleRows();
+ 			for(var i=0;i<rows.length;i++) {
+ 				var row = jQuery(rows[i]);
+ 				var lotnum = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotno__c');
+	 			for(var j=0;j<rows.length;j++) {
+					var tmprow = jQuery(rows[j]);
+					var tmplotnum = multiplelotjscnt{!id}.getRowValue(tmprow, 'porcptline_lotno__c');
+					if(i != j && lotnum == tmplotnum && lotnum != 'Auto-Assigned') {
+						alert(Cannothavesamelotno);
+						isvalid = false;
+		              	return false;
+					}
+				}
+			}
+ 			return isvalid;
+ 		}
+ 		multiplelotjscnt{!id}.addRow = function(rowCallback) {
+	    	multiplelotjscnt{!id}Handler.prototype.addRow.call(this, rowCallback);
+	    	var rcptqty = ensureFloat({!receiptqty});
+        	var qtyToMinus = 0;
+        	var qty = 0;
+        	this.getVisibleRows().each(function (index, el) {
+        		var row = jQuery(this);
+        		var tmpqty = ensureFloat(multiplelotjscnt{!id}.getRowValue(row, 'porcptline_receiptqty__c'));
+        		qtyToMinus = qtyToMinus + tmpqty;
+        		disableLotNoField(row);
+        	});
+        	var qtyDecimal = parseInt({!qtydecimal});
+        	qtyToMinus = qtyToMinus.toFixed(qtyDecimal);
+        	qty = rcptqty - qtyToMinus;
+        	var rows = this.getVisibleRows();
+        	for (var i=0;i<rows.length;i++) {
+        		var j = i;
+        		var row = jQuery(rows[i]);
+        		var rowId = multiplelotjscnt{!id}.getRowValue(row, 'Id');
+        		if (rowId == '') {
+        			var lotexpdate = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotexpirationdate__c');
+        			var lotref = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotref__c');
+        			var priorrow = jQuery(rows[j-1]);
+        			if(!lotexpdate) {
+        				var newlotexpdate = multiplelotjscnt{!id}.getRowValue(priorrow, 'porcptline_lotexpirationdate__c');
+        				multiplelotjscnt{!id}.setRowValue(row, 'porcptline_lotexpirationdate__c',newlotexpdate);
+        			}
+        			if(!lotref) {
+        				var newlotref = multiplelotjscnt{!id}.getRowValue(priorrow, 'porcptline_lotref__c');
+        				multiplelotjscnt{!id}.setRowValue(row, 'porcptline_lotref__c',newlotref);
+        			}
+        			var tmpqty = ensureFloat(multiplelotjscnt{!id}.getRowValue(row, 'porcptline_receiptqty__c'));
+        			if(!tmpqty && qty > 0) {
+        				qty = qty.toFixed(qtyDecimal);
+        				multiplelotjscnt{!id}.setRowDecimal(row, 'porcptline_receiptqty__c', qty);
+        				break;
+        			}
+        		}
+        	}
+        }
+        multiplelotjscnt{!id}.entryChanged = function(row, rowNum, name, value) {
+        	if(name == 'porcptline_receiptqty__c') {
+	        	if(!(/^\d*\.?\d*$/.test(value))) {
+	        		multiplelotjscnt{!id}.setRowValue(row, 'porcptline_receiptqty__c', '');
+	        		return false;
+	        	}
+	        	var qty = ensureFloat(value);
+	        	if(qty <= 0) {
+	        		multiplelotjscnt{!id}.setRowValue(row, 'porcptline_receiptqty__c', '');
+	        		alert(Quantity.replace('#errMsgPrefix#', ''));
+	                return false;
+	        	}
+	        	var qtyDecimal = parseInt({!qtydecimal});
+	        	var roundedQty = roundToDecimals(qty, qtyDecimal);
+	        	if (roundedQty != qty) {
+	        		multiplelotjscnt{!id}.setRowValue(row, 'porcptline_receiptqty__c', '');
+	        		if (qtyDecimal == 0) {
+					    //alert(errMsgPrefix + 'Quantity must be a whole number');
+					    alert(WholeNumber.replace('#errMsgPrefix#', ''));
+				    } else {
+		        		//alert(errMsgPrefix + 'Quantity cannot exceed ' + qtyDecimal + ' decimals');
+		                alert(Decimal.replace('#errMsgPrefix#', '').replace('#qtyDecimal#', qtyDecimal));
+	                }
+	                return false;
+	        	}
+	        	var rcptqty = ensureFloat({!receiptqty});
+	        	var qtyToMinus = 0;
+	        	qty = 0;
+	        	this.getVisibleRows().each(function (index, el) {
+	        		var tmprow = jQuery(this);
+	        		var tmpqty = ensureFloat(multiplelotjscnt{!id}.getRowValue(tmprow, 'porcptline_receiptqty__c'));
+	        		qtyToMinus = qtyToMinus + tmpqty;
+	        	});
+	        	qtyToMinus = qtyToMinus.toFixed(qtyDecimal);
+	        	qty = rcptqty - qtyToMinus;
+	        	if(qty > 0) {
+		        	var rows = this.getVisibleRows();
+		        	for (var i=0;i<rows.length;i++) {
+		        		var tmprow = jQuery(rows[i]);
+	        			var tmpqty = ensureFloat(multiplelotjscnt{!id}.getRowValue(tmprow, 'porcptline_receiptqty__c'));
+	        			if(!tmpqty) {
+	        				qty = qty.toFixed(qtyDecimal);
+	        				multiplelotjscnt{!id}.setRowDecimal(tmprow, 'porcptline_receiptqty__c', qty);
+	        				break;
+	        			}
+	        		}
+	        	}
+        	}
+        	if(name == 'porcptline_lotno__c') {
+        		lotnoChanged(value, row);
+        	}
+        	if(name == 'porcptline_lotexpirationdate__c') {
+        		var tmplotno = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotno__c');
+        		ongridloadlotexpdate(tmplotno, row);
+        		var tmpdate = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotexpirationdate__c');
+        		if(isPastDate(tmpdate))
+        		{
+        			multiplelotjscnt{!id}.setRowValue(row, 'porcptline_lotexpirationdate__c', '');
+        			alert(LotExpDateCannotBeInPast);
+        			return false;
+        		}
+        	}
+        	var rowId = multiplelotjscnt{!id}.getRowValue(row, 'Id');
+        	if (!isEmpty(rowId)) {
+        		multiplelotjscnt{!id}.markRowChanged(row);
+        	}
+        }
+        function lotnoChanged(value, row) {
+			var lotno = value;
+			var icitemid = '{!icitemid}';
+			var lotexpirationdatefld = multiplelotjscnt{!id}.getRowObj(row, 'porcptline_lotexpirationdate__c');
+			if(lotno && icitemid) {
+				var icitemlots = execQuery("select icitemlot_expiredate__c from icitemlot__c where icitemlot_item__c = '" + icitemid + "' and icitemlot_lotno__c = '" + lotno + "'");
+				if(icitemlots.length > 0) {
+					if(icitemlots[0].icitemlot_expiredate__c) {
+						lotexpirationdatefld.val(formatDate(icitemlots[0].icitemlot_expiredate__c));
+						if(isPastDate(lotexpirationdatefld.val()))
+        				{
+        					alert(LotExpDateCannotBeInPast);
+        					lotexpirationdatefld.val('');
+        					return;
+        				}
+						lotexpirationdatefld.attr('disabled', true);
+						return;
+					}
+				} else {
+					var icitems = execQuery("select formula_shelflife__c from icitem__c where id = '" + icitemid + "'");
+					if(icitems.length > 0) {
+						if(icitems[0].formula_shelflife__c != null && icitems[0].formula_shelflife__c > 0) {
+							lotexpirationdatefld.val(formatDate(new Date(new Date().getTime() + (icitems[0].formula_shelflife__c * 24 * 3600 * 1000))));
+						} else {
+							lotexpirationdatefld.val('');
+						}
+					}
+				}
+			}
+			lotexpirationdatefld.attr('disabled', false);
+		}
+		function ongridloadlotexpdate(value, row) {
+			var lotno = value;
+			var icitemid = '{!icitemid}';
+			var lotexpirationdatefld = multiplelotjscnt{!id}.getRowObj(row, 'porcptline_lotexpirationdate__c');
+			if(lotno && icitemid) {
+				var icitemlots = execQuery("select icitemlot_expiredate__c from icitemlot__c where icitemlot_item__c = '" + icitemid + "' and icitemlot_lotno__c = '" + lotno + "'");
+				if(icitemlots.length > 0) {
+					if(icitemlots[0].icitemlot_expiredate__c) {
+						lotexpirationdatefld.val(formatDate(icitemlots[0].icitemlot_expiredate__c));
+						if(isPastDate(lotexpirationdatefld.val()))
+        				{
+        					alert(LotExpDateCannotBeInPast);
+        					lotexpirationdatefld.val('');
+        					return;
+        				}
+						lotexpirationdatefld.attr('disabled', true);
+						return;
+					}
+				}
+			}
+		}
+		function isPastDate(value) {
+			var today = new Date();
+       		var todayDate = new Date((today.getMonth() + 1) + '/' + today.getDate() + '/' +  today.getFullYear());
+       		var selected = parseLocaleDate(value);
+       		var selectedDate = new Date((selected.getMonth() + 1) + '/' + selected.getDate() + '/' +  selected.getFullYear());
+       		if(selectedDate < todayDate)
+       		{
+       			return true;
+       		}
+       		return false;
+		}
+		function isTodaysDate(value) {
+			var today = new Date();
+       		var selected = parseLocaleDate(value);
+       		if(selected.setHours(0,0,0,0) == today.setHours(0,0,0,0))
+       		{
+       			return true;
+       		}
+       		return false;
+		}
+		function disableLotNoField(row) {
+			var tmplot = multiplelotjscnt{!id}.getRowValue(row, 'porcptline_lotno__c');
+       		if(tmplot == 'Auto-Assigned') {
+       			multiplelotjscnt{!id}.getRowObj(row, 'porcptline_lotno__c').attr('disabled', true);
+       		}
+		}
+ 	</script>
+
+	</apex:pageBlock>
+	
+	</apex:form>
+
+	<div id="pleaseWaitPopup" style="display:none">
+	    <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+	    <apex:outputPanel styleClass="topPopup">
+	       <apex:image url="{!$Resource.rstk__busy}"/>
+	    </apex:outputPanel>
+    </div>
+    
+</apex:page>

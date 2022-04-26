@@ -1,0 +1,645 @@
+<apex:page id="pg" standardController="rstk__supitem__c" extensions="rstk.ControllerExtnSupitem,rstk.RemoteQueryController" sidebar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__supitem__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__supitem__c.fields}" />
+    
+     <script>
+        var onlyCustomFieldsEditable = {!onlyCustomFieldsEditable};
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+        var isView = {!isView};
+        var divid = "{!currDivision.id}";
+        var isVendorExist = {!userVendor};
+        var rows = {};
+        var selectcbxs = [];
+        var oneLoc;
+        var eTAofTorqueAdaptor  = '{!eTAofTorqueAdaptor}';
+        var eTAofDipTubeKeyChecker = '{!eTAofDipTubeKeyChecker}';
+        
+        function uploadSDS() {
+            try {
+                window.open("{!URLFOR($Page.rstk__Notesandattachments)}?id={!o.id}&objname=supitem__c&parms=set_supitem_sdssupplied");
+            } finally {
+                return false;
+            }
+        }
+    </script>
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_supitem}" customInclude="{!$Resource.rstk__supitem_cli}" enableAutocomplete="true"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <script>
+        jQuery(document).ready(function() {
+            jQuery(".numericonly").keydown(function (e) {
+                // Allow: backspace, delete, tab, escape, enter
+                if (jQuery.inArray(e.keyCode, [46, 8, 9, 27, 13, 110]) !== -1 ||
+                     // Allow: Ctrl+A
+                    (e.keyCode == 65 && e.ctrlKey === true) || 
+                     // Allow: home, end, left, right
+                    (e.keyCode >= 35 && e.keyCode <= 39)) {
+                         // let it happen, don't do anything
+                         return;
+                }
+                if(e.srcElement.value.length == 4) {
+                    e.preventDefault();
+                }
+                // Ensure that it is a number and stop the keypress
+                if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                    e.preventDefault();
+                }
+            });
+        });
+        
+    </script>
+        <apex:form id="fm">
+            <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" />
+            <apex:actionFunction name="doView" action="{!view}" immediate="true" />
+            <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+            <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true" />
+            <apex:actionFunction name="doListview" action="{!doListview}" immediate="true" />
+            <apex:actionFunction name="doClone" action="{!doClone}" immediate="true"/>
+            <!-- <apex:actionFunction name="doSave" action="{!saveExt}" /> -->
+            <!-- <apex:actionFunction name="doSave" action="{!copyItem}" oncomplete="unblockUI();_showDialog('vendorDiv', '720');" rerender="pb_table2"/> -->
+            <apex:actionFunction name="doSave" action="{!copyItem}" oncomplete="unblockUI();doValidateBeforeSave();" rerender="pageMessages,pb_table2"/>
+            <apex:actionFunction name="approvalProcess" action="{!approvesupitem}" oncomplete="unblockUI();" rerender="pageMessages"/>
+            <apex:actionFunction name="rejectionProcess" action="{!rejectSupitem}" oncomplete="window.location.replace(window.location);"/>                
+            <apex:actionFunction name="processItemDetails" action="{!processItemDetails}" oncomplete="unblockUI();_closeDialog();window.location.replace(window.location);" rerender="pageMessages"/>
+            <apex:actionFunction name="updateItemDetails" action="{!updateItemDetails}" oncomplete="unblockUI();window.location.replace(window.location);" rerender="pageMessages"/>
+            
+            <script>rows = {}; selectcbxs = []; </script>
+	        <c:Popup popupId="vendorDiv" okCaption="" buttonsOnTop="true" title="" onOk="" rendered="{!isNew}" cancelCaption="Close">
+	             <apex:pageBlock id="pb" mode="detail">
+	             	<apex:pageBlockSection id="pbs_Copyitem" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+	             		<apex:outputText style="font-style:italic" value="{!$Label.rstk__select_row_s_to_add_this_item_for_other_locations}" />
+	             		<apex:outputPanel >
+							<apex:inputCheckbox id="oneLoc__c" value="{!oneLocation}" />
+							Add for just the one location
+						</apex:outputPanel>
+	             		
+	             		<c:nosubmitbutton label="{!$Label.rstk__complete_add_of_new_item_s}" onclick="verifyItemDetails();" style="width:175px;"/>
+	             		<script>oneLoc = document.getElementById("{!$Component.oneLoc__c}");</script>
+	             	</apex:pageBlockSection>
+	             	<apex:pageBlockSection id="pbs_vendorDivDetails" showHeader="false" title="{!$Label.rstk__division_details}" columns="1">
+	             		<apex:outputPanel >
+		             		<input type="checkbox" onclick="selectall(this)" />
+		             		<apex:outputLabel value="{!$Label.rstk__selectall}" />
+	             		</apex:outputPanel>
+			             <apex:pageBlockTable value="{!vendorDivDetails}" var="i" id="pb_table2">
+			                 <apex:column headerValue="{!$Label.rstk__select}">
+			                    <apex:inputCheckbox id="selected" value="{!i.selected}" />
+			                    <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+			                 </apex:column>
+			                 <apex:column headerValue="{!$Label.rstk__division_label}" >
+			                    <apex:outputText value="{!i.sydivName}"/>
+			                    <script>
+			                        rows["{!i.key}"] = {
+			                            selected: document.getElementById("{!$Component.selected}")
+			                        };   
+			                    </script>
+			                   </apex:column>
+			             </apex:pageBlockTable>
+	             	</apex:pageBlockSection>
+	             </apex:pageBlock>
+	        </c:Popup>
+             <c:Popup popupId="copyItemTovendorDiv" okCaption="" buttonsOnTop="true" title="" onOk="" rendered="{!isView}" cancelCaption="Close">
+	             <apex:pageBlock id="pbsv" mode="detail">
+	             	<apex:pageBlockSection id="pbsv_Copyitem" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+	             		<apex:outputText style="font-style:italic" value="{!$Label.rstk__select_row_s_to_copy_this_item_to_other_locations}" />
+	             		<c:nosubmitbutton label="{!$Label.rstk__copy_item_to_selected_locations}" onclick="processCopyItems();" style="width:175px;"/>
+	             	</apex:pageBlockSection>
+	             	<apex:pageBlockSection id="pbsv_vendorDivDetails" showHeader="false" title="{!$Label.rstk__division_details}" columns="1">
+	             		<apex:outputPanel >
+		             		<input type="checkbox" onclick="selectall(this)" />
+		             		<apex:outputLabel value="{!$Label.rstk__selectall}" />
+	             		</apex:outputPanel>
+			             <apex:pageBlockTable value="{!vendorDivDetails}" var="i" id="pb_table2">
+			                 <apex:column headerValue="{!$Label.rstk__select}">
+			                    <apex:inputCheckbox id="selected1" value="{!i.selected}" />
+			                    <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected1}");</script>
+			                 </apex:column>
+			                 <apex:column headerValue="Division" >
+			                    <apex:outputText value="{!i.sydivName}"/>
+			                    <script>
+			                        rows["{!i.key}"] = {
+			                            selected: document.getElementById("{!$Component.selected1}")
+			                        };   
+			                    </script>
+			                   </apex:column>
+			             </apex:pageBlockTable>
+	             	</apex:pageBlockSection>
+	             </apex:pageBlock>
+	        </c:Popup>
+	        <c:Popup popupId="displayItemTovendorDiv" okCaption="" buttonsOnTop="true" title="" onOk="" rendered="{!isView}" cancelCaption="Close">
+	             <apex:pageBlock id="pbsv" mode="detail">
+	             	<apex:pageBlockSection id="pbsvd_vendorDivDetails" showHeader="false" title="{!$Label.rstk__division_details}" columns="1">
+	             		 <apex:pageBlockTable value="{!vendorDivDetails}" var="i" id="pb_table3">
+			                 <apex:column headerValue="{!$Label.rstk__supplieritem}" >
+			                    <apex:outputText value="{!i.supitemName}"/>
+			                 </apex:column>
+			                 <apex:column headerValue="{!$Label.rstk__division_label}" >
+			                    <apex:outputText value="{!i.sydivName}"/>
+			                 </apex:column>
+			                 <apex:column headerValue="{!$Label.rstk__pagetab_purchord_vendor}" >
+			                    <apex:outputText value="{!i.ob.name}"/>
+			                 </apex:column>
+			             </apex:pageBlockTable>
+	             	</apex:pageBlockSection>
+	             </apex:pageBlock>
+	        </c:Popup>
+            
+            <apex:outputPanel id="boitemPanel">
+                <apex:pageblock id="pb" mode="detail">
+                    <apex:outputPanel id="op_hidden" style="display:none">
+                       <apex:inputHidden id="status__c" value="{!o.rstk__supitem_status__c}" rendered="{!isEdit}"/>
+                       <apex:inputHidden id="sdssupplied__c" value="{!o.rstk__supitem_sdssupplied__c}" rendered="{!OR(isEdit,isNew)}"/>
+                       <input type="hidden" id="rejcomment__c" name="rejcomment__c" value=""/>
+                    </apex:outputPanel> 
+                
+                    <apex:pageBlockButtons >
+                        <c:standardButtons cntr="{!controller}" disableClone="{!onlyCustomFieldsEditable}"/>
+                        <c:nosubmitbutton label="{!$Label.rstk__pagebtn_supitem_acceptnewsupplierpart}" onclick="blockUI(); approvalProcess();" style="width:175px;" rendered="{!AND(showButton,$ObjectType.rstk__appsecurity__c.fields.rstk__b_supitem__c.Updateable)}" />
+                        <c:nosubmitbutton label="{!$Label.rstk__pagebtn_supitem_rejectnewsupplierpart}" onclick="jQuery.blockUI({message: jQuery('#rejMessage')});" style="width:160px;" rendered="{!AND(showButton,$ObjectType.rstk__appsecurity__c.fields.rstk__b_supitem__c.Updateable)}"/>
+                        <apex:commandButton onclick="window.open('{!$Site.BaseUrl}/apex/{!pageDetails}?actionType=view&id={!o.id}');return false;" value="Create PDF" rendered="{!AND(isView,OR(o.rstk__supitem_status__c == 'Accepted' , o.rstk__supitem_status__c == 'Submitted for Approval'))}"/>
+                        <apex:commandButton onclick="_showDialog('copyItemTovendorDiv', '720');return false;" value="Copy Part to Other Locations" rendered="{!AND(isView,renderCopyItemButton,userVendor)}" disabled="{!!copyItemButton}"/>
+                        <apex:commandButton onclick="_showDialog('displayItemTovendorDiv', '720');return false;" value="Multi-Location Part" rendered="{!AND(isView,!userVendor)}" disabled="{!!supitemExistInOtherDiv}"/>
+                        <c:nosubmitbutton label="Deactivate Part in this Division" onclick="getDeactivationConfirmation(); " style="width:175px;" rendered="{!showDeactivatedButton}" />
+                    </apex:pageBlockButtons>
+                    
+                    <apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+                        <apex:outputField value="{!o.rstk__supitem_div__c}"/>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:inputField id="supitem_item__c" value="{!o.rstk__supitem_item__c}" required="true" rendered="{!AND(isNew,coreFieldsEditable)}" taborderhint="1" /> 
+                        <apex:outputField value="{!o.rstk__supitem_item__c}" rendered="{!!AND(isNew,coreFieldsEditable)}"/>
+                        
+                        <apex:selectList id="supitem_status__c" value="{!o.rstk__supitem_status__c}" size="1" style="width:250px;" tabIndex="111" rendered="{!coreFieldsEditable}">
+                            <apex:selectOptions value="{!statuses}" />
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__supitem_status__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_desc__c" value="{!o.rstk__supitem_desc__c}" required="true" taborderhint="2" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_desc__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:pageBlockSectionItem rendered="{!UserVendor}"/>
+                        <apex:outputField value="{!o.rstk__supitem_icitem__c}" rendered="{!!UserVendor}"/>
+                        
+                        <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_uom__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__supitem_uom__c.label}" />
+                            <apex:outputPanel >
+                                <apex:selectList id="supitem_uom__c" value="{!o.rstk__supitem_uom__c}" size="1" style="width:250px;" tabIndex="30" rendered="{!coreFieldsEditable}">
+                                    <apex:selectOptions value="{!uom}" />
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__supitem_uom__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:inputField id="supitem_replacement__c" value="{!o.rstk__supitem_replacement__c}" required="true" taborderhint="12" rendered="{!coreFieldsEditable}"/> 
+                        <apex:outputField value="{!o.rstk__supitem_replacement__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_povend__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__supitem_povend__c.label}" />
+                            <apex:outputPanel >
+                                <c:largeSelectList id="supitem_povend__c" required="true" cntr="{!controller}" options="{!supplier}" tabIndex="40" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_povend__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                                            
+                        <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_replaceitem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__supitem_replaceitem__c.label}" />
+                             <apex:outputPanel >
+                                <c:autocomplete id="supitem_replaceitem__c" cntr="{!controller}" slDesc="{!itemDesc}"
+                                    query="select id, name from supitem__c where supitem_div__c = '{!o.rstk__supitem_div__c}'"
+                                    queryParms="[]" tabIndex="130" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_replaceitem__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:outputPanel> 
+                        </apex:pageBlockSectionItem>
+                      
+                        <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_facility__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__supitem_facility__c.label}" />
+                            <apex:outputPanel >
+                                <apex:selectList id="supitem_facility__c" value="{!o.rstk__supitem_facility__c}" size="1" style="width:250px;" tabIndex="50" rendered="{!coreFieldsEditable}">
+                                    <apex:selectOptions value="{!supplierFacility}" />
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__supitem_facility__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:inputField id="supitem_sshelflife__c" value="{!o.rstk__supitem_sshelflife__c}" required="true" taborderhint="14" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_sshelflife__c}" rendered="{!!coreFieldsEditable}"/>
+                                            
+                        <apex:inputField id="supitem_venditem__c" value="{!o.rstk__supitem_venditem__c}" required="true" taborderhint="6" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_venditem__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_ishelflife__c" value="{!o.rstk__supitem_ishelflife__c}" required="true" taborderhint="15" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_ishelflife__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_ltvend__c" value="{!o.rstk__supitem_ltvend__c}" required="true" taborderhint="7" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_ltvend__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_barcodetext__c" value="{!o.rstk__supitem_barcodetext__c}" required="true" taborderhint="16" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_barcodetext__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_hazardous__c" value="{!o.rstk__supitem_hazardous__c}" required="true" taborderhint="8" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_hazardous__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_countryorigin__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__supitem_countryorigin__c.label}" />
+                            <apex:outputPanel >
+                                <apex:selectList id="supitem_countryorigin__c" value="{!o.rstk__supitem_countryorigin__c}" size="1" style="width:250px;" tabIndex="170" rendered="{!coreFieldsEditable}">
+                                    <apex:selectOptions value="{!country}" />
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__supitem_countryorigin__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:inputField id="supitem_returnreceptacle__c" value="{!o.rstk__supitem_returnreceptacle__c}" required="true" taborderhint="9" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_returnreceptacle__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_fromeu__c" value="{!o.rstk__supitem_fromeu__c}" required="true" taborderhint="18" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_fromeu__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_tempcheck__c" value="{!o.rstk__supitem_tempcheck__c}" required="true" taborderhint="10" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_tempcheck__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_exporttariff__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__supitem_exporttariff__c.label}" />
+                            <apex:outputPanel >
+                                <apex:selectList id="supitem_exporttariff__c" value="{!o.rstk__supitem_exporttariff__c}" size="1" style="width:250px;" tabIndex="190" rendered="{!coreFieldsEditable}">
+                                    <apex:selectOptions value="{!tarrifCode}" />
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__supitem_exporttariff__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:inputField id="supitem_mqcs__c" value="{!o.rstk__supitem_mqcs__c}" required="true" taborderhint="11" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_mqcs__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_ear99__c" value="{!o.rstk__supitem_ear99__c}" required="true" taborderhint="20" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_ear99__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                        <apex:inputField id="supitem_rejcomment__c" value="{!o.rstk__supitem_rejcomment__c}" rendered="{!AND(coreFieldsEditable, (o.rstk__supitem_status__c == 'Rejected'))}" taborderhint="12"/>
+                        <apex:outputField value="{!o.rstk__supitem_rejcomment__c}" rendered="{!AND(!coreFieldsEditable, (o.rstk__supitem_status__c == 'Rejected'))}"/>
+                        <apex:pageBlockSectionItem rendered="{!o.rstk__supitem_status__c !='Rejected'}"/>
+                         
+                        <apex:inputField id="supitem_licensereqd__c" value="{!o.rstk__supitem_licensereqd__c}" required="true" taborderhint="21" rendered="{!coreFieldsEditable}"/>
+                        <apex:outputField value="{!o.rstk__supitem_licensereqd__c}" rendered="{!!coreFieldsEditable}"/>
+                        
+                    </apex:pageBlockSection>
+                    
+                    <apex:tabPanel switchType="client" selectedTab="tab_Hazardous" id="theTabPanel">
+                        
+                        <apex:tab label="{!$Label.rstk__pagetab_supitem_hazardous}" name="tab_Hazardous" id="tab_Hazardous" html-tablabel="Hazardous"> 
+                            <apex:pageBlockSection showHeader="false" columns="2">
+                                <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_unno__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f.rstk__supitem_unno__c.label}" />
+                                    <apex:outputPanel >
+                                        <c:largeSelectList id="supitem_unno__c" value="{!o.rstk__supitem_unno__c}" useValue="true" cntr="{!controller}" options="{!pounnos}" tabIndex="610" rendered="{!coreFieldsEditable}"/>
+                                        <apex:outputText value="{!o.rstk__supitem_unno__c}" rendered="{!!coreFieldsEditable}"/>
+                                    </apex:outputPanel>
+                                </apex:pageBlockSectionItem>
+                                <apex:inputField id="supitem_subriskclasst__c" value="{!o.rstk__supitem_subriskclasst__c}" required="false" taborderhint="67" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_subriskclasst__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_propershipname__c" value="{!o.rstk__supitem_propershipname__c}" required="false" taborderhint="62" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_propershipname__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:inputField id="supitem_packgroup__c" value="{!o.rstk__supitem_packgroup__c}" required="false" taborderhint="68" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_packgroup__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_techname1__c" value="{!o.rstk__supitem_techname1__c}" required="false" taborderhint="63" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_techname1__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_sdssupplied__c}" rendered="{!isView}"/>
+                                <apex:pageBlockSectionItem rendered="{!!isView}"  />
+                                
+                                <apex:inputField id="supitem_techname2__c" value="{!o.rstk__supitem_techname2__c}" required="false" taborderhint="64" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_techname2__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:pageBlockSectionItem rendered="{!isView}">
+                                    <apex:commandButton value="{!$Label.rstk__pagebtn_supitem_uploadsds}" onclick="return uploadSDS();" />
+                                    <apex:outputPanel ></apex:outputPanel>
+                                </apex:pageBlockSectionItem>
+                            	<apex:pageBlockSectionItem rendered="{!isEdit}"/>
+                            	
+                            	<apex:inputField id="supitem_hazclass__c" value="{!o.rstk__supitem_hazclass__c}" required="false" taborderhint="65" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_hazclass__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:pageBlockSectionItem />
+                            
+                            	<apex:inputField id="supitem_unpkgcode__c" value="{!o.rstk__supitem_unpkgcode__c}" required="false" taborderhint="66" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_unpkgcode__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:pageBlockSectionItem />
+                            
+                            </apex:pageBlockSection>
+                        </apex:tab>
+                        
+                        <apex:tab label="{!$Label.rstk__pagetab_supitem_export}" name="tab_Export" id="tab_Export" html-tablabel="Export">
+                            <apex:pageBlockSection showHeader="false" columns="2">
+                                <apex:inputField id="supitem_emptyrecptval__c" value="{!o.rstk__supitem_emptyrecptval__c}" required="false" taborderhint="71" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_emptyrecptval__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_retcarrier__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f.rstk__supitem_retcarrier__c.label}" />
+                                    <apex:outputPanel >
+                                        <apex:selectList id="supitem_retcarrier__c" value="{!o.rstk__supitem_retcarrier__c}" size="1" style="width:250px;" tabIndex="770" rendered="{!coreFieldsEditable}">
+                                            <apex:selectOptions value="{!carrierCode}" />
+                                        </apex:selectList>
+                                        <apex:outputField value="{!o.rstk__supitem_retcarrier__c}" rendered="{!!coreFieldsEditable}"/>
+                                    </apex:outputPanel>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:inputField id="supitem_emptyrcptcurr__c" value="{!o.rstk__supitem_emptyrcptcurr__c}" required="false" taborderhint="72" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_emptyrcptcurr__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:inputField id="supitem_contact__c" value="{!o.rstk__supitem_contact__c}" required="false" taborderhint="78" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_contact__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_residualpct__c" value="{!o.rstk__supitem_residualpct__c}" required="false" taborderhint="73" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_residualpct__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:inputField id="supitem_contactphone__c" value="{!o.rstk__supitem_contactphone__c}" required="false" taborderhint="79" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_contactphone__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_returngrosswt__c" value="{!o.rstk__supitem_returngrosswt__c}" required="false" taborderhint="74" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_returngrosswt__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:inputField id="supitem_expdocalbreqd__c" value="{!o.rstk__supitem_expdocalbreqd__c}" required="false" taborderhint="80" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_expdocalbreqd__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_qtypercontainer__c" value="{!o.rstk__supitem_qtypercontainer__c}" required="false" taborderhint="75" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_qtypercontainer__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:pageBlockSectionItem />
+                                
+                                <apex:inputField id="supitem_retaddress__c" value="{!o.rstk__supitem_retaddress__c}" required="false" taborderhint="76" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_retaddress__c}" rendered="{!!coreFieldsEditable}"/>
+                                <apex:pageBlockSectionItem />
+                                
+                            </apex:pageBlockSection>
+                        </apex:tab>
+                        
+                        <apex:tab label="{!$Label.rstk__pagetab_supitem_individualreceptacle}" name="tab_IndividualReceptacle" id="tab_IndividualReceptacle"  html-tablabel="Individual Receptacle">
+                            <apex:pageBlockSection id="individualReceptacle_Attributes" showHeader="false" columns="2">
+                                <apex:inputField id="supitem_recptmfgloc__c" value="{!o.rstk__supitem_recptmfgloc__c}" taborderhint="100" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recptmfgloc__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_netweight__c" value="{!o.rstk__supitem_netweight__c}" required="true" taborderhint="105" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_netweight__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recptheight__c" value="{!o.rstk__supitem_recptheight__c}" taborderhint="101" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recptheight__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_grossweight__c" value="{!o.rstk__supitem_grossweight__c}" required="true" taborderhint="106" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_grossweight__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recptlength__c" value="{!o.rstk__supitem_recptlength__c}" taborderhint="102" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recptlength__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_receptfilluom__c" value="{!o.rstk__supitem_receptfilluom__c}"  taborderhint="107" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_receptfilluom__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recptwidth__c" value="{!o.rstk__supitem_recptwidth__c}"  taborderhint="103" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recptwidth__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_receptfillvol__c" value="{!o.rstk__supitem_receptfillvol__c}" taborderhint="108" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_receptfillvol__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recptweight__c" value="{!o.rstk__supitem_recptweight__c}" taborderhint="104" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recptweight__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_typeofpckg__c" value="{!o.rstk__supitem_typeofpckg__c}" taborderhint="109" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_typeofpckg__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:pageBlockSectionItem />
+                                
+                                <apex:inputField id="supitem_qtyperpckg__c" value="{!o.rstk__supitem_qtyperpckg__c}" taborderhint="110" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_qtyperpckg__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:pageBlockSectionItem />
+                                
+                                <apex:inputField id="supitem_qtyperpallet__c" value="{!o.rstk__supitem_qtyperpallet__c}" taborderhint="112" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_qtyperpallet__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:pageBlockSection>
+                        </apex:tab>
+                        
+                        <apex:tab label="{!$Label.rstk__pagetab_supitem_temperature}" name="tab_Temperature" id="tab_Temperature" html-tablabel="Temperature">
+                            <apex:pageBlockSection showHeader="false" columns="2">
+                                <apex:inputField id="supitem_shipmaxtempc__c" value="{!o.rstk__supitem_shipmaxtempc__c}" required="false" taborderhint="81" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_shipmaxtempc__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_stortempminf__c" value="{!o.rstk__supitem_stortempminf__c}" required="false" taborderhint="88" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_stortempminf__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_shipmaxtempf__c" value="{!o.rstk__supitem_shipmaxtempf__c}" required="false" taborderhint="82" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_shipmaxtempf__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_oktodeviate__c" value="{!o.rstk__supitem_oktodeviate__c}" required="false" taborderhint="89" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_oktodeviate__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_shipmintempc__c" value="{!o.rstk__supitem_shipmintempc__c}" required="false" taborderhint="83" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_shipmintempc__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_tempconthours__c" value="{!o.rstk__supitem_tempconthours__c}" required="false" taborderhint="90" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempconthours__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_shipmintempf__c" value="{!o.rstk__supitem_shipmintempf__c}"  required="false" taborderhint="84" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_shipmintempf__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_timetempmaxc__c" value="{!o.rstk__supitem_timetempmaxc__c}" required="false" taborderhint="91" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_timetempmaxc__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_stortempmaxc__c" value="{!o.rstk__supitem_stortempmaxc__c}" required="false" taborderhint="85" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_stortempmaxc__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_timetempmaxf__c" value="{!o.rstk__supitem_timetempmaxf__c}" required="false" taborderhint="92" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_timetempmaxf__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_stortempmaxf__c" value="{!o.rstk__supitem_stortempmaxf__c}" required="false" taborderhint="86" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_stortempmaxf__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_timetempminc__c" value="{!o.rstk__supitem_timetempminc__c}" required="false" taborderhint="93" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_timetempminc__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_stortempminc__c" value="{!o.rstk__supitem_stortempminc__c}" required="false" taborderhint="87" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_stortempminc__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_timetempminf__c" value="{!o.rstk__supitem_timetempminf__c}" required="false" taborderhint="94" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_timetempminf__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:pageBlockSection>
+                        </apex:tab>
+                        
+                        <apex:tab label="{!$Label.rstk__pagetab_supitem_diptube}" name="tab_DipTube" id="tab_DipTube" html-tablabel="Dip Tube" >
+                            <apex:pageBlockSection id="dipTube_Attributes" showHeader="false" columns="2">
+                                <apex:inputField id="supitem_diptubeexchreqd__c" value="{!o.rstk__supitem_diptubeexchreqd__c}" required="false" taborderhint="110" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_diptubeexchreqd__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_etatorqadapter__c" value="{!o.rstk__supitem_etatorqadapter__c}" required="false" taborderhint="115" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_etatorqadapter__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_diptubepartno__c" value="{!o.rstk__supitem_diptubepartno__c}" required="false" taborderhint="111" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_diptubepartno__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_diptubetorque__c" value="{!o.rstk__supitem_diptubetorque__c}" required="false" taborderhint="116" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_diptubetorque__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_etadiptubechkr__c" value="{!o.rstk__supitem_etadiptubechkr__c}" required="false" taborderhint="112" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_etadiptubechkr__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_diptubecaptorqsetting__c" value="{!o.rstk__supitem_diptubecaptorqsetting__c}" required="false" taborderhint="117" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_diptubecaptorqsetting__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_diptubetype__c" value="{!o.rstk__supitem_diptubetype__c}" taborderhint="113" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_diptubetype__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_ventedcap__c" value="{!o.rstk__supitem_ventedcap__c}" required="false" taborderhint="118" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_ventedcap__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_chemicalcode__c" value="{!o.rstk__supitem_chemicalcode__c}" required="false" taborderhint="114" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_chemicalcode__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_oringtype__c" value="{!o.rstk__supitem_oringtype__c}" required="false" taborderhint="119" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_oringtype__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_haveorings__c" value="{!o.rstk__supitem_haveorings__c}" required="false" taborderhint="120" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_haveorings__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_oringfreq__c" value="{!o.rstk__supitem_oringfreq__c}" required="false" taborderhint="120" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_oringfreq__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:pageBlockSectionItem />
+                                
+                                <apex:inputField id="supitem_oringldtime__c" value="{!o.rstk__supitem_oringldtime__c}" taborderhint="122" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_oringldtime__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:pageBlockSectionItem />
+                                
+                                <apex:inputField id="supitem_oringminstockqty__c" value="{!o.rstk__supitem_oringminstockqty__c}" taborderhint="123" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_oringminstockqty__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:pageBlockSection>
+                        </apex:tab> 
+                    
+                        <apex:tab label="{!$Label.rstk__pagetab_supitem_recordinginformation}" name="tab_RecordingInformation" id="tab_RecordingInformation" html-tablabel="Recording Information" >
+                            <apex:pageBlockSection id="recordingInformation_Attributes" showHeader="false" columns="2">
+                                <apex:inputField id="supitem_batchqtyhold__c" value="{!o.rstk__supitem_batchqtyhold__c}"   taborderhint="140" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_batchqtyhold__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recorderfrghtacct__c" value="{!o.rstk__supitem_recorderfrghtacct__c}" taborderhint="150" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recorderfrghtacct__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_lotcontrolled__c" value="{!o.rstk__supitem_lotcontrolled__c}"  taborderhint="141" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_lotcontrolled__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recorderaddress__c" value="{!o.rstk__supitem_recorderaddress__c}" taborderhint="151" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recorderaddress__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_serialrecordingreqd__c" value="{!o.rstk__supitem_serialrecordingreqd__c}"  taborderhint="142" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_serialrecordingreqd__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recorderretfreq__c" value="{!o.rstk__supitem_recorderretfreq__c}" taborderhint="152" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recorderretfreq__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_getpckgserials__c" value="{!o.rstk__supitem_getpckgserials__c}"  taborderhint="143" rendered="{!coreFieldsEditable}" />
+                                <apex:outputField value="{!o.rstk__supitem_getpckgserials__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recorderretfreqqty__c" value="{!o.rstk__supitem_recorderretfreqqty__c}" taborderhint="153" rendered="{!coreFieldsEditable}" />
+                                <apex:outputField value="{!o.rstk__supitem_recorderretfreqqty__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_tempreadonarrival__c" value="{!o.rstk__supitem_tempreadonarrival__c}"  taborderhint="144" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempreadonarrival__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_tempemailreqd__c" value="{!o.rstk__supitem_tempemailreqd__c}" taborderhint="154" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempemailreqd__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_tempsoftware__c" value="{!o.rstk__supitem_tempsoftware__c}"  taborderhint="145" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempsoftware__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_tempemails1__c" value="{!o.rstk__supitem_tempemails1__c}" taborderhint="155" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempemails1__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_softwaresupplied__c" value="{!o.rstk__supitem_softwaresupplied__c}"  taborderhint="146" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_softwaresupplied__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_tempemails2__c" value="{!o.rstk__supitem_tempemails2__c}" taborderhint="156" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempemails2__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_recorderactionreqd__c" value="{!o.rstk__supitem_recorderactionreqd__c}"  taborderhint="147" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_recorderactionreqd__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_tempemails3__c" value="{!o.rstk__supitem_tempemails3__c}" taborderhint="157" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempemails3__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_returnrecorder__c" value="{!o.rstk__supitem_returnrecorder__c}"  taborderhint="148" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_returnrecorder__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:inputField id="supitem_tempemails4__c" value="{!o.rstk__supitem_tempemails4__c}" taborderhint="158" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempemails4__c}" rendered="{!!coreFieldsEditable}"/>
+                                
+                                <apex:pageBlockSectionItem helptext="{!f.rstk__supitem_recordercarrier__c.inlineHelpText}">
+                                    <apex:outputLabel value="{!f.rstk__supitem_recordercarrier__c.label}" />
+                                    <apex:outputPanel >
+                                        <apex:selectList id="supitem_recordercarrier__c" value="{!o.rstk__supitem_recordercarrier__c}" size="1" style="width:250px;" tabIndex="1490" rendered="{!coreFieldsEditable}">
+                                            <apex:selectOptions value="{!carrierCode}" />
+                                        </apex:selectList>
+                                         <apex:outputField value="{!o.rstk__supitem_recordercarrier__c}" rendered="{!!coreFieldsEditable}"/>
+                                    </apex:outputPanel>
+                                </apex:pageBlockSectionItem>
+                                
+                                <apex:inputField id="supitem_tempemails5__c" value="{!o.rstk__supitem_tempemails5__c}" taborderhint="159" rendered="{!coreFieldsEditable}"/>
+                                <apex:outputField value="{!o.rstk__supitem_tempemails5__c}" rendered="{!!coreFieldsEditable}"/>
+                            </apex:pageBlockSection>
+                        </apex:tab> 
+                        <apex:tab label="{!$Label.rstk__pagetab_supitem_info}" name="Info" id="Info" rendered="{!!isNew}">
+                            <c:infoSection cntr="{!controller}" showHeader="false"/>
+                        </apex:tab>
+                        <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                            <c:customFields cntr="{!controller}" cols="2"/>
+                        </apex:tab>     
+                    </apex:tabPanel>
+                </apex:pageblock>
+            </apex:outputPanel>   
+            <script>
+                setSelectListRequired("supitem_uom__c");
+                setSelectListRequired("supitem_povend__c");
+                setSelectListRequired("supitem_exporttariff__c");
+                setSelectListRequired("supitem_facility__c");
+                setSelectListRequired("supitem_countryorigin__c");
+                //setSelectListRequired("supitem_retcarrier__c");
+            </script>
+        </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+     <div id="rejMessage" style="display:none">
+        <div>
+            <p><b><label>Reason for Rejection :</label><textarea  cols="35" rows="5" id="message"></textarea></b></p>
+        </div>
+        <p><input id="setbutton" type="button" value=" OK " onclick="rejectionMessage();"/><input type="button" value="Cancel" onclick="unblockUI();"/></p>
+    </div>
+    
+    <script>
+        var LABEL_FieldsNotModifiableAsReqAlreadySubmittedForApprovalOrAccepted = "{!$Label.FieldsNotModifiableAsReqAlreadySubmittedForApprovalOrAccepted}";
+        var LABEL_UNNumDOesnyExist = "{!$Label.UNNumDOesnyExist}";
+        var LABEL_PartNumAlreadyExists = "{!$Label.PartNumAlreadyExists}";
+        var LABEL_PartAlreadyExistsOnInventoryItemMaster = "{!$Label.PartAlreadyExistsOnInventoryItemMaster}";
+        var LABEL_FieldIsRequired = "{!$Label.FieldIsRequired}";
+        var LABEL_FieldIsReqdAndMustBeGT0 = "{!$Label.FieldIsReqdAndMustBeGT0}";
+        var LABEL_FieldIsReqdAndMustBeGTE0 = "{!$Label.FieldIsReqdAndMustBeGTE0}";
+        var LABEL_MustBe4DiNum = "{!$Label.MustBe4DiNum}";
+        var LABEL_PkngGpNotSpecified = "{!$Label.PkngGpNotSpecified}";
+        var LABEL_SDSNotUploaded = "{!$Label.SDSNotUploaded}";
+        var LABEL_SubRickClassNotSpecified = "{!$Label.SubRickClassNotSpecified}";
+        var LABEL_UserMustEnterValue = "{!$Label.UserMustEnterValue}";
+        var LABEL_Atleast1Of5EmailAddrFieldsOnRecordingInfoTabMustBeSpecified = "{!$Label.Atleast1Of5EmailAddrFieldsOnRecordingInfoTabMustBeSpecified}";
+        var LABEL_Atleast1OfDipTubeTabFieldsMustSpecified = "{!$Label.Atleast1OfDipTubeTabFieldsMustSpecified}";
+        var LABEL_Atleast1OfTempFieldsMustSpecUnderTempTab = "{!$Label.Atleast1OfTempFieldsMustSpecUnderTempTab}";
+        var LABEL_ContactNameUnderExportTabNotSpecified = "{!$Label.ContactNameUnderExportTabNotSpecified}";
+        var LABEL_DoesThisReplaceExistingPart_UserMustEnterValue = "{!$Label.DoesThisReplaceExistingPart_UserMustEnterValue}";
+        var LABEL_GrossWtFieldReqdAndMustGT0 = "{!$Label.GrossWtFieldReqdAndMustGT0}";
+        var LABEL_Hazardous_UserMustEnterValue = "{!$Label.Hazardous_UserMustEnterValue}";
+        var LABEL_IsTempChkngReqd_UserMustEnterValue = "{!$Label.IsTempChkngReqd_UserMustEnterValue}";
+        var LABEL_LicenseReqd_UserMustEnterValue = "{!$Label.LicenseReqd_UserMustEnterValue}";
+        var LABEL_NetItemWtFieldReqdAndMustBeGrtrThan0 = "{!$Label.NetItemWtFieldReqdAndMustBeGrtrThan0}";
+        var LABEL_ReplacementPartNumberfieldisRequired = "{!$Label.ReplacementPartNumberfieldisRequired}";
+        var LABEL_ReturnableReceptacle_UserMustEnterValue = "{!$Label.ReturnableReceptacle_UserMustEnterValue}";
+        var LABEL_SupplierMfgLeadTimefieldReqdAndMustBeGrtrThan0 = "{!$Label.SupplierMfgLeadTimefieldReqdAndMustBeGrtrThan0}";
+        var LABEL_SupplierShelfLifeReqdAndMustBeGrtrThan0 = "{!$Label.SupplierShelfLifeReqdAndMustBeGrtrThan0}";
+        var LABEL_UNNumMustBe4DigNum = "{!$Label.UNNumMustBe4DigNum}";
+        var LABEL_followFdReqFrItemWthTempChkSet = "{!$Label.followFdReqFrItemWthTempChkSet}";
+        var LABEL_followFdReqFrHazardousItem = "{!$Label.followFdReqFrHazardousItem}";
+        var LABEL_followFdReqFrReturnReceItem = "{!$Label.followFdReqFrReturnReceItem}";
+        var LABEL_followFdReqifDevFromStandMinMaxAllowed = "{!$Label.followFdReqifDevFromStandMinMaxAllowed}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

@@ -1,0 +1,336 @@
+<apex:page id="pg" standardController="rstk__poitem__c" extensions="rstk.ControllerExtnPoitem,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__poitem__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__poitem__c.fields}" />
+    <apex:variable var="f_icitem" value="{!$ObjectType.rstk__icitem__c.fields}" />
+    
+    <c:common_client_labels />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poitem}" customInclude="{!$Resource.rstk__Poitem_cli}" customInclude2="{!$Resource.rstk__comcod_backed_fields_cli}" enableAutoComplete="true"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__comcodstyle, 'comcod_style.css')}" />
+    
+    <script>
+    	var isWht = {!isWht};
+        var hasPageInit = true;
+        var varumcfEnabled = {!varumcfEnabled};
+        var dfltindComcod = "{!IF(ISNULL(currDivision.pocntls__r), '', currDivision.pocntls__r[0].pocntl_dfltindcomcod__c)}";
+        var lastCmpNo = "{!UserInfo.syusr_lastcmpno__c}";
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+         var cname;
+        if(isEdit){
+         cname = '{!o.poitem_comcod__r.pocomcod_dimval__r.Name}';
+        }
+    </script>
+
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+       
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+                <apex:inputHidden id="poitem_ltreqcnvrtpoind__c" value="{!o.rstk__poitem_ltreqcnvrtpoind__c}"/>
+                <apex:inputHidden id="poitem_invuom_ui__c" />
+                <c:comcodBackedSelectList id="poitem_trvlr__cc" indId="poitem_trvlrind__c" valId="poitem_trvlr__c" ccId="pocomcod_trvlr__c" cntr="{!controller}" tabIndex="6" options="{!Travelers}"/>
+                <apex:inputText id="subcontractAllowed__c" value="{!subcontractAllowed}" />
+            </apex:outputPanel>
+            <c:division id="poitem_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+               
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_type__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poitem_type__c.label}"/>
+                    <c:selectList id="poitem_type__c" cntr="{!controller}" required="true" options="{!poItemTypes}" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_comcod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poitem_comcod__c.label}"/>
+                    <c:selectList id="poitem_comcod__c" cntr="{!controller}" required="true" options="{!POCommodityCodes}" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_item__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poitem_item__c.label}"/>
+                    <apex:outputPanel >
+                      <apex:outputPanel rendered="{!isNew}">
+                        <c:autocomplete id="poitem_item__c" cntr="{!controller}" slDesc="{!IcitemName}" query="select id, name from icitem__c where icitem_div__c = 'prm'" queryParms="[['poitem_div__c','Division']]"  tabIndex="3"/>
+                        <c:inputText id="poitem_itemno__c" cntr="{!controller}" required="true" tabIndex="3"/>
+                      </apex:outputPanel>
+                      <apex:outputPanel rendered="{!!isNew}">
+                        <apex:outputPanel style="display:none">
+                            <apex:inputText id="edit_poitem_item__c" value="{!o.rstk__poitem_item__c}"/>
+                            <apex:inputText id="edit_poitem_itemno__c" value="{!o.rstk__poitem_itemno__c}"/>
+                        </apex:outputPanel>
+                        <apex:outputField value="{!o.rstk__poitem_item__c}" rendered="{!!ISNULL(o.rstk__poitem_item__c)}"/>
+                        <apex:outputField value="{!o.rstk__poitem_itemno__c}" rendered="{!ISNULL(o.rstk__poitem_item__c)}"/>
+                      </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_servicetype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poitem_servicetype__c.label}"/>
+                    <c:inputField id="poitem_servicetype__c" cntr="{!controller}" tabIndex="7"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poitem_desc__c.label}"/>
+                    <c:inputText id="poitem_desc__c" cntr="{!controller}" required="true" tabIndex="4"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_vatclass__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poitem_vatclass__c.label}"/>
+                     <c:comcodBackedSelectList id="poitem_vatclass__cc" indId="poitem_vatclassind__c" valId="poitem_vatclass__c" ccId="pocomcod_vatclass__c" cntr="{!controller}" tabIndex="52" options="{!vatClasses}"/>
+                </apex:pageBlockSectionItem>
+                
+				<apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                
+				<apex:pageBlockSectionItem helpText="{!f.rstk__poitem_inactive__c.inlineHelpText}">
+					<apex:outputLabel value="{!f.rstk__poitem_inactive__c.label}"/>
+					<c:inputField id="poitem_inactive__c" cntr="{!controller}"/>
+				</apex:pageBlockSectionItem>
+
+<!--                
+                <apex:pageBlockSectionItem helpText="{!f.poitem_trvlr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.poitem_trvlr__c.label}"/>
+                    <c:comcodBackedSelectList id="poitem_trvlr__cc" indId="poitem_trvlrind__c" valId="poitem_trvlr__c" ccId="pocomcod_trvlr__c" cntr="{!controller}" tabIndex="6" options="{!Travelers}"/>
+                </apex:pageBlockSectionItem>
+-->                
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Defaults" id="theTabPanel">
+               <apex:tab label="{!$Label.rstk__pagetab_poitem_defaults}" name="tab_Defaults" id="tab_Defaults">
+                    <apex:outputPanel id="directDefaults">
+                    <apex:pageBlockSection id="pbs_Defaults1" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_ltreqcnvrtpoind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_ltreqcnvrtpo__c.label}"/>
+                            <c:comcodBackedField id="poitem_ltreqcnvrtpo__cc" indId="poitem_ltreqcnvrtpoind__c" valId="poitem_ltreqcnvrtpo__c" ccId="pocomcod_ltreqcnvrtpo__c" cntr="{!controller}" tabIndex="50" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f_icitem.rstk__icitem_invuom__c.inlineHelpText}" rendered="{!isDirect}">
+                            <apex:outputLabel value="{!f_icitem.rstk__icitem_invuom__c.label}"/>
+                            <c:selectList id="poitem_invuom_ui__c" ref="poitem_item__r.icitem_invuom__c" fldref="{!o.poitem_item__r.rstk__icitem_invuom__c}" cntr="{!controller}" required="false" options="{!sl.syuoms}" tabIndex="75"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem rendered="{!!isDirect}"/>
+                
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_ltvendind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_ltvend__c.label}"/>
+                            <c:comcodBackedField id="poitem_ltvend__cc" indId="poitem_ltvendind__c" valId="poitem_ltvend__c" ccId="pocomcod_ltvend__c" cntr="{!controller}" tabIndex="50"/>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_umcf__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_umcf__c.label}"/>
+                            <c:inputField id="poitem_umcf__c" cntr="{!controller}" required="false" disabled="false" tabIndex="76"/>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    </apex:outputPanel>
+                    <apex:pageBlockSection id="pbs_Defaults2" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_respbuyerind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_respbuyer__c.label}"/>
+                            <!-- c:selectList id="poitem_respbuyer__c" cntr="{!controller}" required="true" options="{!sl.syusrs}" tabIndex="52"/ -->
+                            <c:comcodBackedSelectList id="poitem_respbuyer__cc" indId="poitem_respbuyerind__c" valId="poitem_respbuyer__c" ccId="pocomcod_respbuyer__c" cntr="{!controller}" tabIndex="52" options="{!Buyers}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_qtydecimal__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_qtydecimal__c.label}"/>
+                            <!--c:inputField id="poitem_qtydecimal__c" cntr="{!controller}" disabled="true" tabIndex="77"/-->
+                            <c:comcodBackedField id="poitem_qtydecimal__cc" indId="poitem_qtydecimalind__c" valId="poitem_qtydecimal__c" ccId="pocomcod_qtydecimal__c" cntr="{!controller}" tabIndex="77" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_puruom__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_puruom__c.label}"/>
+                            <c:selectList id="poitem_puruom__c" cntr="{!controller}" required="true" options="{!sl.syuoms}" tabIndex="53"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_dimval__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_dimval__c.label}"/>
+                            <!-- <c:comcodBackedSelectList id="poitem_dimval__cc" indId="poitem_dimvalind__c" valId="poitem_dimval__c" ccId="pocomcod_dimval__c" cntr="{!controller}" options="{!Sydims}" tabIndex="78" /> -->
+                            <apex:outputPanel layout="block">
+                                <apex:inputField id="poitem_dimvalind__c" value="{!o.rstk__poitem_dimvalind__c}" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__poitem_dimvalind__c}" rendered="{!isView}"/>
+                                <apex:outputPanel rendered="{!!isView}">
+                                    <apex:outputPanel id="CCOverrideFlag" style="display:inline">
+                                        <apex:outputPanel id="dimvalPanel" styleClass="overridePanel" >
+                                            <c:autocomplete id="poitem_dimval__c" cntr="{!controller}" slDesc="{!sydimDesc}" width="150px"
+                                                    query="" 
+                                                    queryParms="[]"  
+                                                    useCustomAutocomplete="true" 
+                                                    autocompleteController="ControllerExtnPoitem"
+                                                    autocompleteMethodParms="fieldId=poitem_dimval__c;divID={!divIDValue}"
+                                                    tabIndex="78"/>
+                                            <apex:outputLabel value="{!$Label.rstk__ccoverrideflag}" styleClass="overrideFlag" style="padding-left:10px"/>
+                                        </apex:outputPanel>
+                                     </apex:outputPanel>    
+                                     <apex:outputPanel id="CCComcodFlag" style="display:inline">
+                                        <apex:inputText id="CCComcodName__c" value="{!ComcodName}" rendered="{!OR(isNew,isEdit)}"/>
+                                        <apex:outputLabel value="{!$Label.rstk__cccomcodflag}" styleClass="comcodeFlag" style="padding-left:10px"/>
+                                     </apex:outputPanel>
+                                 </apex:outputPanel>
+                                 <apex:outputPanel rendered="{!isView}">
+                                    <apex:outputField value="{!o.rstk__poitem_dimval__c}" rendered="{!!o.rstk__poitem_dimvalind__c}"/>
+                                    <apex:outputField value="{!o.poitem_comcod__r.rstk__pocomcod_dimval__c}" rendered="{!o.rstk__poitem_dimvalind__c}"/>
+                                    <apex:outputLabel value="{!$Label.rstk__ccoverrideflag}" styleClass="overrideFlag" style="padding-left:10px" rendered="{!!o.rstk__poitem_dimvalind__c}"/>
+                                    <apex:outputLabel value="{!$Label.rstk__cccomcodflag}" styleClass="comcodeFlag" style="padding-left:10px" rendered="{!o.rstk__poitem_dimvalind__c}"/>
+                                 </apex:outputPanel>     
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_overrcptind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_overrcptind__c.label}"/>
+                            <!--c:inputField id="poitem_qtydecimal__c" cntr="{!controller}" disabled="true" tabIndex="77"/-->
+                            <c:comcodBackedField id="poitem_overrcptind__cc" indId="poitem_overrcptindind__c" valId="poitem_overrcptind__c" ccId="pocomcod_overrcptind__c" cntr="{!controller}" tabIndex="54" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_poprint_engitemnotes__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_poprint_engitemnotes__c.label}"/>
+                            <c:inputField id="poitem_poprint_engitemnotes__c" cntr="{!controller}" tabIndex="79"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_taxableind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_taxableind__c.label}"/>
+                            <c:inputField id="poitem_taxableind__c" cntr="{!controller}" tabIndex="55"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_poprint_engitemrevnotes__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_poprint_engitemrevnotes__c.label}"/>
+                            <c:inputField id="poitem_poprint_engitemrevnotes__c" cntr="{!controller}" tabIndex="79"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_odcid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_odcid__c.label}"/>
+                            <c:selectList id="poitem_odcid__c" cntr="{!controller}" options="{!DivSyODCs}" tabIndex="56" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_poprint_puritemnotes__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_poprint_puritemnotes__c.label}"/>
+                            <c:inputField id="poitem_poprint_puritemnotes__c" cntr="{!controller}" tabIndex="80"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_orgid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_orgid__c.label}"/>
+                            <c:comcodBackedSelectList id="poitem_orgid__cc" indId="poitem_orgidind__c" valId="poitem_orgid__c" ccId="pocomcod_orgid__c" cntr="{!controller}" options="{!Syorgs}" tabIndex="57" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_expenseacct__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_expenseacct__c.label}"/>
+                            <c:selectList id="poitem_expenseacct__c" cntr="{!controller}" required="false" options="{!ExpAccounts}" tabIndex="81" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_dfltpoprice__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_dfltpoprice__c.label}"/>
+                             <c:inputField id="poitem_dfltpoprice__c" cntr="{!controller}" tabIndex="58" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_insptemplind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_insptempl__c.label}"/>
+                            <c:comcodBackedSelectList id="poitem_insptempl__cc" indId="poitem_insptemplind__c" valId="poitem_insptempl__c" ccId="pocomcod_insptempl__c" cntr="{!controller}" tabIndex="82" options="{!InspectionTemplate}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_subdmdsite__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_subdmdsite__c.label}"/>
+                            <c:comcodBackedSelectList id="poitem_subdmdsite__cc" indId="poitem_subdmdsiteind__c" valId="poitem_subdmdsite__c" ccId="pocomcod_subdmdsite__c" cntr="{!controller}" options="{!subdmdsites}" tabIndex="59" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_isocountry__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_isocountry__c.label}"/>
+                            <!-- RSTK-3146 -->
+                            <c:inputField id="poitem_isocountry__c" cntr="{!controller}" />
+                            <!--  -->
+                            <!-- <apex:inputField id="poitem_isocountry__c" value="{!o.poitem_isocountry__c}"/> -->
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_subdmdlocid__c.inlineHelpText}" >
+		                    <apex:outputLabel value="{!f.rstk__poitem_subdmdlocid__c.label}"/>
+		                    <apex:outputPanel >
+<!-- RCB: RSTK-967 -->		                        
+			                    <c:autocomplete id="poitem_subdmdlocid__c" cntr="{!controller}" 
+			                    	slDesc="{!subdmdlocidName}" 
+			                        query="select id, name from sylocid__c where sylocid_vendlocind__c = true and sylocid_site__c = 'prm'" 
+			                        queryParms="[['poitem_subdmdsite__c','{!f.rstk__poitem_subdmdsite__c.label}']]" width="200px" tabIndex="60"
+			                    />
+			                    <apex:outputLabel value="(com cod)" style="padding-left:10px" styleClass="comcodeFlag" rendered="{!AND(isView,o.rstk__poitem_subdmdsiteind__c)}"/>
+			                    <apex:outputLabel value="(override)" styleClass="overrideFlag" rendered="{!AND(isView,!o.rstk__poitem_subdmdsiteind__c)}"/>
+		                    </apex:outputPanel>
+		                </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_varumcfitem__c.inlineHelpText}" rendered="{!varumcfEnabled}">
+                            <apex:outputLabel value="{!f.rstk__poitem_varumcfitem__c.label}"/>
+                            <c:comcodBackedField id="poitem_varumcfitem__cc" indId="poitem_varumcfitemind__c" valId="poitem_varumcfitem__c" ccId="pocomcod_varumcfitem__c" cntr="{!controller}" tabIndex="83" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_dfltpoinvqty__c.inlineHelpText}" rendered="{!varumcfEnabled}">
+                            <apex:outputLabel value="{!f.rstk__poitem_dfltpoinvqty__c.label}"/>
+                            <c:comcodBackedField id="poitem_dfltpoinvqty__cc" indId="poitem_dfltpoinvqtyind__c" valId="poitem_dfltpoinvqty__c" ccId="pocomcod_dfltpoinvqty__c" cntr="{!controller}" tabIndex="61" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_dowht__c.inlineHelpText}" rendered="{!isWht}">
+                            <apex:outputLabel value="{!f.rstk__poitem_dowht__c.label}"/>
+                            <c:comcodBackedField id="poitem_dowht__cc" indId="poitem_dowhtind__c" valId="poitem_dowht__c" ccId="pocomcod_dowht__c" cntr="{!controller}" tabIndex="84" />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_poitem_inter_systemdirectsales}" name="tab_intersystem" id="tab_intersystem" 
+                    rendered="{!AND(NOT(ISNULL(currDivision.pocntls__r)), currDivision.pocntls__r[0].pocntl_intersystem__c)}">
+                    <apex:pageBlockSection showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_intersystem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_intersystem__c.label}"/>
+                            <c:inputField id="poitem_intersystem__c" cntr="{!controller}" tabIndex="60"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_sellfromcmp__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_sellfromcmp__c.label}"/>
+                            <c:selectList id="poitem_sellfromcmp__c" cntr="{!controller}" required="false" options="{!Companys}" tabIndex="61" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_sellfromdiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_sellfromdiv__c.label}"/>
+                            <c:selectList id="poitem_sellfromdiv__c" cntr="{!controller}" required="false" options="{!sydivs}" tabIndex="62" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_socust__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_socust__c.label}"/>
+                            <c:autocomplete id="poitem_socust__c" cntr="{!controller}" width="250px" tabIndex="63"
+                                query="select id, name from socust__c where socust_inactive__c = false" 
+                                queryParms="[]" slDesc="{!sellFromSocust}" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__poitem_soprod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__poitem_soprod__c.label}"/>
+                            <c:autocomplete id="poitem_soprod__c" cntr="{!controller}" width="250px" tabIndex="64" minChars="{!prodMinCharForAutoComplete}"
+                                query="select id, name from soprod__c where (soprod_prodtype__c = 'Stock' OR soprod_prodtype__c = 'Configured') and soprod_autopo__c = false and soprod_div__c = 'prm'" queryParms="[['poitem_sellfromdiv__c','{!f.rstk__poitem_sellfromdiv__c.label}']]" slDesc="{!sellFromSoprod}" />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_poitem_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>             
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    <apex:pageBlock id="pb_RelatedLists" rendered="{!!isNew}">
+        <apex:pageBlockSection id="pbs_manuallinks" showHeader="true" title="{!$Label.rstk__pagetab_poitem_relatedlists}" columns="1" >
+            <apex:tabPanel switchType="client" selectedTab="tab_RelatedLists" id="theTabPanel_RelatedLists">
+                <apex:tab label="{!$Label.rstk__pagetab_poitemvend_lists}" name="tab_manuallinks" id="tab_manuallinks" > 
+                    <apex:relatedList list="POItem__r"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        var BOM = "{!$Label.rstk__nobomexistsforthiitem}";     
+        var Item = "{!$Label.rstk__itemtypemustbepurchased}"; 
+        var LABEL_InvalidValueFor = "{!$Label.rstk__invalidvaluefor}";    
+        var LABEL_InvalidUOM_NoConversionFactorDefined = "{!$Label.rstk__invaliduom_noconversionfactordefined}";
+        var LABEL_ItemAlreadyEstablishedAsInventoryItem = "{!$Label.rstk__itemalreadyestablishedasinventoryitem}";
+        var LABEL_EnterValForOrgDept = "{!$Label.rstk__entervalfororgdept}";
+        var LABEL_ServiceTypeReqdForServiceItem = "{!$Label.rstk__servicetypereqdforserviceitem}";
+        var LABEL_MusBeAnIntegerValue = "{!$Label.rstk__musbeanintegervalue}";
+        var LABEL_Subdmd_Iss_From_Loc_ID_is_required_when_Subdmd_Iss_From_Site_is_specified = "{!$Label.rstk__subdmd_iss_from_loc_id_is_required_when_subdmd_iss_from_site_is_specified}";                                                                                            
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

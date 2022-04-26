@@ -1,0 +1,330 @@
+<apex:page id="pg" standardController="rstk__soconpp__c" extensions="rstk.ControllerExtnSoconpp,rstk.RemoteQueryController" sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__productpurchaseschedule}"  enableAutocomplete="true" showHeader="false" enableQuickMenu="false"/>
+    
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <script>
+        var autoCompleteRefs = {};
+        var salesCustomerId = '{!salesCustomerId}';
+//RCB: 20361        
+        var salesCustomerName = '{!salesCustomerName}';
+        var shipToAddressOnContract = '{!salesShipToAddress}';
+    </script>
+    <style>
+        .hidden{visibility:hidden;}
+        .rcptinput{
+            width:60px;
+            text-align:right; 
+        }
+        .sort {display:inline}
+        .numSort {display:inline}
+
+            .modal {
+                background-color:#fff;
+                display:none;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+            .modal h2 {
+                margin:0px;
+                padding:10px 0 10px 45px;
+                font-size:16px;
+            }
+            
+            .modalComponents {
+                color:#efefef;
+                height:200px;
+                z-index:50;
+            }
+             
+    </style>
+    
+    <apex:form id="fm">
+        <apex:pageBlock id="pb" mode="detail">
+            <c:EditableGrid width="1550" jsController="purchaseSchedule" data="{!purScheduleGrid}" editable="true" ispopup="false"/> 
+            <script>
+                    var commitmentQty = 0 ; 
+                    purchaseSchedule.onGridLoad = function() {
+                        self = this;
+                        this.getVisibleRows().each(function (index, el) {
+                           var row = jQuery(this);
+                           var upGroup = self.getRowValue(row, 'soconppsched_upgroup__c');
+                            if (!isEmpty(upGroup)) {
+                                self.getRowObj(row, 'soconppsched_staddr__c').attr('disabled', true);
+                                }
+                            if(purchaseSchedule.getRowObj(row, 'soconppsched_installcust__c')[0].value != ''  ){
+                                var installcust = purchaseSchedule.getRowValue(row, 'soconppsched_installcust__c');
+                                var icustinstaddr = purchaseSchedule.getRowValue(row, 'soconppsched_icustinstaddr__c');
+                                if(installcust){
+                                    var elName = purchaseSchedule.getRowObj(row, 'soconppsched_icustinstaddr__c').attr('name');
+                                    var records = execQuery("select Id, Name, socaddr_defaultinstall__c from socaddr__c where ( socaddr_useasinstall__c = true OR socaddr_defaultinstall__c = true) "+
+                                                          "and socaddr_custno__c = "+quote(installcust));
+                                    var newData = [];
+                                    var defaultAddId = '';
+                                    var defaultAddName = '';
+                                    for (i = 0; i < records.length; i++) {
+                                        var rec = records[i];
+                                        newData.push([  getColumnValue(rec, 'Name'), getColumnValue(rec, 'Id') ]);
+                                        if( rec.Id == icustinstaddr){
+                                            defaultAddId = rec.Id;
+                                            defaultAddName = rec.Name;
+                                        }
+                                    }
+                                    autoCompleteRefs[elName].getOptions().minChars = 0;
+                                    autoCompleteRefs[elName].updateData(newData);
+                                    purchaseSchedule.setRowValue(row, 'soconppsched_icustinstaddr__c', defaultAddId);
+                                    purchaseSchedule.setRowAutoValue(row, 'soconppsched_icustinstaddr__c', defaultAddName);
+                                }
+                                
+                            }
+                            
+                            if(salesCustomerId != null && salesCustomerId != '') {
+                                var elName = purchaseSchedule.getRowObj(row, 'soconppsched_staddr__c').attr('name');
+                                var records = execQuery("select Id, Name from socaddr__c where socaddr_useasshipto__c = true "+
+                                                          "and socaddr_custno__c = "+quote(salesCustomerId));
+                                    var newData = [];
+                                    var defaultAddId = '';
+                                    var defaultAddName = '';
+                                    
+                                    var custShipToaddr = purchaseSchedule.getRowValue(row, 'soconppsched_staddr__c');
+                                    for (i = 0; i < records.length; i++) {
+                                        var rec = records[i];
+                                        newData.push([  getColumnValue(rec, 'Name'), getColumnValue(rec, 'Id') ]);
+                                        if( rec.Id == custShipToaddr){
+                                            defaultAddId = rec.Id;
+                                            defaultAddName = rec.Name;
+                                        }
+                                    }
+                                
+                                autoCompleteRefs[elName].getOptions().minChars = 0;
+                                autoCompleteRefs[elName].updateData(newData);
+                                purchaseSchedule.setRowValue(row, 'soconppsched_staddr__c', defaultAddId);
+                                purchaseSchedule.setRowAutoValue(row, 'soconppsched_staddr__c', defaultAddName);
+                            }   
+                        }); 
+                    }
+                    
+                    purchaseSchedule.validate = function() {
+                        self = this;
+                        var isvalid = true;
+                        var totaltempqty = 0;
+                        this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var date = self.getRowValue(row, 'soconppsched_date__c');
+                                var qty = self.getRowValue(row, 'soconppsched_qty__c');
+                                var stdaddr = self.getRowValue(row, 'soconppsched_staddr__c');
+                                var installcust = self.getRowValue(row, 'soconppsched_installcust__c');
+                                var icustinstaddr = self.getRowValue(row, 'soconppsched_icustinstaddr__c');
+                                 
+                                if(!date){
+                                    alert('{!$Label.rstk__datereqd}');
+                                    purchaseSchedule.getRowObj(row, 'soconppsched_date__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if(!qty){
+                                    alert('{!$Label.rstk__quantityisrequired}');
+                                    purchaseSchedule.getRowObj(row, 'soconppsched_qty__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if(!stdaddr){
+                                    alert('{!$Label.rstk__salescustomershiptoaddressisrequired}');
+                                    purchaseSchedule.getRowObj(row, 'soconppsched_staddr__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if(!installcust){
+                                    alert('{!$Label.rstk__purchaseinstallationcustomerisrequired}');
+                                    purchaseSchedule.getRowObj(row, 'soconppsched_installcust__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if(!icustinstaddr){
+                                    alert('{!$Label.rstk__installationcustomeraddressisrequired}');
+                                    purchaseSchedule.getRowObj(row, 'soconppsched_icustinstaddr__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if(commitmentQty == 0){
+                                    var soconppID = purchaseSchedule.getRowValue(row, 'soconppsched_soconpp__c');
+                                    getCommitmentQty(soconppID);
+                                }
+                                
+                                if((parseFloat(qty) + totaltempqty) > commitmentQty){
+                                    alert('{!$Label.rstk__totalquantitycannotexceedcommitmentquantityfromcontractproductsf}');
+                                    isvalid = false;
+                                    self.setRowValue(row, 'soconppsched_qty__c', ''); 
+                                    return false;
+                                }else {
+                                    totaltempqty += parseFloat(qty);
+                                }
+                                
+                            }); 
+                        return isvalid;
+                    }
+                    
+                    function getCommitmentQty(socnppid){
+                        if(commitmentQty == 0)
+                        var socnpps = execQuery("select soconpp_commitqty__c from soconpp__c where id = '" + socnppid + "'");
+                        if(socnpps.length > 0){
+                            commitmentQty = socnpps[0].soconpp_commitqty__c;
+                        }
+                    }
+                    
+                    function verifyLimit( rowToEdit ){
+                        var totaltempqty = 0;
+                        purchaseSchedule.getVisibleRows().each(function (index, el) {
+                            var row = jQuery(this);
+                            var qty = purchaseSchedule.getRowValue(row, 'soconppsched_qty__c');
+                             
+                            if(commitmentQty == 0){
+                                var soconppID = purchaseSchedule.getRowValue(row, 'soconppsched_soconpp__c');
+                                getCommitmentQty(soconppID);
+                            }
+                            
+                            if((parseFloat(qty) + totaltempqty) > commitmentQty){
+                                alert('{!$Label.rstk__totalquantitycannotexceedcommitmentquantityfromcontractproductsf}');
+                                purchaseSchedule.setRowValue(rowToEdit, 'soconppsched_qty__c', ''); 
+                                return false;
+                            }else if(parseFloat(qty) > 0) {
+                                totaltempqty += parseFloat(qty);
+                            }
+                            
+                        }); 
+                    
+                    }
+                    
+                    purchaseSchedule.addRow = function(rowCallback) {
+                        self = this;
+                        purchaseScheduleHandler.prototype.addRow.call(self, rowCallback);
+                        this.getVisibleRows().each(function (index, el) {
+                            var row = jQuery(this);
+                            var rowId = self.getRowValue(row, 'Id');
+//RCB: 20361 changed defaulting for new row                         
+                            if(rowId ==''){
+                                if (!purchaseSchedule.getRowValue(row, 'soconppsched_installcust__c')) {
+                                    purchaseSchedule.setRowValue(row, 'soconppsched_installcust__c', salesCustomerId);
+                                    purchaseSchedule.setRowAutoValue(row, 'soconppsched_installcust__c', salesCustomerName);
+                                }
+                                var installcust = purchaseSchedule.getRowValue(row, 'soconppsched_installcust__c');
+                                if(installcust) {
+                                    var elName = purchaseSchedule.getRowObj(row, 'soconppsched_icustinstaddr__c').attr('name');
+                                    var records = execQuery("select Id, Name, socaddr_defaultinstall__c from socaddr__c where ( socaddr_useasinstall__c = true OR socaddr_defaultinstall__c = true) "+
+                                                          "and socaddr_custno__c = "+quote(installcust));
+                                    var newData = [];
+                                    var defaultAddId = '';
+                                    var defaultAddName = '';
+                                    for (i = 0; i < records.length; i++) {
+                                        var rec = records[i];
+                                        newData.push([  getColumnValue(rec, 'Name'), getColumnValue(rec, 'Id') ]);
+                                        if( rec.socaddr_defaultinstall__c == 'true'){
+                                            defaultAddId = rec.Id;
+                                            defaultAddName = rec.Name;
+                                        }
+                                    }
+                                    autoCompleteRefs[elName].getOptions().minChars = 0;
+                                    autoCompleteRefs[elName].updateData(newData);
+                                    purchaseSchedule.setRowValue(row, 'soconppsched_icustinstaddr__c', defaultAddId);
+                                    purchaseSchedule.setRowAutoValue(row, 'soconppsched_icustinstaddr__c', defaultAddName);
+                                }
+                            }
+                            
+                            var custShipToaddr = purchaseSchedule.getRowValue(row, 'soconppsched_staddr__c');
+                            if(rowId =='' && salesCustomerId != null && salesCustomerId != '') {
+                                var elName = purchaseSchedule.getRowObj(row, 'soconppsched_staddr__c').attr('name');
+                                var records = execQuery("select Id, Name from socaddr__c where socaddr_useasshipto__c = true "+
+                                                          "and socaddr_custno__c = "+quote(salesCustomerId));
+                                    var newData = [];
+                                    var defaultAddId = '';
+                                    var defaultAddName = '';
+                                    
+                                    var addrToSet = (custShipToaddr == null || custShipToaddr == '') ? shipToAddressOnContract : custShipToaddr
+                                    for (i = 0; i < records.length; i++) {
+                                        var rec = records[i];
+                                        newData.push([  getColumnValue(rec, 'Name'), getColumnValue(rec, 'Id') ]);
+                                        if( rec.Id == addrToSet){
+                                            defaultAddId = rec.Id;
+                                            defaultAddName = rec.Name;
+                                        }
+                                    }
+                                
+                                autoCompleteRefs[elName].getOptions().minChars = 0;
+                                autoCompleteRefs[elName].updateData(newData);
+                                purchaseSchedule.setRowValue(row, 'soconppsched_staddr__c', defaultAddId);
+                                purchaseSchedule.setRowAutoValue(row, 'soconppsched_staddr__c', defaultAddName);
+                            }
+                        });
+                    }
+                    
+                    
+                    
+                    purchaseSchedule.entryChanged = function(row, rowNum, name, value) {
+                        if(name == 'soconppsched_qty__c'){
+                            var qty = purchaseSchedule.getRowValue(row, 'soconppsched_qty__c');
+                            if(!qty ||  isNaN(qty) || parseFloat(qty) <= 0) {
+                                 alert('{!$Label.rstk__quantityisrequiredandmustbegreaterthanzero}');
+                                 purchaseSchedule.getRowObj(row, 'soconppsched_qty__c').focus();
+                                 purchaseSchedule.setRowValue(row, 'soconppsched_qty__c', ''); 
+                            }else{
+                                verifyLimit(row);
+                            }
+                        }
+                    
+                        if (name == 'soconppsched_installcust__c') {
+                            var installcust = purchaseSchedule.getRowValue(row, 'soconppsched_installcust__c');
+                            if(installcust ) {
+                                var elName = purchaseSchedule.getRowObj(row, 'soconppsched_icustinstaddr__c').attr('name');
+                                var records = execQuery("select Id, Name, socaddr_defaultinstall__c from socaddr__c where ( socaddr_useasinstall__c = true OR socaddr_defaultinstall__c = true) "+
+                                                      "and socaddr_custno__c = "+quote(installcust));
+                                var newData = [];
+                                var defaultAddId = '';
+                                var defaultAddName = '';
+                                for (i = 0; i < records.length; i++) {
+                                    var rec = records[i];
+                                    newData.push([  getColumnValue(rec, 'Name'), getColumnValue(rec, 'Id') ]);
+                                    if( rec.socaddr_defaultinstall__c == 'true'){
+                                        defaultAddId = rec.Id;
+                                        defaultAddName = rec.Name;
+                                    }
+                                }
+                                autoCompleteRefs[elName].getOptions().minChars = 0;
+                                autoCompleteRefs[elName].updateData(newData);
+                                purchaseSchedule.setRowValue(row, 'soconppsched_icustinstaddr__c', defaultAddId);
+                                purchaseSchedule.setRowAutoValue(row, 'soconppsched_icustinstaddr__c', defaultAddName);
+                            }
+                            
+                        }
+                    } 
+            </script>
+            
+            
+        </apex:pageBlock>
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+     <c:footerInclude cntr="{!controller}" />
+</apex:page>

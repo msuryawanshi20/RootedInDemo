@@ -1,0 +1,108 @@
+<apex:page id="pg" standardController="rstk__poreq__c" extensions="rstk.ControllerExtnPoreq,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__poreq__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__poreq__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__purchaserequisition}" displayListLink="true" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_autocomplete}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__autocomplete, 'autocomplete/css/jquery.autocomplete.css')}" />
+    <script>
+    var isNew = {!isNew};
+    var isEdit = {!isEdit};
+    var isView = {!isView};
+    var divid = "{!currDivision.id}";
+    
+    function saveRecord() {
+        return doValidation();
+    }       
+            
+    function doValidation(){
+        var poreqStatus = sfffGetFieldValue('poreq_status__c');
+        
+        if(poreqStatus == 'Converted' && ( document.getElementById('pg:fm:poreqStatus').value != poreqStatus)){
+            alert(LABEL_RequisitionstatuscannotbemanuallychangedtoConverted);
+            //return false;
+        }
+        return true;
+    }
+    </script>
+    <apex:form id="fm">
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:inputHidden id="poreq_status__c" value="{!o.rstk__poreq_status__c}"/>
+        <apex:inputHidden id="poreqStatus" value="{!poreqStatus}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+            
+                <apex:outputField value="{!o.rstk__poreq_div__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poreq_ordno__c.inlineHelpText}" rendered="{!isEdit}">
+                    <apex:outputLabel value="{!f.rstk__poreq_ordno__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poreq_ordno__c}"></apex:outputField>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poreq_povend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poreq_povend__c.label}"/>
+                    <c:largeSelectList id="poreq_povend__c" required="false" cntr="{!controller}" options="{!VendorOptions}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poreq_pjproj__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poreq_pjproj__c.label}"/>
+                    <c:autocomplete id="poreq_pjproj__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_completed__c = false and pjproj_div__c = '{!o.rstk__poreq_div__c}'" slDesc="{!projectDesc}" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poreq_pohdr__c.inlineHelpText}" rendered="{!isEdit}">
+                    <apex:outputLabel value="{!f.rstk__poreq_pohdr__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poreq_pohdr__c}"></apex:outputField>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poreq_status__c.inlineHelpText}" rendered="{!isEdit}">
+                    <apex:outputLabel value="{!f.rstk__poreq_status__c.label}"/>
+                    <c:inputField id="poreq_status__c" cntr="{!controller}" tabIndex="3" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poreq_syorg__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poreq_syorg__c.label}"/>
+                    <c:largeSelectList id="poreq_syorg__c" required="false" cntr="{!controller}" options="{!Orgs}" tabIndex="4"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poreq_requestedby__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poreq_requestedby__c.label}"/>
+                    <c:largeSelectList id="poreq_requestedby__c" required="false" cntr="{!controller}" options="{!Users}" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poreq_comments__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poreq_comments__c.label}"/>
+                    <c:inputField id="poreq_comments__c" cntr="{!controller}" tabIndex="6" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_sysite_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+            
+            
+        </apex:pageBlock>
+        <script>
+            var LABEL_RequisitionstatuscannotbemanuallychangedtoConverted = "{!$Label.rstk__requisitionstatuscannotbemanuallychangedtoconverted}";
+        </script>       
+    </apex:form> 
+    <c:footerInclude cntr="{!controller}" /> 
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>          
+</apex:page>

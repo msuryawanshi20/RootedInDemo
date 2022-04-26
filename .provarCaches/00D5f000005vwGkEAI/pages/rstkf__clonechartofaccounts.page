@@ -1,0 +1,156 @@
+<apex:page id="pg" title="{!$Label.rstkf__clonechartofaccounts}" standardController="rstkf__glacctclone__c" extensions="rstkf.ControllerExtnCloneChartOfAccounts,rstkf.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!glacctclone}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__glacctclone__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__clonechartofaccounts}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" enableAutocomplete="true" showHeader="false"/>
+    <apex:includeScript value="{!$Resource.rstkf__BlockUI}" />
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <script>
+        var gluserId = "{!gluserId}";
+        function pageInit() {
+            try {
+                postSourceGlcmpChanged();
+            } catch (e) {
+                throw e;
+            } finally {
+                //do nothing
+            }
+        }
+        
+        function postSourceGlcmpChanged(){
+            var srcGlcmpId = jQuery('select[name*=glacctclone_fromglcmp__c]')[0].value;
+            var glacctObj = execQuery("select Id, glacct_acct__c from glacct__c where glacct_cmpno__c = '"+srcGlcmpId+"' order by glacct_acct__c", true);
+            //console.log('postSourceGlcmpChanged() : srcGlcmpId = '+ srcGlcmpId + ' and glacctObj.length = '+ glacctObj.length);
+            if(glacctObj != 'undefined' && glacctObj.length > 0){
+                //initialize from and thru glacct
+                set_glacctclone_fromglacct__c(glacctObj[0].Id,'glacct_acct__c');
+                set_glacctclone_thruglacct__c(glacctObj[glacctObj.length - 1].Id,'glacct_acct__c');
+                disable_glacctclone_fromglacct__c(false);
+                disable_glacctclone_thruglacct__c(false);
+            }else{
+                set_glacctclone_fromglacct__c('');
+                set_glacctclone_thruglacct__c('');
+                disable_glacctclone_fromglacct__c(true);
+                disable_glacctclone_thruglacct__c(true);
+            }
+        }
+        
+        function postCloneChartOfAccounts(){
+            if(preAcknowledgement){
+                var msgs = preAcknowledgement.split('|');
+                if(msgs.length == 1){
+                    alert(msgs);
+                }else{
+                    var errMessage = '';
+                    for(var i = 0 ; i < msgs.length; i++){
+                        if(i == msgs.length-1)
+                            errMessage = errMessage + msgs[i];
+                        else
+                            errMessage = errMessage + msgs[i] + '\n';
+                    }
+                    //console.log('preAcknowledgement = '+ preAcknowledgement + '\n msgs = '+ msgs + '\n errMessage = '+ errMessage);
+                    alert(errMessage);
+                }
+            }
+            
+            if(postAcknowledgement){
+                alert(postAcknowledgement);
+            }
+            
+        }
+    </script>
+    
+    <apex:form id="fm" >
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="cloneChartOfAccounts" action="{!cloneChartOfAccounts}" reRender="pageMessages,op_misc" immediate="false" oncomplete="postCloneChartOfAccounts();" status="statusProcessing"/>
+        <apex:actionFunction name="srcGlcmpChanged" action="{!setSourceGlcmp}" reRender="pageMessages,op_misc,op_pageBlock" immediate="true" oncomplete="postSourceGlcmpChanged();" status="statusProcessing"/>
+        <apex:actionFunction name="clearAll" action="{!clearAll}" reRender="pageMessages,op_misc,op_pageBlock" immediate="false" oncomplete="srcGlcmpChanged();" status="statusProcessing"/>
+        
+        <apex:outputPanel id="op_misc">
+            <script>
+                var preAcknowledgement = "{!preAcknowledgement}";
+                var postAcknowledgement = "{!postAcknowledgement}";
+            </script>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons id="pbbtn_main" location="bottom">
+                <apex:outputPanel id="op_processbtn">
+                    <apex:commandButton id="clonechartofaccounts" onclick="cloneChartOfAccounts(); return false;" value="{!$Label.rstkf__proceedtoclonecoa}" style="width:150px;"/> 
+                    <c:nosubmitbutton label="{!$Label.rstkf__reset}" onclick="clearAll(); return false;" style="width:80px;"/>
+                </apex:outputPanel> 
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel id="op_pageBlock">
+                <apex:pageBlockSection id="pbs_main" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__glacctclone_fromglcmp__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__glacctclone_fromglcmp__c.label}"/>
+                        <apex:outputPanel styleClass="requiredInput" layout="block">
+                            <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+                            <apex:selectList id="glacctclone_fromglcmp__c" value="{!o.rstkf__glacctclone_fromglcmp__c}" size="1" onchange="srcGlcmpChanged();" style="width:150px;" tabindex="10">
+                                <apex:selectOptions value="{!sourceCompanies}" /> 
+                            </apex:selectList>
+                        </apex:outputPanel>     
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__glacctclone_toglcmp__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__glacctclone_toglcmp__c.label}"/>
+                        <apex:outputPanel styleClass="requiredInput" layout="block">
+                            <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+                            <apex:selectList id="glacctclone_toglcmp__c" value="{!o.rstkf__glacctclone_toglcmp__c}" size="1" style="width:150px;" tabindex="20">
+                                <apex:selectOptions value="{!destinationCompanies}" /> 
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__glacctclone_fromglacct__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__glacctclone_fromglacct__c.label}"/>
+                        <c:glaccount id="glacctclone_fromglacct__c" 
+                                     cntr="{!controller}"
+                                     ref="glacctclone_fromglacct__c"
+                                     options="{!glaccounts}"
+                                     slDesc="{!fromGlacctName}"
+                                     query=""
+                                     queryParms="[]"
+                                     displaySelectList="{!glaccounts.size <= 999}"
+                                     useCustomAutocomplete="true" 
+                                     autocompleteController="ControllerExtnCloneChartOfAccounts"
+                                     autocompleteMethodParms="glcmpId={!selectedSrcGlcmpId};"
+                                     width="150px"
+                                     tabIndex="30" />
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstkf__glacctclone_thruglacct__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstkf__glacctclone_thruglacct__c.label}"/>
+                        <c:glaccount id="glacctclone_thruglacct__c" 
+                                     cntr="{!controller}"
+                                     ref="glacctclone_thruglacct__c"
+                                     options="{!glaccounts}"
+                                     slDesc="{!thruGlacctName}"
+                                     query="" 
+                                     queryParms="[]"
+                                     displaySelectList="{!glaccounts.size <= 999}"
+                                     useCustomAutocomplete="true" 
+                                     autocompleteController="ControllerExtnCloneChartOfAccounts"
+                                     autocompleteMethodParms="glcmpId={!selectedSrcGlcmpId};"
+                                     width="150px"
+                                     tabIndex="40" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:outputPanel>
+        </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}"/>
+</apex:page>

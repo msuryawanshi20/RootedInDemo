@@ -1,0 +1,551 @@
+<apex:page id="pg" standardController="rstk__soline__c" extensions="rstk.ControllerExtnSalesOrderComponent,rstk.RemoteQueryController" 
+    action="{!doBeforePageLoad}" sideBar="false" showHeader="false">
+    <apex:variable var="o" value="{!rstk__soline__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soline__c.fields}" />
+    <apex:variable var="f_sohdr" value="{!$ObjectType.rstk__sohdr__c.fields}" />
+    <apex:variable var="f_iclocitem" value="{!$ObjectType.rstk__iclocitem__c.fields}" />
+    <apex:variable var="f_icitemsrl" value="{!$ObjectType.rstk__icitemsrl__c.fields}" />
+    <apex:variable var="f_icitemlot" value="{!$ObjectType.rstk__icitemlot__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_solinesers}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:includeScript value="{!$Resource.rstk__salesordercomponents_cli}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+
+    <c:LocalData jsname="iclocitems" objectName="iclocitem__c" deferLoad="true"
+        filter="iclocitem_div__c={0} and iclocitem_icitem__c={1} and Id not in (select solineser_iclocitem__c from solineser__c where solineser_soline__r.soline_firm__c = true)"
+        filterBy="{!o.rstk__soline_shipdiv__c}" filterBy1="{!o.soline_prod__r.rstk__soprod_icitem__c}"
+        type1="S" field1="iclocitem_proj__c" key1="projId"
+        type2="S" field2="iclocitem_proj__r.pjproj_proj__c" key2="projName"
+        type3="S" field3="iclocitem_locsec__c" key3="serialNum"
+        type4="S" field4="iclocitem_locid__r.Name" key4="locIdName"
+        type5="S" field5="iclocitem_locnum__c" key5="locNum"
+        postClause="order by iclocitem_proj__r.pjproj_proj__c, iclocitem_locsec__c"/>
+
+    <c:LocalData jsname="icitemsrls" objectName="icitemsrl__c" deferLoad="true"
+        filter="icitemsrl_item__c={0}" filterBy="{!o.soline_prod__r.rstk__soprod_icitem__c}"
+        type1="S" field1="icitemsrl_lotno__c" key1="lotNo"
+        type2="S" field2="icitemsrl_srlno__c" key2="serialNum"/>
+
+    <c:LocalData jsname="icitemlots" objectName="icitemlot__c" deferLoad="true"
+        filter="icitemlot_item__c={0}" filterBy="{!o.soline_prod__r.rstk__soprod_icitem__c}"
+        type1="D" field1="icitemlot_expiredate__c" key1="expireDate"
+        type2="S" field2="icitemlot_lotno__c" key2="lotNo"/>
+
+    <c:LocalData jsname="projects" objectName="pjproj__c" deferLoad="true"
+        filter="pjproj_div__c={0}" filterBy="{!o.rstk__soline_shipdiv__c}"
+        type1="S" field1="pjproj_proj__c" key1="projName"/>
+                
+    <c:LoadDeferredLocalData />
+
+<script>
+  function decimalPlaces(number) {
+	  return ((+removeLocaleFormatting(number)).toFixed(10)).replace(/^-?\d*\.?|0+$/g, '').length;
+  }
+  function cleanDecimalPlaces(number) {
+      return ((+removeLocaleFormatting(number)).toFixed(10)).replace(/0+$/g, '').replace(/\.+$/g, '');
+  }
+  function setDecimalPlaces(number, requiredDecPlaces) {
+      var numStr = ''+cleanDecimalPlaces(number);
+      var decIdx = numStr.indexOf('.');
+      if (decIdx == -1)
+      {
+        if (requiredDecPlaces > 0)
+        {
+          numStr +='.';
+          decIdx = numStr.indexOf('.');
+        }
+      }
+      
+      var decPlaces = numStr.length - decIdx -1;
+      if (decPlaces < requiredDecPlaces)
+      {
+          numStr += new Array(requiredDecPlaces - decPlaces +1).join('0');
+      }
+      return numStr;
+  }
+  function overridableValueById(localStore, entryId, ind, ifindtrue, ifindfalse, defaultValue)
+  {
+    var indVal = localStore.valueById(entryId, ind);
+    var lookupField = indVal?ifindtrue:ifindfalse;
+    return localStore.valueById(entryId, lookupField, defaultValue);;
+  }
+  function adjustQuantityDecimal(numPlaces, d)
+  {
+    if (numPlaces == null) { numPlaces = 0; }
+  	if (decimalPlaces(d) > numPlaces) {
+  	  showError('The value may only be defined to '+numPlaces+' decimal places for this item');
+  	  d = formatLocaleFloat((+removeLocaleFormatting(d)).toFixed(numPlaces));
+  	}
+  	return d;
+  }
+  function qtyOrdered() { return parseLocaleFloat(jQuery("span[id$=soline_qtyorder__c]").text()) || 0.0; }
+  function solineDate() { return jQuery("input[id$=soline_reqdate__c]").val(); }
+  
+ </script>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockSection >
+                <apex:pageBlockSectionItem helpText="{!f_sohdr.rstk__sohdr_order__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_sohdr.rstk__sohdr_order__c.label}"/>
+                    <apex:outputText value="{!o.soline_sohdr__r.rstk__sohdr_order__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soline_prod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soline_prod__c.label}"/>
+                    <apex:outputText value="{!o.soline_prod__r.rstk__soprod_prod__c}" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soline_line__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soline_line__c.label}"/>
+                    <c:outputFormattedNumber id="soconfig_qtyreq__c" value="{!o.rstk__soline_line__c}" decimals="0" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soline_qtyorder__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soline_qtyorder__c.label}"/>
+                    <c:outputFormattedNumber id="soline_qtyorder__c" value="{!o.rstk__soline_qtyorder__c}" decimals="0" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection rendered="{!soLineSerEditable}">
+                <apex:pageBlockSectionItem helpText="Number of Serials allocated to the line">
+                    <apex:outputLabel value="{!$Label.rstk__serialsallocated}"/>
+                    <span id='sersAllocated'/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection showHeader="false" collapsible="false" columns="1">
+                <apex:outputPanel rendered="{!soLineSerEditable}">
+                    <span id="inventoryPopup" style="display:none;">
+                        <input type="button" class="btn" value="{!$Label.pagebtn_solinesers_AddSelected}" onclick="addSelectedInventory(); return false;"/>
+                        <input type="button" class="btn" value="{!$Label.pagebtn_solinesers_Cancel}" onclick="cancelSelectedInventory(); return false;"/>
+                        <table id="inventoryTable" class="list">
+                        <thead class="rich-table-thead">
+                          <th class="headerRow"><a href="#" onclick="invSelectDeselectAll(); return false;">Sel</a></th>
+                          <th class="headerRow">{!f_iclocitem.iclocitem_locsec__c.label}</th>
+                          <th class="headerRow">{!f_iclocitem.iclocitem_proj__c.label}</th>
+                          <th class="headerRow">{!f_iclocitem.iclocitem_locid__c.label}</th>
+                          <th class="headerRow">{!f_iclocitem.iclocitem_locnum__c.label}</th>
+                          <th class="headerRow">{!f_icitemsrl.icitemsrl_lotno__c.label}</th>
+                          <th class="headerRow">{!f_icitemlot.icitemlot_expiredate__c.label}</th>
+                        </thead>
+                        <tbody Id='inventoryBody' style="background-color:#FFFFCC;">
+                        </tbody>
+                        </table>
+                        <input type="button" class="btn" value="{!$Label.pagebtn_solinesers_AddSelected}" onclick="addSelectedInventory(); return false;"/>
+                        <input type="button" class="btn" value="{!$Label.pagebtn_solinesers_Cancel}" onclick="cancelSelectedInventory(); return false;"/>
+                    </span>
+<script>
+  function displayInventory() {
+    var numLines = solinesers.getSelectableRows().length;
+    if (numLines >= solinesers.maxSerials) {
+      alert("{!$Label.NoMoreSrlDetailsCanBeAdded_OLQtyIs}", solinesers.maxSerials);
+      return;
+    }
+    var tbody=jQuery("#inventoryBody");
+    tbody.find('tr').remove();
+    var itms = solinesers.getUnconsumedIcLocItems();
+    var rows = [];
+    for (var i=0;i<itms.length;i++) {
+      var itm = itms[i];
+      var itmsrl = getIcItemSrlBySerial(itm.serialNum);
+      var itmloc = getIcItemLotByLotNo(itmsrl.lotNo);
+      var expDate = (itmloc != null)?itmloc.expireDate:null;
+      rows.push(rowData(itm.serialNum, itm.projName, itm.locIdName, itm.locNum, itmsrl.lotNo, expDate, itm.ID));
+    }
+    
+    rows.sort(sortRows);
+    for (var i=0;i<rows.length;i++) {
+      addRow(rows[i]);
+    }
+    showInventory();
+  }
+  
+  function invSelectDeselectAll() {
+    var tbody=jQuery("#inventoryBody");
+    var anySelected = tbody.find("input[name='selected']:checked").length > 0;
+    tbody.find("input[name='selected']").each(function() {
+       this.checked = !anySelected;
+    });
+  }
+
+  var selectedRows;
+  function addSelectedInventory() {
+    var tbody=jQuery("#inventoryBody");
+    selectedRows = tbody.find("input[name='selected']:checked").closest('tr');
+    if (selectedRows.length == 0) {
+       cancelSelectedInventory();
+       return;
+    }
+    
+    var numLines = solinesers.getSelectableRows().length;
+    if (numLines + selectedRows.length > solinesers.maxSerials) {
+        alert("{!$Label.NumOfSrlDetailsExeedsOLQty_ExcessDisregarded}");
+        selectedRows.splice(solinesers.maxSerials - numLines);
+    }
+    
+    solinesers.addRows(selectedRows.length, populateInventoryRows)
+  }
+  
+  function populateInventoryRows() {
+    if (selectedRows != null) {
+        var rowsToPopulate = solinesers.getSelectableRows();
+        var i = selectedRows.length - 1;
+        for (var sr=rowsToPopulate.length-1;sr>=0; sr--) {
+          if (i >= 0) {
+            var iclocitemId = jQuery(selectedRows[i]).find('span[name=iclocitemId]').text();
+            var srow = solinesers.getRow(sr);
+            solinesers.setRowValue(srow, 'solineser_iclocitem__c', iclocitemId);
+            solinesers.setStaticData(srow);
+            i--;
+          }
+        }
+        solinesers.updateIcLocItemSelects();
+    }
+    hideInventory();
+  } 
+  
+  function cancelSelectedInventory() {
+    hideInventory();
+  }
+
+  function showInventory() {
+    jQuery("[id$=solinesersgrid]").hide();
+    jQuery("#inventoryPopup").show();
+    jQuery("#selectFromInvButton").hide();
+  }
+
+  function hideInventory() {
+    jQuery("#inventoryPopup").hide();
+    jQuery("[id$=solinesersgrid]").show();
+    jQuery("#selectFromInvButton").show();
+  }
+
+  function addCheckboxCell(row, cellName) {
+    var c = row.insertCell(-1);
+    c.innerHTML ='<input type="checkbox" name="'+cellName+'"/>';
+  }
+
+  function addTextCell(row, cellName, value, ishidden) {
+    var c = row.insertCell(-1);
+    if (ishidden) {
+      c.style.display='none';
+    }
+    c.innerHTML='<span name="'+cellName+'">';
+    jQuery(c).find('span').text(value);
+  }
+  
+  function nullIfBlank(v) {
+    if (v == null || v == '') {
+      return null;
+    }
+    return v;
+  }
+
+  function blankIfNull(v) {
+    if (v == null) {
+      return '';
+    }
+    return v;
+  }
+    
+  function sortRows(r1,r2) {
+    if (r1.lotExpireDate != null) {
+      if (r2.lotExpireDate == null) {
+        return -1;
+      }
+      if (r1.lotExpireDate.getTime() != r2.lotExpireDate.getTime()) {
+        return (r1.lotExpireDate.getTime() < r2.lotExpireDate.getTime())?-1:1;
+      }
+    } else {
+      if (r1.lotExpireDate != null) {
+        return 1;
+      }
+    }
+    if (r1.proj != r2.proj) {
+      return (blankIfNull(r1.proj) < blankIfNull(r2.proj))?-1:1;
+    }
+    if (r1.locNum != r2.locNum) {
+      return (blankIfNull(r1.locNum) < blankIfNull(r2.locNum))?-1:1;
+    }
+    if (r1.srl != r2.srl) {
+        return (r1.srl < r2.srl)?-1:1;
+    }
+
+    if (r1.iclocitemId != r2.iclocitemId) {
+        return (r1.iclocitemId < r2.iclocitemId)?-1:1;
+    }
+    return 0;
+  }
+
+  function rowData(srl, proj, locId, locNum, lotNo, lotExpireDate, iclocitemId) {
+    return {
+        srl: srl,
+        proj : proj, 
+        locId : locId,
+        locNum : locNum, 
+        lotNo : lotNo,
+        lotExpireDate : nullIfBlank(lotExpireDate), 
+        iclocitemId :iclocitemId
+    };
+  }
+  
+
+  function addRow(rowData) {
+    var t = document.getElementById('inventoryBody');
+    var r = t.insertRow(-1);
+    addCheckboxCell(r, 'selected');
+    addTextCell(r, 'serialNum', rowData.srl);
+    addTextCell(r, 'projName', rowData.proj);
+    addTextCell(r, 'locId', rowData.locId);
+    addTextCell(r, 'locNum', rowData.locNum);
+    addTextCell(r, 'lotNo', rowData.lotNo);
+    addTextCell(r, 'lotExpireDate', (rowData.lotExpireDate!=null)?formatDate(rowData.lotExpireDate):'');
+    addTextCell(r, 'iclocitemId', rowData.iclocitemId, true);
+  }
+</script>
+                    <input type="button" id="selectFromInvButton" class="btn" value="{!$Label.pagebtn_solinesers_SelectfromInventory}" onclick="displayInventory(); return false;"/>
+                </apex:outputPanel>
+                <c:EditableGrid rendered="{!soLineSerEditable}" id="solinesersgrid" width="1150" jsController="solinesers" data="{!soLineSers}" editable="{!soLineSerEditable}" disableUndoDelete="true" ispopup="false"/>
+                <c:BasicGrid rendered="{!!soLineSerEditable}" id="solinesersgridro" gData="{!soLineSersReadOnly}" jsController="solinesersro"/>
+ <script>
+  if (typeof solinesers != "undefined") {
+      solinesers.maxSerials = {!maxSerials};
+      solinesers.setStaticData=function(row) {
+          var icLocItemId = this.getRowValue(row, 'solineser_iclocitem__c');
+          if (icLocItemId !=null && icLocItemId != '') {
+            var serNum = iclocitems.valueById(icLocItemId, 'serialNum', '');
+            var itmsrl = getIcItemSrlBySerial(serNum);
+            var itmloc = getIcItemLotByLotNo(itmsrl.lotNo);
+            var expDate = (itmloc != null)?itmloc.expireDate:null;
+            if (expDate != null && expDate != '') {
+                expDate = formatDate(expDate);
+            } 
+            this.setRowValue(row, 'solineser_pjproj__c', iclocitems.valueById(icLocItemId, 'projId', ''));
+            this.setRowValue(row, 'project__g', iclocitems.valueById(icLocItemId, 'projName', ''));
+            this.setRowValue(row, 'solineser_lotno__c', (itmsrl != null)?itmsrl.lotNo:'');
+            this.setRowValue(row, 'solineser_srlno__c', serNum);
+            this.setRowValue(row, 'expire__g', expDate);
+          } else {
+            var projId = this.getRowValue(row, 'solineser_pjproj__c');
+            this.setRowValue(row, 'project__g', projects.valueById(projId, 'projName', ''));
+          }
+          this.getRowObj(row, 'solineser_srlno__c').attr('readonly', true);
+          this.getRowObj(row, 'solineser_lotno__c').attr('readonly', true);
+     }
+     
+     solinesers.onGridLoad=function() {
+         this.rowsUpdated();
+      }
+     
+      solinesers.vetoAddRow = function() {
+        var numLines = this.getSelectableRows().length;
+        if (numLines >= this.maxSerials) {
+          alert("{!$Label.rstk__numofsrldetailsexeedsolqtyof}", this.maxSerials);
+          return true;
+        }
+        return false;
+      }
+    
+      solinesers.validate= function() {
+        var self = this;
+        this.getSelectableRows().each(function() {
+          var row = jQuery(this);
+          if (self.getRowValue(row, 'solineser_srlno__c') == '') {
+            self.deleteRow(row);
+          }
+        });
+        
+        var numLines = this.getSelectableRows().length;
+        
+        if (numLines > this.maxSerials) {
+          alert("{!$Label.rstk__numofsrldetailsexeedsolqtyof}", this.maxSerials);
+          return false;
+        }
+        return true;
+      }
+      
+      solinesers.rowsUpdated = function() {
+         var self=this;
+         self.getRows().each(function(){
+            var row=jQuery(this);
+            self.setStaticData(row);
+         });
+        var numLines = this.isEditable()?(this.getSelectableRows().length):(this.getRows().length);
+        var numSelectedText = jQuery("#sersAllocated");
+        numSelectedText.text(numLines+' / '+this.maxSerials);
+        var fontColor = 'green';
+        if (numLines > this.maxSerials) {
+            fontColor = 'red';
+        } else if (numLines == this.maxSerials) {
+            fontColor = 'black';
+        }
+        numSelectedText.css('color', fontColor);
+      }
+     
+     solinesers.resetRow = function(row) { 
+          solinesersHandler.prototype.resetRow.call(this, row);
+          this.setStaticData(row);
+          this.updateIcLocItemSelects();
+     }
+     
+    solinesers.entryChanged=function(row, rowNum, name, value) {
+        if (name == 'solineser_iclocitem__c') {
+          this.setStaticData(row);
+          this.updateIcLocItemSelects();
+        }
+      }
+    
+    solinesers.getSerialKey = function(projId, ser) {
+      return projId +'|'+ser;
+    }
+    
+    solinesers.getIcLocItemDisplay = function(projName, ser) {
+      return '('+projName +') : '+ser;
+    }
+    
+    solinesers.getConsumedIcLocItems = function() {
+       var self=this;
+       var consumedIcLocItems = { };
+       self.getSelectableRows().each(function(){
+            var row=jQuery(this);
+            var proj = self.getRowValue(row, 'solineser_pjproj__c') || '';
+            var ser = self.getRowValue(row, 'solineser_srlno__c') || '';
+            if (ser != '') {
+              consumedIcLocItems[self.getSerialKey(proj, ser)] = true;
+            }
+       });
+       
+       return consumedIcLocItems;
+    }
+    
+    solinesers.getUnconsumedIcLocItems = function() {
+        var consumedIcLocItems = this.getConsumedIcLocItems();
+        var locItems=[];
+        var self = this;
+        for (var i=0; i<iclocitems.length; i++) {
+            var itm = iclocitems[i].value;
+            var ikey = self.getSerialKey(itm.projId, itm.serialNum);
+            if (!consumedIcLocItems[ikey]) {
+                locItems.push(itm);
+            }
+        }
+        return locItems;
+    }
+    
+    solinesers.getUnconsumedIcLocItemSelects = function() {
+        var consumedIcLocItems = this.getConsumedIcLocItems();
+        var selectOptions=[];
+        var self = this;
+        for (var i=0; i<iclocitems.length; i++) {
+            var itm = iclocitems[i].value;
+            var ikey = self.getSerialKey(itm.projId, itm.serialNum);
+            if (!consumedIcLocItems[ikey]) {
+                selectOptions.push(new Option(this.getIcLocItemDisplay(itm.projName, itm.serialNum), itm.ID, false, false));
+            }
+        }
+        return selectOptions;
+    }
+    
+    solinesers.updateIcLocItemSelects = function() {
+        var selectOptions = this.getUnconsumedIcLocItemSelects();
+       var self=this;
+       var consumedIcLocItems = { };
+       self.getRows().each(function(){
+            var row=jQuery(this);
+            var clonedOptions = jQuery(selectOptions).clone();
+            var defaultSet = false;
+            var currSelectId = self.getRowValue(row, 'solineser_iclocitem__c') || '';
+            if (currSelectId != '') {
+                var projName = iclocitems.valueById(currSelectId, 'projName', '');
+                var ser = iclocitems.valueById(currSelectId, 'serialNum', '');
+                clonedOptions.splice(0, 0, new Option(self.getIcLocItemDisplay(projName, ser), currSelectId, true, true));
+                defaultSet = true;
+            }
+            clonedOptions.splice(0, 0, new Option('--None--', '', !defaultSet, !defaultSet));
+            var selectObj = self.getRowObj(row, 'solineser_iclocitem__c');
+            selectObj.find("option").remove();
+            selectObj.append(clonedOptions);
+       });
+    }
+}
+
+if (typeof solinesersro != "undefined") {
+  addAfterEvent(function() {
+    for (var i=0;i<solinesersro.numRows;i++) {
+      var lotNo = solinesersro.getRowValue(i, 'solineser_lotno__c');
+      var itmloc = getIcItemLotByLotNo(lotNo);
+      var expDate = (itmloc != null)?itmloc.expireDate:null;
+      if (expDate != null && expDate != '') {
+        expDate = formatDate(expDate);
+      } 
+      solinesersro.setRowValue(i, 'expire__g', expDate);
+    }
+  });
+}
+
+var serialToIcItemSrl = null;
+function getIcItemSrlBySerial(serialNum) {
+    if (serialToIcItemSrl == null) {
+      serialToIcItemSrl = {};
+      for (var i=0;i<icitemsrls.length;i++) {
+        var e = icitemsrls[i];
+        serialToIcItemSrl[e.value['serialNum']] = e.value;
+      }
+    }
+    return serialToIcItemSrl[serialNum];
+}
+
+var icItemLotByLotNo = null;
+function getIcItemLotByLotNo(lotNo) {
+    if (icItemLotByLotNo == null) {
+      icItemLotByLotNo = {};
+      for (var i=0;i<icitemlots.length;i++) {
+        var e = icitemlots[i];
+        icItemLotByLotNo[e.value['lotNo']] = e.value;
+      }
+    }
+    return icItemLotByLotNo[lotNo];
+}
+
+
+</script>
+            </apex:pageBlockSection>
+            
+        </apex:pageBlock>
+
+            <c:Popup popupId="errorPopup" title="{!$Label.rstk__pagepopup_solinesers_error}">
+              <textarea id="errorText" style="width:95%;font-weight:bold;" rows="8" readonly="readonly">X</textarea>
+            </c:Popup>
+            
+            <c:Popup popupId="warningPopup" title="{!$Label.rstk__pagepopup_solinesers_warning}">
+              <textarea id="warningText" style="width:95%;font-weight:bold;" rows="8" readonly="readonly">X</textarea>
+            </c:Popup>
+            
+            <script>
+              function showError(errorMessage)
+              {
+                alert(errorMessage);
+                //jQuery("#errorText").val(errorMessage);
+                //_showDialog("errorPopup");
+              }
+              function showWarning(warningMessage)
+              {
+                alert("{!$Label.rstk__warning}", warningMessage);
+                //jQuery("#errorText").val(warningMessage);
+                //_showDialog("warningPopup");
+              }         
+            </script>
+        
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+    
+</apex:page>

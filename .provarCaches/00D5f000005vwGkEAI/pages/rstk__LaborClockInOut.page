@@ -1,0 +1,365 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_laborclockinout}" standardController="rstk__icclocktxn__c" extensions="rstk.ControllerExtnLaborclockinout,rstk.RemoteQueryController,rstk.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icclocktxn__c}" />
+    <apex:variable var="ext" value="{!filtersettings}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icclocktxn__c.fields}" />
+    <apex:variable var="f_txn" value="{!$ObjectType.rstk__icclocktxn__c.fields}" />
+    <apex:variable var="f_txndtl" value="{!$ObjectType.rstk__icclockdtl__c.fields}" />
+    <apex:variable var="f_filter" value="{!$ObjectType.rstk__customext__c.fields}" />
+    <apex:variable var="f_icclockdtl" value="{!$ObjectType.rstk__icclockdtl__c.fields}" />
+    
+    <apex:sectionHeader title="{!$Label.rstk__pagetitle_laborclockinout}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_laborclockinout}" customInclude="{!$Resource.rstk__laborclockinout_cli}" showHeader="false" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}" />
+    <script>
+        var showlabbackflush = '{!showlabbackflush}';
+        var IsAutoSelectQtyBookingAction = {!IsAutoSelectQtyBookingAction};
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="displayBookings" action="{!displayBookings}" oncomplete="afterDisplayBookings()" reRender="pageMessages, pb_bookings, op_buttons"/>
+        <apex:actionFunction name="performClockinout" action="{!performClockinout}" oncomplete="performClockinoutCompleted()" reRender="pageMessages,op_hidden"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel id="op_hidden" style="display:none">
+                <input type="text" id="validationError" value="{!errorFound}"/>
+                <apex:inputHidden id="woordopIds"/>
+                <script>var woordopIdsField = document.getElementById("{!$Component.woordopIds}");</script>
+                <input type="hidden" id="processlogId" value="{!operbackflushprocesslogid}"/>
+                <apex:inputHidden id="labbooking_selectedwoslist__c" value="{!ext.rstk__labbooking_selectedwoslist__c}"/>
+            </apex:outputPanel>
+            
+            <apex:outputPanel style="display:none;">
+                <input type="text" id="icclocktxn_date__c" value="{!todaydate}"/>
+                <input type="text" id="viewLaborRates" value="{!viewLaborRates}"/>
+            </apex:outputPanel>
+            
+            <c:division id="icclocktxn_div__c" cntr="{!controller}"/>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="2">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icclocktxn_syusr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icclocktxn_syusr__c.label}"/>
+                    <c:selectList id="icclocktxn_syusr__c" required="true" cntr="{!controller}" options="{!employees}" tabIndex="2" onchange="employeeChanged(this)"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_filter.rstk__labbooking_allowqtybooking__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_filter.rstk__labbooking_allowqtybooking__c.label}" style="white-space:nowrap;"/>
+                    <apex:inputField id="labbooking_allowqtybooking__c" value="{!filtersettings.rstk__labbooking_allowqtybooking__c}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value=""/>
+                    <apex:outputPanel >
+                        <input type="button" id="btn_ovr_rate" disabled="disabled" value="{!$Label.Override_Employee_Rate}" class="btnDisabled" onclick="jQuery.blockUI({message: jQuery('#overrideRate')});"/>
+                        <apex:inputHidden id="labrate__c" value="{!labrate}"/>
+                        <apex:inputCheckbox id="labrateoverride__c" value="{!labrateoverride}" style="display:none;"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_filter.rstk__labbooking_proj__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_filter.rstk__labbooking_proj__c.label}"/>
+                    <c:autocomplete id="labbooking_proj__c" objKey="filtersettings" ref="labbooking_proj__c" cntr="{!controller}" required="false" slDesc="{!projectDesc}" 
+                        query="select id, name from pjproj__c where pjproj_div__c = '{!currDivision.Id}' and pjproj_completed__c = false " 
+                        queryParms="[]"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icclocktxn_clockno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icclocktxn_clockno__c.label}"/>
+                    <c:inputField id="icclocktxn_clockno__c" cntr="{!controller}" required="true" disabled="true"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_filter.rstk__labbooking_icitem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_filter.rstk__labbooking_icitem__c.label}"/>
+                    <apex:outputPanel >
+                        <input type="text" name="labbooking_icitem__c_autocomplete" id="labbooking_icitem__c_autocomplete" class="ac_input" style="width:250px;" value="{!filtersettings.rstk__labbooking_icitem__c}"/>
+                        <apex:inputText id="labbooking_icitem__c" value="{!filtersettings.rstk__labbooking_icitem__c}" style="display:none"/>
+                        <script>setupAutocompleteField("labbooking_icitem__c_autocomplete", document.getElementById("{!$Component.labbooking_icitem__c}"), {query:"select id, name from icitem__c where icitem_div__c = '{!currDivision.id}'", queryParms:[], codeColumn:"id", descColumn:"name"});</script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageblocksectionitem />
+
+                <apex:pageBlockSectionItem helpText="{!f_filter.rstk__labbooking_wocst__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__pagebtn_wocstfirm_searchworkorders}"/>
+                    <c:autocomplete id="labbooking_wocst__c" objKey="filtersettings" cntr="{!controller}" slDesc="{!woNumber}" 
+						query="" 
+						queryParms="[]"  
+						useCustomAutocomplete="true" 
+						autocompleteController="ControllerExtnLaborclockinout"
+						autocompleteMethodParms="fieldId=wocst_div__c;divID={!divIDValue}"
+						tabIndex="100"/>                    
+                </apex:pageBlockSectionItem>
+                    
+                <apex:pageblocksectionitem />
+                        
+                <apex:pageBlockSectionItem helpText="{!f_filter.rstk__labbooking_selectedwos__c.inlineHelpText}">
+                    <apex:commandButton value="{!$Label.rstk__pagebtn_stocklocadd_clearselected}" onclick="clearSelected(); return false;" style="width:100px;" immediate="true"/>
+                    <c:selectList id="labbooking_selectedwos__c" objKey="filtersettings" cntr="{!controller}" options="{!empty}" size="5" width="400px"/>
+                </apex:pageBlockSectionItem>    
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value=""/>
+                    <apex:outputPanel id="op_buttons">
+                        <c:nosubmitbutton label="{!$Label.rstk__pagebtn_laborclockinout_loadentrygrid}" onclick="return doDisplayBookings();" style="width:150px;" rendered="{!!entrymode}"/>
+                        <c:nosubmitbutton label="{!$Label.rstk__pagebtn_laborclockinout_reloadentrygrid}" onclick="return reloadGrid();" style="width:150px;" rendered="{!entrymode}"/>
+                        <c:nosubmitbutton label="{!$Label.rstk__pagebtn_laborclockinout_submitbookings}" onclick="if(doValidate()){doSetFFCompanyAndProcess(doPerformClockinout);}" style="width:150px;" rendered="{!entrymode}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        
+        <script>
+            var txnrows = [];var txns = [];
+        </script>
+        <apex:pageBlock id="pb_bookings" mode="detail" rendered="{!!errMessages}">
+            <apex:commandButton value="{!$Label.rstk__pagebtn_laborclockinout_deleteselectedrows}" onclick="deleteSelectedRows();return false;" style="width:150px;" rendered="{!entrymode}"/>
+            <apex:repeat value="{!txns}" var="txn">
+                <apex:outputPanel id="op_txn" style="display:{!IF(txn.rownum == 0,'inline;','none;')}">
+                <script>txnrows[{!txn.rownum}] = document.getElementById('{!$Component.op_txn}');</script>
+                <apex:pageBlock >
+                    <apex:pageBlockSection >
+                        <apex:pageBlockTable value="{!txn.icclocktxns}" var="l">
+                            <apex:column headerValue="{!$Label.rstk__select}" style="vertical-align:top;">
+                                <apex:inputCheckbox id="txn_selected"/>
+                                <apex:inputHidden id="txn_deleted" value="{!txn.isdeleted}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_txn.rstk__icclocktxn_booktype__c.label}" style="vertical-align:top;">
+                                <apex:inputField id="txn_booktype" value="{!l.rstk__icclocktxn_booktype__c}" onchange="booktypeChanged(this, {!txn.rownum})"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_txn.rstk__icclocktxn_txndate__c.label}" style="vertical-align:top;">
+                                <apex:inputField id="txn_txndate" value="{!l.rstk__icclocktxn_txndate__c}"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_txn.rstk__icclocktxn_timein__c.label}" style="white-space:nowrap;vertical-align:top;">
+                                <apex:inputText id="txn_timeinhh" value="{!txn.hhin}" size="2" maxlength="2" style="width:25px;" onchange="timeinhhChanged(this, {!txn.rownum})"/>:<apex:inputText id="txn_timeinmm" value="{!txn.mmin}" size="2" maxlength="2" style="width:25px;" onchange="timeinmmChanged(this, {!txn.rownum})"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_txn.rstk__icclocktxn_timeout__c.label}" style="white-space:nowrap;vertical-align:top;">
+                                <apex:inputText id="txn_timeouthh" value="{!txn.hhout}" size="2" maxlength="2" style="width:25px;" onchange="timeouthhChanged(this, {!txn.rownum})"/>:<apex:inputText id="txn_timeoutmm" value="{!txn.mmout}" size="2" maxlength="2" style="width:25px;" onchange="timeoutmmChanged(this, {!txn.rownum})"/>
+                            </apex:column>
+                            <apex:column id="col_hours" headerValue="{!f_txn.rstk__icclocktxn_hours__c.label}" style="vertical-align:top;">
+                                <apex:inputField id="txn_hours" value="{!l.rstk__icclocktxn_hours__c}" style="width:40px;" onchange="hoursChanged(this, {!txn.rownum})"/>
+                            </apex:column>
+                            <apex:column id="col_wocst" headerValue="{!f_txndtl.rstk__icclockdtl_wocst__c.label}" style="vertical-align:top;">
+                                <c:largeSelectList id="txn_wocst" cntr="{!controller}" value="{!txn.wocstId}" useValue="true" options="{!workorders}" onchange="wocstChanged(this, {!txn.rownum})"/>
+                            </apex:column>
+                            <apex:column id="col_woordop" headerValue="{!f_txndtl.rstk__icclockdtl_woordop__c.label}" style="vertical-align:top;">
+                                <apex:selectList id="txn_woordop" value="{!txn.woordopId}" size="1" style="width:225px;" onchange="woordopChanged(this, {!txn.rownum})">
+                                    <apex:selectOptions value="{!operations}"/>
+                                </apex:selectList>
+                            </apex:column>
+                            <apex:column id="col_setup" headerValue="{!f_icclockdtl.rstk__icclockdtl_setup__c.label}" style="vertical-align:top;">
+                                <apex:inputCheckbox id="txn_setup" value="{!txn.setup}"/>
+                            </apex:column>
+                            <!--<apex:column id="col_qtycomplete" headerValue="{!f_icclockdtl.rstk__icclockdtl_qtycomplete__c.label}" style="vertical-align:top;">
+                                <apex:outputPanel >
+                                    <apex:inputText id="txn_qtycomplete" value="{!txn.qtycomplete}" style="width:40px;" onkeypress="return filterNonNumeric(event, this)" onchange="qtycompleteChanged(this, {!txn.rownum})"/>
+                                </apex:outputPanel>
+                            </apex:column>-->
+                            <apex:column id="col_complete" headerValue="{!$Label.rstk__complete}" style="vertical-align:top;">
+                                <apex:inputCheckbox id="txn_complete" value="{!txn.complete}" onchange="completeChanged(this, {!txn.rownum})"/>
+                            </apex:column>
+                            <apex:column id="col_qtymove" headerValue="{!f_icclockdtl.rstk__icclockdtl_qtymove__c.label}" style="vertical-align:top;">
+                                <apex:inputCheckbox id="txn_qtymove" value="{!txn.qtymove}" onchange="qtymoveChanged(this, {!txn.rownum})"/>
+                            </apex:column>
+                            <apex:column id="col_qtyship" headerValue="{!f_icclockdtl.rstk__icclockdtl_qtyship__c.label}" style="vertical-align:top;">
+                                <apex:inputCheckbox id="txn_qtyship" value="{!txn.qtyship}" onchange="qtyshipChanged(this, {!txn.rownum})"/>
+                                <apex:inputHidden id="txn_subflag" value="{!txn.subflag}"/>
+                            </apex:column>
+                            <apex:column id="col_qtycomplete" headerValue="{!f_icclockdtl.rstk__icclockdtl_qtycomplete__c.label}" style="vertical-align:top;">
+                                <apex:outputPanel >
+                                    <apex:inputText id="txn_qtycomplete" value="{!txn.qtycomplete}" style="width:40px;" onkeypress="return filterNonNumeric(event, this)" onchange="qtycompleteChanged(this, {!txn.rownum})"/>
+                                </apex:outputPanel>
+                            </apex:column>
+                            <apex:column id="col_suppresslabbf" headerValue="{!f_icclockdtl.rstk__icclockdtl_suppresslabbf__c.label}" style="vertical-align:top;">
+                                <apex:inputCheckbox id="txn_suppresslabbf" value="{!txn.suppresslabbf}" style="display:none;" onchange="suppresslabbfChanged(this, {!txn.rownum})"/>
+                            </apex:column>
+                            <apex:column headerValue="{!f_txn.rstk__icclocktxn_tapaytype__c.label}" style="vertical-align:top;">
+                                <apex:selectList id="txn_paytype" value="{!txn.paytype}" size="1" style="width:160px;">
+                                    <apex:selectOptions value="{!paytypes}"/>
+                                </apex:selectList>
+                            </apex:column>
+                            <apex:column id="col_opcomments" headerValue="{!f_txndtl.rstk__icclockdtl_opcomments__c.label}" style="vertical-align:top;">
+                                <apex:inputText id="txn_opcomments" value="{!txn.opcomments}" style="width:100px;" maxlength="95"/>
+                            </apex:column>
+                            <apex:column id="col_txncomments" headerValue="{!f_txndtl.rstk__icclockdtl_txncomments__c.label}" style="vertical-align:top;">
+                                <apex:inputText id="txn_txncomments" value="{!txn.txncomments}" style="width:100px;" maxlength="95"/>
+                                <script>
+                                    txns[{!txn.rownum}] = {
+                                        'txn_selected': document.getElementById('{!$Component.txn_selected}'),
+                                        'txn_deleted': document.getElementById('{!$Component.txn_deleted}'),
+                                        'txn_booktype': document.getElementById('{!$Component.txn_booktype}'),
+                                        'txn_txndate': document.getElementById('{!$Component.txn_txndate}'),
+                                        'txn_wocst': findChildNode(document.getElementById('{!$Component.txn_wocst}'), 'SELECT'),
+                                        'txn_woordop': document.getElementById('{!$Component.txn_woordop}'),
+                                        'txn_timeinhh': document.getElementById('{!$Component.txn_timeinhh}'),
+                                        'txn_timeinmm': document.getElementById('{!$Component.txn_timeinmm}'),
+                                        'txn_timeouthh': document.getElementById('{!$Component.txn_timeouthh}'),
+                                        'txn_timeoutmm': document.getElementById('{!$Component.txn_timeoutmm}'),
+                                        'txn_hours': document.getElementById('{!$Component.txn_hours}'),
+                                        'txn_setup': document.getElementById('{!$Component.txn_setup}'),
+                                        'txn_qtycomplete': document.getElementById('{!$Component.txn_qtycomplete}'),
+                                        'txn_qtyship': document.getElementById('{!$Component.txn_qtyship}'),
+                                        'txn_subflag': document.getElementById('{!$Component.txn_subflag}'),
+                                        'txn_complete': document.getElementById('{!$Component.txn_complete}'),
+                                        'txn_qtymove': document.getElementById('{!$Component.txn_qtymove}'),
+                                        'txn_suppresslabbf': document.getElementById('{!$Component.txn_suppresslabbf}'),
+                                        'txn_paytype': document.getElementById('{!$Component.txn_paytype}'),
+                                        'txn_opcomments': document.getElementById('{!$Component.txn_opcomments}'),
+                                        'txn_txncomments': document.getElementById('{!$Component.txn_txncomments}'),
+                                        'col_hours': document.getElementById('{!$Component.col_hours}'),
+                                        'col_wocst': document.getElementById('{!$Component.col_wocst}'),
+                                        'col_woordop': document.getElementById('{!$Component.col_woordop}'),
+                                        'col_setup': document.getElementById('{!$Component.col_setup}'),
+                                        'col_qtycomplete': document.getElementById('{!$Component.col_qtycomplete}'),
+                                        'col_complete': document.getElementById('{!$Component.col_complete}'),
+                                        'col_suppresslabbf': document.getElementById('{!$Component.col_suppresslabbf}'),
+                                        'col_qtyship': document.getElementById('{!$Component.col_qtyship}'),
+                                        'col_qtymove': document.getElementById('{!$Component.col_qtymove}'),
+                                        'col_opcomments': document.getElementById('{!$Component.col_opcomments}'),
+                                        'col_txncomments': document.getElementById('{!$Component.col_txncomments}'),
+                                        'dtls': []
+                                    };
+                                    txns[{!txn.rownum}]['txn_qtyship'].disabled = true;
+                                    txns[{!txn.rownum}]['txn_complete'].disabled = true;
+                                    txns[{!txn.rownum}]['txn_qtymove'].disabled = true;
+                                </script>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__multipleworkorders}">
+                                <div id="{!txn.rownum}" style="width:200px;overflow:auto;">
+                                    <input id="btn_multiplewo_{!txn.rownum}" type="button" value="{!$Label.EnterMultipleWorkOrders}" onclick="multiplewoClicked(this, {!txn.rownum}, '{!$Component.pbt_multiplewos}')"/>
+                                    <script>txns[{!txn.rownum}]['btn_multiplewo'] = document.getElementById('btn_multiplewo_{!txn.rownum}');</script>
+                                    <apex:pageBlockTable id="pbt_multiplewos" value="{!txn.details}" var="d" style="display:none;">
+                                        <apex:column headerValue="{!f_txndtl.rstk__icclockdtl_wocst__c.label}">
+                                            <c:largeSelectList id="txn_wocst" cntr="{!controller}" value="{!d.icclockdtl.rstk__icclockdtl_wocst__c}" useValue="true" options="{!workorders}" onchange="wocstChanged(this, {!txn.rownum}, {!d.rownum})"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!f_txndtl.rstk__icclockdtl_woordop__c.label}">
+                                            <apex:selectList id="txn_woordop" value="{!d.icclockdtl.rstk__icclockdtl_woordop__c}" size="1" style="width:210px;" onchange="woordopChanged(this, {!txn.rownum}, {!d.rownum})">
+                                                <apex:selectOptions value="{!operations}"/>
+                                            </apex:selectList>
+                                        </apex:column>
+                                        <apex:column headerValue="{!f_txndtl.rstk__icclockdtl_setup__c.label}">
+                                            <apex:inputCheckbox id="txn_setup" value="{!d.icclockdtl.rstk__icclockdtl_setup__c}"/>
+                                        </apex:column>
+                                        <apex:column id="subcol_qtycomplete" headerValue="{!f_icclockdtl.rstk__icclockdtl_qtycomplete__c.label}">
+                                            <apex:inputField id="txn_qtycomplete" value="{!d.icclockdtl.rstk__icclockdtl_qtycomplete__c}" style="width:40px;" onchange="qtycompleteChanged(this, {!txn.rownum}, {!d.rownum})"/>
+                                        </apex:column>
+                                        <apex:column id="subcol_complete" headerValue="{!$Label.rstk__complete}">
+                                            <apex:inputCheckbox id="txn_complete" value="{!d.complete}" onchange="completeChanged(this, {!txn.rownum}, {!d.rownum})"/>
+                                        </apex:column>
+                                        <apex:column id="subcol_qtymove" headerValue="{!f_icclockdtl.rstk__icclockdtl_qtymove__c.label}">
+                                            <apex:inputCheckbox id="txn_qtymove" value="{!d.icclockdtl.rstk__icclockdtl_qtymove__c}" onchange="qtymoveChanged(this, {!txn.rownum}, {!d.rownum})"/>
+                                        </apex:column>
+                                        <apex:column id="subcol_qtyship" headerValue="{!f_icclockdtl.rstk__icclockdtl_qtyship__c.label}">
+                                            <apex:inputCheckbox id="txn_qtyship" value="{!d.icclockdtl.rstk__icclockdtl_qtyship__c}" onchange="qtyshipChanged(this, {!txn.rownum}, {!d.rownum})"/>
+                                            <apex:inputHidden id="txn_subflag" value="{!d.subflag}"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!f_txndtl.rstk__icclockdtl_hours__c.label}">
+                                            <apex:inputField id="txn_hours" value="{!d.icclockdtl.rstk__icclockdtl_hours__c}" style="width:40px;" onchange="hoursChanged(this, {!txn.rownum}, {!d.rownum})"/>
+                                        </apex:column>
+                                        <apex:column id="subcol_suppresslabbf" headerValue="{!f_icclockdtl.rstk__icclockdtl_suppresslabbf__c.label}">
+                                            <apex:inputCheckbox id="txn_suppresslabbf" value="{!d.icclockdtl.rstk__icclockdtl_suppresslabbf__c}" onchange="suppresslabbfChanged(this, {!txn.rownum}, {!d.rownum})" style="display:none;"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!f_txndtl.rstk__icclockdtl_opcomments__c.label}">
+                                            <apex:inputText id="txn_opcomments" value="{!d.icclockdtl.rstk__icclockdtl_opcomments__c}" style="width:85px;" maxlength="100"/>
+                                        </apex:column>
+                                        <apex:column headerValue="{!f_txndtl.rstk__icclockdtl_txncomments__c.label}">
+                                            <apex:inputText id="txn_txncomments" value="{!d.icclockdtl.rstk__icclockdtl_txncomments__c}" style="width:85px;" maxlength="100"/>
+                                            <script>
+                                                txns[{!txn.rownum}]['dtls'][{!d.rownum}] = {
+                                                    'txn_wocst': findChildNode(document.getElementById('{!$Component.txn_wocst}'), 'SELECT'),
+                                                    'txn_woordop': document.getElementById('{!$Component.txn_woordop}'),
+                                                    'txn_setup': document.getElementById('{!$Component.txn_setup}'),
+                                                    'txn_qtycomplete': document.getElementById('{!$Component.txn_qtycomplete}'),
+                                                    'txn_qtyship': document.getElementById('{!$Component.txn_qtyship}'),
+                                                    'txn_subflag': document.getElementById('{!$Component.txn_subflag}'),
+                                                    'txn_complete': document.getElementById('{!$Component.txn_complete}'),
+                                                    'txn_qtymove': document.getElementById('{!$Component.txn_qtymove}'),
+                                                    'txn_suppresslabbf': document.getElementById('{!$Component.txn_suppresslabbf}'),
+                                                    'txn_hours': document.getElementById('{!$Component.txn_hours}'),
+                                                    'txn_opcomments': document.getElementById('{!$Component.txn_opcomments}'),
+                                                    'txn_txncomments': document.getElementById('{!$Component.txn_txncomments}'),
+                                                    'subcol_qtycomplete': document.getElementById('{!$Component.subcol_qtycomplete}'),
+                                                    'subcol_complete': document.getElementById('{!$Component.subcol_complete}'),
+                                                    'subcol_suppresslabbf': document.getElementById('{!$Component.subcol_suppresslabbf}'),
+                                                    'subcol_qtyship': document.getElementById('{!$Component.subcol_qtyship}'),
+                                                    'subcol_qtymove': document.getElementById('{!$Component.subcol_qtymove}')
+                                                };
+                                                txns[{!txn.rownum}]['dtls'][{!d.rownum}]['txn_qtyship'].disabled = true;
+                                                txns[{!txn.rownum}]['dtls'][{!d.rownum}]['txn_complete'].disabled = true;
+                                                txns[{!txn.rownum}]['dtls'][{!d.rownum}]['txn_qtymove'].disabled = true;
+                                            </script>
+                                        </apex:column>
+                                    </apex:pageBlockTable>
+                                </div>
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:pageBlock>
+                </apex:outputPanel>
+            </apex:repeat>
+        </apex:pageBlock>
+        
+    </apex:form>
+    
+    <style type="text/css">
+    .dateFormat{
+       display:none;
+    }
+    </style>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    
+    <div id="overrideRate" style="display:none">
+        <p><b><label>Override Employee Rate </label></b></p>
+        <div>
+            <p id="cur_emp_rate_block" style="display:none"><b><label>&nbsp;Current Employee Rate</label><input type="text" disabled="true" id="cur_emp_rate" /></b></p>
+            <p><b><label>Override Employee Rate</label><input type="text" id="ovr_emp_rate" /></b></p>
+        </div>
+        <p><input id="setbutton" type="button" value=" {!$Label.pagebtn_salesorder_Ok} " onclick="if(setOverrideEmployeeRate())unblockUI();"/><input type="button" value="Cancel" onclick="unblockUI();"/></p>
+    </div>
+    
+    <script>
+        var LABEL_ValMustBetween0And23 = "{!$Label.ValMustBetween0And23}";
+        var LABEL_ValMustBetween0And59 = "{!$Label.ValMustBetween0And59}";
+        var LABEL_SelUserNotAuthorizedToPerformTimeAndQtyBooking = "{!$Label.SelUserNotAuthorizedToPerformTimeAndQtyBooking}";
+        var LABEL_SelUserDoesntHaveLaborGradeSet = "{!$Label.SelUserDoesntHaveLaborGradeSet}";
+        var LABEL_OpernCompleteNotAllowedForLaborOpernBecauseQtyAvailable = "{!$Label.OpernCompleteNotAllowedForLaborOpernBecauseQtyAvailable}";
+        var LABEL_BackflushLaborQtyCompleteEnableForOpern_LaborTimeCantBeSpecifiedWhenQtyGT0 = "{!$Label.BackflushLaborQtyCompleteEnableForOpern_LaborTimeCantBeSpecifiedWhenQtyGT0}";
+        var LABEL_CompleteCantBeChkdWhenPerfQtyMove = "{!$Label.CompleteCantBeChkdWhenPerfQtyMove}";
+        var LABEL_LaborTimeCantBeBookedWhenPerfQtyMove = "{!$Label.LaborTimeCantBeBookedWhenPerfQtyMove}";
+        var LABEL_QTYNotAvailForMove_ForConcOps_OnlyQtyCompletedForAllConcOpsAllowedToBeMoved = "{!JSENCODE($Label.QTYNotAvailForMove_ForConcOps_OnlyQtyCompletedForAllConcOpsAllowedToBeMoved)}";
+        var LABEL_MaxQtyAllowedForMoveIs_ForConcOpsOnlyQtyCompletedForAllConcOpsAllowedToMoved = "{!$Label.MaxQtyAllowedForMoveIs_ForConcOpsOnlyQtyCompletedForAllConcOpsAllowedToMoved}";
+        var LABEL_QtyCantBeMoreThanQtyAvailable = "{!$Label.QtyCantBeMoreThanQtyAvailable}";
+        var LABEL_HrsCantBeNegative = "{!$Label.HrsCantBeNegative}";
+        var LABEL_BFLaborAtQtyCompleteEnabledForOpern_LaborTimeCantBeEnteredWhenQtyGT0 = "{!$Label.BFLaborAtQtyCompleteEnabledForOpern_LaborTimeCantBeEnteredWhenQtyGT0}";
+        var LABEL_HrsMustBeLessThanTenThousandPerTimeEntry = "{!$Label.HrsMustBeLessThanTenThousandPerTimeEntry}";
+        var LABEL_TotalHrsExceedsAllowedNumOfHrs = "{!$Label.TotalHrsExceedsAllowedNumOfHrs}";
+        var LABEL_TotalHrsMustBeLessThanTenThousandPerTimeEntry = "{!$Label.TotalHrsMustBeLessThanTenThousandPerTimeEntry}";
+        var LABEL_TimeOutMustBeSpecifiedWhenTimeInSpecified = "{!$Label.TimeOutMustBeSpecifiedWhenTimeInSpecified}";
+        var LABEL_TotalHrsFromMultiWOEntriedDoesntMatchHrsEntered = "{!$Label.TotalHrsFromMultiWOEntriedDoesntMatchHrsEntered}";
+        var LABEL_WOAndOpernMustBeSpecifiedWhenEitherHrsOrQtyCompleteSpecified = "{!$Label.WOAndOpernMustBeSpecifiedWhenEitherHrsOrQtyCompleteSpecified}";
+        var LABEL_EitherHrsOrQtyCompleteMustBeSpecifiedWhenWOAndOpernSpecified = "{!$Label.EitherHrsOrQtyCompleteMustBeSpecifiedWhenWOAndOpernSpecified}";
+        var LABEL_OperationmustbespecifiedwhenWorkOrderisspecified = "{!$Label.OperationmustbespecifiedwhenWorkOrderisspecified}";
+        var LABEL_Anerroroccuredwhileprocessingthetask = "{!$Label.Anerroroccuredwhileprocessingthetask}";
+        var LABEL_Bookingcompletedsuccessfully = "{!$Label.Bookingcompletedsuccessfully}";
+        var LABEL_InvalidRate = "{!$Label.InvalidRate}";
+        var LABEL_BackflushLaborAtQtyCompleteEnabledForOpern_LaborTimeCantBeSpecWhenQtyGT0 = "{!$Label.BackflushLaborAtQtyCompleteEnabledForOpern_LaborTimeCantBeSpecWhenQtyGT0}";
+        var LABEL_QtyAuthorizedCantBeChangedToValLessThanCurrVal = "{!$Label.QtyAuthorizedCantBeChangedToValLessThanCurrVal}";
+        var LABEL_TimeoutLessThanTimeIn_DoTimeRangeSpanDays = "{!$Label.TimeoutLessThanTimeIn_DoTimeRangeSpanDays}";
+        var LABEL_BFLabQtyCompleteEnableForOpern_LaborTimeCantBeSpecWhenQtyGT0AndSuppressBFFalse = "{!$Label.BFLabQtyCompleteEnableForOpern_LaborTimeCantBeSpecWhenQtyGT0AndSuppressBFFalse}";
+        var LABEL_BFLaborAtQyCompleteEnabledForOpern_LaborTimeCantBeSpecWhenQtyGT0 = "{!$Label.BFLaborAtQyCompleteEnabledForOpern_LaborTimeCantBeSpecWhenQtyGT0}";
+        var LABEL_UnsubmittedBookingDataWillBeLost = "{!$Label.UnsubmittedBookingDataWillBeLost}";
+        var LABEL_Qty_cannot_be_completed_as_there_is_an_Inspection_Order_in_process = "{!$Label.Qty_cannot_be_completed_as_there_is_an_Inspection_Order_in_process}";
+        var LABEL_Serial_Numbers_must_be_specified_on_the_Work_Order_before_you_can_complete_qty = "{!$Label.Serial_Numbers_must_be_specified_on_the_Work_Order_before_you_can_complete_qty}";
+        var LABEL_Booking_Quantity_cannot_be_negative = "{!$Label.Booking_Quantity_cannot_be_negative}";
+        var LABEL_Ship_Qty_cannot_exceed_Qty_Available = "{!$Label.Ship_Qty_cannot_exceed_Qty_Available}";
+        var LABEL_Ship_Qty_cannot_exceed_Qty_Available_minus_Qty_Shipped_minus_Qty_Ship_Rcvd = "{!$Label.Ship_Qty_cannot_exceed_Qty_Available_minus_Qty_Shipped_minus_Qty_Ship_Rcvd}";
+        var LABEL_For_Labor_Only_operation_Complete_Qty_must_equal_Qty_Available = "{!$Label.For_Labor_Only_operation_Complete_Qty_must_equal_Qty_Available}";
+        var LABEL_For_outside_operations_Comp_Qty_cannot_exceed_Ship_Qty_Rcvd_minus_Qty_Comp = "{!$Label.For_outside_operations_Comp_Qty_cannot_exceed_Ship_Qty_Rcvd_minus_Qty_Comp}";
+        var LABEL_Complete_Qty_cannot_exceed_Qty_Available = "{!$Label.Complete_Qty_cannot_exceed_Qty_Available}";
+        var LABEL_Move_Qty_cannot_exceed_MIN_Qty_Comp_minus_Qty_Moved_across_all_concurrent_opers = "{!$Label.Move_Qty_cannot_exceed_MIN_Qty_Comp_minus_Qty_Moved_across_all_concurrent_opers}";
+        var LABEL_For_Labor_Only_operation_Move_Qty_must_equal_Qty_Completed = "{!$Label.For_Labor_Only_operation_Move_Qty_must_equal_Qty_Completed}";
+        var LABEL_Move_Qty_cannot_exceed_Qty_Completed_minus_Qty_Moved = "{!$Label.Move_Qty_cannot_exceed_Qty_Completed_minus_Qty_Moved}";
+        var LABEL_One_of_Complete_Move_Only_Ship_must_be_checked_when_Qty_is_specified = "{!$Label.One_of_Complete_Move_Only_Ship_must_be_checked_when_Qty_is_specified}";
+    </script>
+</apex:page>

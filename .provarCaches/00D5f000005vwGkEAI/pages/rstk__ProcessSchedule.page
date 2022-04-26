@@ -1,0 +1,154 @@
+<apex:page standardController="rstk__sydiv__c" extensions="rstk.ProcessScheduleExt"  sidebar="false" >
+
+<apex:includeScript value="{!$Resource.rstk__jquery_3_5_1}" />
+
+
+<script type="text/javascript">
+	$(document).ready(function() {
+		refreshTotalJobItemsCount();
+	});
+	
+	function refreshTotalJobItemsCount() { 
+		Visualforce.remoting.Manager.invokeAction(
+			'{!$RemoteAction.ProcessScheduleExt.getAsyncCount}',
+			function (result, event) {
+				var val = '';
+				if (event.status) {            
+					val = result;
+				} else if (event.type === 'exception') {
+					val = event.message + ' : ' + event.type;
+				} else {
+					val = event.message;
+				}				
+				$("span[id$='totalJobItemsCount']").text(val);
+			}
+		);			
+	}
+	
+	function disableOnClick(){
+	$(".btn").toggleClass('btnDisabled', true).attr('disabled', 'disabled');		
+	}
+	
+	function enableOnClick(){	
+	$(".btn").toggleClass('btnDisabled', false).attr('disabled', null);	
+	}
+</script>
+ <apex:actionStatus id="actionStatus" onstart="disableOnClick()" onstop="enableOnClick()"  />
+
+
+<!-- show jobs, schedule jobs, abort jobs -->
+<apex:sectionHeader title="{!rstk__sydiv__c.name}" subtitle="{!$Label.rstk__scheduled_jobs}" />
+
+<apex:form id="theForm" >
+	
+    <apex:pageMessages />
+    <!--  when we show a message about a running job, hide that after 25 seconds -->
+    <script>setTimeout(function() { $('.message').slideUp('slow'); }, 25*1000);</script>
+    
+	<apex:pageBlock mode="maindetail"  >
+	
+		<apex:pageBlockButtons location="top" >
+			<apex:commandButton value="{!$Label.rstk__edit_scheduled_jobs}" action="{!newJob}" />
+			<apex:commandButton value="{!$Label.rstk__run_scheduler}" action="{!newScheduledJob}"   rerender="theForm" rendered="{!hasEditProcessJob}" oncomplete="refreshTotalJobItemsCount()"/>
+			<apex:commandButton value="{!$Label.rstk__refresh}" action="{!reloadPage}" rerender="theForm" oncomplete="refreshTotalJobItemsCount()"/>
+			<apex:commandButton value="{!$Label.rstk__create_default_schedule_jobs}" action="{!DefaultJobsBuild}" rerender="theForm" oncomplete="refreshTotalJobItemsCount()"/>
+			<apex:commandButton value="{!$Label.rstk__close}" action="{!cancel}" />
+		</apex:pageBlockButtons>
+
+
+<p>{!$Label.rstk__master_schedule_job}</p>
+
+	<apex:pageBlockTable value="{!scheduledJobs}" var="job"  id="theMCP" >
+		<apex:column headerValue="{!$Label.rstk__action}" >
+		<apex:commandLink action="{!abortJob}" Value="{!$Label.rstk__abort}" rerender="theForm" status="actionStatus" rendered="{!hasEditProcessJob}" oncomplete="refreshTotalJobItemsCount()">
+			<apex:param name="abortid" value="{!job.id}" /> 
+		</apex:commandLink>
+		</apex:column>
+		<apex:column value="{!job.CronJobDetail.name}" />
+		<apex:column value="{!job.State}" />
+		<apex:column value="{!job.StartTime}" />
+		<apex:column value="{!job.OwnerId}" />
+		<apex:column value="{!job.CronExpression}" />
+		<apex:column value="{!job.NextFireTime}" />
+		<apex:column value="{!job.Id}" />
+	</apex:pageBlockTable>
+<br />
+
+<p>{!$Label.Scheduled_Jobs_for} {!rstk__sydiv__c.name}</p>
+	<apex:pageBlockTable value="{!jobs}" var="job"  id="theJobs" > 
+
+	<apex:column headervalue="{!$Label.rstk__action}" >
+		<apex:commandLink action="{!runNow2}" value="{!$Label.rstk__pagetab_rtindoper_run}" styleClass="btn"  rerender="theForm"  status="actionStatus"  rendered="{!hasEditProcessJob}" oncomplete="refreshTotalJobItemsCount()">
+			<apex:param name="recordid" value="{!job.id}" />
+		</apex:commandLink>
+	</apex:column>
+	<apex:column headervalue="{!$Label.rstk__process_job_name}"  >
+		<a target="_blank" href="/{!job.id}">{!job.name}</a>
+		<img src="/s.gif" alt="" class="helpOrb2" title="{!job.Name} : {!job.Description__c}" />
+	</apex:column>
+	<apex:column value="{!job.rstk__Active__c}" />
+	<apex:column value="{!job.rstk__Un_Scheduled__c}" />
+	<apex:column value="{!job.rstk__Last_Run__c}" />
+	<apex:column value="{!job.rstk__Preferred_Run_Hour__c}" />
+	<apex:column value="{!job.rstk__Interval__c}" />
+	<apex:column value="{!job.rstk__Frequency__c}" />
+	<apex:column headerValue="{!$Label.rstk__next_run_after}"  value="{!job.rstk__Next_Run__c}"  />
+	<apex:column value="{!job.rstk__Exception__c}"  />
+	
+	<apex:column value="{!job.rstk__Division__c}"  />
+
+    </apex:pageBlockTable>
+    <apex:pageMessages />
+<br />
+        
+        <apex:pageBlock >      
+            <apex:pageBlockSection columns="1">
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel value="{!$ObjectType.AsyncApexJob.fields.TotalJobItems.label}" />
+                    <apex:outputText id="totalJobItemsCount" value="Calculating"></apex:outputText>   
+    			</apex:pageBlockSectionItem>         
+			</apex:pageBlockSection>
+            <apex:pageBlockSection >
+                <h1>
+                <a href="/apexpages/setup/listAsyncApexJobs.apexp">{!$Label.rstk__all_force_com_apex_jobs}</a>
+                </h1>
+           </apex:pageBlockSection>   
+		</apex:pageBlock>
+
+</apex:pageBlock>
+ 
+</apex:form>
+
+<style>
+img.indicator { width: 12px; height: 12px; }
+img.indicator.Completed { 
+    background-image: url(/img/apex/test_queue_sprite.png);
+    background-position: 0 15px;
+}
+img.indicator.Processing { 
+    background-image: url(/img/apex/processing.gif);
+    background-position: 0 0px;     
+}
+img.indicator.Failed { 
+    background-image: url(/img/apex/test_queue_sprite.png);
+    background-position: 0 36px;        
+}
+img.indicator.Queued { 
+    background-image: url(/img/apex/test_queue_sprite.png);
+    background-position: 0 78px;        
+}
+.apexp div.pbBody > p { font-weight: bold; margin-bottom: 3px; } 
+
+.helpOrb2 {
+    background-image: url(/img/help/helpOrbs.gif);
+    background-position: 0 0;   width: 20px;    height: 15px;
+}
+.helpOrb2:hover { background-position: top right;} 
+        
+a.btn {
+    text-decoration:none;
+}
+.list .headerRow th {      white-space: normal;     }
+</style>
+
+</apex:page>

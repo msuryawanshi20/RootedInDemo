@@ -1,0 +1,1359 @@
+<apex:page id="pg" standardController="rstk__soprod__c" extensions="rstk.ControllerExtnSoprod,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <apex:variable var="o" value="{!rstk__soprod__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__soprod__c.fields}"/> 
+    <apex:variable var="f_sopcomp" value="{!$ObjectType.rstk__sopcomp__c.fields}" />
+    <apex:variable var="f_soproddist" value="{!$ObjectType.rstk__soproddist__c.fields}" />
+    <apex:variable var="f_sopdiv" value="{!$ObjectType.rstk__sopdiv__c.fields}" />
+    <apex:variable var="f_sopq" value="{!$ObjectType.rstk__sopq__c.fields}" />
+    <apex:variable var="f_sopicitem" value="{!$ObjectType.rstk__sopicitem__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_soprod}" customInclude="{!$Resource.rstk__soprod_cli}" customInclude2="{!$Resource.rstk__comcod_backed_fields_cli}" enableAutocomplete="true"/>
+    <script>
+        var isCsg = {!isCsg};
+        var solineExist = {!isSolineExist};
+        var soprodId = nullStrToEmpty("{!o.Id}");
+        var allowItemChg = {!allowItemChg};
+        var synchronizeCOGSWithRevenue = {!synchronizeCOGSWithRevenue};
+    </script>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__comcodstyle, 'comcod_style.css')}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    
+    <style> 
+        .hidden{visibility:hidden;}
+        .rcptinput{
+            width:60px;
+            text-align:right; 
+        }
+        .sort {display:inline}
+        .numSort {display:inline}
+
+            .modal {
+                background-color:#fff;
+                display:none;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+            .modal h2 {
+                margin:0px;
+                padding:10px 0 10px 45px;
+                font-size:16px;
+            }
+            
+            .modalComponents {
+                color:#efefef;
+                height:200px;
+                z-index:50;
+            }
+             
+    </style>
+    
+    <script>
+    var isNew = {!isNew};
+    var isEdit = {!isEdit};
+    var isView = {!isView};
+    var initProdType = '{!o.rstk__soprod_prodtype__c}';
+    var lastCmpNo = "{!UserInfo.rstk__syusr_lastcmpno__c}";
+    var isDirectPO = {!socntl.rstk__socntl_directpo__c};
+    var bypassPackage = {!socntl.rstk__socntl_bypasspackage__c};
+    var crmUser = {!crmUser};
+    var soptId ='';
+    var cname;
+    var socommMetadata = new MetaData({!socommMetadata});
+    
+    if(isEdit){
+     cname =  '{!o.soprod_comcod__r.socomm_dimval__r.Name}';
+    }
+    
+    function QuantityDetails(rowId){
+        soptId = rowId;
+        jQuery(".quantityDetails").click();
+    }
+    
+    function jqueryOnReady() {
+        initHoverPopups(jQuery("#bodyTable"), {manualClose:false, displayUp:true, onClose:{}});
+         jQuery("button[rel*=win]").overlay({
+            mask: {
+                color: '#ebecff',
+                loadSpeed: 200,
+                opacity: 0.8
+            },
+            
+            closeOnClick: false,
+            
+            onBeforeLoad: function(e) {
+                jQuery('#winVFPage').block({
+                    message: '',
+                    centerX: true, 
+                    centerY: true,
+                    css: { 
+                        border: 'none', 
+                        padding: '15px', 
+                        cursor: 'wait',
+                        opacity: .5, 
+                        textAlign: 'center'
+                    }
+                });
+                
+                var winId = e.target.getTrigger().attr('class');
+                var content = jQuery("#"+winId+"Frame");
+                if (content.length > 0) {
+                    if (winId == 'quantityDetails') {
+                        content[0].src = "/apex/quantityDetailpopupPage?id=" +soptId ;
+                    } 
+                
+                    content.load(function() {
+                        jQuery('#winVFPage').unblock();
+                    });
+                }
+            },
+            onClose: function(e){
+                var winId = e.target.getTrigger().attr('class');
+                var content = jQuery("#"+winId+"Frame");
+                if (content.length > 0) { 
+                    content[0].src = 'about:blank'; 
+                }
+              //  window.location.replace(window.location);
+            }
+        });  
+    }      
+    
+    function validateGrids() {
+        if(isNew) {
+            return true;
+        } else {
+            if(typeof confgroupps == 'undefined' || confgroupps == null) return true;
+            if(!confgroupps.isDirty()) {
+                return true;
+            } else {
+                var crfm = confirm("{!$Label.rstk__unsavedchangesinconfiggrptab_savechangesbeforesavingheader_ignorechanges}");
+                if(crfm) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }
+    }
+    jQuery(function() { setTimeout(function() { enableDisableEntitlement(); }, 1500); });
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="makeSopicitemDefault" action="{!makeSopicitemDefault}" rerender="pbs_InventoryItems" >
+            <apex:param name="rowNum" value="1" assignTo="{!rowNum}"/>
+        </apex:actionFunction>
+
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:outputPanel >
+                <button style="visibility:hidden" class="quantityDetails" rel="#winquantityDetails"></button>
+                <div class="modal" id="winquantityDetails" style="width:850px">
+                    <h2>{!$Label.soprod_Quantity_Details}</h2>
+                    <iframe id="quantityDetailsFrame" height="460px" width="100%" frameborder="0" src="about:blank">
+                    </iframe>
+                    <button type="button" class="close" onclick="component_close()">{!$Label.pagebtn_soprod_Close}</button>
+                </div>
+            </apex:outputPanel>
+        
+            <apex:pageBlockButtons >
+                <apex:commandButton onclick="doPageSave();return false;" value="{!$Label.rstk__pagebtn_save}" rendered="{!isEditable}" style="width:50px" rerender="pageMessages"/>
+                <apex:commandButton onclick="doPageSave(null, null, 'true');return false;" value="{!$Label.rstk__pagebtn_soprod_saveandnew}" rendered="{!isEditable}" style="width:80px" rerender="pageMessages"/>
+                <c:standardButtons cntr="{!controller}" disableSave="true" disableSaveAndNew="true"
+                   disableEdit="{!productsReadOnly}" disableDelete="{!productsReadOnly}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+                <apex:inputhidden id="soprod_addsfproduct_ui__c" value="{!o.rstk__soprod_addsfproduct_ui__c}" />
+                <apex:inputhidden id="soprod_multshipdiv_ui__c" value="{!o.rstk__soprod_multshipdiv_ui__c}" />
+                <apex:inputhidden id="soprod_useacctdist_ui__c" value="{!o.rstk__soprod_useacctdist_ui__c}" />
+                <apex:inputhidden id="formula_itemno__c" value="{!o.rstk__formula_itemno__c}" />
+                <apex:inputhidden id="soprod_id__c" value="{!o.id}" />
+                <apex:inputhidden id="soprod_shipdiv_ui__c" value="{!o.rstk__soprod_shipdiv_ui__c}" />
+            </apex:outputPanel>
+            
+            <c:division id="soprod_div__c" cntr="{!controller}" columns="2"/>
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!!isView}">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_comcod__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soprod_comcod__c.label}"/>
+                    <c:selectList id="soprod_comcod__c" required="true" cntr="{!controller}" options="{!Socomms}" tabIndex="10"/>
+                </apex:pageBlockSectionItem>       
+                <apex:inputField id="soprod_activeind__c" value="{!o.rstk__soprod_activeind__c}" required="false" taborderhint="8" />        
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_prodtype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soprod_prodtype__c.label}"/>
+                    <c:selectList id="soprod_prodtype__c"  cntr="{!controller}" required="true" options="{!sl.prodTypes}" tabIndex="20"/>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="soprod_urlimage__c" value="{!o.rstk__soprod_urlimage__c}" required="false" taborderhint="9" />        
+                <apex:inputText id="soprod_prod__c" value="{!o.rstk__soprod_prod__c}" required="true" tabIndex="30" />      
+                <apex:inputField id="soprod_urlvideo__c" value="{!o.rstk__soprod_urlvideo__c}" required="false" taborderhint="10" />        
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_sf_product__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soprod_sf_product__c.label}"/>
+                    <apex:outputpanel >
+                        <apex:outputpanel rendered="{!isNew}">
+                            <c:autocomplete id="soprod_sf_product__c" cntr="{!controller}" slDesc="{!ProdName}" query="select id, name from Product2"/>
+                        </apex:outputpanel>                  
+                        <apex:outputField value="{!o.rstk__soprod_sf_product__c}" rendered="{!!isNew}"/>
+                    </apex:outputpanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="soprod_urldoc__c" value="{!o.rstk__soprod_urldoc__c}" required="false" taborderhint="11" />   
+                <apex:inputField id="soprod_descr__c" value="{!o.rstk__soprod_descr__c}" required="true" taborderhint="5" />
+                <apex:inputField id="soprod_freightamt__c" value="{!o.rstk__soprod_freightamt__c}" required="false" taborderhint="12" />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_slsuom__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__soprod_slsuom__c.label}"/>
+                    <c:selectList id="soprod_slsuom__c" required="true" cntr="{!controller}" options="{!sl.syuoms}" tabIndex="60"/>
+                </apex:pageBlockSectionItem>      
+                <apex:inputField id="soprod_handlingamt__c" value="{!o.rstk__soprod_handlingamt__c}" required="false" taborderhint="13" />
+                <apex:inputField id="soprod_price__c" value="{!o.rstk__soprod_price__c}" required="false" taborderhint="7" />
+                <apex:inputField id="soprod_packageamt__c" value="{!o.rstk__soprod_packageamt__c}" required="false" taborderhint="14" />
+            </apex:pageBlockSection>
+            <apex:pageBlockSection id="pbs_Main_view" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!isView}">
+                <apex:outputField value="{!o.rstk__soprod_comcod__c}" />
+                <apex:outputField value="{!o.rstk__soprod_activeind__c}" />
+                <apex:outputField value="{!o.rstk__soprod_prodtype__c}" />
+                <apex:outputField value="{!o.rstk__soprod_urlimage__c}" />
+                <apex:outputField value="{!o.rstk__soprod_prod__c}" />
+                <apex:outputField value="{!o.rstk__soprod_urlvideo__c}" />
+                <apex:outputField value="{!o.rstk__soprod_sf_product__c}" />
+                <apex:outputField value="{!o.rstk__soprod_urldoc__c}" />
+                <apex:outputField value="{!o.rstk__soprod_descr__c}" />
+                <apex:outputField value="{!o.rstk__soprod_freightamt__c}" />
+                <apex:outputField value="{!o.rstk__soprod_slsuom__c}" />
+                <apex:outputField value="{!o.rstk__soprod_handlingamt__c}" />
+                <apex:outputField value="{!o.rstk__soprod_price__c}" />
+                <apex:outputField value="{!o.rstk__soprod_packageamt__c}" />
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_OrderQty" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_orderqty}" name="tab_OrderQty" id="tab_OrderQty">
+                    <apex:pageBlockSection id="pbs_OrderQty" showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_dfltqtyordind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_dfltqtyord__c.label}"/>
+                            <c:comcodBackedField id="soprod_dfltqtyord__cc" indId="soprod_dfltqtyordind__c" valId="soprod_dfltqtyord__c" ccId="socomm_dfltqtyord__c" cntr="{!controller}" groupcode="true" tabIndex="151" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_enfminqtyordind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_enfminqtyord__c.label}"/>
+                            <c:comcodBackedField id="soprod_enfminqtyord__cc" indId="soprod_enfminqtyordind__c" valId="soprod_enfminqtyord__c" ccId="socomm_enfminqtyord__c" cntr="{!controller}" groupcode="true" tabIndex="152" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_minqtyordind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_minqtyord__c.label}"/>
+                            <c:comcodBackedField id="soprod_minqtyord__cc" indId="soprod_minqtyordind__c" valId="soprod_minqtyord__c" ccId="socomm_minqtyord__c" cntr="{!controller}" groupcode="true" tabIndex="153" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_enflotqtyordind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_enflotqtyord__c.label}"/>
+                            <c:comcodBackedField id="soprod_enflotqtyord__cc" indId="soprod_enflotqtyordind__c" valId="soprod_enflotqtyord__c" ccId="socomm_enflotqtyord__c" cntr="{!controller}" groupcode="true" tabIndex="154" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_lotqtyordind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_lotqtyord__c.label}"/>
+                            <c:comcodBackedField id="soprod_lotqtyord__cc" indId="soprod_lotqtyordind__c" valId="soprod_lotqtyord__c" ccId="socomm_lotqtyord__c" cntr="{!controller}" groupcode="true" tabIndex="155" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_qtydecimalind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_qtydecimal__c.label}"/>
+                            <c:comcodBackedField id="soprod_qtydecimal__cc" indId="soprod_qtydecimalind__c" valId="soprod_qtydecimal__c" ccId="socomm_qtydecimal__c" cntr="{!controller}" groupcode="true" tabIndex="156" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_altprice1__c.inlineHelpText}" rendered="{!pageOptions.showAltPricing1}">
+                            <apex:outputLabel value="{!IF(ISBLANK(pageOptions.labelAltPricing1),f.rstk__soprod_altprice1__c.label,pageOptions.labelAltPricing1)}"/>
+                            <!-- <c:inputField id="soprod_altprice1__c" required="false" cntr="{!controller}" tabIndex="157"/> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_altprice1__c" value="{!o.rstk__soprod_altprice1__c}" required="false" taborderhint="157" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_altprice1__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>          
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_altprice2__c.inlineHelpText}" rendered="{!pageOptions.showAltPricing2}">
+                            <apex:outputLabel value="{!IF(ISBLANK(pageOptions.labelAltPricing2),f.rstk__soprod_altprice2__c.label,pageOptions.labelAltPricing2)}"/>
+                            <!-- <c:inputField id="soprod_altprice2__c" required="false" cntr="{!controller}" tabIndex="158"/> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_altprice2__c" value="{!o.rstk__soprod_altprice2__c}" required="false" taborderhint="158" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_altprice2__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>          
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_antucost__c.inlineHelpText}" rendered="{!pageOptions.showConfig}">
+                            <apex:outputLabel value="{!f.rstk__soprod_antucost__c.label}"/>
+                            <!-- <c:inputField id="soprod_antucost__c" required="false" cntr="{!controller}" tabIndex="159"/> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_antucost__c" value="{!o.rstk__soprod_antucost__c}" required="false" taborderhint="159" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_antucost__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>          
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_accounts}" name="tab_Accounts" id="tab_Accounts">
+                    <apex:pageBlockSection id="pbs_Accounts" showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_salesacctind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_salesacct__c.label}"/>
+                            <c:comcodBackedSelectList id="soprod_salesacct__cc" indId="soprod_salesacctind__c" valId="soprod_salesacct__c" ccId="socomm_salesacct__c" cntr="{!controller}" options="{!RevenueAccts}" groupcode="true" tabIndex="201" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_cosacctind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_cosacct__c.label}"/>
+                            <c:comcodBackedSelectList id="soprod_cosacct__cc" indId="soprod_cosacctind__c" valId="soprod_cosacct__c" ccId="socomm_cosacct__c" cntr="{!controller}" options="{!CostSalesAccts}" groupcode="true" tabIndex="202" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_cospendacctind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_cospendacct__c.label}"/>
+                            <c:comcodBackedSelectList id="soprod_cospendacct__cc" indId="soprod_cospendacctind__c" valId="soprod_cospendacct__c" ccId="socomm_cospendacct__c" cntr="{!controller}" options="{!CostSalesClrAccts}" groupcode="true" tabIndex="203" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_dimvalind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_dimval__c.label}"/>
+                            <!--<c:comcodBackedSelectList id="soprod_dimval__cc" indId="soprod_dimvalind__c" valId="soprod_dimval__c" ccId="socomm_dimval__c" cntr="{!controller}" options="{!Dimensions}" groupcode="true" tabIndex="204" />  -->
+                            <apex:outputPanel layout="block">
+                                <apex:inputField id="soprod_dimvalind__c" value="{!o.rstk__soprod_dimvalind__c}" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_dimvalind__c}" rendered="{!isView}"/>
+                                <apex:outputPanel rendered="{!!isView}">
+                                    <apex:outputPanel id="CCOverrideFlag" style="display:inline">
+                                        <apex:outputPanel id="dimvalPanel" styleClass="overridePanel" >
+                                            <c:autocomplete id="soprod_dimval__c" cntr="{!controller}" slDesc="{!sydimDesc}" width="150px"
+                                                    query="" 
+                                                    queryParms="[]"  
+                                                    useCustomAutocomplete="true" 
+                                                    autocompleteController="ControllerExtnSoprod"
+                                                    autocompleteMethodParms="fieldId=soprod_dimval__c;divID={!divIDValue}"
+                                                    tabIndex="204"/>
+                                            <apex:outputLabel value="{!$Label.rstk__ccoverrideflag}" styleClass="overrideFlag" style="padding-left:10px"/>
+                                        </apex:outputPanel>
+                                     </apex:outputPanel>    
+                                     <apex:outputPanel id="CCComcodFlag" style="display:inline">
+                                        <apex:inputText id="CCComcodName__c" value="{!ComcodName}" rendered="{!OR(isNew,isEdit)}"/>
+                                        <apex:outputLabel value="{!$Label.rstk__ccgroupdefault}" styleClass="comcodeFlag" style="padding-left:10px"/>
+                                     </apex:outputPanel>
+                                 </apex:outputPanel>
+                                 <apex:outputPanel rendered="{!isView}">
+                                    <apex:outputField value="{!o.rstk__soprod_dimval__c}" rendered="{!!o.rstk__soprod_dimvalind__c}"/>
+                                    <apex:outputField value="{!o.soprod_comcod__r.rstk__socomm_dimval__c}" rendered="{!o.rstk__soprod_dimvalind__c}"/>
+                                    <apex:outputLabel value="{!$Label.rstk__ccoverrideflag}" styleClass="overrideFlag" style="padding-left:10px" rendered="{!!o.rstk__soprod_dimvalind__c}"/>
+                                    <apex:outputLabel value="{!$Label.rstk__ccgroupdefault}" styleClass="comcodeFlag" style="padding-left:10px" rendered="{!o.rstk__soprod_dimvalind__c}"/>
+                                 </apex:outputPanel>     
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_amortizeind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_amortize__c.label}"/>
+                            <c:comcodBackedField id="soprod_amortize__cc" indId="soprod_amortizeind__c" valId="soprod_amortize__c" ccId="socomm_amortize__c" cntr="{!controller}" groupcode="true" tabIndex="301" />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_leadtimeandmisc}" name="tab_LeadTime" id="tab_LeadTime">
+                    <apex:commandButton onclick="_showDialog('rspPopup');return false;" disabled="{!!o.rstk__formula_reqservice__c}" value="{!$Label.rstk__pagepopup_soprod_recurringserviceproducts}" rendered="{!AND(isView, sl.recurringServicesEnabled)}"/>
+                    <apex:pageBlockSection id="pbs_LeadTime" showHeader="false" columns="2">
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_leadtimeprodind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_leadtimeprod__c.label}"/>
+                            <c:comcodBackedField id="soprod_leadtimeprod__cc" indId="soprod_leadtimeprodind__c" valId="soprod_leadtimeprod__c" ccId="socomm_leadtimeprod__c" cntr="{!controller}" groupcode="true" tabIndex="301" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_orespind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_oresp__c.label}"/>
+                            <c:comcodBackedSelectList id="soprod_oresp__cc" required="false" indId="soprod_orespind__c" valId="soprod_oresp__c" ccId="socomm_oresp__c" cntr="{!controller}" options="{!sl.syusrs}" groupcode="true" tabIndex="321" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_leadtimeissind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_leadtimeiss__c.label}"/>
+                            <c:comcodBackedField id="soprod_leadtimeiss__cc" indId="soprod_leadtimeissind__c" valId="soprod_leadtimeiss__c" ccId="socomm_leadtimeiss__c" cntr="{!controller}" groupcode="true" tabIndex="302" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_prespind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_presp__c.label}"/>
+                            <c:comcodBackedSelectList id="soprod_presp__cc" required="false" indId="soprod_prespind__c" valId="soprod_presp__c" ccId="socomm_presp__c" cntr="{!controller}" options="{!sl.syusrs}" groupcode="true" tabIndex="322" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_leadtimepackind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_leadtimepack__c.label}"/>
+                            <c:comcodBackedField id="soprod_leadtimepack__cc" indId="soprod_leadtimepackind__c" valId="soprod_leadtimepack__c" ccId="socomm_leadtimepack__c" cntr="{!controller}" groupcode="true" tabIndex="303" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_orgidind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_orgid__c.label}"/>
+                            <c:comcodBackedSelectList id="soprod_orgid__cc" indId="soprod_orgidind__c" valId="soprod_orgid__c" ccId="socomm_orgid__c" cntr="{!controller}" options="{!Syorgs}" groupcode="true" tabIndex="323" />
+                        </apex:pageBlockSectionItem>
+                                  
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_taxexemptind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_taxexempt__c.label}"/>
+                            <c:comcodBackedField id="soprod_taxexempt__cc" indId="soprod_taxexemptind__c" valId="soprod_taxexempt__c" ccId="socomm_taxexempt__c" cntr="{!controller}" groupcode="true" tabIndex="304" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_reqservice__c.inlineHelpText}" rendered="{!sl.recurringServicesEnabled}">
+                            <apex:outputLabel value="{!f.rstk__soprod_reqservice__c.label}"/>
+                            <c:comcodBackedField id="soprod_reqservice__cc" indId="soprod_reqserviceind__c" valId="soprod_reqservice__c" ccId="socomm_reqservice__c" cntr="{!controller}" groupcode="true" tabIndex="324" />
+                        </apex:pageBlockSectionItem>
+                       <apex:pageBlockSectionItem rendered="{!!sl.recurringServicesEnabled}"/>
+                       
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_linecredit__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_linecredit__c.label}"/>
+                            <c:comcodBackedField id="soprod_linecredit__cc" indId="soprod_linecreditind__c" valId="soprod_linecredit__c" ccId="socomm_linecredit__c" cntr="{!controller}" groupcode="true" tabIndex="305" />
+                        </apex:pageBlockSectionItem>
+<!-- RCB: RSTK-4013 -->
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_avataxcodeind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_avataxcodeind__c.label}"/>
+                            <c:inputField id="soprod_avataxcodeind__c"  cntr="{!controller}" required="false" tabIndex="325"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_avataxcode__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_avataxcode__c.label}"/>
+                            <c:inputField id="soprod_avataxcode__c"  cntr="{!controller}" required="false" tabIndex="326"/>
+                        </apex:pageBlockSectionItem>
+                        
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_inventory}" name="tab_Inventory" id="tab_Inventory">
+                    <apex:pageBlockSection id="pbs_Inventory" showHeader="false" columns="2">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_shipdiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_shipdiv__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:selectList id="soprod_shipdiv__c" value="{!o.rstk__soprod_shipdiv__c}" size="1" tabIndex="401" style="width:200px;" rendered="{!!isView}">
+                                    <apex:selectOptions value="{!inventorySydivs}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__soprod_shipdiv__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_multshipdiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_multshipdiv__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_multshipdiv__c" value="{!o.rstk__soprod_multshipdiv__c}" required="false" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_multshipdiv__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_icitem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_icitem__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:outputPanel rendered="{!!isView}">
+                                    <c:autocomplete id="soprod_icitem__c" cntr="{!controller}" slDesc="{!ItemName}" 
+                                        query="select id, name from icitem__c where icitem_item__r.peitem_inactivests__c != 'I' and icitem_div__c = 'prm'" 
+                                        queryParms="[['soprod_shipdiv__c','Division']]" width="200px" tabIndex="402"/>
+                                </apex:outputPanel>
+                                <apex:outputField value="{!o.rstk__soprod_icitem__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_shipsite__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_shipsite__c.label}"/>
+                            <apex:outputPanel >
+                                <c:largeSelectList id="soprod_shipsite__c" cntr="{!controller}" options="{!Sysites}" tabIndex="403" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_shipsite__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_umcf__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_umcf__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_umcf__c" value="{!o.rstk__soprod_umcf__c}" required="false" rendered="{!!isView}" />
+                                <apex:outputField value="{!o.rstk__soprod_umcf__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_shiplocid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_shiplocid__c.label}"/>
+                            <apex:outputPanel >
+                                <c:largeSelectList id="soprod_shiplocid__c" cntr="{!controller}" options="{!Sylocids}" tabIndex="404" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_shiplocid__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rolluppriceind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rollupprice__c.label}"/>
+                            <c:comcodBackedField id="soprod_rollupprice__cc" indId="soprod_rolluppriceind__c" valId="soprod_rollupprice__c" ccId="socomm_rollupprice__c" cntr="{!controller}" groupcode="true" tabIndex="424" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_shiplocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_shiplocnum__c.label}"/>
+                            <apex:outputPanel >
+                                <!-- <c:inputField id="soprod_shiplocnum__c" cntr="{!controller}" width="200px" tabIndex="405" /> -->
+                                <apex:outputPanel >
+                                    <apex:inputField id="soprod_shiplocnum__c" value="{!o.rstk__soprod_shiplocnum__c}" style="width: 200px;" taborderhint="405" rendered="{!isEditable}"/>
+                                    <apex:outputField value="{!o.rstk__soprod_shiplocnum__c}" rendered="{!!isEditable}"/>
+                                </apex:outputPanel>
+                                <c:largeSelectList id="soprod_shiplocnum_sel__c" cntr="{!controller}" options="{!Sylocnums}" tabIndex="405" useValue="true" rendered="{!!isView}"/>
+                            </apex:outputPanel> 
+                        </apex:pageBlockSectionItem>
+  
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_useprodcompsind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_useprodcomps__c.label}"/>
+                            <c:comcodBackedField id="soprod_useprodcomps__cc" indId="soprod_useprodcompsind__c" valId="soprod_useprodcomps__c" ccId="socomm_useprodcomps__c" cntr="{!controller}" groupcode="true" tabIndex="425" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_stdrouting__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_stdrouting__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_stdrouting__c" value="{!o.rstk__soprod_stdrouting__c}" required="false" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_stdrouting__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rtaltcode__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rtaltcode__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_rtaltcode__c" value="{!o.rstk__soprod_rtaltcode__c}" required="false" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_rtaltcode__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_multicitem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_multicitem__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_multicitem__c" value="{!o.rstk__soprod_multicitem__c}" required="false" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_multicitem__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_nopickifnorcpt__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_nopickifnorcpt__c.label}"/>
+                            <c:comcodBackedField id="soprod_nopickifnorcpt__cc" indId="soprod_nopickifnorcptind__c" valId="soprod_nopickifnorcpt__c" ccId="socomm_nopickifnorcpt__c" cntr="{!controller}" groupcode="true" tabIndex="427" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_wotype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_wotype__c.label}"/>
+                            <c:comcodBackedField id="soprod_wotype__cc" indId="soprod_wotypeind__c" valId="soprod_wotype__c" ccId="socomm_wotype__c" cntr="{!controller}" groupcode="true" tabIndex="428" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_nopickifnoalloc__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_nopickifnoalloc__c.label}"/>
+                            <c:comcodBackedField id="soprod_nopickifnoalloc__cc" indId="soprod_nopickifnoallocind__c" valId="soprod_nopickifnoalloc__c" ccId="socomm_nopickifnoalloc__c" cntr="{!controller}" groupcode="true" tabIndex="428" />
+                        </apex:pageBlockSectionItem>
+                                                
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_orderprocessing}" name="tab_OrdProcess" id="tab_OrdProcess">
+                    <apex:pageBlockSection id="pbs_OrdProcess" showHeader="false" columns="2"> 
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_firmind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_firm__c.label}"/>
+                            <c:comcodBackedField id="soprod_firm__cc" indId="soprod_firmind__c" valId="soprod_firm__c" ccId="socomm_firm__c" cntr="{!controller}" groupcode="true" tabIndex="501" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_prtcompackind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_prtcompack__c.label}"/>
+                            <c:comcodBackedField id="soprod_prtcompack__cc" indId="soprod_prtcompackind__c" valId="soprod_prtcompack__c" ccId="socomm_prtcompack__c" cntr="{!controller}" groupcode="true" tabIndex="521" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_prtcomppackind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_prtcomppack__c.label}"/>
+                            <c:comcodBackedField id="soprod_prtcomppack__cc" indId="soprod_prtcomppackind__c" valId="soprod_prtcomppack__c" ccId="socomm_prtcomppack__c" cntr="{!controller}" groupcode="true" tabIndex="502" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_useacctdistind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_useacctdist__c.label}"/>
+                            <c:comcodBackedField id="soprod_useacctdist__cc" indId="soprod_useacctdistind__c" valId="soprod_useacctdist__c" ccId="socomm_useacctdist__c" cntr="{!controller}" groupcode="true" tabIndex="522" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_prtcompinvind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_prtcompinv__c.label}"/>
+                            <c:comcodBackedField id="soprod_prtcompinv__cc" indId="soprod_prtcompinvind__c" valId="soprod_prtcompinv__c" ccId="socomm_prtcompinv__c" cntr="{!controller}" groupcode="true" tabIndex="503" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_socontype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_socontype__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:selectList id="soprod_socontype__c" value="{!o.rstk__soprod_socontype__c}" size="1" tabIndex="523" style="width:200px;" rendered="{!!isView}">
+                                    <apex:selectOptions value="{!Contypes}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__soprod_socontype__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_useactuals__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_useactuals__c.label}"/>
+                            <c:comcodBackedField id="soprod_useactuals__cc" indId="soprod_useactualsind__c" valId="soprod_useactuals__c" ccId="socomm_useactuals__c" cntr="{!controller}" groupcode="true" tabIndex="504" />
+                        </apex:pageBlockSectionItem>  
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_qtypercontainer__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_qtypercontainer__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_qtypercontainer__c" value="{!o.rstk__soprod_qtypercontainer__c}" required="false" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_qtypercontainer__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>  
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_itemizelab__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_itemizelab__c.label}"/>
+                            <c:comcodBackedField id="soprod_itemizelab__cc" indId="soprod_useactualsind__c" valId="soprod_itemizelab__c" ccId="socomm_useactuals__c" cntr="{!controller}" groupcode="true" tabIndex="505" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_kitcontainers__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_kitcontainers__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_kitcontainers__c" value="{!o.rstk__soprod_kitcontainers__c}" required="false" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_kitcontainers__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem> 
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_itemizemtl__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_itemizemtl__c.label}"/>
+                            <c:comcodBackedField id="soprod_itemizemtl__cc" indId="soprod_itemizemtlind__c" valId="soprod_itemizemtl__c" ccId="socomm_itemizemtl__c" cntr="{!controller}" groupcode="true" tabIndex="506" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_serialonpack__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_serialonpack__c.label}"/>
+                            <c:comcodBackedField id="soprod_serialonpack__cc" indId="soprod_serialonpackind__c" valId="soprod_serialonpack__c" ccId="socomm_serialonpack__c" cntr="{!controller}" groupcode="true" tabIndex="526" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_serialoninv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_serialoninv__c.label}"/>
+                            <c:comcodBackedField id="soprod_serialoninv__cc" indId="soprod_serialoninvind__c" valId="soprod_serialoninv__c" ccId="socomm_serialoninv__c" cntr="{!controller}" groupcode="true" tabIndex="507" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_configurable__c.inlineHelpText}" rendered="{!isConfigsoe}">
+                            <apex:outputLabel value="{!f.rstk__soprod_configurable__c.label}"/>
+                            <!-- <c:inputField id="soprod_configurable__c" cntr="{!controller}" tabIndex="527" disabled="{!!socntl.socntl_configsoe__c}"/> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_configurable__c" value="{!o.rstk__soprod_configurable__c}" taborderhint="527" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_configurable__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem rendered="{!!isConfigsoe}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_shipsetid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_shipsetid__c.label}"/>
+                            <c:comcodBackedField id="soprod_shipsetid__cc" indId="soprod_shipsetidind__c" valId="soprod_shipsetid__c" ccId="socomm_shipsetid__c" cntr="{!controller}" groupcode="true" tabIndex="508" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_cfgstdprice__c.inlineHelpText}" rendered="{!isConfigsoe}">
+                            <apex:outputLabel value="{!f.rstk__soprod_cfgstdprice__c.label}"/>
+                            <!-- <c:inputField id="soprod_cfgstdprice__c" cntr="{!controller}" tabIndex="529" disabled="{!!socntl.socntl_configsoe__c}"/> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_cfgstdprice__c" value="{!o.rstk__soprod_cfgstdprice__c}" taborderhint="529" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_cfgstdprice__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem rendered="{!!isConfigsoe}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_nopartials__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_nopartials__c.label}"/>
+                            <c:comcodBackedField id="soprod_nopartials__cc" indId="soprod_nopartialsind__c" valId="soprod_nopartials__c" ccId="socomm_nopartials__c" cntr="{!controller}" groupcode="true" tabIndex="509" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_pricealtcurr__c.inlineHelpText}" rendered="{!socntl.rstk__socntl_altcurrency__c != null}">
+                            <apex:outputLabel value="{!$Label.rstk__price_in_0} {!socntl.socntl_altcurrency__r.rstk__sycurr_currency__c}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_pricealtcurr__c" value="{!o.rstk__soprod_pricealtcurr__c}" required="false" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_pricealtcurr__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem rendered="{!socntl.rstk__socntl_altcurrency__c == null}"/>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_nopartialset__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_nopartialset__c.label}"/>
+                            <c:comcodBackedField id="soprod_nopartialset__cc" indId="soprod_nopartialsetind__c" valId="soprod_nopartialset__c" ccId="socomm_nopartialset__c" cntr="{!controller}" groupcode="true" tabIndex="510" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_sowarrtype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_sowarrtype__c.label}"/>
+                            <c:comcodBackedSelectList id="soprod_sowarrtype__cc" indId="soprod_sowarrtypeind__c" valId="soprod_sowarrtype__c" ccId="socomm_sowarrtype__c" cntr="{!controller}" options="{!Sowarrtypes}" groupcode="true" tabIndex="532" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_contractreqd__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_contractreqd__c.label}"/>
+                            <c:comcodBackedField id="soprod_contractreqd__cc" indId="soprod_contractreqdind__c" valId="soprod_contractreqd__c" ccId="socomm_contractreqd__c" cntr="{!controller}" groupcode="true" tabIndex="510" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_vatclass__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_vatclass__c.label}"/>
+                             <c:comcodBackedSelectList id="soprod_vatclass__cc" indId="soprod_vatclassind__c" valId="soprod_vatclass__c" ccId="socomm_vatclass__c" cntr="{!controller}" groupcode="true" tabIndex="533" options="{!vatClasses}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_real_timepricing}" name="tab_rtpricing" id="tab_rtpricing" rendered="{!realTimePricingEnabled}">
+                    <apex:pageBlockSection id="pbs_rtpricing" showHeader="false" columns="1" rendered="{!!isView}">
+                        <apex:inputField id="soprod_xigactive__c" value="{!o.rstk__soprod_xigactive__c}" required="false" taborderhint="551" />
+                        <apex:inputField id="soprod_xigsymbol__c" value="{!o.rstk__soprod_xigsymbol__c}" required="false" taborderhint="552" />
+                        <apex:inputField id="soprod_xigprem1opr__c" value="{!o.rstk__soprod_xigprem1opr__c}" required="false" taborderhint="553" />
+                        <apex:inputField id="soprod_xigpremium1__c" value="{!o.rstk__soprod_xigpremium1__c}" required="false" taborderhint="554" />
+                        <apex:inputField id="soprod_xigpremium2__c" value="{!o.rstk__soprod_xigpremium2__c}" required="false" taborderhint="555" />
+                        <apex:inputField id="soprod_xigfactor__c" value="{!o.rstk__soprod_xigfactor__c}" required="false" taborderhint="556" />
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection id="pbs_rtpricing_view" showHeader="false" columns="1" rendered="{!isView}">
+                        <apex:outputField value="{!o.rstk__soprod_xigactive__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_xigsymbol__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_xigprem1opr__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_xigpremium1__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_xigpremium2__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_xigfactor__c}" />
+                    </apex:pageBlockSection>
+                </apex:tab> 
+            
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_productattributes}" name="tab_Components" id="tab_Components">
+                    <apex:pageBlockSection id="pbs_Components" showHeader="false" columns="2" rendered="{!!isView}">
+                        <apex:inputField id="soprod_weight__c" value="{!o.rstk__soprod_weight__c}" required="false" taborderhint="601" />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_dimuom__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_dimuom__c.label}"/>
+                            <c:selectList id="soprod_dimuom__c" required="false" cntr="{!controller}" options="{!sl.syuoms}" tabIndex="6210"/>
+                        </apex:pageBlockSectionItem>
+                        <apex:inputField id="soprod_height__c" value="{!o.rstk__soprod_height__c}" required="false" taborderhint="602" />
+                        <apex:inputField id="soprod_upc__c" value="{!o.rstk__soprod_upc__c}" required="false" taborderhint="622" />
+                        <apex:inputField id="soprod_width__c" value="{!o.rstk__soprod_width__c}" required="false" taborderhint="603" />
+                        <apex:inputField id="soprod_ean__c" value="{!o.rstk__soprod_ean__c}" required="false" taborderhint="623" />
+                        <apex:inputField id="soprod_length__c" value="{!o.rstk__soprod_length__c}" required="false" taborderhint="604" />
+                        <apex:inputField id="soprod_taskcode__c" value="{!o.rstk__soprod_taskcode__c}" required="false" taborderhint="624" />
+                        <apex:inputField id="soprod_hscode__c" value="{!o.rstk__soprod_hscode__c}" required="false" taborderhint="625" />
+                        <apex:inputField id="soprod_mfgcountry__c" value="{!o.rstk__soprod_mfgcountry__c}" required="false" taborderhint="626" />
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection id="pbs_Components_view" showHeader="false" columns="2"  rendered="{!isView}">
+                        <apex:outputField value="{!o.rstk__soprod_weight__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_dimuom__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_height__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_upc__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_width__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_ean__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_length__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_taskcode__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_hscode__c}" />
+                        <apex:outputField value="{!o.rstk__soprod_mfgcountry__c}" />
+                    </apex:pageBlockSection>
+
+                    <apex:pageBlockSection id="pbs_Components2" showHeader="false" columns="2">
+                        <apex:inputField id="soprod_longdesc__c" value="{!o.rstk__soprod_longdesc__c}" required="false" taborderhint="681" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__soprod_longdesc__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_productcomponents}" name="tab_ProdComp" id="tab_ProdComp" rendered="{!!isNew}">
+                    <apex:pageBlockSection id="pbs_ProdComp" showHeader="false" columns="1">
+                        <apex:outputLink value="{!URLFOR($Action.rstk__sopcomp__c.New)}{!ReturnUrlParms}">{!$Label.rstk__new_product_component}</apex:outputLink>
+                        <c:FrameGrid height="400px" preLoad="true" jsController="sopcomps" page="/apex/soprodgrids" rootId="{!o.Id}"/>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_salesaccountdistribution}" name="tab_AcctDist" id="tab_AcctDist" rendered="{!(isEdit || isView) && o.rstk__soprod_useacctdist__c}">
+                    <apex:pageBlockSection id="pbs_AcctDist" showHeader="false" columns="1">
+                        <apex:outputLink value="{!URLFOR($Action.rstk__soproddist__c.New)}{!ReturnUrlParms}">{!$Label.rstk__new_sales_account_distribution}</apex:outputLink>
+                        <apex:outputLabel value="Remaining Percentage {!SalesAcctPct}"/>
+                        <apex:pageBlockTable value="{!soproddists}" var="c">
+                            <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.rstk__soproddist__c.Edit, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__soproddist__c.View, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_notesandattachments_del}</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__account1}"><apex:outputField id="soproddist_salesacct__c" value="{!c.rstk__soproddist_salesacct__c}" /></apex:column>
+                            <apex:column headerValue="{!f_soproddist.rstk__soproddist_pct__c.label}"><apex:outputField id="soproddist_pct__c" value="{!c.rstk__soproddist_pct__c}"/></apex:column>
+                            <apex:column headerValue="{!f_soproddist.rstk__soproddist_comments__c.label}"><apex:outputField id="soproddist_comments__c" value="{!c.rstk__soproddist_comments__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_inventorydivision}" name="tab_InventoryDiv" id="tab_InventoryDiv" rendered="{!(isEdit || isView) && o.rstk__soprod_multshipdiv__c}">
+                    <apex:pageBlockSection id="pbs_InventoryDiv" showHeader="false" columns="1">
+                        <apex:outputLink value="{!URLFOR($Action.rstk__sopdiv__c.New)}{!ReturnUrlParms}">{!$Label.rstk__new_inventory_division}</apex:outputLink>
+                        <apex:pageBlockTable value="{!sopdivs}" var="c">
+                            <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.rstk__sopdiv__c.Edit, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__sopdiv__c.View, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_notesandattachments_del}</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__name}"><apex:outputLink value="{!URLFOR($Action.rstk__sopdiv__c.View, c.id)}{!ReturnUrlParms}">{!c.Name}</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__shipfromdivision}"><apex:outputField id="sopdiv_shipdiv__c" value="{!c.rstk__sopdiv_shipdiv__c}" /></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__defaultsite}"><apex:outputField id="sopdiv_shipsite__c" value="{!c.rstk__sopdiv_shipsite__c}" /></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__defaultlocid}"><apex:outputField id="sopdiv_shiplocid__c" value="{!c.rstk__sopdiv_shiplocid__c}" /></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__defaultlocno}"><apex:outputField id="sopdiv_shiplodnum__c" value="{!c.rstk__sopdiv_shiplocnum__c}" /></apex:column>
+                            <apex:column headerValue="{!f_sopdiv.rstk__sopdiv_active__c.label}"><apex:outputField id="sopdiv_active__c" value="{!c.rstk__sopdiv_active__c}" /></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+<!-- RCB: 22164 -->
+                <script>
+                    
+                    function makeDefault()
+                        {
+                            var tableBody = jQuery(escapeId("#{!$Component.pg:fm:pb:pbs_InventoryItems.prodDetails}:tb"));
+                            var selected = tableBody.find('input[id$="rowSelected"]:checked');
+                            if (selected.size() != 1)
+                            {
+                                alert("{!$Label.SelectOneActiveItemforProcessing}");
+                                return;
+                            }
+                            var selectableRows = selected.closest('tr');
+                            jQuery(selectableRows).each(function (index, el)
+                            {   
+                                var row = jQuery(this);
+                                var isActiveEl = row.find("span[id$=sopicitem_active__c] img");
+                                var rowActive = isActiveEl.attr('alt') == 'Checked';
+                                if (!rowActive)
+                                {
+                                    alert("{!$Label.SelectOneActiveItemforProcessing}");
+                                    return;
+                                }
+                            });
+                            var selectableRows = tableBody.find('input[id$="rowSelected"]');
+                            rowNum = 0;
+                            jQuery(selectableRows).each(function (index, el)
+                            {   
+                                var row = jQuery(this);
+                                if (row.attr('checked') == true)
+                                {
+                                    makeSopicitemDefault(rowNum);
+                                }
+                                rowNum = rowNum + 1;
+                            });
+                        }
+                        
+                </script> 
+              
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_inventoryitems}" name="tab_InventoryItems" id="tab_InventoryItems" rendered="{!(isEdit || isView) && o.rstk__soprod_multicitem__c}">
+                    <apex:pageBlockSection id="pbs_InventoryItems" showHeader="false" columns="1">
+                        <apex:outputPanel >
+                            <apex:outputLink value="{!URLFOR($Action.rstk__sopicitem__c.New)}{!ReturnUrlParms}">{!$Label.rstk__newinventoryitem}</apex:outputLink>
+                            <input type="button" class="btn" id="makeSelected" value="{!$Label.MakeSelectedItemtheProductDefault}" onclick="makeDefault();"/>
+                        </apex:outputPanel>
+                        <apex:pageBlockTable id="prodDetails" value="{!sopicitems}" var="c">
+                            <apex:column headerValue="{!$Label.rstk__select}">
+                            <input style="margin-left: auto;margin-right: auto;" type="checkbox" id="rowSelected" />
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.rstk__sopicitem__c.Edit, c.id)}{!ReturnUrlParms}">Edit</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.sopicitem__c.View, c.id)}{!ReturnUrlParms}&amp;actionType=view">Del</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_sopicitem.rstk__sopicitem_icitem__c.label}"><apex:outputLink id="sopicitem_icitem__c" value="{!URLFOR($Action.sopicitem__c.View, c.id)}{!ReturnUrlParms}&amp;actionType=view">{!c.sopicitem_icitem__r.Name}</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_sopicitem.rstk__sopicitem_active__c.label}"><apex:outputField id="sopicitem_active__c" value="{!c.rstk__sopicitem_active__c}" /></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_productprice}" name="tab_ProdPrice" id="tab_ProdPrice" rendered="{!!isNew}">
+                    <apex:pageBlockSection id="pbs_ProdPrice" showHeader="false" columns="1">
+                        <apex:outputLink value="{!URLFOR($Action.rstk__sopq__c.New)}{!ReturnUrlParms}">{!$Label.rstk__new_product_price}</apex:outputLink>
+                        <apex:pageBlockTable value="{!sopqs}" var="c">
+                            <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.rstk__sopq__c.Edit, c.id)}{!ReturnUrlParms}">Edit</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__sopq__c.View, c.id)}{!ReturnUrlParms}">Del</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_sopq.rstk__sopq_frqty__c.label}"><apex:outputField id="sopq_frqty__c" value="{!c.rstk__sopq_frqty__c}" /></apex:column>
+                            <apex:column headerValue="{!f_sopq.rstk__sopq_toqty__c.label}"><apex:outputField id="sopq_toqty__c" value="{!c.rstk__sopq_toqty__c}"/></apex:column>
+                            <apex:column headerValue="{!f_sopq.rstk__sopq_price__c.label}"><apex:outputField id="sopq_price__c" value="{!c.rstk__sopq_price__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__price_in_0} {!socntl.socntl_altcurrency__r.rstk__sycurr_currency__c}" rendered="{!socntl.rstk__socntl_altcurrency__c != null}"><apex:outputField id="sopq_pricealtcurr__c" value="{!c.rstk__sopq_pricealtcurr__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_productpricebydate}" name="tab_ProdPriceByDate" id="tab_ProdPriceByDate">
+                    <c:PageableGrid width="1150" jsController="productPrice" data="{!productPricingDetails}" pageSize="5" editable="{!isView}" ispopup="false" disableSave="{!!isView}"/>
+                    <script>
+                        productPrice.onGridLoad = function() {
+                            self = this;
+                            this.getVisibleRows().each(function (index, el) {
+                               var row = jQuery(this);
+                               var rowId = self.getRowValue(row, 'Id');
+                               if (isEmpty(rowId)) rowId = productPrice.rowIds[index];
+                                if (!isEmpty(rowId)) {
+                                        self.getRowObj(row, 'sopt_frstdate__c').attr('disabled', true);
+                                        self.getRowObj(row, 'quantity__g').html('<button type="button" class="btn" onclick="QuantityDetails(\'' + rowId + '\');">Quantity Detail</button>');
+                                    }
+                           });  
+                        }
+                        
+                        productPrice.validate = function() {
+                            self = this;
+                            var isvalid = true;
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var price = productPrice.getRowValue(row, 'sopt_price__c');
+                                var firstDate = productPrice.getRowValue(row, 'sopt_frstdate__c');
+                                var lastDate = productPrice.getRowValue(row, 'sopt_lastdate__c');
+                                
+                                if(!price || parseInt(price) < 0) {
+                                    alert("{!$Label.rstk__pricecantbelt0}"); 
+                                    productPrice.getRowObj(row, 'sopt_price__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if (!firstDate) {
+                                    alert("{!$Label.rstk__firsteffectivedate}"); 
+                                    productPrice.getRowObj(row, 'sopt_frstdate__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                                
+                                if (!lastDate) {
+                                    alert("{!$Label.rstk__lasteffectivedate}"); 
+                                    productPrice.getRowObj(row, 'sopt_lastdate__c').focus();
+                                    isvalid = false;
+                                    return false;
+                                }
+                            });
+                             return isvalid;
+                         } 
+                        
+                        
+                        productPrice.entryChanged = function(row, rowNum, name, value) {
+                            if (name == 'sopt_lastdate__c') {
+                                var firstDate = productPrice.getRowValue(row, 'sopt_frstdate__c');
+                                var lastDate = productPrice.getRowValue(row, 'sopt_lastdate__c');
+                                if (firstDate != null && lastDate != null) {
+                                    verifyDate(firstDate,lastDate,row);
+                                }
+                            }
+                        }
+                        
+                         function verifyDate(firstDate,lastDate,row){
+                            Visualforce.remoting.Manager.invokeAction(  
+                                '{!$RemoteAction.ControllerExtnSoprod.verifyDate}', //NameSpace  
+                                firstDate,lastDate,   
+                                function(result, event){
+                                    if (event.status) {
+                                        if(result){
+                                            alert("{!$Label.rstk__lstefctdtcntbelessthnfstefctdte}");
+                                            productPrice.setRowValue(row, "sopt_lastdate__c", '');
+                                            return true;
+                                        }
+                                    } else if (event.type === 'exception') {
+                                        alert('Exception: '+event.message);
+                                    } else {
+                                        alert("{!$Label.rstk__unexpectedstatus}", event.message);
+                                    }
+                                }, {escape:false}
+                            );
+                        }
+                    </script>
+                
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_rma}" name="tab_PromoPrice" id="tab_RMA">
+                    <apex:pageBlockSection id="pbs_RMA" showHeader="false" columns="2">
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rmasiteind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rmasite__c.label}"/>
+                            <apex:outputPanel >
+                                <c:comcodBackedSelectList id="soprod_rmasite__cc" indId="soprod_rmasiteind__c" valId="soprod_rmasite__c" ccId="socomm_rmasite__c" cntr="{!controller}" options="{!Sysites}" groupcode="true" tabIndex="1001" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>        
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_insptemplind__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_insptempl__c.label}"/>
+                            <c:comcodBackedSelectList id="soprod_insptempl__cc" indId="soprod_insptemplind__c" valId="soprod_insptempl__c" ccId="socomm_insptempl__c" cntr="{!controller}" tabIndex="1008" groupcode="true" options="{!InspectionTemplate}"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rmainsplocid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rmainsplocid__c.label}"/>
+                            <apex:outputPanel >
+                                <c:comcodBackedSelectList id="soprod_rmainsplocid__cc" indId="soprod_rmainsplocidind__c" valId="soprod_rmainsplocid__c" ccId="socomm_rmainsplocid__c" cntr="{!controller}" groupcode="true" options="{!Sylocids}" tabIndex="1002" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>        
+                       	
+                       	<apex:pageBlockSectionItem />
+                       
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rmainsplocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rmainsplocnum__c.label}"/>
+                            <apex:outputPanel >
+                                <c:comcodBackedField id="soprod_rmainsplocnum__cc" indId="soprod_rmainsplocnumind__c" valId="soprod_rmainsplocnum__c" ccId="socomm_rmainsplocnum__c" cntr="{!controller}" groupcode="true" tabIndex="1003" />
+                                <c:largeSelectList id="soprod_rmainsplocnum_sel__c" cntr="{!controller}" options="{!Sylocnums}" tabIndex="10031" useValue="true" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>        
+
+						<apex:pageBlockSectionItem />
+						
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rmainvlocid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rmainvlocid__c.label}"/>
+                            <apex:outputPanel >
+                                <c:comcodBackedSelectList id="soprod_rmainvlocid__cc" indId="soprod_rmainvlocidind__c" valId="soprod_rmainvlocid__c" ccId="socomm_rmainvlocid__c" cntr="{!controller}" options="{!Sylocids}" groupcode="true" tabIndex="1004" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>        
+                       
+                       <apex:pageBlockSectionItem />
+                       
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rmainvlocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rmainvlocnum__c.label}"/>
+                            <apex:outputPanel >
+                                <c:comcodBackedField id="soprod_rmainvlocnum__cc" indId="soprod_rmainvlocnumind__c" valId="soprod_rmainvlocnum__c" ccId="socomm_rmainvlocnum__c" cntr="{!controller}" groupcode="true" tabIndex="1005" />
+                                <c:largeSelectList id="soprod_rmainvlocnum_sel__c" cntr="{!controller}" options="{!Sylocnums}" tabIndex="10031" useValue="true" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>        
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rmascraplocid__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rmascraplocid__c.label}"/>
+                            <apex:outputPanel >
+                                <c:comcodBackedSelectList id="soprod_rmascraplocid__cc" indId="soprod_rmascraplocidind__c" valId="soprod_rmascraplocid__c" ccId="socomm_rmascraplocid__c" cntr="{!controller}" options="{!Sylocids}" groupcode="true" tabIndex="1006" />
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>        
+                        
+                        <apex:pageBlockSectionItem />
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_rmascraplocnum__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_rmascraplocnum__c.label}"/>
+                            <apex:outputPanel >
+                                <c:comcodBackedField id="soprod_rmascraplocnum__cc" indId="soprod_rmascraplocnumind__c" valId="soprod_rmascraplocnum__c" ccId="socomm_rmascraplocnum__c" cntr="{!controller}" groupcode="true" tabIndex="1007" />
+                                <c:largeSelectList id="soprod_rmascraplocnum_sel__c" cntr="{!controller}" options="{!Sylocnums}" tabIndex="10031" useValue="true" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>  
+                        
+                        <apex:pageBlockSectionItem />
+                              
+                    </apex:pageBlockSection>
+                </apex:tab> 
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_directpurchasing}" name="tab_DirectPO" id="tab_DirectPO">
+                    <apex:pageBlockSection id="pbs_DirectPO" showHeader="false" columns="2"> 
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_autopo__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_autopo__c.label}"/>
+                            <c:comcodBackedField id="soprod_autopo__cc" indId="soprod_autopoind__c" valId="soprod_autopo__c" ccId="socomm_autopo__c" cntr="{!controller}" groupcode="true" tabIndex="1101" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_intersystem__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_intersystem__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_intersystem__c" value="{!o.rstk__soprod_intersystem__c}" required="false" taborderhint="1106" rendered="{!!isView}"/>
+                                <apex:outputField value="{!o.rstk__soprod_intersystem__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_autopodrop__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_autopodrop__c.label}"/>
+                            <c:comcodBackedField id="soprod_autopodrop__cc" indId="soprod_autopodropind__c" valId="soprod_autopodrop__c" ccId="socomm_autopodrop__c" cntr="{!controller}" groupcode="true" tabIndex="1102" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_buyfromcmp__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_buyfromcmp__c.label}"/>
+                            <c:selectList id="soprod_buyfromcmp__c" cntr="{!controller}"  options="{!companys}" tabIndex="1107"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_autopopohdr__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_autopopohdr__c.label}"/>
+                            <c:comcodBackedField id="soprod_autopopohdr__cc" indId="soprod_autopopohdrind__c" valId="soprod_autopopohdr__c" ccId="socomm_autopopohdr__c" cntr="{!controller}" groupcode="true" tabIndex="1103" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_buyfromdiv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_buyfromdiv__c.label}"/>
+                            <c:selectList id="soprod_buyfromdiv__c" cntr="{!controller}" options="{!sydivs}" tabIndex="1108"/>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_povend__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_povend__c.label}"/>
+                            <c:autocomplete id="soprod_povend__c" cntr="{!controller}" width="250px" tabIndex="1109"
+                                query="select id, name from povend__c" slDesc="{!buyFromVendor}"
+                                queryParms="[]"  />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem />
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_poitemvend__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_poitemvend__c.label}"/>
+                            <c:autocomplete id="soprod_poitemvend__c" cntr="{!controller}" width="250px" tabIndex="1110"
+                                query="select id, name from poitemvend__c" slDesc="{!buyFromItemVendor}"
+                                queryParms="[]"  />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_emailtemplates}" name="tab_emailtemplate">
+                    <apex:pageBlockSection id="pbs_emailTemplates" showHeader="false" columns="1" >
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_emailtack__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_emailtack__c.label}"/>
+                            <c:comcodBackedField id="soprod_emailtack__cc" indId="soprod_emailtackind__c" valId="soprod_emailtack__c" lookupText="{!ProdSOAckEmailTemplateName}"  commLookupText="{!CommSOAckEmailTemplateName}"
+                                ccId="socomm_emailtack__c" cntr="{!controller}" groupcode="true" options="{!SOAckEmailTemplates}" tabIndex="910" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_emailtinv__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_emailtinv__c.label}"/>
+                           <c:comcodBackedField id="soprod_emailtinv__cc" indId="soprod_emailtinvind__c" valId="soprod_emailtinv__c" lookupText="{!ProdInvoiceEmailTemplateName}" commLookupText="{!CommInvoiceEmailTemplateName}"
+                                ccId="socomm_emailtinv__c" cntr="{!controller}" groupcode="true" options="{!InvoiceEmailTemplates}" tabIndex="920" />
+                        </apex:pageBlockSectionItem>
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_emailtpack__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_emailtpack__c.label}"/>
+                            <c:comcodBackedField id="soprod_emailtpack__cc" indId="soprod_emailtpackind__c" valId="soprod_emailtpack__c" lookupText="{!ProdPackingSlipEmailTemplateName}" commLookupText="{!CommPackingSlipEmailTemplateName}"
+                                ccId="socomm_emailtpack__c" cntr="{!controller}" groupcode="true" options="{!PackingSlipEmailTemplates}" tabIndex="930" />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_configurationgroups}" name="tab_Confgroupps" style="{!IF(o.rstk__soprod_configurable__c,'','display:none;')}">
+                    <apex:outputPanel rendered="{!o.rstk__soprod_configurable__c}">
+                    <apex:pageBlockSection showHeader="false" columns="1" >
+                    
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_confdiscprod__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_confdiscprod__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:selectList id="soprod_confdiscprod__c" value="{!o.rstk__soprod_confdiscprod__c}" size="1" tabIndex="940" style="width:200px;" rendered="{!!isView}">
+                                    <apex:selectOptions value="{!Confdiscprods}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__soprod_confdiscprod__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    
+                        <apex:pageBlockSectionItem rendered="{!OR(isEdit, isView)}">
+                            <apex:outputLabel value=""/>
+                            <input type="button" class="btn" value="{!$Label.rstk__pagepopup_soprod_configurationgroups}" onclick="document.getElementById('confgroupFrame').src='/apex/soprodPopups?id={!o.Id}&type=confgroupp';_showDialog('confgrouppPopup', 850, 430);" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem rendered="{!OR(isEdit, isView)}">
+                            <apex:outputLabel value=""/>
+                            <input type="button" class="btn" value="{!$Label.rstk__pagepopup_soprod_configurationpreselections}" onclick="document.getElementById('soprodconfpreFrame').src='/apex/soprodPopups?id={!o.Id}&type=soprodconfpre';_showDialog('soprodconfprePopup', 1250, 430);" />
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem rendered="{!OR(isEdit, isView)}">
+                            <apex:outputLabel value=""/>
+                            <input type="button" class="btn" value="{!$Label.rstk__pagepopup_soprod_configurationexportreferences}" onclick="document.getElementById('soprodconfexpFrame').src='/apex/soprodPopups?id={!o.Id}&type=soprodconfexp';_showDialog('soprodconfexpPopup', 1250, 430);" />
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    </apex:outputPanel>
+                </apex:tab> 
+                <!-- 
+                <apex:tab label="{!$Label.pagetab_soprod_DateEffectivePrice}" name="tab_PromoPrice" id="tab_PromoPrice" rendered="{!actionType != 'create'}">
+                    <apex:pageBlockSection id="pbs_PromoPrice" showHeader="false" columns="1">
+                        <apex:outputLink value="{!URLFOR($Action.sopd__c.New)}{!ReturnUrlParms}">New Date Effective Price</apex:outputLink>
+                        <apex:pageBlockTable value="{!sopds}" var="c">
+                            <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.sopd__c.Edit, c.id)}{!ReturnUrlParms}">Edit</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.sopd__c.View, c.id)}{!ReturnUrlParms}">Del</apex:outputLink></apex:column>
+                            <apex:column headerValue="Promotion No."><apex:outputField id="sopd_promo__c" value="{!c.sopd_promo__c}" /></apex:column>
+                            <apex:column headerValue="Description"><apex:outputField id="sopd_desc__c" value="{!c.sopd_desc__c}" /></apex:column>
+                            <apex:column headerValue="{!$Label.active}"><apex:outputField id="sopd_active__c" value="{!c.sopd_active__c}" /></apex:column>
+                            <apex:column headerValue="Frist Date"><apex:outputField id="sopd_frdate__c" value="{!c.sopd_frdate__c}" /></apex:column>
+                            <apex:column headerValue="{!$Label.lastDate}"><apex:outputField id="sopd_todate__c" value="{!c.sopd_todate__c}" /></apex:column>
+                            <apex:column headerValue="Price"><apex:outputField id="sopd_price__c" value="{!c.sopd_price__c}" /></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                -->
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_entitlementdetail}" name="tab_Entitlement" id="tab_Entitlement"
+                   rendered="{!AND(sl.entitlementsEnabled, OR(isNew, o.rstk__soprod_prodtype__c=='Entitlement'))}">
+                    <apex:pageBlockSection showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="" rendered="{!showEntitlementsGrid}">
+                            <input type="button" class="btn" value="{!$Label.pagebtn_soprod_EntitledToProducts}" onclick="_showDialog('entitlementByProductPopup');" />
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_enttype__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_enttype__c.label}"/>
+                            <!--<c:inputField id="soprod_enttype__c" cntr="{!controller}" tabIndex="1201" />  -->
+                            <apex:outputPanel >
+                                <apex:selectList id="soprod_enttype__c" value="{!o.rstk__soprod_enttype__c}" size="1" tabIndex="1201" style="width:200px;" rendered="{!!isView}">
+                                    <apex:selectOptions value="{!enttype}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__soprod_enttype__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_entmeasure__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_entmeasure__c.label}"/>
+                            <!-- <c:inputField id="soprod_entmeasure__c" cntr="{!controller}" tabIndex="1202" /> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_entmeasure__c" value="{!o.rstk__soprod_entmeasure__c}" taborderhint="1202" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_entmeasure__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_entqtylimit__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_entqtylimit__c.label}"/>
+                            <!-- <c:inputField id="soprod_entqtylimit__c" cntr="{!controller}" tabIndex="1204" /> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_entqtylimit__c" value="{!o.rstk__soprod_entqtylimit__c}" taborderhint="1204" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_entqtylimit__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_entdollimit__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_entdollimit__c.label}"/>
+                            <!-- <c:inputField id="soprod_entdollimit__c" cntr="{!controller}" tabIndex="1205" /> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_entdollimit__c" value="{!o.rstk__soprod_entdollimit__c}" taborderhint="1205" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_entdollimit__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_entunderprice__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_entunderprice__c.label}"/>
+                            <!-- <c:inputField id="soprod_entunderprice__c" cntr="{!controller}" tabIndex="1206" /> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_entunderprice__c" value="{!o.rstk__soprod_entunderprice__c}" taborderhint="1206" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_entunderprice__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_entoverprice__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_entoverprice__c.label}"/>
+                            <!-- <c:inputField id="soprod_entoverprice__c" cntr="{!controller}" tabIndex="1207" /> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_entoverprice__c" value="{!o.rstk__soprod_entoverprice__c}" taborderhint="1207" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_entoverprice__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_entoverstd__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__soprod_entoverstd__c.label}"/>
+                            <!-- <c:inputField id="soprod_entoverstd__c" cntr="{!controller}" tabIndex="1208" /> -->
+                            <apex:outputPanel >
+                                <apex:inputField id="soprod_entoverstd__c" value="{!o.rstk__soprod_entoverstd__c}" taborderhint="1208" rendered="{!isEditable}"/>
+                                <apex:outputField value="{!o.rstk__soprod_entoverstd__c}" rendered="{!!isEditable}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                         
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__soprod_soentcal__c.inlineHelpText}" rendered="{!isCsg}">
+                            <apex:outputLabel value="{!f.rstk__soprod_soentcal__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:selectList id="soprod_soentcal__c" value="{!o.rstk__soprod_soentcal__c}" size="1" tabIndex="1209" style="width:200px;" rendered="{!!isView}">
+                                    <apex:selectOptions value="{!Soentcals}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!o.rstk__soprod_soentcal__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                        
+                        <!--<apex:pageBlockSectionItem helpText="{!f.soprod_sosla__c.inlineHelpText}" rendered="{!isCsg}">
+                            <apex:outputLabel value="{!f.soprod_sosla__c.label}"/>
+                            <apex:outputPanel >
+                                <apex:selectList id="soprod_sosla__c" value="{!o.soprod_sosla__c}" size="1" tabIndex="1210" style="width:200px;" rendered="{!!isView}">
+                                    <apex:selectOptions value="{!Soslas}"/>
+                                </apex:selectList>
+                                <apex:outputField value="{!o.soprod_sosla__c}" rendered="{!isView}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>-->
+                        
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <!--<apex:tab label="{!$Label.pagetab_soprod_ModelServiceCost}" name="tab_ModelServiceCost" id="tab_ModelServiceCost" rendered="{!sl.entitlementsEnabled && isCsg}">
+                    <apex:pageBlockSection showHeader="false" columns="1" rendered="{!!isView}">
+                        <apex:inputField id="soprod_srvcostcol__c" value="{!o.soprod_srvcostcol__c}" required="false" taborderhint="1221" />
+                        <apex:inputField id="soprod_srvcostbw__c" value="{!o.soprod_srvcostbw__c}" required="false" taborderhint="1222" />
+                        <apex:inputField id="soprod_srvcostscan__c" value="{!o.soprod_srvcostscan__c}" required="false" taborderhint="1223" />
+                        <apex:inputField id="soprod_antvolcol__c" value="{!o.soprod_antvolcol__c}" required="false" taborderhint="1224" />
+                        <apex:inputField id="soprod_antvolbw__c" value="{!o.soprod_antvolbw__c}" required="false" taborderhint="1225" />
+                        <apex:inputField id="soprod_antvolscan__c" value="{!o.soprod_antvolscan__c}" required="false" taborderhint="1226" />
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection showHeader="false" columns="1" rendered="{!isView}">
+                        <apex:outputField value="{!o.soprod_srvcostcol__c}" />
+                        <apex:outputField value="{!o.soprod_srvcostbw__c}" />
+                        <apex:outputField value="{!o.soprod_srvcostscan__c}" />
+                        <apex:outputField value="{!o.soprod_antvolcol__c}" />
+                        <apex:outputField value="{!o.soprod_antvolbw__c}" />
+                        <apex:outputField value="{!o.soprod_antvolscan__c}" />
+                    </apex:pageBlockSection>
+                </apex:tab>-->
+                
+                <!--<apex:tab label="{!$Label.pagetab_soprod_ContractCategory}" name="tab_ContractCategory" id="tab_ContractCategory" rendered="{!sl.entitlementsEnabled && isCsg}">
+                    <apex:pageBlockSection showHeader="false" columns="1" rendered="{!!isView}">
+                        <apex:inputField id="soprod_useasdisc__c" value="{!o.soprod_useasdisc__c}" required="false" taborderhint="1241" />
+                        <apex:inputField id="soprod_useasservcred__c" value="{!o.soprod_useasservcred__c}" required="false" taborderhint="1242" />
+                        <apex:inputField id="soprod_useasrentcred__c" value="{!o.soprod_useasrentcred__c}" required="false" taborderhint="1243" />
+                        <apex:inputField id="soprod_useassponser__c" value="{!o.soprod_useassponser__c}" required="false" taborderhint="1244" />
+                        <apex:inputField id="soprod_useasoathfee__c" value="{!o.soprod_useasoathfee__c}" required="false" taborderhint="1245" />
+                    </apex:pageBlockSection>
+                    <apex:pageBlockSection showHeader="false" columns="1" rendered="{!isView}">
+                        <apex:outputField value="{!o.soprod_useasdisc__c}" />
+                        <apex:outputField value="{!o.soprod_useasservcred__c}" />
+                        <apex:outputField value="{!o.soprod_useasrentcred__c}" />
+                        <apex:outputField value="{!o.soprod_useassponser__c}" />
+                        <apex:outputField value="{!o.soprod_useasoathfee__c}" />
+                    </apex:pageBlockSection>
+                </apex:tab>-->
+                
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_soprod_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+
+        <c:Popup popupId="entitlementByProductPopup" title="{!$Label.rstk__pagepopup_soprod_entitlementbyproduct}" onOk="ebp_saveAndClose();" rendered="{!showEntitlementsGrid}">
+            <c:PageableGrid pageSize="5" jsController="ebp" data="{!entitlementByProductGrid}" editable="true" ispopup="true"/>
+            <script>
+              ebp.resetRow = function(row) {
+                   self = this;
+                   ebpHandler.prototype.resetRow.call(self, row);
+                   ebp.setRowValue(row, 'soentto_active__c', true);
+                 }
+            </script>
+        </c:Popup>
+
+        <c:Popup popupId="rspPopup" title="{!$Label.rstk__pagepopup_soprod_recurringserviceproducts}" onOk="rsp_saveAndClose();" rendered="{!showRSPGrid}">
+            <c:PageableGrid pageSize="5" jsController="rsp" data="{!recurringServiceProductsGrid}" editable="true" ispopup="true"/>
+        </c:Popup>
+        
+        <c:Popup popupId="confgrouppPopup" title="{!$Label.rstk__pagepopup_soprod_configurationgroups}" cancelCaption="Close" onCancel="_closeDialog();document.getElementById('confgroupFrame').src=''" rendered="{!AND(o.rstk__soprod_configurable__c, !isNew)}">
+            <iframe id="confgroupFrame" src="" width="100%" height="320px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+        </c:Popup>
+
+        <c:Popup popupId="soprodconfprePopup" title="{!$Label.rstk__pagepopup_soprod_configurationpreselections}" cancelCaption="Close" onCancel="_closeDialog();document.getElementById('soprodconfpreFrame').src=''" rendered="{!AND(o.rstk__soprod_configurable__c, !isNew)}">
+            <iframe id="soprodconfpreFrame" src="" width="100%" height="320px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+        </c:Popup>
+
+        <c:Popup popupId="soprodconfexpPopup" title="{!$Label.rstk__pagepopup_soprod_configurationexportreferences}" cancelCaption="Close" onCancel="_closeDialog();document.getElementById('soprodconfexpFrame').src=''" rendered="{!AND(o.rstk__soprod_configurable__c, !isNew)}">
+            <iframe id="soprodconfexpFrame" src="" width="100%" height="320px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+        </c:Popup>
+
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        sfffDisableField('soprod_configurable__c', {!!socntl.socntl_configsoe__c});
+        sfffDisableField('soprod_cfgstdprice__c', {!!socntl.socntl_configsoe__c});
+    </script>
+    
+    <script>
+        var LABEL_ProvideProdGrp = "{!$Label.ProvideProdGrp}";
+        var LABEL_ProvideDefInventoryDiv = "{!$Label.ProvideDefInventoryDiv}";
+        var LABEL_MustSelSFProdSinceYouDontWantToAddNewProdIntoSFProd = "{!$Label.MustSelSFProdSinceYouDontWantToAddNewProdIntoSFProd}";
+        var LABEL_NoSalesUOMConversionExist_CheckSalesUOM = "{!$Label.NoSalesUOMConversionExist_CheckSalesUOM}";
+        var LABEL_ProdCantExistOnInventoryItem = "{!$Label.ProdCantExistOnInventoryItem}";
+        var LABEL_ProdTypeMustExistOnInventoryItem = "{!$Label.ProdTypeMustExistOnInventoryItem}";
+        var LABEL_InterSystemCantBeSelForProd_ItsAlreadyAssignedAsInterSysProdForPOItem = "{!$Label.InterSystemCantBeSelForProd_ItsAlreadyAssignedAsInterSysProdForPOItem}";
+        var LABEL_CantChangeSalesUOM_AsProdUsedOnOneOrMoreSOLines = "{!$Label.CantChangeSalesUOM_AsProdUsedOnOneOrMoreSOLines}";
+        var LABEL_NoUOMConversionFactor_LeavingSalesUOMAs = "{!$Label.NoUOMConversionFactor_LeavingSalesUOMAs}";
+        var LABEL_InvalidAmt_MustBeNonNegNum = "{!$Label.InvalidAmt_MustBeNonNegNum}";
+        var LABEL_OrdQtyLotSizeMustGrtrThan0 = "{!$Label.OrdQtyLotSizeMustGrtrThan0}";
+        var LABEL_InvalidValForUOMConversionFactor_ValMustGrtrThan0 = "{!$Label.InvalidValForUOMConversionFactor_ValMustGrtrThan0}";
+        var LABEL_ProvideCurrDiv = "{!$Label.ProvideCurrDiv}";
+        var LABEL_DefShipFromSiteNotInSpecInventoryDiv_ReselectDefShipFromSite = "{!$Label.DefShipFromSiteNotInSpecInventoryDiv_ReselectDefShipFromSite}";
+        var LABEL_InventoryItemDoesntExistForProdInDiv = "{!$Label.InventoryItemDoesntExistForProdInDiv}";
+        var LABEL_DefQtyOrderedMustBeEvenlyDivisibleBySpecifiedOrdQtyLotSize = "{!$Label.DefQtyOrderedMustBeEvenlyDivisibleBySpecifiedOrdQtyLotSize}";
+        var LABEL_MinQtyOrdMustBeEvenlyDivisibleBySpecOrdQtyLotSize = "{!$Label.MinQtyOrdMustBeEvenlyDivisibleBySpecOrdQtyLotSize}";
+        var LABEL_SFProdCantBeBlank = "{!$Label.SFProdCantBeBlank}";
+        var LABEL_Warning_ProdUsedOnOneOrMoreSOLines = "{!$Label.Warning_ProdUsedOnOneOrMoreSOLines}";
+        var LABEL_NoFieldExistForLocID = "{!$Label.NoFieldExistForLocID}";
+        var LABEL_EnterReqdFieldForProdNum = "{!$Label.EnterReqdFieldForProdNum}";
+        var LABEL_EnterReqdFieldForInventoryItemInInventoryTab = "{!$Label.EnterReqdFieldForInventoryItemInInventoryTab}";
+        var LABEL_EnterReqdFieldForSFProdNum = "{!$Label.EnterReqdFieldForSFProdNum}";
+        var LABEL_EnterReqdFieldForDesc = "{!$Label.EnterReqdFieldForDesc}";
+        var LABEL_EnterReqdFieldDefShipFromLocNo = "{!$Label.EnterReqdFieldDefShipFromLocNo}";
+        var LABEL_Warning_WhenDefInventoryDivChngd_ProdCompWillDelCompNotBelongToNewInventory = "{!$Label.Warning_WhenDefInventoryDivChngd_ProdCompWillDelCompNotBelongToNewInventory}";
+        var LABEL_InterSysProdReqiresValsForFollowingDirectPurchFields = "{!$Label.InterSysProdReqiresValsForFollowingDirectPurchFields}";
+        var LABEL_EnterReqdFields = "{!$Label.EnterReqdFields}";
+        var LABEL_ProvideDefaultInventoryDiv = "{!$Label.ProvideDefaultInventoryDiv}";
+        var LABEL_InvalidValueFor = "{!$Label.InvalidValueFor}";
+        var LABEL_EntryMustBeNumeric = "{!$Label.EntryMustBeNumeric}";
+        var LABEL_InvalidDiv_DivHasNoSOControl = "{!$Label.InvalidDiv_DivHasNoSOControl}";
+        var LABEL_Invalidvaluefor = "{!$Label.InvalidValueFor}";
+        var LABEL_MinOrdQtyOrdMustBeGT0WhenMinQtyEnforced = "{!$Label.MinOrdQtyOrdMustBeGT0WhenMinQtyEnforced}";
+        var LABEL_EnterReqdField = "{!$Label.EnterReqdField}";
+        var LABEL_RMAInventoryLocIdAndRMAInspectionLocIdCantBeSameLocId = "{!$Label.RMAInventoryLocIdAndRMAInspectionLocIdCantBeSameLocId}";
+        var LABEL_ShippingClearingAccMustBeSpec = "{!$Label.ShippingClearingAccMustBeSpec}";
+        var LABEL_MusBeAnIntegerValue = "{!$Label.MusBeAnIntegerValue}";
+        var LABEL_DefOrdQtyCantLessThanMinOrdQty = "{!$Label.DefOrdQtyCantLessThanMinOrdQty}";
+        var LABEL_SalesforceProdCantBeBlank = "{!$Label.SalesforceProdCantBeBlank}";
+        var LABEL_NoSalesUOMConversionExist_ChkSalesUOm = "{!$Label.NoSalesUOMConversionExist_ChkSalesUOm}";
+        var LABEL_Warning_SpecifiedCodeLessThan_CharsLong = "{!$Label.Warning_SpecifiedCodeLessThan_CharsLong}";
+        var LABEL_ProdNotInSalesforceYet_WantToAdd = "{!$Label.ProdNotInSalesforceYet_WantToAdd}";
+        var LABEL_DoYouWantToDelAllExistingInventoryDivData = "{!$Label.DoYouWantToDelAllExistingInventoryDivData}";
+        var LABEL_DoYouWantToDelAllExistingSalesAccDistributionData = "{!$Label.DoYouWantToDelAllExistingSalesAccDistributionData}";
+        var Label_ChangingDefaultInventoryDivisionWillClearAssociatedInventoryItemlist = "{!$Label.Label_ChangingDefaultInventoryDivisionWillClearAssociatedInventoryItemlist}";
+        var LABEL_OrderQtyDecimalCannotBeGreaterThanInventoryItem = "{!$Label.OrderQtyDecimalCannotBeGreaterThanInventoryItem}";
+    	var LABEL_Shipping_Clearing_Account_must_be_specified = "{!$Label.Shipping_Clearing_Account_must_be_specified}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

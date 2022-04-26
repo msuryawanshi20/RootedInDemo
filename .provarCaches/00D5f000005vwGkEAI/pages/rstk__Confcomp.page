@@ -1,0 +1,735 @@
+<apex:page id="pg" standardController="rstk__confcomp__c" extensions="rstk.ControllerExtnConfcomp,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__confcomp__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__confcomp__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_confcomp}" customInclude="{!$Resource.rstk__confcomp_cli}" enableAutocomplete="true" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}" />
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}" />
+
+    <script>
+    var isNew = {!isNew};
+    var isEdit = {!isEdit};
+    var isView = {!isView};
+    var isClone = {!isClone};
+    var confselpreset = {!confselpreset};
+    var compentity = {};
+    var divid = "{!currDivision.id}";
+    var invdivid = "{!invdivid}";
+    var siteId = "{!o.rstk__confcomp_site__c}";
+    var icitem = '{!o.rstk__confcomp_icitem__c}';
+    var soprod = '{!o.rstk__confcomp_soprod__c}';
+    var copyvarcompidEl;
+    var zeroVariableCount = {!zeroVariableCount};
+    var showCopyVariables = {!showCopyVariables};
+    var beforesavevarcount = 0;
+    var minCharsProd={!prodMinCharForAutoComplete};
+    var minCharsIcitem = {!icitemMinCharForAutoComplete};
+    function doCopyVariables() {
+        if (!copyvarcompidEl.value) {
+            alert("{!$Label.rstk__selectconfigselectioncomponenttocopyformulavariables}");
+            copyvarcompidEl.focus();
+        } else {
+            blockUI();
+            copyVariables();
+        }
+    }
+    </script>
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.rstk__busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true" />
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" />
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true" />
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true" />
+        <apex:actionFunction name="doClone" action="{!doClone}" immediate="true" rerender="pageMessages" />
+        <apex:actionFunction name="doSave" action="{!save}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="copyVariables" action="{!copyCompVariables}" />
+        <apex:actionFunction name="doFeatcatChanged" immediate="true" rerender="pageMessages,op_feature" status="statusProcessing">
+            <apex:param name="featcat" assignTo="{!o.confcomp_featcat__c}" value="" />
+        </apex:actionFunction>
+        
+        <c:Popup popupId="copyFormulaVariables"
+            title="{!$Label.rstk__pagepopup_confcomp_selectaconfigurationselectioncomponentstocopyformulavariables}"
+            onOk="doCopyVariables();"
+            rendered="{!AND(showCopyVariables, zeroVariableCount)}">
+            <apex:selectList id="copyvarcompid__c" value="{!copyvarcompid}"
+                size="1" style="width:250px;">
+                <apex:selectOptions value="{!Copyvarcomps}" />
+            </apex:selectList>
+            <script>copyvarcompidEl = document.getElementById("{!$Component.copyvarcompid__c}");</script>
+        </c:Popup>
+
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableClone="false"
+                    disableSaveAndNew="{!!isNew}" />
+            </apex:pageBlockButtons>
+
+            <apex:outputPanel style="display:none;">
+                <apex:inputHidden id="confcomp_confgroup__c"
+                    value="{!o.rstk__confcomp_confgroup__c}"
+                    rendered="{!OR(isEdit, confselpreset)}" />
+                <apex:inputHidden id="confcomp_confsel__c"
+                    value="{!o.rstk__confcomp_confsel__c}"
+                    rendered="{!OR(isEdit, confselpreset)}" />
+                <apex:inputHidden id="confcomp_itemtype__c"
+                    value="{!o.rstk__confcomp_itemtype__c}" rendered="{!isEdit}" />
+            </apex:outputPanel>
+
+            <apex:pageBlockSection showHeader="false" columns="2"
+                rendered="{!OR(isNew, isEdit)}">
+                <apex:outputField value="{!o.rstk__confcomp_div__c}" />
+
+                <apex:pageBlockSectionItem />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_confgroup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_confgroup__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList id="confcomp_confgroup__c" cntr="{!controller}"
+                            required="true" options="{!confgroups}"
+                            rendered="{!AND(isNew, !confselpreset)}" tabIndex="110" />
+                        <apex:outputField value="{!o.rstk__confcomp_confgroup__c}"
+                            rendered="{!OR(isEdit, confselpreset)}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_confgroup2__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_confgroup2__c.label}" />
+                    <c:largeSelectList id="confcomp_confgroup2__c" cntr="{!controller}"
+                        options="{!confgroup2s}" tabIndex="310" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_confsel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_confsel__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="confcomp_confsel__c"
+                            value="{!o.rstk__confcomp_confsel__c}" required="true" size="1"
+                            style="width:250px;" rendered="{!AND(isNew, !confselpreset)}"
+                            tabIndex="120">
+                            <apex:selectOptions value="{!confsels}" />
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__confcomp_confsel__c}"
+                            rendered="{!OR(isEdit, confselpreset)}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_confsel2__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_confsel2__c.label}" />
+                    <apex:selectList id="confcomp_confsel2__c"
+                        value="{!o.rstk__confcomp_confsel2__c}" size="1" style="width:250px;"
+                        tabIndex="320">
+                        <apex:selectOptions value="{!confsel2s}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:inputField id="confcomp_desc__c" value="{!o.rstk__confcomp_desc__c}"
+                    taborderhint="13" />
+
+                <apex:inputField id="confcomp_pricemethod__c"
+                    value="{!o.rstk__confcomp_pricemethod__c}" taborderhint="33" />
+
+                <apex:inputField id="confcomp_primary__c"
+                    value="{!o.rstk__confcomp_primary__c}" taborderhint="14" />
+
+                <apex:inputField id="confcomp_pricehr__c"
+                    value="{!o.rstk__confcomp_pricehr__c}" taborderhint="34" />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_itemtype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_itemtype__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="confcomp_itemtype__c"
+                            value="{!o.rstk__confcomp_itemtype__c}" required="true" size="1"
+                            style="width:150px;" rendered="{!isNew}" tabIndex="150">
+                            <apex:selectOptions value="{!itemTypes}" />
+                        </apex:selectList>
+                        <script>if(isNew && !confselpreset){document.getElementById("{!$Component.confcomp_itemtype__c}").disabled = true;}</script>
+                        <apex:outputField value="{!o.rstk__confcomp_itemtype__c}"
+                            rendered="{!isEdit}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="confcomp_price__c"
+                    value="{!o.rstk__confcomp_price__c}" taborderhint="34" />
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel id="compentitylabel"
+                        value="{!$Label.rstk__componententity}" />
+                    <apex:outputPanel id="op_compentity">
+                        <apex:outputPanel id="op_soprod"
+                            style="{!IF(OR(isNew, AND(!isproduct, !isentitlement)),'display:none;','')}">
+                            <c:autocomplete id="confcomp_soprod__c" cntr="{!controller}"
+                                rendered="{!isNew}" slDesc="{!SoprodName}" tabIndex="160"
+                                query="select id, name from soprod__c where name = null" minChars="{!prodMinCharForAutoComplete}"
+                                queryParms="[]" />
+                            <apex:outputField value="{!o.rstk__confcomp_soprod__c}"
+                                rendered="{!isEdit}" />
+                        </apex:outputPanel>
+
+                        <apex:outputPanel id="op_icitem"
+                            style="{!IF(OR(isNew, !isinventory),'display:none;','')}">
+                            <c:autocomplete id="confcomp_icitem__c" cntr="{!controller}"
+                                rendered="{!isNew}" slDesc="{!IcitemName}" tabIndex="160"
+                                query="select id, name from icitem__c where name = null"
+                                queryParms="[]" />
+                            <apex:outputField value="{!o.rstk__confcomp_icitem__c}"
+                                rendered="{!isEdit}" />
+                        </apex:outputPanel>
+
+                        <apex:outputPanel id="op_soservice"
+                            style="{!IF(OR(isNew, !isservice),'display:none;','')}">
+                            <apex:selectList id="confcomp_soservice__c"
+                                value="{!o.rstk__confcomp_soservice__c}" size="1" style="width:250px;"
+                                rendered="{!isNew}" tabIndex="160">
+                                <apex:selectOptions value="{!soservices}" />
+                            </apex:selectList>
+                            <apex:outputField value="{!o.rstk__confcomp_soservice__c}"
+                                rendered="{!isEdit}" />
+                        </apex:outputPanel>
+
+                        <apex:outputPanel id="op_rtindoper"
+                            style="{!IF(OR(isNew, !islabor),'display:none;','')}">
+                            <apex:selectList id="confcomp_rtindoper__c"
+                                value="{!o.rstk__confcomp_rtindoper__c}" size="1" style="width:250px;"
+                                rendered="{!isNew}" tabIndex="160">
+                                <apex:selectOptions value="{!rtindopers}" />
+                            </apex:selectList>
+                            <apex:outputField value="{!o.rstk__confcomp_rtindoper__c}"
+                                rendered="{!isEdit}" />
+                        </apex:outputPanel>
+
+                        <apex:outputPanel id="op_item"
+                            style="{!IF(OR(isNew, !ismisc),'display:none;','')}">
+                            <apex:inputField id="confcomp_item__c"
+                                value="{!o.rstk__confcomp_item__c}" rendered="{!isNew}"
+                                taborderhint="16" />
+                            <apex:outputField value="{!o.rstk__confcomp_item__c}"
+                                rendered="{!isEdit}" />
+                            <script>
+                                compentity = {
+                                    compentitylabel: document.getElementById("{!$Component.compentitylabel}"),
+                                    op_soprod: document.getElementById("{!$Component.op_soprod}"),
+                                    op_icitem: document.getElementById("{!$Component.op_icitem}"),
+                                    op_soservice: document.getElementById("{!$Component.op_soservice}"),
+                                    op_rtindoper: document.getElementById("{!$Component.op_rtindoper}"),
+                                    op_item: document.getElementById("{!$Component.op_item}"),
+                                    soprod: document.getElementById("{!$Component.confcomp_soprod__c}"),
+                                    icitem: document.getElementById("{!$Component.confcomp_icitem__c}"),
+                                    soservice: document.getElementById("{!$Component.confcomp_soservice__c}"),
+                                    rtindoper: document.getElementById("{!$Component.confcomp_rtindoper__c}"),
+                                    item: document.getElementById("{!$Component.confcomp_item__c}")
+                                };
+                            </script>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="confcomp_altprice__c"
+                    value="{!o.rstk__confcomp_altprice__c}" taborderhint="35" />
+
+                <apex:inputField id="confcomp_qtyper__c"
+                    value="{!o.rstk__confcomp_qtyper__c}" required="true" taborderhint="17" />
+
+                <apex:inputField id="confcomp_altprice2__c"
+                    value="{!o.rstk__confcomp_altprice2__c}" taborderhint="36" />
+
+                <apex:inputField id="confcomp_fixedqty__c"
+                    value="{!o.rstk__confcomp_fixedqty__c}" taborderhint="18" />
+
+                <apex:inputField id="confcomp_cost__c" value="{!o.rstk__confcomp_cost__c}"
+                    taborderhint="37" />
+
+                <apex:inputField id="confcomp_optional__c"
+                    value="{!o.rstk__confcomp_optional__c}" taborderhint="19" />
+                    
+                <apex:inputField id="confcomp_markup__c"
+                    value="{!o.rstk__confcomp_markup__c}" taborderhint="38" />
+
+                <apex:inputField id="confcomp_seldefault__c"
+                    value="{!o.rstk__confcomp_seldefault__c}" taborderhint="20" />
+
+                <apex:inputField id="confcomp_labseq__c"
+                    value="{!o.rstk__confcomp_labseq__c}" taborderhint="39" />
+
+                <apex:inputField id="confcomp_adjustqty__c"
+                    value="{!o.rstk__confcomp_adjustqty__c}" taborderhint="21" />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_syacc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_syacc__c.label}" />
+                    <apex:selectList id="confcomp_syacc__c"
+                        value="{!o.rstk__confcomp_syacc__c}" size="1" style="width:250px;"
+                        tabIndex="410">
+                        <apex:selectOptions value="{!syaccs}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:inputField id="confcomp_noexport__c"
+                    value="{!o.rstk__confcomp_noexport__c}" taborderhint="22" />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_syuom__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_syuom__c.label}" />
+                    <apex:selectList id="confcomp_syuom__c"
+                        value="{!o.rstk__confcomp_syuom__c}" size="1" style="width:250px;"
+                        tabIndex="420">
+                        <apex:selectOptions value="{!syuoms}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+
+                <apex:inputField id="confcomp_noprint__c"
+                    value="{!o.rstk__confcomp_noprint__c}" taborderhint="23" />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_site__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_site__c.label}" />
+                    <apex:outputPanel >
+						<c:largeSelectList id="confcomp_site__c" required="true" cntr="{!controller}" options="{!syites}" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstk__confcomp_site__c}" rendered="{!!isNew}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputText value="" />
+
+                <apex:inputField id="confcomp_ownsoline__c"
+                    value="{!o.rstk__confcomp_ownsoline__c}" taborderhint="24"
+                    rendered="{!OR(isNew, AND(isEdit, isproduct))}" />
+                <apex:outputField value="{!o.rstk__confcomp_ownsoline__c}"
+                    rendered="{!!OR(isNew, AND(isEdit, isproduct))}" />
+
+                <apex:inputField id="confcomp_useformula__c"
+                    value="{!o.rstk__confcomp_useformula__c}" taborderhint="25" />
+
+                <apex:inputField id="confcomp_useprformula__c"
+                    value="{!o.rstk__confcomp_useprformula__c}" taborderhint="44" />
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_formula__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_formula__c.label}" />
+                    <apex:inputTextarea id="confcomp_formula__c"
+                        value="{!o.rstk__confcomp_formula__c}" rows="3" cols="80" tabindex="26" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_prformula__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__confcomp_prformula__c.label}" />
+                    <apex:inputTextarea id="confcomp_prformula__c"
+                        value="{!o.rstk__confcomp_prformula__c}" rows="3" cols="80" tabindex="450" />
+                </apex:pageBlockSectionItem>
+
+                <apex:inputField id="confcomp_roundopt__c" value="{!o.rstk__confcomp_roundopt__c}" taborderhint="27" />
+
+                <apex:selectList id="confcomp_decqty__c" value="{!o.rstk__confcomp_decqty__c}" multiselect="false" size="1">
+                    <apex:selectOptions value="{!DecimalOptions}"/>
+                </apex:selectList>
+
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection showHeader="false" columns="2"
+                rendered="{!isView}">
+                <apex:outputField value="{!o.confcomp_confsel__r.confsel_confgroup__r.rstk__confgroup_div__c}" />
+                <apex:pageBlockSectionItem />
+                <apex:outputField value="{!o.rstk__confcomp_confgroup__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_confgroup2__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_confsel__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_confsel2__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_desc__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_pricemethod__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_primary__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_pricehr__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_itemtype__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_price__c}" />
+
+                <apex:pageBlockSectionItem >
+                    <apex:outputLabel id="compentitylabel"
+                        value="{!$Label.rstk__componententity}" />
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__confcomp_soprod__c}"
+                            rendered="{!OR(o.rstk__formula_isproduct__c, o.rstk__formula_isentitlement__c)}" />
+
+                        <apex:outputField value="{!o.rstk__confcomp_icitem__c}"
+                            rendered="{!o.rstk__formula_isinventory__c}" />
+
+                        <apex:outputField value="{!o.rstk__confcomp_soservice__c}"
+                            rendered="{!o.rstk__formula_isservice__c}" />
+
+                        <apex:outputField value="{!o.rstk__confcomp_rtindoper__c}"
+                            rendered="{!o.rstk__formula_islabor__c}" />
+
+                        <apex:outputField value="{!o.rstk__confcomp_item__c}"
+                            rendered="{!o.rstk__formula_ismisc__c}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:outputField value="{!o.rstk__confcomp_altprice__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_qtyper__c}" />
+
+                <apex:outputField value="{!o.rstk__confcomp_altprice2__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_fixedqty__c}" />
+
+                <apex:outputField value="{!o.rstk__confcomp_cost__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_optional__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_markup__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_seldefault__c}" />
+                <apex:outputText value="{!o.rstk__confcomp_labseq__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_adjustqty__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_syacc__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_noexport__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_syuom__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_noprint__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_site__c}" />
+                <apex:outputText value="" />
+                <apex:outputField value="{!o.rstk__confcomp_ownsoline__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_useformula__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_useprformula__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_formula__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_prformula__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_roundopt__c}" />
+                <apex:outputField value="{!o.rstk__confcomp_decqty__c}" />
+                
+                
+            </apex:pageBlockSection>
+
+            <apex:tabPanel switchType="client" selectedTab="tab_Confcompvars"
+                id="theTabPanel" rendered="{!!isNew}">
+                <apex:tab label="{!$Label.rstk__pagetab_confcomp_formulavariables}"
+                    name="tab_Confcompvars">
+                    <c:nosubmitbutton label="{!$Label.rstk__pagebtn_confcomp_copyformulavariables}"
+                        onclick="_showDialog('copyFormulaVariables', '500');"
+                        rendered="{!AND(showCopyVariables, zeroVariableCount)}" />
+                    <c:PageableGrid width="1150" jsController="confcompvars" pageSize="50"
+                        data="{!confcompvarGrid}" editable="{!isView}" ispopup="false"
+                        disableSave="{!!isView}" />
+                    <script>
+                        function setSelectList(rowCtrl, row, fieldId, values, valueFieldId, withNone) {
+                            var col = rowCtrl.getRowObj(row, fieldId);
+                            var nameOf = rowCtrl.nameOf();
+                            col.children().remove();
+                            col.html('<select style="max-width:90%;" class="'+nameOf+'-'+rowCtrl.getRowNum(row)+'-select_'+fieldId+'" onchange="'+nameOf+'.rowChanged(event);"/>');
+                            var theSel = col.find('select');
+                            if (!!withNone) {
+                                theSel.append('<option value="">--None--</option>');
+                            }   
+                            for (var i=0;i <values.length; i++) {
+                                theSel.append('<option value="'+values[i].Id+'">'+escapeHtml(values[i].Name)+'</option>');
+                            }
+                            if (valueFieldId != null && valueFieldId != '') {
+                                jQuery(theSel).val(rowCtrl.getRowValue(row, valueFieldId));
+                                rowCtrl.setRowValue(row, valueFieldId, jQuery(theSel).val());
+                            }
+                        }
+                        
+                        confcompvars.onGridLoad = function() {
+                            if (isEdit) return;
+                            self = this;
+                            
+                            var confgroupids = '';
+                            var confselids = '';
+                            confcompvars.getVisibleRows().each(function(){
+                                var row = jQuery(this);
+                                var confgroupid = confcompvars.getRowValue(row, 'confcompvar_sourcegroup__c');
+                                if (confgroupid) {
+                                    confgroupids += (confgroupids ? "," : "") + "'" + confgroupid + "'";
+                                }
+                                var confselid = confcompvars.getRowValue(row, 'confcompvar_sourcesel__c');
+                                if (confselid) {
+                                    confselids += (confselids ? "," : "") + "'" + confselid + "'";
+                                }
+                            });
+                            //console.log('confgroupids'+confgroupids);
+                            //console.log('confselids'+confselids);
+                            
+                            var confgroups = [];
+                            var confsels = [];
+                            if (confgroupids) {
+                                confgroups = execQuery("select Id, (select Id, Name from confsels__r order by Name) from confgroup__c where id in (" + confgroupids + ")");
+                                //console.log('confgroups='+confgroups);
+                            }
+                            if (confselids) {
+                                confsels = execQuery("select Id, (select Id, Name from confcomps__r  order by Name) from confsel__c where id in (" + confselids + ")");
+                                //console.log('confsels='+confsels);
+                            }
+                            
+                            confcompvars.getRows().each(function(){
+                                var row = jQuery(this);
+                                var groupconfsels = [];
+                                var sourceVal = confcompvars.getRowValue(row, "confcompvar_source__c");
+                                var confgroupid = confcompvars.getRowValue(row, 'confcompvar_sourcegroup__c');
+                                for (i = 0; i < confgroups.length; i++) {
+                                    if (confgroupid == confgroups[i].Id) {
+                                        //console.log(confgroups[i].confsels__r);
+                                        if (confgroups[i].confsels__r && confgroups[i].confsels__r.size > 0) {
+                                            groupconfsels = confgroups[i].confsels__r.size > 1 ? confgroups[i].confsels__r.records : [confgroups[i].confsels__r.records];
+                                        }
+                                        break;
+                                    }
+                                }
+                                setSelectList(self, row, 'confcompvar_sourcesel__g', groupconfsels, 'confcompvar_sourcesel__c', true);
+                                
+                                var selconfcomps = [];
+                                if (sourceVal != 'Group' && sourceVal != 'Selection') {
+                                    var confselid = confcompvars.getRowValue(row, 'confcompvar_sourcesel__c');
+                                    for (i = 0; i < confsels.length; i++) {
+                                        if (confselid == confsels[i].Id) {
+                                            //console.log(confsels[i].confcomps__r);
+                                            if (confsels[i].confcomps__r && confsels[i].confcomps__r.size > 0) {
+                                                selconfcomps = confsels[i].confcomps__r.size > 1 ? confsels[i].confcomps__r.records : [confsels[i].confcomps__r.records];
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                                setSelectList(self, row, 'confcompvar_sourcecomp__g', selconfcomps, 'confcompvar_sourcecomp__c', true);
+                            });
+                        }
+                        
+                        confcompvars.resetRow = function(row) {
+                            if (isEdit) return;
+                            self = this;
+                            confcompvarsHandler.prototype.resetRow.call(self, row);
+                            
+                            setSelectList(this, row, 'confcompvar_sourcesel__g', [], 'confcompvar_sourcesel__c', true);
+                            setSelectList(this, row, 'confcompvar_sourcecomp__g', [], 'confcompvar_sourcecomp__c', true);
+                        }
+                        
+                        confcompvars.entryChanged = function(row, rowNum, name, value) {
+                            //console.log(name+':'+value);
+                            if (name == 'confcompvar_variable__c') {
+                                if (value && !isVariableValid(value)) {
+                                    alert("{!$Label.rstk__variablemustbe2charlongandonlycontainuppercasealphabets}");
+                                    confcompvars.setRowValue(row, "confcompvar_variable__c", '');
+                                }
+                            } else if(name == 'confcompvar_source__c') {
+                                confcompvars.setRowValue(row, "confcompvar_sourcegroup__c", '');
+                                if (value == 'Group') {
+                                    confcompvars.setRowValue(row, "confcompvar_sourcesel__c", '');
+                                    confcompvars.setRowValue(row, "confcompvar_sourcecomp__c", '');
+                                    var sourceselSl = confcompvars.getRowObj(row, 'confcompvar_sourcesel__g').find('select')[0];
+                                    sourceselSl.value = '';
+                                    populateHtmlSelectList(sourceselSl, []);
+                                }
+                                if (value == 'Group' || value == 'Selection') {
+                                    var sourcecompSl = confcompvars.getRowObj(row, 'confcompvar_sourcecomp__g').find('select')[0];
+                                    sourcecompSl.value = '';
+                                    populateHtmlSelectList(sourcecompSl, []);
+                                }
+                            } else if(name == 'confcompvar_sourcegroup__c') {
+                                var sourceVal = confcompvars.getRowValue(row, "confcompvar_source__c");
+                                confcompvars.setRowValue(row, "confcompvar_sourcesel__c", '');
+                                confcompvars.setRowValue(row, "confcompvar_sourcecomp__c", '');
+                                var sourceselSl = confcompvars.getRowObj(row, 'confcompvar_sourcesel__g').find('select')[0];
+                                sourceselSl.value = '';
+                                if (value && sourceVal != 'Group') {
+                                    populateHtmlSelectList(sourceselSl, "select Id, Name from confsel__c where confsel_confgroup__c = '" + value + "' order by Name");
+                                } else {
+                                    populateHtmlSelectList(sourceselSl, []);
+                                }
+                                var sourcecompSl = confcompvars.getRowObj(row, 'confcompvar_sourcecomp__g').find('select')[0];
+                                sourcecompSl.value = '';
+                            } else if(name == 'select_confcompvar_sourcesel__g') {
+                                var sourceVal = confcompvars.getRowValue(row, "confcompvar_source__c");
+                                confcompvars.setRowValue(row, "confcompvar_sourcesel__c", value);
+                                confcompvars.setRowValue(row, "confcompvar_sourcecomp__c", '');
+                                var sourcecompSl = confcompvars.getRowObj(row, 'confcompvar_sourcecomp__g').find('select')[0];
+                                sourcecompSl.value = '';
+                                if(value && sourceVal != 'Selection') {
+                                    var whereclause = " and id != '{!o.id}' ";
+                                    if (sourceVal == 'Selection Component Specified Price') {
+                                        whereclause = '';
+                                    } else if (sourceVal == 'Selection Component Product Price') {
+                                        whereclause = ' and confcomp_soprod__c != null';
+                                    }
+                                    populateHtmlSelectList(sourcecompSl, "select Id, Name from confcomp__c where confcomp_confsel__c = '" + value + "'" + whereclause + " order by Name");
+                                } else {
+                                    populateHtmlSelectList(sourcecompSl, []);
+                                }
+                            } else if(name == 'select_confcompvar_sourcecomp__g') {
+                                confcompvars.setRowValue(row, "confcompvar_sourcecomp__c", value);
+                            } else if(name == 'confcompvar_defaultval__c') {
+                                if (value) {
+                                    if (toNumber(value) == null || toNumber(value) < 0) {
+                                        alert("{!$Label.rstk__defaultvalmustbenumericandcantbenegative}");
+                                        confcompvars.setRowValue(row, "confcompvar_defaultval__c", '');
+                                    }
+                                }
+                            }
+                        }
+                        
+                        function isVariableValid(str) {
+                            var reg = /^[A-Z]{2}$/;
+                            return (str.match(reg) != null);
+                        }
+                        
+                        confcompvars.validate = function() {
+                            self = this;
+                            
+                            var rows = this.getVisibleRows();
+                            var variables = {};
+                            for (i = 0; i < rows.length; i++) {
+                                var row = jQuery(rows[i]);
+                                var rowId = confcompvars.getRowValue(row, 'Id');
+                                if (isEmpty(rowId)) {
+                                    var variableEl = confcompvars.getRowObj(row, 'confcompvar_variable__c')[0];
+                                    if (!variableEl.value) {
+                                        alert("{!$Label.rstk__formulavarcantbeempty}");
+                                        variableEl.focus();
+                                        return false;
+                                    } else {
+                                        if (!variables[variableEl.value]) {
+                                            variables[variableEl.value] = ' ';
+                                        } else {
+                                            alert("{!$Label.rstk__formulavaralreadydefined}", variableEl.value);
+                                            variableEl.focus();
+                                            return false;
+                                        }
+                                        if (!isVariableValid(variableEl.value)) {
+                                            alert("{!$Label.rstk__variablemustbe2charlongandonlycontainuppercasealphabets}");
+                                            variableEl.focus();
+                                            return false;
+                                        }
+                                    }
+                                } else {
+                                    var variable = confcompvars.getRowValue(row, 'confcompvar_variable__c');
+                                    if (!variables[variable]) {
+                                        variables[variable] = ' ';
+                                    } else {
+                                        alert("{!$Label.rstk__formulavaralreadydefined}", variable);
+                                        return false;
+                                    }
+                                }
+                                
+                                var sourceEl = confcompvars.getRowObj(row, 'confcompvar_source__c')[0];
+                                if (!sourceEl.value) {
+                                    alert("{!$Label.rstk__srcvalentitycantbeblank}");                             
+                                    sourceEl.focus();
+                                    return false;
+                                }
+                                
+                                if (confcompvars.getRowValue(row, 'confcompvar_booleansel__c') == true && sourceEl.value != 'Selection') {
+                                    alert("{!$Label.rstk__booleancannotbesetunlesssourceisselection}");
+                                    return false;
+                                }
+                                
+                                var sourcegroupEl = confcompvars.getRowObj(row, 'confcompvar_sourcegroup__c')[0];
+                                if (sourceEl.value != 'Order Line Quantity' && !sourcegroupEl.value) {
+                                    alert("{!$Label.rstk__srcgrpreqdforselectedsrcvalentity}");
+                                    sourcegroupEl.focus();
+                                    return false;
+                                }
+                                
+                                console.log('confcompvar_sourcesel__c='+confcompvars.getRowValue(row, 'confcompvar_sourcesel__c'));
+                                console.log('confcompvar_sourcecomp__c='+confcompvars.getRowValue(row, 'confcompvar_sourcecomp__c'));
+                                
+                                var sourceselEl = confcompvars.getRowObj(row, 'confcompvar_sourcesel__g').find('select')[0];
+                                if (sourceEl.value != 'Order Line Quantity' && sourceEl.value != 'Group' && !sourceselEl.value) {
+                                    alert("{!$Label.rstk__srcselectionreqdforselectedsrcvalueentiry}");
+                                    sourceselEl.focus();
+                                    return false;
+                                }
+                                
+                                var sourcecompEl = confcompvars.getRowObj(row, 'confcompvar_sourcecomp__g').find('select')[0];
+                                if (sourceEl.value == 'Selection Component' && !sourcecompEl.value) {
+                                    alert("{!$Label.rstk__srccomponentreqdforselectedsrcvalueentity}");
+                                    sourcecompEl.focus();
+                                    return false;
+                                }
+                                
+                                var defaultEl = confcompvars.getRowObj(row, 'confcompvar_defaultval__c')[0];
+                                if (defaultEl.value && (toNumber(defaultEl.value) == null || toNumber(defaultEl.value) < 0)) {
+                                    alert("{!$Label.rstk__defaultvalmustbenumericandcantbenegative}");
+                                    defaultEl.focus();
+                                    return false;
+                                }
+                            }
+                            beforesavevarcount = rows.length;
+                            return true;
+                        }
+                        
+                        confcompvars.onSaveFailed = function() {
+                            unblockUI();
+                        }
+                        
+                        confcompvars.onSaved = function() {
+                            if (showCopyVariables) {
+                                if ((zeroVariableCount && beforesavevarcount > 0) || (!zeroVariableCount && beforesavevarcount == 0)) {
+                                    window.location.replace(window.location);
+                                }
+                            } 
+                            unblockUI();
+                        }
+                    </script>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_confcomp_feature_detail}" name="FeatureDetail" id="FeatureDetail" rendered="{!isfeaturesactive}">
+                    <apex:pageBlockSection showHeader="false" columns="1">
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_featcat__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__confcomp_featcat__c.label}"/>
+                            <c:autocomplete id="confcomp_featcat__c" cntr="{!controller}" slDesc="{!featcatDesc}" query="select id, name from featcat__c"/>
+                        </apex:pageBlockSectionItem>
+                
+                        <apex:pageBlockSectionItem helpText="{!f.rstk__confcomp_feature__c.inlineHelpText}">
+                            <apex:outputLabel value="{!f.rstk__confcomp_feature__c.label}"/>
+                            <apex:outputPanel id="op_feature">
+                                <c:largeSelectList id="confcomp_feature__c" cntr="{!controller}" options="{!Features}"/>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+
+        <div id="pleaseWaitPopup" style="display: none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block" />
+            <apex:outputPanel styleClass="topPopup">
+                <apex:image url="{!$Resource.rstk__busy}" />
+            </apex:outputPanel>
+        </div>
+
+        <script>
+            setSelectListRequired("confcomp_confgroup__c");
+            setSelectListRequired("confcomp_confsel__c");
+            setSelectListRequired("confcomp_site__c");
+        </script>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+
+    <script>
+        var LABEL_SelectByDefMustBeChkdWhenComponentOptionalNotChkd = "{!$Label.rstk__selectbydefmustbechkdwhencomponentoptionalnotchkd}";
+        var LABEL_QtyPerMustBeGrtThan0 = "{!$Label.rstk__qtypermustbegrtthan0}";
+        var LABEL_PriceMustGrtrEqual0 = "{!$Label.rstk__pricemustgrtrequal0}";
+        var LABEL_AlternatePrice1MustGrtEqual0 = "{!$Label.rstk__alternateprice1mustgrtequal0}";
+        var LABEL_AlternatePrice2MustGrtrEqal0 = "{!$Label.rstk__alternateprice2mustgrtreqal0}";
+        var LABEL_CostMustGrtrEqual0 = "{!$Label.rstk__costmustgrtrequal0}";
+        var LABEL_MarkupPercMustGrtrThan0 = "{!$Label.rstk__markuppercmustgrtrthan0}";
+        var LABEL_LaborSeqNumMustGrtrEqual0 = "{!$Label.rstk__laborseqnummustgrtrequal0}";
+        var LABEL_SelectionGrpCanBeSameAsSecondSelectionGrp = "{!$Label.rstk__selectiongrpcanbesameassecondselectiongrp}";
+        var LABEL_ItemTypeCantBeBlank = "{!$Label.rstk__itemtypecantbeblank}";
+        var LABEL_ProdCantBeBlankWhenItemTypeIsProdOrEntitlement = "{!$Label.rstk__prodcantbeblankwhenitemtypeisprodorentitlement}";
+        var LABEL_InventoryCantBeBlankWhenItemTypeIsInventory = "{!$Label.rstk__inventorycantbeblankwhenitemtypeisinventory}";
+        var LABEL_ServiceItemCantBeBlankWhenItemTypeIsService = "{!$Label.rstk__serviceitemcantbeblankwhenitemtypeisservice}";
+        var LABEL_LaborCantBeBlankWhenItemTypeLabor = "{!$Label.rstk__laborcantbeblankwhenitemtypelabor}";
+        var LABEL_MiscItemNumCantBeBlankWhenItemTypeMisc = "{!$Label.rstk__miscitemnumcantbeblankwhenitemtypemisc}";
+        var LABEL_CreditAccCantBeBlankWhenComponentTypeIsMiscOrServiceAndCostGrtrThan0 = "{!$Label.rstk__creditacccantbeblankwhencomponenttypeismiscorserviceandcostgrtrthan0}";
+        var LABEL_UOMCantBeBlankWhenComponentTypeMisc = "{!$Label.rstk__uomcantbeblankwhencomponenttypemisc}";
+        var LABEL_Warning_NoComponentPricingRecFoundForSelInventoryItem = "{!$Label.rstk__warning_nocomponentpricingrecfoundforselinventoryitem}";
+        var LABEL_OnlyProductsCanBeUsedOnSOLines = "{!$Label.rstk__onlyproductscanbeusedonsolines}";
+        var LABEL_QuantityFormulaIsRequired = "{!$Label.rstk__quantityformulaisrequired}";
+        var LABEL_CompQty1WhenUsingIndOpRunHours = "{!$Label.rstk__compqty1whenusingindoprunhours}";
+        var LABEL_LaborSequenceNumberLengthMustBe4DigitsOrLess = "{!$Label.rstk__laborsequencenumberlengthmustbe4digitsorless}";
+    </script>
+    
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

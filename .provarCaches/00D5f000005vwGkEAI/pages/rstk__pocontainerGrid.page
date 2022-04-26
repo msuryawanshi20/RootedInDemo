@@ -1,0 +1,331 @@
+<apex:page id="pg" standardController="rstk__pocontainer__c" extensions="rstk.ControllerExtnPocontainerGrid" sidebar="true" action="{!doBeforePageLoad}" >
+
+	<apex:variable var="o" value="{!rstk__pocontainer__c}" />
+	<apex:variable var="c" value="{!customext}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+    <apex:variable var="fp" value="{!$ObjectType.rstk__pocontainer__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__interim_containers_with_reqs}" />
+    
+    <script> 
+    	var rows = {}; var selectcbxs = [];
+    	var batchNo;
+    	var errMsg; 
+        function selectall(el) {
+			for(i = 0; i < selectcbxs.length; i++) {
+				selectcbxs[i].checked = el.checked;
+				selectRecord(Object.keys(rows)[i]);
+			}
+		}
+		
+		function selectRecord(rowid) {
+			var row = rows[rowid];
+			if(row.selected.checked){
+				row.containerFld.disabled = false;
+			}else{
+				row.containerFld.disabled = true;
+			}
+		}
+		
+		function addSelectOption(){
+           if(containerDetailsArray != null) {
+          		for(var arrayCounter =0; arrayCounter < containerDetailsArray.length ; arrayCounter ++) {           		
+           			var selectElement = containerDetailsArray[arrayCounter].container;             			            			
+           			if(selectElement.length > 0){
+		      			var opt = document.createElement('option');
+		            	opt.value = containersArray[selectElement.length - 1].altExtenalID.value ;
+		            	opt.innerHTML = containersArray[selectElement.length - 1].containersID.innerHTML ;
+	           			selectElement.appendChild(opt);	
+		        	}			        	
+          		}
+          	 }     
+          }
+          
+        function deleteContainerCheck(value,id,container) {
+	       	var selected = false;
+       		for (var i=0; i< containersArray.length; i++) {	
+       			if (containersArray[i].selected.checked == true) {
+       				selected = true;
+       				break;
+       			}
+       		}
+       		if (selected == false) {
+       			alert("{!$Label.PleaseselectatleastoneContainertodelete}");
+       		} else {
+       			blockUI();
+       			deleteContainer();        			
+       		}
+       	}
+       	
+       	function removeSelectOption(){       
+            	if(containerDetailsArray != null) {
+            		for(var arrayCounter =0; arrayCounter < containerDetailsArray.length ; arrayCounter ++) {
+             			var selectElement = containerDetailsArray[arrayCounter].container;            			
+             			if(containersArray.length == 0){
+             				selectElement.options.length = 0;
+             				selectElement.options[0] = new Option("--None--", "");
+             			}else{
+             				for(var i = 0; i < selectElement.length; i++){
+					        	var deleteFlag = 0;
+					        	for(var j = 0; j < containersArray.length; j++){	
+							        if(selectElement[i].innerHTML == containersArray[j].containersID.innerHTML || selectElement[i].value == ''){   
+							            deleteFlag = 1;
+							        }
+							    }
+							    if (deleteFlag == 0) {
+							    	selectElement.remove(i);						    	
+							    }
+					        }
+				        }  	
+            		}
+	            }     
+            }
+       	  
+       	function validate(){
+       		var reqAvailable = false;
+       		if(containersArray.length == 0){
+       			alert("{!$Label.Please_create_container}");
+       			return false;
+       		}else if(containersArray.length > 0){
+       			for (var i=0; i<containersArray.length; i++) {
+       				if (containersArray[i].size.value == '') {
+	       				alert("{!$Label.SIZE_is_a_required_field_for_each_Container}");
+	       				return false;
+	       			}
+       			}
+       		}
+       		if(containerDetailsArray.length > 0) {
+          		for(var arrayCounter =0; arrayCounter < containerDetailsArray.length ; arrayCounter ++) {
+           			var selectElement = containerDetailsArray[arrayCounter].container;
+           			if(selectElement.value != ''){
+           				reqAvailable = true;
+           				break;
+           			}            			
+           		}
+           		if(reqAvailable){
+           			if(!sfffGetFieldValue('customext_poconctr__c')){
+						alert("{!$Label.Consolidation_Center_is_Required}");
+						return false;
+					}else{
+	           			blockUI();
+	     				saveRecords();
+	     			}
+           		}else{
+           			alert("{!$Label.Assigned_Req_to_a_valid_container_number}");
+           			return false;
+           		}
+           	}
+        }
+        
+        function exportCSV() {
+         	if(errMsg == false){
+        		blockUI();
+				try {
+					window.open('/apex/PocontpicklistCSV?batchid=' +batchNo );
+				}catch(e) {
+					console.log(e);
+				} finally {
+					unblockUI();
+				}
+        	}
+			
+		} 
+		
+		function validateInfo(){
+			if(!sfffGetFieldValue('customext_poconctr__c')){
+				alert("{!$Label.Consolidation_Center_is_Required}");
+				return false;
+			}else{
+				blockUI();
+				getDetails();
+			}
+			return true;
+		}
+		 
+    </script>
+    <apex:outputPanel id="hidden_value" >
+    	<script>
+    		batchNo = {!maxBatchNo};
+    		errMsg = {!ErrorMessagesforReq}
+    	</script>
+    </apex:outputPanel>
+    
+     <apex:form id="fm">
+     	 <apex:actionFunction name="getDetails" action="{!getDetails}" oncomplete="unblockUI();" reRender="pageMessages,supreqList,containerList,saveButton" />
+     	 <apex:actionFunction name="addContainer" action="{!addContainer}" reRender="pageMessages,container" immediate="false" oncomplete="unblockUI();addSelectOption();"/>
+     	 <apex:actionFunction name="deleteContainer" action="{!deleteContainer}" reRender="pageMessages,container" immediate="false" oncomplete="unblockUI();removeSelectOption();"/>
+     	 <apex:actionFunction name="saveRecords" action="{!saveRecords}" oncomplete="unblockUI();exportCSV();" reRender="pageMessages,hidden_value,containerList,supreqList" immediate="false"/>
+     	<apex:pageblock id="pb" mode="detail">
+     		 
+	    	<apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__search_requisition}" columns="1" >
+     			<apex:outputField value="{!c.rstk__div__c}"/>
+     			
+     			
+     			<apex:pageBlockSectionItem helptext="{!f.rstk__customext_poconctr__c.inlineHelpText}">
+                   <apex:outputLabel value="{!f.rstk__customext_poconctr__c.label}" />
+                    <apex:selectList id="customext_poconctr__c" value="{!c.rstk__customext_poconctr__c}" size="1" style="width:250px;">
+                        <apex:selectOptions value="{!conctr}" />
+                    </apex:selectList>
+                </apex:pageBlockSectionItem> 
+            </apex:pageBlockSection>
+            
+            <c:nosubmitbutton label="{!$Label.rstk__refresh_requisition_display}" onclick="validateInfo();" style="width:160px;" />
+	         &nbsp;
+	         <apex:outputPanel id="saveButton">
+	        	<c:nosubmitbutton label="{!$Label.rstk__create_interim_containers}" onclick="validate()" style="width:160px;" rendered="{!displayDetails}"/> 
+            </apex:outputPanel>
+     	</apex:pageblock>
+     	<apex:outputPanel id="containerList">
+	     	<apex:pageBlock title="{!$Label.rstk__pocontainergrid_containers}" id="container" mode="detail" rendered="{!displayDetails}">
+				<script>
+	               	var containersArray = []; var counters = 0;  
+	            </script>
+				<input type="button" id="containersAdd" value="{!$Label.BasicGrid_Add}" class="btn" onclick="blockUI();addContainer();"/>
+				<input type="button" id="containersDelete" value="{!$Label.BasicGrid_Delete}" class="btn" onclick="deleteContainerCheck();"/>
+				
+				<apex:pageBlockTable id="containerData" value="{!containersList}" var="d">
+					<apex:column headerValue="{!$Label.rstk__filtergrid_select}">
+	                    <apex:inputCheckbox id="containersSelected" value="{!d.selected}" />
+	                </apex:column>
+	                   
+					<apex:column headerValue="{!$Label.rstk__container_number}">
+	                    <apex:outputText id="containersID" value="{!d.seq}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!$Label.rstk__load_on}">
+	                    <apex:inputField id="pocontainer_loadondate__c" value="{!d.container.rstk__pocontainer_loadondate__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!$Label.rstk__time}">
+	                    <apex:inputField id="pocontainer_loadontime__c" value="{!d.container.rstk__pocontainer_loadontime__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!$Label.rstk__size}">
+	                    <apex:selectList id="pocontainer_poconttype__c" value="{!d.container.rstk__pocontainer_poconttype__c}" size="1">
+	            			<apex:selectOptions value="{!contype}"/>
+	        			</apex:selectList>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!$Label.rstk__tmm_ref}">
+	                    <apex:outputText value="{!d.container.rstk__pocontainer_containerid__c}"/>  
+	                </apex:column>
+	                                
+	                <apex:column headerValue="{!$Label.rstk__pocontainergrid_booking}">
+	                    <apex:inputField id="pocontainer_bookingno__c" value="{!d.container.rstk__pocontainer_bookingno__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!$Label.rstk__pocontainergrid_carrier}">
+	                    <apex:selectList id="pocontainer_carrier__c" value="{!d.container.rstk__pocontainer_carrier__c}" size="1">
+	            			<apex:selectOptions value="{!carriers}"/>
+	        			</apex:selectList>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!$Label.rstk__port}">
+	                    <apex:inputField id="pocontainer_portrouting2__c" value="{!d.container.rstk__pocontainer_portrouting2__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!$Label.rstk__cut}">
+	                    <apex:inputField id="pocontainer_portcutdate__c" value="{!d.container.rstk__pocontainer_portcutdate__c}"/>
+	                </apex:column>
+	                
+	                <apex:column headerValue="{!$Label.rstk__seal}">
+	                    <apex:inputField id="pocontainer_sealnumber__c" value="{!d.container.rstk__pocontainer_sealnumber__c}"/>
+	                </apex:column>
+	               
+	                <apex:column headerValue="{!$Label.rstk__pagetab_socontainer_comments}">
+	                    <apex:inputField id="pocontainer_comment__c" value="{!d.container.rstk__pocontainer_comment__c}"/>
+	                	<apex:inputHidden id="altExtenalID" value="{!d.container.rstk__altextid__c}"/>
+	                	<script>
+	                         containersArray[counters] = {
+	                         	'selected': document.getElementById('{!$Component.containersSelected}'),
+	                         	'containersID': document.getElementById('{!$Component.containersID}'),
+	                         	'size': document.getElementById('{!$Component.pocontainer_poconttype__c}'),
+	                         	'altExtenalID': document.getElementById('{!$Component.altExtenalID}'),
+	                         	'time': document.getElementById('{!$Component.pocontainer_loadontime__c}'), 
+	                         	'booking': document.getElementById('{!$Component.pocontainer_bookingno__c}'),
+	                         	'port': document.getElementById('{!$Component.pocontainer_portrouting2__c}'),
+	                         	'seal': document.getElementById('{!$Component.pocontainer_sealnumber__c}'),
+	                         	'comment': document.getElementById('{!$Component.pocontainer_comment__c}')                      
+	                         }                        
+	                         counters++;
+	                    </script>
+	                </apex:column>
+	            </apex:pageBlockTable>	      					
+			  </apex:pageBlock>
+     	</apex:outputPanel>
+     	  
+     	<apex:outputPanel id="supreqList">
+     		<script>rows = {}; selectcbxs = []; 
+     			var containerDetailsArray = []; 
+     			var counter = 0;  
+             </script>
+           <apex:pageBlock title="{!$Label.rstk__requisition_details}" id="details" mode="detail" rendered="{!displayDetails}">
+                <!--<input type="checkbox" onclick="selectall(this)" />
+                <apex:outputLabel value="{!$Label.selectAll}" />   -->
+                <div style="overflow:hidden; width:100%; height: 350px;" >
+                <apex:outputPanel id="op_gridList" style="height:300px;overflow:auto;display:block;width:100%">
+                <apex:pageBlockTable value="{!supreqList}" var="i" id="pb_table2" width="100%">
+                    <!-- <apex:column headerValue="{!$Label.select}">
+                        <apex:inputCheckbox id="selected" value="{!i.selected}" onchange="selectRecord('{!i.key}')"/>
+                        <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                    </apex:column>  -->
+                    <apex:column headerValue="{!$Label.rstk__container_number}">
+                        <apex:selectList id="container__c" value="{!i.containerNum}" size="1">
+            				<apex:selectOptions value="{!ContainerList}"/>
+        				</apex:selectList>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__requisition}"><apex:outputLink value="{!URLFOR($Action.rstk__supreq__c.View, i.so.id)}{!ReturnUrlParms}">{!i.so.Name}</apex:outputLink></apex:column>
+                    <apex:column headerValue="{!$Label.rstk__pocontainergrid_vendor}">
+						<apex:outputField value="{!i.so.supreq_povend__r.Name}"/>
+                    </apex:column>
+                    
+                    <apex:column headerValue="{!$Label.rstk__part_number}">
+						<apex:outputField value="{!i.so.supreq_supitem__r.rstk__supitem_item__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__part_description}">
+						<apex:outputField value="{!i.so.supreq_supitem__r.rstk__supitem_desc__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__asn_number}">
+						<apex:outputField value="{!i.so.supreq_poasn__r.Name}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__requisition_number}">
+						<apex:outputField value="{!i.so.rstk__supreq_ordno__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__pocontainergrid_uom}">
+						<apex:outputField value="{!i.so.supreq_supitem__r.supitem_uom__r.Name}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__pocontainergrid_quantity}">
+						<apex:outputField value="{!i.so.rstk__supreq_qtyreq__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__pocontainergrid_status}">
+						<apex:outputText value="{!i.status}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__pocontainergrid_due_date}" >
+						<apex:outputText value="{!$Label.rstk__here}" rendered="{!i.so.rstk__supreq_receivedcon__c}"/>
+						<apex:outputField value="{!i.so.rstk__supreq_currconsoldate__c}" rendered="{!!i.so.rstk__supreq_receivedcon__c}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__temp_controlled}">
+						<apex:outputField value="{!i.so.supreq_supitem__r.rstk__supitem_tempcheck__c}"/>
+                    	<script>
+                    	/*
+							rows["{!i.key}"] = {
+								selected: document.getElementById("{!$Component.selected}"),
+								containerFld: document.getElementById("{!$Component.container__c}")
+							};
+							rows["{!i.key}"]['containerFld'].disabled = true; */
+							
+							containerDetailsArray[counter] = {
+	                         'container': document.getElementById('{!$Component.container__c}')
+		                    };                   
+                        	 counter++; 
+                        </script>
+                    </apex:column>
+                </apex:pageBlockTable>
+           </apex:outputPanel>
+           </div>
+           </apex:pageBlock>
+     	</apex:outputPanel> 
+     </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+
+</apex:page>

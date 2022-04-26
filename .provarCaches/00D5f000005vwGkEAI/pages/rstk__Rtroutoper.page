@@ -1,0 +1,447 @@
+<apex:page id="pg" standardController="rstk__rtroutoper__c" extensions="rstk.ControllerExtnRtroutoper" sideBar="true" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <apex:variable var="o" value="{!rstk__rtroutoper__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__rtroutoper__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_rtroutoper}" customInclude="{!$Resource.rstk__rtroutoper_cli}" customInclude2="{!$Resource.rstk__rtrout_lib}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/> 
+    <apex:includeScript value="{!$Resource.rstk__messageformat}"/>
+    <script>var existTask = {!taskCount};</script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!doHeaderView}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doHeaderView}" immediate="true"/> 
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}"/>
+        </apex:pageBlockButtons>
+        
+        <c:Popup popupId="taskpopup" title="{!$Label.rstk__pagepopup_rtroutoper_tasks}" onOk="task_saveAndClose()">
+            <c:EditableGrid jsController="task" data="{!TaskDetails}" editable="true" ispopup="true"/>
+        </c:Popup>
+        
+        <script>
+            // Initial
+            function onTasksClicked() {     
+                task.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    if (index < existTask) {
+                        task.getRowObj(row, 'rtopertask_taskid__c').attr('disabled', true);
+                    }
+                });
+            }
+            
+            task.resetRow = function(row) { 
+                self=this;
+                taskHandler.prototype.resetRow.call(self, row);
+
+                self.getSelectableRows().each(function (index, el) {
+                    if (index < existTask) {
+                        self.getRowObj(row, 'rtopertask_taskid__c').attr('disabled', true);
+                    }
+                });
+                self.getRowObj(row, 'rtopertask_taskid__c').attr('disabled', false);
+            };
+            
+            task.validate = function() {
+                var self = this;
+                var valid = true;
+                var rowcnt = 0;
+                
+                self.getSelectableRows().each(function (index, el) {
+                    var row = jQuery(this);
+                    if (isEmpty(self.getRowValue(row, 'rtopertask_taskid__c'))) {
+                        alert("{!$Label.rstk__enterreqdfieldtaskid}");
+                        valid = false;
+                    }
+                    rowcnt++;
+                });
+                existTask = rowcnt;
+                return valid;
+            }
+        </script>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputText id="rtroutoper_item__c" value="{!o.rstk__rtroutoper_item__c}"/>
+            <apex:inputHidden id="rtroutoper_hdrid__c" value="{!o.rstk__rtroutoper_hdrid__c}"/>
+            <c:selectList id="custpage_custom_addrevslct__c" cntr="{!controller}" options="{!empty}" rendered="{!actionType == 'view'}"/>
+            <c:selectList id="custpage_custom_delrevslct__c" cntr="{!controller}" options="{!empty}" rendered="{!actionType == 'view'}"/>
+            <c:selectList id="rtroutoper_addrev__c" cntr="{!controller}" options="{!itemRevisions}"/>
+            <c:selectList id="rtroutoper_delrev__c" cntr="{!controller}" options="{!itemRevisions}"/>
+            <c:inputCheckbox id="rtroutoper_allowscrapind__c" cntr="{!controller}"/>
+            
+            <c:inputField id="rtroutoper_machtype_pl__c" cntr="{!controller}" rendered="{!isLaborOnly}"/>
+            <c:inputText id="rtroutoper_machhrsim__c" cntr="{!controller}" rendered="{!isLaborOnly}"/>
+            <c:selectList id="rtroutoper_machno__c" cntr="{!controller}" options="{!mfgMachineMasters}" rendered="{!isLaborOnly}"/>
+            <c:inputText id="rtroutoper_machhr__c" cntr="{!controller}" rendered="{!isLaborOnly}"/>
+            <c:inputField id="rtroutoper_machhrsimind_pl__c" cntr="{!controller}" rendered="{!isLaborOnly}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+        
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_div__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_div__c.label}"/>
+                <apex:outputPanel >
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__rtroutoper_div__c}" style="width:250px;"/>
+                        <apex:outputPanel style="display:none;" rendered="{!!isView}">
+                            <apex:inputText id="rtroutoper_div__c" value="{!o.rstk__rtroutoper_div__c}" />
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_hdrid__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_hdrid__c.label}"/>
+                <apex:outputField value="{!o.rstk__rtroutoper_hdrid__c}"/>
+            </apex:pageBlockSectionItem>
+<!-- RCB: RSTK-3692 -->            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_site__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_site__c.label}"/>
+                <c:selectList id="rtroutoper_site__c" required="true" cntr="{!controller}" options="{!Sysites}" tabIndex="100"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_type_pl__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_type_pl__c.label}"/>
+                <c:inputField id="rtroutoper_type_pl__c" required="true" cntr="{!controller}" tabIndex="101" disabled="true"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_item__c.label}"/>
+                <apex:outputField value="{!o.rstk__rtroutoper_item__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_concurseqno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_concurseqno__c.label}"/>
+                <c:inputField id="rtroutoper_concurseqno__c" required="true" cntr="{!controller}" tabIndex="102"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_oper__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_oper__c.label}"/>
+                <c:inputField id="rtroutoper_oper__c" required="true" cntr="{!controller}" tabIndex="3"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_procno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_procno__c.label}"/>
+                <c:selectList id="rtroutoper_procno__c" required="true" cntr="{!controller}" options="{!mfgProcesses}" tabIndex="103"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_descr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_descr__c.label}"/>
+                <c:inputField id="rtroutoper_descr__c" required="true" cntr="{!controller}" tabIndex="4"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_wctr__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_wctr__c.label}"/>
+                <c:selectList id="rtroutoper_wctr__c" required="true" cntr="{!controller}" options="{!mfgWorkCenters}" tabIndex="104"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_subflag__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_subflag__c.label}"/>
+                <c:inputCheckbox id="rtroutoper_subflag__c" cntr="{!controller}" tabIndex="5"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_simstdsetdate__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_simstdsetdate__c.label}"/>
+                <c:inputField id="rtroutoper_simstdsetdate__c" cntr="{!controller}" tabIndex="105"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_labonlyind__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtroutoper_labonlyind__c.label}"/>
+                <c:inputCheckbox id="rtroutoper_labonlyind__c" cntr="{!controller}" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem rendered="{!isView}">
+                <apex:commandbutton value="{!$Label.rstk__rtroutoper_pagebtn_tasks}" onclick="_showDialog('taskpopup',800);onTasksClicked();return false;" style="width:80px;"/>
+            </apex:pageBlockSectionItem>
+            
+        </apex:pageBlockSection>
+        <br/>
+        <apex:tabPanel switchType="client" selectedTab="tab_Laborstds" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_laborstds}" name="tab_Laborstds" id="tab_Laborstds">
+                <apex:pageBlockSection id="pbs_Laborstds" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_setuptype_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_setuptype_pl__c.label}"/>
+                        <c:selectList id="rtroutoper_setuptype_pl__c" cntr="{!controller}" options="{!OpTypes}" tabIndex="201"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_runtype_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_runtype_pl__c.label}"/>
+                        <c:selectList id="rtroutoper_runtype_pl__c" cntr="{!controller}" options="{!OpTypes}" tabIndex="301"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_setuplabgrd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_setuplabgrd__c.label}"/>
+                        <c:selectList id="rtroutoper_setuplabgrd__c" cntr="{!controller}" options="{!mfgLaborGrades}" tabIndex="202"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_runlabgrd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_runlabgrd__c.label}"/>
+                        <c:selectList id="rtroutoper_runlabgrd__c" cntr="{!controller}" options="{!mfgLaborGrades}" tabIndex="302"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_setuphrsimind_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_setuphrsimind_pl__c.label}"/>
+                        <c:inputField id="rtroutoper_setuphrsimind_pl__c" cntr="{!controller}" tabIndex="203"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_runhrsimind_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_runhrsimind_pl__c.label}"/>
+                        <c:inputField id="rtroutoper_runhrsimind_pl__c" cntr="{!controller}" tabIndex="203"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_setuphrsim__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_setuphrsim__c.label}"/>
+                        <c:inputField id="rtroutoper_setuphrsim__c" cntr="{!controller}" tabIndex="204"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_runhrsim__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_runhrsim__c.label}"/>
+                        <c:inputField id="rtroutoper_runhrsim__c" cntr="{!controller}" tabIndex="304"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_setuphr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_setuphr__c.label}"/>
+                        <c:inputField id="rtroutoper_setuphr__c" cntr="{!controller}" tabIndex="205"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_runhr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_runhr__c.label}"/>
+                        <c:inputField id="rtroutoper_runhr__c" cntr="{!controller}" tabIndex="305"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_machinestds}" name="tab_Machinestds" id="tab_Machinestds" rendered="{!!isLaborOnly}">
+                <apex:pageBlockSection id="pbs_Machinestds" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_machtype_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_machtype_pl__c.label}"/>
+                        <c:selectList id="rtroutoper_machtype_pl__c" cntr="{!controller}" options="{!OpTypes}" tabIndex="401"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_machhrsim__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_machhrsim__c.label}"/>
+                        <c:inputField id="rtroutoper_machhrsim__c" cntr="{!controller}" tabIndex="501"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_machno__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_machno__c.label}"/>
+                        <c:selectList id="rtroutoper_machno__c" cntr="{!controller}" options="{!mfgMachineMasters}" tabIndex="402"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_machhr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_machhr__c.label}"/>
+                        <c:inputField id="rtroutoper_machhr__c" cntr="{!controller}" tabIndex="502"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_machhrsimind_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_machhrsimind_pl__c.label}"/>
+                        <c:inputField id="rtroutoper_machhrsimind_pl__c" cntr="{!controller}" tabIndex="403"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_subcontract}" name="tab_Subcontract" id="tab_Subcontract">
+                <apex:pageBlockSection id="pbs_Subcontract" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_subltdays__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_subltdays__c.label}"/>
+                        <c:inputField id="rtroutoper_subltdays__c" required="true" cntr="{!controller}" tabIndex="510"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_phasein}" name="tab_phasein" id="tab_phasein">
+                <apex:pageBlockSection id="pbs_phasein" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__custpage_custom_addrevslct__c.inlineHelpText}" rendered="{!actionType != 'view'}">
+                        <apex:outputLabel value="{!f.rstk__custpage_custom_addrevslct__c.label}"/>
+                        <c:selectList id="custpage_custom_addrevslct__c" cntr="{!controller}" options="{!itemAddRevisions}" tabIndex="600"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_addrev__c.inlineHelpText}" rendered="{!actionType == 'view'}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_addrev__c.label}"/>
+                        <apex:outputField value="{!o.rstk__rtroutoper_addrev__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_adddate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_adddate__c.label}"/>
+                        <c:inputField id="rtroutoper_adddate__c" cntr="{!controller}" tabIndex="601"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_addsts_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_addsts_pl__c.label}"/>
+                        <c:inputField id="rtroutoper_addsts_pl__c" cntr="{!controller}" tabIndex="602"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_phaseout}" name="tab_phaseout" id="tab_phaseout">
+                <apex:pageBlockSection id="pbs_phaseout" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__custpage_custom_delrevslct__c.inlineHelpText}" rendered="{!actionType != 'view'}">
+                        <apex:outputLabel value="{!f.rstk__custpage_custom_delrevslct__c.label}"/>
+                        <c:selectList id="custpage_custom_delrevslct__c" cntr="{!controller}" options="{!itemRevisions}" tabIndex="700"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_delrev__c.inlineHelpText}" rendered="{!actionType == 'view'}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_delrev__c.label}"/>
+                        <apex:outputField value="{!o.rstk__rtroutoper_delrev__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_deldate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_deldate__c.label}"/>
+                        <c:inputField id="rtroutoper_deldate__c" cntr="{!controller}" tabIndex="701"/>
+                    </apex:pageBlockSectionItem>
+                
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_delsts_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_delsts_pl__c.label}"/>
+                        <c:inputField id="rtroutoper_delsts_pl__c" cntr="{!controller}" tabIndex="702"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_options}" name="tab_Options" id="tab_Options">
+                <apex:pageBlockSection id="pbs_Options" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_allowaccind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_allowaccind__c.label}"/>
+                        <c:inputCheckbox id="rtroutoper_allowaccind__c" cntr="{!controller}" tabIndex="802"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_labmachschtype_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_labmachschtype_pl__c.label}"/>
+                        <c:selectList id="rtroutoper_labmachschtype_pl__c" cntr="{!controller}" options="{!SchedTypes}" tabIndex="901"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_altcode__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_altcode__c.label}"/>
+                        <c:inputText id="rtroutoper_altcode__c" cntr="{!controller}" maxlength="6" tabIndex="803"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_movcompind_pl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_movcompind_pl__c.label}"/>
+                        <c:inputField id="rtroutoper_movcompind_pl__c" required="true" cntr="{!controller}" tabIndex="902"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_labbackflush__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_labbackflush__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputCheckbox id="rtroutoper_labbackflush__c" value="{!o.rstk__rtroutoper_labbackflush__c}" tabIndex="804" rendered="{!AND(OR(isEdit, isNew), currDivision.rstk__sydiv_labbackflush__c)}"/>
+                            <apex:outputField value="{!o.rstk__rtroutoper_labbackflush__c}" rendered="{!!AND(OR(isEdit, isNew), currDivision.rstk__sydiv_labbackflush__c)}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_isscomptocompl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_isscomptocompl__c.label}"/>
+                        <c:inputCheckbox id="rtroutoper_isscomptocompl__c" cntr="{!controller}" tabIndex="904"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_labbfclock__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_labbfclock__c.label}"/>
+                        <apex:outputPanel >
+                            <c:selectList id="rtroutoper_labbfclock__c" cntr="{!controller}" options="{!bfusers}" tabIndex="805" rendered="{!currDivision.rstk__sydiv_labbackflush__c}" disabled="{!!o.rstk__rtroutoper_labbackflush__c}"/>
+                            <apex:outputField value="{!o.rstk__rtroutoper_labbfclock__c}" rendered="{!!currDivision.rstk__sydiv_labbackflush__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+		            <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_insptempl__c.inlineHelpText}">
+		                <apex:outputLabel value="{!f.rstk__rtroutoper_insptempl__c.label}"/>
+		                <c:selectList id="rtroutoper_insptempl__c" cntr="{!controller}" options="{!Insptemls}" tabIndex="70"/>
+		            </apex:pageBlockSectionItem>
+                    
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_modifiers}" name="tab_Modifiers" id="tab_Modifiers">
+                <apex:pageBlockSection id="pbs_Modifiers" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_movehr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_movehr__c.label}"/>
+                        <c:inputField id="rtroutoper_movehr__c" cntr="{!controller}" tabIndex="910"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_stddivideby__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_stddivideby__c.label}"/>
+                        <c:inputField id="rtroutoper_stddivideby__c" cntr="{!controller}" tabIndex="921"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_scrapfactor__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_scrapfactor__c.label}"/>
+                        <c:inputField id="rtroutoper_scrapfactor__c" cntr="{!controller}" tabIndex="911"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_notes}" name="tab_Notes" id="tab_Notes">
+                <apex:pageBlockSection id="pbs_Notes" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__rtroutoper_rsnotes__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__rtroutoper_rsnotes__c.label}"/>
+                        <apex:outputPanel >
+                            <c:inputField id="rtroutoper_rsnotes__c" cntr="{!controller}" tabIndex="1001" width="800px" rendered="{!!isView}"/>
+                            <apex:outputPanel rendered="{!isView}">
+                                <table width="100%">
+                                    <apex:repeat value="{!noteLines}" var="n">
+                                        <tr width="100%">
+                                            <td width="100%" style="white-space: pre;">{!n}</td>
+                                        </tr>
+                                    </apex:repeat>
+                                </table>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtroutoper_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    
+    <div id="pleaseWaitPopup" style="display:none">
+        <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+        <apex:outputPanel styleClass="topPopup">
+            <apex:image url="{!$Resource.rstk__busy}"/>
+        </apex:outputPanel>
+    </div>
+    
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        var DupRouting = "{!$Label.rstk__duproutingondivisionanditem}";     
+        var Concurrent = "{!$Label.rstk__concurrentseqmustbegreaterthanzero}"; 
+        var TurnedOn = "{!$Label.rstk__allowacceptmustbeturnedon}";           
+        var Operations = "{!$Label.rstk__usedforconcurrentoperations}";     
+        var Subcontract = "{!$Label.rstk__usedforsubcontractoperations}"; 
+        var DeleteDateAndStatusBothRequired = "{!$Label.rstk__deletedateandstatusbothrequired}";        
+        var DeleteDate = "{!$Label.rstk__deletedatemustbelaterthanadddate}";     
+        var Setup = "{!$Label.rstk__setupgraderequired}";        
+        var Schedule = "{!$Label.rstk__setscheduletypeforsubcontractoperation}";     
+        var ScheduleType = "{!$Label.rstk__scheduletypesonlyusedforsubcontractoperations}"; 
+        var ScheduleTypeL = "{!$Label.rstk__scheduletypelonlyused}";           
+        var ScheduleTypeM = "{!$Label.rstk__scheduletypemonlyused}";     
+        var ScheduleTypeG = "{!$Label.rstk__scheduletypegonlyused}";                
+        var ScheduleTypeB = "{!$Label.rstk__scheduletypebonlyused}";     
+        var SetMachine = "{!$Label.rstk__setmachinetypenforsubcontractoperations}"; 
+        var subcontractLead = "{!$Label.rstk__subcontractleadtimeiszeroforsubcontractoperation}";           
+        var PleaseEnterValueFor = "{!$Label.rstk__pleaseentervaluefor}";     
+        var StatusIsSpecified = "{!$Label.rstk__deletedaterequiredifstatusisspecified}"; 
+        var LessThanAddDate = "{!$Label.rstk__deletedatecannotbelessthanadddate}";        
+        var Released = "{!$Label.rstk__deletestatuscannotbereleased}";     
+        var Implemented = "{!$Label.rstk__deletestatuscannotbeimplemented}";        
+        var DeleteRevNo = "{!$Label.rstk__deleterevnocannotbelessthanaddrevisionno}";     
+        var MoveHrs = "{!$Label.rstk__movehrsmustbe0whenmovecomplete}"; 
+        var SubcontractOper = "{!$Label.rstk__scheduletypesrequiredforsubcontractoperation}";           
+        var NotAllowed = "{!$Label.rstk__scheduletypelnotallowed}";     
+        var MNotAllowed = "{!$Label.rstk__scheduletypemnotallowed}"; 
+        var GNotAllowed = "{!$Label.rstk__scheduletypegnotallowed}";        
+        var BNotAllowed = "{!$Label.rstk__scheduletypebnotallowed}";     
+        var RunHrsDivided = "{!$Label.rstk__pleaseenterrunhrsdividedby0}"; 
+        var RunGrade = "{!$Label.rstk__rungraderequired}";
+        var NonSubcontract = "{!$Label.rstk__fornonsubcontractoperations}";                                                                                                                           
+        var LABEL_SchedTypeNoLongerSupported = "{!$Label.rstk__schedtypenolongersupported}";
+        var LABEL_MachineAndWorkCenterDoesntMatch = "{!$Label.rstk__machineandworkcenterdoesntmatch}";
+        var LABEL_SetSetupGradeAsNoneOrPickSetupTimeType = "{!$Label.rstk__setsetupgradeasnoneorpicksetuptimetype}";
+        var LABEL_PickSetupGradeOrSetSetupTimeAsNone = "{!$Label.rstk__picksetupgradeorsetsetuptimeasnone}";
+        var LABEL_SetRunGradeAsNoneOrPickRunTimeType = "{!$Label.rstk__setrungradeasnoneorpickruntimetype}";
+        var LABEL_PickRunGradeOrSetRunTypeAsNone = "{!$Label.rstk__pickrungradeorsetruntypeasnone}";
+        var LABEL_SetMfgMachineAsNoneOrPickMachineType = "{!$Label.rstk__setmfgmachineasnoneorpickmachinetype}";
+        var LABEL_PickMfgMachineOrSetMachineTypeAsNone = "{!$Label.rstk__pickmfgmachineorsetmachinetypeasnone}";
+        var LABEL_ScrapFactormustbebetween0and1 = "{!$Label.rstk__scrapfactormustbebetween0and1}";
+        var LABEL_EnterReqdField_MachineNum = "{!$Label.rstk__enterreqdfield_machinenum}";
+        var LABEL_SettingAllowAcceptIndicatorAsItIsRequiredForInspectionOperations = "{!$Label.rstk__settingallowacceptindicatorasitisrequiredforinspectionoperations}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

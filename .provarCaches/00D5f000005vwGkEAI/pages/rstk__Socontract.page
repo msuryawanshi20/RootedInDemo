@@ -1,0 +1,947 @@
+<apex:page id="pg" standardController="rstk__socontract__c" extensions="rstk.ControllerExtnSocontract,rstk.RemoteQueryController" 
+    action="{!doBeforePageLoad}" sideBar="false" showHeader="true">
+    <apex:variable var="f_soline" value="{!$ObjectType.rstk__soline__c.fields}" />
+    <style> 
+        .datagrid {
+            margin:0px;padding:0px;
+            width:100%;
+            box-shadow: 10px 10px 5px #888888;
+            border:1px solid #000000;
+            
+            -moz-border-radius-bottomleft:0px;
+            -webkit-border-bottom-left-radius:0px;
+            border-bottom-left-radius:0px;
+            
+            -moz-border-radius-bottomright:0px;
+            -webkit-border-bottom-right-radius:0px;
+            border-bottom-right-radius:0px;
+            
+            -moz-border-radius-topright:0px;
+            -webkit-border-top-right-radius:0px;
+            border-top-right-radius:0px;
+            
+            -moz-border-radius-topleft:0px;
+            -webkit-border-top-left-radius:0px;
+            border-top-left-radius:0px;
+        }.datagrid table{
+            border-collapse: collapse;
+            border-spacing: 0;
+            width:100%;
+            height:100%;
+            margin:0px;padding:0px;
+        }.datagrid tr:last-child td:last-child {
+            -moz-border-radius-bottomright:0px;
+            -webkit-border-bottom-right-radius:0px;
+            border-bottom-right-radius:0px;
+        }
+        .datagrid table tr:first-child td:first-child {
+            -moz-border-radius-topleft:0px;
+            -webkit-border-top-left-radius:0px;
+            border-top-left-radius:0px;
+        }
+        .datagrid table tr:first-child td:last-child {
+            -moz-border-radius-topright:0px;
+            -webkit-border-top-right-radius:0px;
+            border-top-right-radius:0px;
+        }.datagrid tr:last-child td:first-child{
+            -moz-border-radius-bottomleft:0px;
+            -webkit-border-bottom-left-radius:0px;
+            border-bottom-left-radius:0px;
+        }.datagrid tr:hover td{
+        }
+        .datagrid tr:nth-child(odd) { background-color:#e5e5e5; }
+        .datagrid tr:nth-child(even) { background-color:#ffffff; }
+        .datagrid td{
+            vertical-align:middle;
+            border:1px solid #000000;
+            border-width:0px 1px 1px 0px;
+            padding:7px;
+            font-size:11px;
+            font-family:Arial;
+            font-weight:normal;
+            color:#000000;
+        }.datagrid tr:last-child td{
+            border-width:0px 1px 0px 0px;
+        }.datagrid tr td:last-child{
+            border-width:0px 0px 1px 0px;
+        }.datagrid tr:last-child td:last-child{
+            border-width:0px 0px 0px 0px;
+        }
+        .datagrid tr:first-child td{
+            background:-o-linear-gradient(bottom, #cccccc 5%, #b2b2b2 100%);    
+            background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #cccccc), color-stop(1, #b2b2b2) );
+            background:-moz-linear-gradient( center top, #cccccc 5%, #b2b2b2 100% );
+            background: -o-linear-gradient(top,#cccccc,b2b2b2);
+            background-color:#cccccc;
+            border:0px solid #000000;
+            border-width:0px 0px 1px 1px;
+            color:#000000;
+        }
+        .datagrid tr:first-child td:first-child{
+            border-width:0px 0px 1px 0px;
+        }
+        .datagrid tr:first-child td:last-child{
+            border-width:0px 0px 1px 1px;
+        }
+        
+        td.rich-tabhdr-side-border {
+            width:1px !important;
+        }
+    </style>
+    <apex:variable var="o" value="{!rstk__socontract__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__socontract__c.fields}" />
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_socontract}" enableAutocomplete="true"
+        customInclude="{!$Resource.rstk__socontract_cli}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <script>
+        var contractId = '{!o.Id}';
+        var cloneMode = {!cloneMode};
+        var customerName = '{!customerName}';
+        var oppName = '{!oppName}';
+        var socustId = '{!o.rstk__socontract_socust__c}';
+        var isView = {!isView};
+        var initialActive = {!o.rstk__socontract_active__c};
+        var initialStatus = "{!o.rstk__socontract_status__c}";
+        
+        function statusChanged() {
+            var currActive = jQuery("[id$=socontract_active__c]").attr("checked");
+            var currStatus = jQuery("[id$=socontract_status__c]").val();
+            
+            return ((currActive != initialActive) || (currStatus != initialStatus));
+        }
+        
+        var saveAction = null;
+        var savedBlockUI = null;
+        var savedSaveAndNew = null;
+        function doConfirmThenPageSave(actionFunction, blockuiMessage, saveAndNew)
+        {
+            saveAction = actionFunction;
+            savedBlockUI = blockuiMessage;
+            savedSaveAndNew = saveAndNew;
+            if (!{!isNew} && {!isCSG} && statusChanged()) {
+                _showDialog('confirmSave');
+            } else {
+                confirmedPageSave();
+            }
+        }
+        
+        function confirmedPageSave() {
+            doPageSave(saveAction, savedBlockUI, savedSaveAndNew);
+        }
+        
+        function setFocusOnLoad() {}
+        
+        function doClone() {
+            window.open('/apex/socontract?cloneId=' + contractId);
+            return false;
+        }
+        
+        function checkCost(costField) {
+            if (!costField.value || (costField && costField.value && (!isNumber(costField.value) || costField.value < 0))) {
+                alert("{!$Label.rstk__fieldvalcantbelt0}");
+                costField.value = '';
+                costField.focus();
+            }
+        }
+        
+        function openGrid(type) {
+            var width = 1100;
+            if (type == 'Settlements')
+                width = 1200;
+                
+            window.open('/apex/SocontractGrids?id=' + '{!o.Id}' + '&type=' + type + '&noredirect=1', 
+                type, "width=" + width + ",height=480");
+        }
+        
+        function loadFrame(id) {
+            console.log('#' + id + 'Frame');
+            if (!jQuery('#' + id + 'Frame')[0].src)
+                jQuery('#' + id + 'Frame')[0].src = '/apex/SocontractGrids?id=' + '{!o.Id}' + '&type=' + id + '&noredirect=1';
+        }
+    </script>
+    
+    <apex:pageMessages id="pageMessages"/>
+    <apex:form id="fm">
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doAssignItems" action="{!doAssignItems}" oncomplete="unblockUI();" rerender="list, pageMessages"/>
+        <apex:actionFunction name="performDealPriceAllocation" action="{!performDealPriceAllocation}" oncomplete="closeTopDialog();" rerender="tab_dealscalc, pageMessages"/>
+        
+        <apex:pageBlock id="pb" mode="edit">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableDelete="true" saveScript="doConfirmThenPageSave()"/>
+                <apex:commandbutton value="{!$Label.rstk__socontract_pagebtn_clonecontract}" rendered="{!isView}" onclick="doClone();"/>
+            </apex:pageBlockButtons>
+            <div style="width:1250px;">
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" columns="2" >
+                <apex:outputField value="{!o.rstk__socontract_div__c}"/>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_contractid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_contractid__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_contractid__c" value="{!o.rstk__socontract_contractid__c}" required="true" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstk__socontract_contractid__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_active__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_active__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_active__c" value="{!o.rstk__socontract_active__c}" required="true" rendered="{!!isview}"/>
+                        <apex:outputField value="{!o.rstk__socontract_active__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_desc__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_desc__c" value="{!o.rstk__socontract_desc__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_desc__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_cancelled__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_cancelled__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_cancelled__c" value="{!o.rstk__socontract_cancelled__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_cancelled__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_type__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_type__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="socontract_type__c" value="{!o.rstk__socontract_type__c}" size="1" style="width:250px;" rendered="{!!isView}"> 
+                            <apex:selectOptions value="{!ContractTypes}" /> 
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__socontract_type__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_status__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_status__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="socontract_status__c" value="{!o.rstk__socontract_status__c}" size="1" style="width:250px;" rendered="{!!isView}"> 
+                            <apex:selectOptions value="{!ContractStatuses}" /> 
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__socontract_status__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_socust__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_socust__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="socontract_socust__c" cntr="{!controller}" slDesc="{!custDesc}" required="true" query="select id, name from socust__c where socust_inactive__c = false" queryParms="[]"  rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstk__socontract_socust__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_residualval__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_residualval__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_residualval__c" value="{!o.rstk__socontract_residualval__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_residualval__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+               <apex:pageBlockSectionItem rendered="{!!opportunityEnabled}"/>
+               
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_opportunity__c.inlineHelpText}" rendered="{!opportunityEnabled}">
+                    <apex:outputLabel value="{!f.rstk__socontract_opportunity__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="socontract_opportunity__c" cntr="{!controller}" slDesc="{!opDesc}" 
+                            query="select id, name from opportunity{!oppFilter}" queryParms="[]"  rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstk__socontract_opportunity__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_deposit__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_deposit__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_deposit__c" value="{!o.rstk__socontract_deposit__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_deposit__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <!--<apex:pageBlockSectionItem helpText="{!f.socontract_sosla__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.socontract_sosla__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="socontract_sosla__c" value="{!o.socontract_sosla__c}" size="1" style="width:250px;" rendered="{!!isView}"> 
+                            <apex:selectOptions value="{!Slas}" /> 
+                        </apex:selectList>
+                        <apex:outputField value="{!o.socontract_sosla__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>-->
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_financecompany__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_financecompany__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="socontract_financecompany__c" value="{!o.rstk__socontract_financecompany__c}" size="1" style="width:250px;" rendered="{!!isView}"> 
+                            <apex:selectOptions value="{!financecompanys}" /> 
+                        </apex:selectList>
+                        <apex:outputField value="{!o.rstk__socontract_financecompany__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_service__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_service__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_service__c" value="{!o.rstk__socontract_service__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_service__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_showtcconinv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_showtcconinv__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_showtcconinv__c" required="{!isCSG}"
+                            value="{!o.rstk__socontract_showtcconinv__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_showtcconinv__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_mincomvol__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_mincomvol__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_mincomvol__c" value="{!o.rstk__socontract_mincomvol__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_mincomvol__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_showmsconinv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_showmsconinv__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_showmsconinv__c" required="{!isCSG}"
+                            value="{!o.rstk__socontract_showmsconinv__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_showmsconinv__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_chargetype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_chargetype__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_chargetype__c" value="{!o.rstk__socontract_chargetype__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_chargetype__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_washup__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_washup__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_washup__c" value="{!o.rstk__socontract_washup__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_washup__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_purchaseorder__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__socontract_purchaseorder__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="socontract_purchaseorder__c" value="{!o.rstk__socontract_purchaseorder__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__socontract_purchaseorder__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputPanel style="display:none;">
+                    <apex:outputText id="contractId" value="{!o.Id}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            </div>
+            
+            <apex:pageBlockSection id="pbs_grids" showHeader="true" rendered="{!!isNew}" title="{!$Label.rstk__pagetab_socontract_contractelementsmaintenance}" collapsible="true" columns="1">
+            <apex:tabPanel switchType="client" selectedTab="tab_payouts" id="theTabGrids" rendered="{!!isNew}">
+                
+                <!--<apex:tab label="{!$Label.pagetab_socontract_ChequeBack}" id="tab_payouts" rendered="{!isCSG}">
+                    <apex:pageBlock mode="edit">
+                    <c:PageableGrid pageSize="20" jsController="payouts" data="{!payoutGrid}" editable="true" ispopup="false"/>
+                    </apex:pageBlock>
+                    <script>
+                     payouts.resetRow = function(row) {
+                        console.log('payouts.resetRow...');
+                        payoutsHandler.prototype.resetRow.call(this, row);
+                     }
+                     payouts.entryChanged = function(row, rowNum, name, value) {
+                        console.log('payouts.entryChanged...');
+                     }
+                    </script>
+                </apex:tab>-->
+                
+                <!--<apex:tab label="{!$Label.pagetab_socontract_Sponsorships}" id="tab_sponsorships" rendered="{!isCSG}">
+                    <apex:pageBlock mode="edit">
+                    <c:PageableGrid pageSize="20" jsController="sponsorships" data="{!sponsorshipGrid}" editable="true" ispopup="false"/>
+                    </apex:pageBlock>
+                    <script>
+                     sponsorships.resetRow = function(row) {
+                        console.log('sponsorships.resetRow...');
+                        sponsorshipsHandler.prototype.resetRow.call(this, row);
+                     }
+                     sponsorships.entryChanged = function(row, rowNum, name, value) {
+                        console.log('sponsorships.entryChanged...');
+                        if (name == 'socontcred_soprod__c' && value) {
+                            getPrice(value, 'sponsorships', row);
+                        } else if (name == 'socontcred_qty__c') {
+                            var price = sponsorships.getRowValue(row, 'socontcred_price__c');
+                            var totamount = parseLocaleFloat(value) * parseLocaleFloat(price);
+                            sponsorships.setRowValue(row, 'socontcred_totamount__c', totamount);
+                        } else if (name == 'socontcred_price__c') {
+                            var qty = sponsorships.getRowValue(row, 'socontcred_qty__c');
+                            var totamount = parseLocaleFloat(value) * parseLocaleFloat(qty);
+                            sponsorships.setRowValue(row, 'socontcred_totamount__c', totamount);
+                        }
+                     }
+                    </script>
+                </apex:tab>-->
+                
+                <!--<apex:tab label="{!$Label.pagetab_socontract_RentalCredits}" id="tab_rentals" rendered="{!shownRentalAndService}">
+                    <apex:pageBlock mode="edit">
+                    <c:PageableGrid pageSize="20" jsController="rentals" data="{!rentalGrid}" editable="true" ispopup="false"/>
+                    </apex:pageBlock>
+                    <script>
+                    rentals.onGridLoad = function() {
+                        self=this;
+                        var rows = rentals.getRows();
+                        for (var i=0;i<rows.length;i++) {
+                            var row = jQuery(rows[i]);
+                            var fixedAmount = rentals.getRowValue(row, 'socontcred_fixedamt__c');
+                            if (fixedAmount == true) {
+                                rentals.getRowObj(row, 'socontcred_qty__c').attr('disabled', true);
+                            }
+                        }
+                     }
+                    
+                     rentals.entryChanged = function(row, rowNum, name, value) {
+                        console.log('rentals.entryChanged...');
+                        if (name == 'socontcred_soprod__c' && value) {
+                            getPrice(value, 'rentals', row);
+                        } else if (name == 'socontcred_qty__c') {
+                            var price = rentals.getRowValue(row, 'socontcred_price__c');
+                            var totamount = parseLocaleFloat(value) * parseLocaleFloat(price);
+                            rentals.setRowValue(row, 'socontcred_totamount__c', totamount);
+                        } else if (name == 'socontcred_price__c') {
+                            var qty = rentals.getRowValue(row, 'socontcred_qty__c');
+                            var totamount = parseLocaleFloat(value) * parseLocaleFloat(qty);
+                            rentals.setRowValue(row, 'socontcred_totamount__c', totamount);
+                        } else if (name == 'socontcred_fixedamt__c') {
+                            if (value) {
+                                rentals.setRowValue(row, 'socontcred_qty__c', 1);
+                                var price = rentals.getRowValue(row, 'socontcred_price__c');
+                                var totamount = 1 * parseLocaleFloat(price);
+                                rentals.setRowValue(row, 'socontcred_totamount__c', totamount);
+                            }
+                            
+                            rentals.getRowObj(row, 'socontcred_qty__c').attr('disabled', value);
+                        }
+                     }
+                    </script>
+                </apex:tab>-->
+                
+                <!--<apex:tab label="{!$Label.pagetab_socontract_ServiceCredits}" id="tab_services" rendered="{!shownRentalAndService}">
+                    <apex:pageBlock mode="edit">
+                    <c:PageableGrid pageSize="20" jsController="services" data="{!serviceGrid}" editable="true" ispopup="false"/>
+                    </apex:pageBlock>
+                    <script>
+                    services.onGridLoad = function() {
+                        self=this;
+                        var rows = services.getRows();
+                        for (var i=0;i<rows.length;i++) {
+                            var row = jQuery(rows[i]);
+                            var fixedAmount = services.getRowValue(row, 'socontcred_fixedamt__c');
+                            if (fixedAmount == true) {
+                                services.getRowObj(row, 'socontcred_qty__c').attr('disabled', true);
+                            }
+                        }
+                     }
+                     services.resetRow = function(row) {
+                        console.log('services.resetRow...');
+                        servicesHandler.prototype.resetRow.call(this, row);
+                     }
+                     services.entryChanged = function(row, rowNum, name, value) {
+                        console.log('services.entryChanged...');
+                        if (name == 'socontcred_soprod__c' && value) {
+                            getPrice(value, 'services', row);
+                        } else if (name == 'socontcred_qty__c') {
+                            var price = services.getRowValue(row, 'socontcred_price__c');
+                            var totamount = parseLocaleFloat(value) * parseLocaleFloat(price);
+                            services.setRowValue(row, 'socontcred_totamount__c', totamount);
+                        } else if (name == 'socontcred_price__c') {
+                            var qty = services.getRowValue(row, 'socontcred_qty__c');
+                            var totamount = parseLocaleFloat(value) * parseLocaleFloat(qty);
+                            services.setRowValue(row, 'socontcred_totamount__c', totamount);
+                        } else if (name == 'socontcred_fixedamt__c') {
+                            if (value) {
+                                services.setRowValue(row, 'socontcred_qty__c', 1);
+                                var price = services.getRowValue(row, 'socontcred_price__c');
+                                var totamount = 1 * parseLocaleFloat(price);
+                                services.setRowValue(row, 'socontcred_totamount__c', totamount);
+                            }
+                            
+                            services.getRowObj(row, 'socontcred_qty__c').attr('disabled', value);
+                        }
+                     }
+                    </script>
+                </apex:tab>-->
+                
+                <!--<apex:tab label="{!$Label.pagetab_socontract_Discounts}" id="tab_discounts" rendered="{!isCSG}">
+                    <apex:pageBlock mode="edit">
+                    <c:PageableGrid pageSize="20" jsController="discounts" data="{!discountGrid}" editable="true" ispopup="false"/>
+                    </apex:pageBlock>
+                    <script>
+                     discounts.resetRow = function(row) {
+                        console.log('discounts.resetRow...');
+                        discountsHandler.prototype.resetRow.call(this, row);
+                     }
+                     discounts.entryChanged = function(row, rowNum, name, value) {
+                        console.log('discounts.entryChanged...');
+                        if (name == 'socontcred_soprod__c' && value) {
+                            getPrice(value, 'discounts', row);
+                        } else if (name == 'socontcred_qty__c') {
+                            var price = discounts.getRowValue(row, 'socontcred_price__c');
+                            var totamount = parseLocaleFloat(value) * parseLocaleFloat(price);
+                            discounts.setRowValue(row, 'socontcred_totamount__c', totamount);
+                        } else if (name == 'socontcred_price__c') {
+                            var qty = discounts.getRowValue(row, 'socontcred_qty__c');
+                            var totamount = parseLocaleFloat(value) * parseLocaleFloat(qty);
+                            discounts.setRowValue(row, 'socontcred_totamount__c', totamount);
+                        }
+                     }
+                    </script>
+                </apex:tab>-->
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socontract_entitlements}" id="Entitlements" onTabEnter="loadFrame('Entitlements');">
+                    <apex:outputpanel styleclass="spinfo">{!$Label.rstk__contracttabmsg}</apex:outputpanel>
+                    <iframe id="EntitlementsFrame" src="" width="100%" height="240px" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socontract_equipsettlements}" id="Settlements" onTabEnter="loadFrame('Settlements');">
+                    <iframe id="SettlementsFrame" src="" width="100%" height="240px" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socontract_productcredits}" id="Promotions" onTabEnter="loadFrame('Promotions');">
+                    <iframe id="PromotionsFrame" src="" width="100%" height="240px" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socontract_outofterritory}" id="oots" onTabEnter="loadFrame('oots');" rendered="{!isCSG}">
+                    <iframe id="ootsFrame" src="" width="2300px" height="240px" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                </apex:tab>
+                
+                <!--<apex:tab label="{!$Label.pagetab_socontract_OtherFees}" id="tab_fees" rendered="{!isCSG}">
+                    <apex:pageBlock mode="edit">
+                    <c:PageableGrid pageSize="20" jsController="fees" data="{!feeGrid}" editable="true" ispopup="false"/>
+                    </apex:pageBlock>
+                    <c:Popup popupId="otherFeesCoveredItemsPopup" title="{!$Label.pagepopup_socontract_CoveredItems}" onOk="ofci_saveAndClose();" buttonsOnTop="true">
+                        <c:FrameGrid jsController="ofci" page="/apex/SocontractGrids" rootId="{!o.Id}&noredirect=1" preLoad="false" onload="closeTopDialog();"/>
+                    </c:Popup>
+                    <script>
+                     fees.resetRow = function(row) {
+                        console.log('fees.resetRow...');
+                        feesHandler.prototype.resetRow.call(this, row);
+                     }
+                     fees.onGridLoad = function() {
+                        self=this;
+                        var rows = fees.getRows();
+                        for (var i=0;i<rows.length;i++) {
+                            var row = jQuery(rows[i]);
+                            var periodBill = fees.getRowValue(row, 'socontchg_periodbill__c');
+                            if (periodBill != 'Yes') {
+                                fees.getRowObj(row, 'socontchg_periodtype__c').attr('disabled', true);
+                                fees.getRowObj(row, 'socontchg_showinvoice__c').attr('disabled', true);
+                            }
+                        }
+                     }
+                     fees.entryChanged = function(row, rowNum, name, value) {
+                        console.log('fees.entryChanged...');
+                        if (name == 'socontchg_soprod__c' && value) {
+                            getPrice(value, 'fees', row);
+                        } else if (name == 'socontchg_periodbill__c' && value) {
+                            fees.getRowObj(row, 'socontchg_periodtype__c').attr('disabled', value != 'Yes');
+                            fees.getRowObj(row, 'socontchg_showinvoice__c').attr('disabled', value != 'Yes');
+                            fees.getRowObj(row, 'socontchg_periodtype__c').val('');
+                            fees.getRowObj(row, 'socontchg_showinvoice__c').val('');
+                        }
+                     }
+                     fees.onclick=function(row, rowNum, name) {
+                       if (name='coveredItem__g') {
+                         var rowId = this.getRowValue(row, 'Id');
+                         if (rowId != '') {
+                             ofci_overridePopupId(rowId);
+                             ofci_reload();
+                             showTopDialog('pleaseWaitPopup');
+                             _showDialog('otherFeesCoveredItemsPopup');
+                         }
+                       }
+                     }
+                    </script>
+                </apex:tab>-->
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socontract_modelservicecost}" id="tab_costs" rendered="{!isCSG}">
+                    <div class="datagrid">
+                    <table class="list" id="pbt_costs" border="0" cellpadding="0" cellspacing="0" width="500px">
+                        <colgroup span="3"></colgroup>
+                        <thead class="rich-table-thead">
+                            <tr>
+                                <th class="headerRow  " scope="col" colspan="1">
+                                    <div></div>
+                                </th>
+                                <th class="headerRow  " scope="col" colspan="1" >
+                                    <div>Color</div>
+                                </th>
+                                <th class="headerRow  " scope="col" colspan="1" >
+                                    <div>Mono</div>
+                                </th>
+                                <th class="headerRow  " scope="col" colspan="1">
+                                    <div>Scan</div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="dataRow" onmouseover="if (window.hiOn){hiOn(this);} " onmouseout="if (window.hiOff){hiOff(this);} " >
+                                <td class="dataCell" align="right"><b>Minimum Committed Monthly Copy Volume</b></td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_monmincopycol__c" 
+                                        value="{!o.rstk__socontract_monmincopycol__c}" onchange="checkCost(this);" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_monmincopybw__c" 
+                                        value="{!o.rstk__socontract_monmincopybw__c}" onchange="checkCost(this);" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_monmincopyscan__c" 
+                                        value="{!o.rstk__socontract_monmincopyscan__c}" onchange="checkCost(this);" />
+                                </td>
+                            </tr>
+                            <tr class="dataRow" onmouseover="if (window.hiOn){hiOn(this);} " onmouseout="if (window.hiOff){hiOff(this);} ">
+                                <td class="dataCell" align="right"><b>Total Minimum Committed Copy Volume</b></td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_totmincopycol__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_totmincopycol__c}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_totmincopybw__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_totmincopybw__c}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_totmincopyscan__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_totmincopyscan__c}" />
+                                </td>
+                            </tr>
+                            <tr class="dataRow" onmouseover="if (window.hiOn){hiOn(this);} " onmouseout="if (window.hiOff){hiOff(this);} ">
+                                <td class="dataCell" align="right"><b>Total Copy Charge</b></td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_totchargecol__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_totchargecol__c}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_totchargebw__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_totchargebw__c}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_totchargescan__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_totchargescan__c}" />
+                                </td>
+                            </tr>
+                            <tr class="dataRow" onmouseover="if (window.hiOn){hiOn(this);} " onmouseout="if (window.hiOff){hiOff(this);} ">
+                                <td class="dataCell" align="right"><b>Service Cost</b></td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_srvcostcol__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_srvcostcol__c}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_srvcostbw__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_srvcostbw__c}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_srvcostscan__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_srvcostscan__c}" />
+                                </td>
+                            </tr>
+                            <tr class="dataRow" onmouseover="if (window.hiOn){hiOn(this);} " onmouseout="if (window.hiOff){hiOff(this);} ">
+                                <td class="dataCell" align="right"><b>Rental Cost per Copy</b></td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_rentcpccol__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_rentcpccol__c}" />
+                                </td>
+                                <td class="dataCell" colspan="1">
+                                    <apex:inputField id="socontract_rentcpcbw__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_rentcpcbw__c}" />
+                                </td>
+                                <td class="dataCell" colspan="1">
+                                    <apex:inputField id="socontract_rentcpcscan__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_rentcpcscan__c}" />
+                                </td>
+                            </tr>
+                            <tr class="dataRow" onmouseover="if (window.hiOn){hiOn(this);} " onmouseout="if (window.hiOff){hiOff(this);} ">
+                                <td class="dataCell" align="right"><b>Excess Image Charge</b></td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_excesscol__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_excesscol__c}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_excessbw__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_excessbw__c}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:inputField id="socontract_excessscan__c" 
+                                        onchange="checkCost(this);" value="{!o.rstk__socontract_excessscan__c}" />
+                                </td>
+                            </tr>
+                            <tr class="dataRow" onmouseover="if (window.hiOn){hiOn(this);} " onmouseout="if (window.hiOff){hiOff(this);} ">
+                                <td class="dataCell" align="right"><b>Average</b></td>
+                                <td class="dataCell">
+                                    <apex:outputText id="average_col__c" value="{!averagecol}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:outputText id="average_bw__c" value="{!averagebw}" />
+                                </td>
+                                <td class="dataCell">
+                                    <apex:outputText id="average_scan__c" value="{!averagescan}" />
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    </div>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socontract_invoicedetails}" id="tab_details" rendered="{!isCSG}">
+                    <apex:pageBlock id="pb_contractdetails" mode="edit">
+                    <apex:pageBlockSection id="pbs_contractdetails" showHeader="false" columns="2" >
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_term__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_term__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_term__c" value="{!o.rstk__socontract_term__c}" 
+                                onchange="checkCost(this);" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_term__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_billuom__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_billuom__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_billuom__c" value="{!o.rstk__socontract_billuom__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_billuom__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_termuom__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_termuom__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_termuom__c" value="{!o.rstk__socontract_termuom__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_termuom__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_eststartdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_eststartdate__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_eststartdate__c" value="{!o.rstk__socontract_eststartdate__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_eststartdate__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_commencedate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_commencedate__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_commencedate__c" value="{!o.rstk__socontract_commencedate__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_commencedate__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_firstinstallment__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_firstinstallment__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_firstinstallment__c" value="{!o.rstk__socontract_firstinstallment__c}" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_firstinstallment__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rateper1000__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_rateper1000__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_rateper1000__c" value="{!o.rstk__socontract_rateper1000__c}" 
+                                onchange="checkCost(this);" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_rateper1000__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem ><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_rentamount__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_rentamount__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_rentamount__c" value="{!o.rstk__socontract_rentamount__c}" 
+                                onchange="checkCost(this);" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_rentamount__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    </apex:pageBlockSection>
+                    </apex:pageBlock>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_socontract_dealcalculation}" id="tab_dealscalc">
+                    <apex:pageBlock id="pb_dealscalc" mode="edit">
+                    <apex:pageBlockSection id="pbs_dealscalc" showHeader="false" columns="2" >
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_dealvalue__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_dealvalue__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_dealvalue__c" value="{!o.rstk__socontract_dealvalue__c}" 
+                                onchange="checkCost(this);" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_dealvalue__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totpayout__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totpayout__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totpayout__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_fmoverpaid__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_fmoverpaid__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_fmoverpaid__c" value="{!o.rstk__socontract_fmoverpaid__c}" 
+                                onchange="checkCost(this);" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_fmoverpaid__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totcheqback__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totcheqback__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totcheqback__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totalcogs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totalcogs__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totalcogs__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totsrvcred__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totsrvcred__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totsrvcred__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totequipsales__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totequipsales__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totequipsales__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totprodgives__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totprodgives__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totprodgives__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_xferprice__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_xferprice__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_xferprice__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totsponser__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totsponser__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totsponser__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_delprice__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_delprice__c.label}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="socontract_delprice__c" value="{!o.rstk__socontract_delprice__c}" 
+                                onchange="checkCost(this);" rendered="{!!isView}"/>
+                            <apex:outputField value="{!o.rstk__socontract_delprice__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totrentcred__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totrentcred__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totrentcred__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_otherchgs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_otherchgs__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_otherchgs__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_totdiscount__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_totdiscount__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_totdiscount__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_netrevenue__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_netrevenue__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_netrevenue__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_adminfee__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_adminfee__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_adminfee__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_netxferprice__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_netxferprice__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_netxferprice__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__socontract_finalsalesgp__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__socontract_finalsalesgp__c.label}" />
+                        <apex:outputField value="{!o.rstk__socontract_finalsalesgp__c}" rendered="{!isView}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="" />
+                        <apex:outputPanel rendered="{!isView}">
+                            <input id="dealPriceAllocationButton" type="button" class="btn" value="{!$Label.pagebtn_contract_DealPriceAllocation}"
+                               onclick='doDealPriceAllocation();'/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                    </apex:pageBlock>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_CustomR" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_socontract_equipmentsales}">
+                    <c:PageableGrid pageSize="20" jsController="equipmentsales" data="{!equipSolinesGrid}" editable="false" ispopup="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+        <c:Popup title="{!$Label.rstk__notificationtitle}" popupId="dealPriceAllocationConfirmDialog"
+                 onOk="_closeDialog(); showTopDialog('pleaseWaitPopup'); performDealPriceAllocation();" okCaption="{!$Label.rstk__pagebtn_continue}">
+          <span style="font-weight:bold;" id="DealPriceAllocNumLines">TEXT</span>
+        </c:Popup>
+        <c:Popup title="{!$Label.rstk__notificationtitle}" popupId="confirmSave" onOk="confirmedPageSave();">
+          {!$Label.rstk__changestocontractstatusmessage}
+        </c:Popup>
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    <apex:pageBlock id="pb_RelatedLists" rendered="{!!isNew}">
+        <apex:pageBlockSection id="pbs_RelatedLists" showHeader="true" collapsible="true" title="{!$Label.rstk__pagetab_socontract_relatedlists}" columns="1">
+        <apex:tabPanel switchType="client" selectedTab="tab_covereditems" id="theTabPanel" rendered="{!!isNew}">
+            <apex:tab label="{!$Label.rstk__pagetab_socontract_covereditems}" id="tab_covereditems">
+                <apex:pageBlockSection id="pbs_covereditems" showHeader="false" columns="1">
+                    <apex:relatedList list="sowarrs__r"/>
+                </apex:pageBlockSection>
+            </apex:tab>
+        </apex:tabPanel>
+        </apex:pageBlockSection>
+    </apex:pageBlock>
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        if (isView) {
+            jQuery('table[id=pbt_costs] :input').attr('disabled', true);
+            var contractDealValue = parseFloat("{!o.rstk__socontract_dealvalue__c}") || 0;
+            if (contractDealValue == 0) {
+                jQuery('#dealPriceAllocationButton').attr('disabled', true).css('color', '#aaa');
+            }
+        }
+    </script>
+    
+    <script>
+        var LABEL_AllFieldsInModelServiceCostTabNeedToHaveValGTE0 = "{!$Label.rstk__allfieldsinmodelservicecosttabneedtohavevalgte0}";
+        var LABEL_EquipmentLinesShippedDealAllocationError = "{!$Label.rstk__equipmentlinesshippeddealallocationerror}";
+        var LABEL_ProductCostOnEquipmentOrderLinesDealAllocationError = "{!$Label.rstk__productcostonequipmentorderlinesdealallocationerror}";
+        var LABEL_dealDistributeText = "{!$Label.rstk__dealdistributetext}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

@@ -1,0 +1,228 @@
+<apex:page id="pg" standardController="rstk__sowarr__c" extensions="rstk.ControllerExtnSowarr,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__sowarr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sowarr__c.fields}" /> 
+    <apex:variable var="f_sowarrdtl" value="{!$ObjectType.rstk__sowarrdtl__c.fields}" /> 
+  
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sowarr}" customInclude="{!$Resource.rstk__sowarr_cli}" enableAutocomplete="true"/>
+    <script>
+        var divid = "{!o.rstk__sowarr_div__c}";
+    </script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            	<apex:inputHidden id="sowarr_salesdiv__c" value="{!o.rstk__sowarr_salesdiv__c}"/>
+            </apex:outputPanel>
+            
+            <c:division id="sowarr_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_icitem__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_icitem__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="sowarr_icitem__c" cntr="{!controller}" required="true" slDesc="{!ItemName}" rendered="{!isNew}"
+                            query="select id, name from icitem__c where icitem_div__c = 'prm'" 
+                            queryParms="[['sowarr_div__c','Division']]" width="200px" tabIndex="1"/>
+                        <apex:outputField value="{!o.rstk__sowarr_icitem__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__sowarr_salesdiv__c}"/>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_srlno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sowarr_srlno__c.label}"/>
+                    <apex:outputPanel >
+                        <c:inputField id="sowarr_srlno__c" required="true" cntr="{!controller}" rendered="{!isNew}" tabIndex="2"/>
+                        <apex:outputField value="{!o.rstk__sowarr_srlno__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_soprod__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_soprod__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="sowarr_soprod__c" cntr="{!controller}" slDesc="{!ProdName}" rendered="{!!OR(isView, !ISBLANK(o.rstk__sowarr_soline__c))}"
+                            query="select id, name from soprod__c where soprod_div__c = 'prm'" 
+                            minChars="{!prodMinCharForAutoComplete}"
+                            queryParms="[['sowarr_salesdiv__c','Division']]" width="200px" tabIndex="24"/>
+                        <apex:outputField value="{!o.rstk__sowarr_soprod__c}" rendered="{!OR(isView, !ISBLANK(o.rstk__sowarr_soline__c))}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_sowarrtype__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_sowarrtype__c.label}" />
+                    <c:selectList id="sowarr_sowarrtype__c" cntr="{!controller}" options="{!Sowarrtypes}" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__sowarr_soline__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_warrduration__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sowarr_warrduration__c.label}"/>
+                    <c:inputField id="sowarr_warrduration__c" cntr="{!controller}" tabIndex="4"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__sowarr_soship__c}"/>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_origdatesold__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sowarr_origdatesold__c.label}"/>
+                    <c:inputField id="sowarr_origdatesold__c" cntr="{!controller}" required="false" tabIndex="25"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_warruom__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sowarr_warruom__c.label}"/>
+                    <c:inputField id="sowarr_warruom__c" cntr="{!controller}" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_socontract__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_socontract__c.label}" />
+                    <c:selectList id="sowarr_socontract__c" cntr="{!controller}" options="{!Socontracts}" tabIndex="27"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_warrexpdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sowarr_warrexpdate__c.label}"/>
+                    <c:inputField id="sowarr_warrexpdate__c" cntr="{!controller}" tabIndex="6"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_pjproj__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_pjproj__c.label}" />
+	                <c:autocomplete id="sowarr_pjproj__c" required="false" slDesc="{!projectDesc}" cntr="{!controller}" 
+		               	query="select id, name from pjproj__c where pjproj_div__c = '{!o.rstk__sowarr_div__c}' and pjproj_completed__c = false {!IF(o.rstk__sowarr_socontract__c!=null,'and pjproj_socontract__c=\'' & o.rstk__sowarr_socontract__c & '\'','')}"
+	    	           	tabIndex="28"/>
+                </apex:pageBlockSectionItem>
+                             
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_refsrlno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sowarr_refsrlno__c.label}"/>
+                    <c:inputField id="sowarr_refsrlno__c" required="false" cntr="{!controller}" tabIndex="7"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_socontact__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_socontact__c.label}" />
+                    <c:selectList id="sowarr_socontact__c" cntr="{!controller}" options="{!socontacts}" tabIndex="30"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_soldtocust__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_soldtocust__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="sowarr_soldtocust__c" cntr="{!controller}" slDesc="{!SoldtoCustName}" rendered="{!!OR(isView, !ISBLANK(o.rstk__sowarr_soline__c))}" required="true"
+                            query="select id, name from socust__c " width="200px" tabIndex="21"/>
+                        <apex:outputField value="{!o.rstk__sowarr_soldtocust__c}" rendered="{!OR(isView, !ISBLANK(o.rstk__sowarr_soline__c))}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_servicesite__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_servicesite__c.label}" />
+                    <c:selectList id="sowarr_servicesite__c" cntr="{!controller}" options="{!servicesites}" tabIndex="31"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_endusercust__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_endusercust__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="sowarr_endusercust__c" cntr="{!controller}" slDesc="{!EnduserCustName}" rendered="{!!isView}" required="true"
+                            query="select id, name from socust__c " width="200px" tabIndex="22"/>
+                        <apex:outputField value="{!o.rstk__sowarr_endusercust__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__sowarr_sormaser__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_installaddr__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__sowarr_installaddr__c.label}" />
+                    <c:selectList id="sowarr_installaddr__c" cntr="{!controller}" options="{!installaddrs}" tabIndex="23"/>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_Comments" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+                <div style="width:700px;">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_comments__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__sowarr_comments__c.label}"/>
+                        <apex:inputTextarea id="sowarr_comments__c" value="{!o.rstk__sowarr_comments__c}" rows="3" richtext="true" disabled="{!isView}" tabIndex="51"/>
+                    </apex:pageBlockSectionItem>
+                </div>  
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Billing">
+            	<apex:tab label="{!$Label.rstk__pagetab_sowarr_billing}" name="tab_Billing" id="tab_Billing">
+            		<apex:pageBlockSection id="pbs_Billing" showHeader="false" columns="1">
+            			<apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_asset__c.inlineHelpText}">
+		                    <apex:outputLabel value="{!f.rstk__sowarr_asset__c.label}"/>
+		                    <c:inputField id="sowarr_asset__c" cntr="{!controller}" tabIndex="101"/>
+		                </apex:pageBlockSectionItem>
+		                
+		                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_assetgroup__c.inlineHelpText}">
+		                    <apex:outputLabel value="{!f.rstk__sowarr_assetgroup__c.label}"/>
+		                    <c:inputField id="sowarr_assetgroup__c" cntr="{!controller}" tabIndex="102"/>
+		                </apex:pageBlockSectionItem>
+		                
+		                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_asseteffdate__c.inlineHelpText}">
+		                    <apex:outputLabel value="{!f.rstk__sowarr_asseteffdate__c.label}"/>
+		                    <c:inputField id="sowarr_asseteffdate__c" cntr="{!controller}" tabIndex="103"/>
+		                </apex:pageBlockSectionItem>
+		                
+		                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_billinggroup__c.inlineHelpText}">
+		                    <apex:outputLabel value="{!f.rstk__sowarr_billinggroup__c.label}"/>
+		                    <c:inputField id="sowarr_billinggroup__c" cntr="{!controller}" tabIndex="104"/>
+		                </apex:pageBlockSectionItem>
+		                
+		                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_firstusedate__c.inlineHelpText}">
+		                    <apex:outputLabel value="{!f.rstk__sowarr_firstusedate__c.label}"/>
+		                    <c:inputField id="sowarr_firstusedate__c" cntr="{!controller}" tabIndex="105"/>
+		                </apex:pageBlockSectionItem>
+		                
+		                <apex:pageBlockSectionItem helpText="{!f.rstk__sowarr_residualamt__c.inlineHelpText}">
+		                    <apex:outputLabel value="{!f.rstk__sowarr_residualamt__c.label}"/>
+		                    <c:inputField id="sowarr_residualamt__c" cntr="{!controller}" tabIndex="106"/>
+		                </apex:pageBlockSectionItem>
+            		</apex:pageBlockSection>
+            	</apex:tab>
+            	
+            	<apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+	                <c:customFields cntr="{!controller}" cols="2"/>
+	            </apex:tab>
+	            
+	            <apex:tab label="{!$Label.rstk__pagetab_sowarr_info}" name="tab_Info" id="tab_Info" rendered="{!!isNew}">
+					<c:infoSection cntr="{!controller}" showHeader="false"/>
+	            </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <apex:pageBlock rendered="{!!isNew}">
+        <apex:tabPanel switchType="client" selectedTab="tab_sowarrdtl">
+            <apex:tab label="{!$Label.rstk__pagetab_sowarr_shippeditemtransactiondetail}" name="tab_sowarrdtl" id="tab_sowarrdtl">
+                <apex:pageBlockSection id="pbs_TransDetails" showHeader="false" columns="1">
+                    <apex:pageBlockTable value="{!sowarrdtls}" var="d" columnsWidth="100px,300px">
+                        <apex:column headerValue="{!f_sowarrdtl.rstk__sowarrdtl_date__c.label}" style="text-align:left;" value="{!d.rstk__sowarrdtl_date__c}"/>
+                        <apex:column headerValue="{!f_sowarrdtl.rstk__sowarrdtl_soshipserial__c.label}" value="{!d.rstk__sowarrdtl_soshipserial__c}"></apex:column>
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sowarr_cases}" name="tab_cases" id="tab_cases" rendered="{!IsUserLicenseSalesforce}">
+                <apex:relatedList list="cases__r"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sowarr_salesorderlines}" name="tab_solines" id="tab_solines">
+                <apex:relatedList list="solines__r"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sowarr_sowarrhist}" name="tab_sowarrhists" id="tab_sowarrhists">
+                <apex:relatedList list="sowarrhists__r"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+   <script>
+		var LABEL_ResidualAmtHasToBeGrtrThanOrEqual0 = "{!$Label.ResidualAmtHasToBeGrtrThanOrEqual0}";
+		var LABEL_InvalidValForWarrantyDuration = "{!$Label.InvalidValForWarrantyDuration}";
+	</script>
+</apex:page>

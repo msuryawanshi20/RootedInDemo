@@ -1,0 +1,568 @@
+<apex:page id="pg" standardController="rstk__povend__c" extensions="rstk.ControllerExtnPovend,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <apex:variable var="o" value="{!rstk__povend__c}" />
+    <apex:variable var="o_a" value="{!acct}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__povend__c.fields}" />
+    <apex:variable var="f_aa" value="{!$ObjectType.Account.fields}" />
+    <apex:variable var="f_pohdr" value="{!$ObjectType.rstk__pohdr__c.fields}" />
+    <apex:variable var="f_poitemvend" value="{!$ObjectType.rstk__poitemvend__c.fields}" />
+    <apex:variable var="f_povendpoaddr" value="{!$ObjectType.rstk__povendpoaddr__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_povend}" customInclude="{!$Resource.rstk__povend_cli}" enableAutocomplete="true"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+        <script>
+        	var isRootStockFinancials = "{!isRootStockFinancials}";
+            var rsfnsp = "{!rsfnsp}";
+            var isFinancialForceAccounting = {!isFFExist};
+            var povendId = '{!o.Id}';
+            var sycmpid = '{!sycmpid}';
+            var autoNumberVend = {!autoNumberVend};
+            var syconfig_novendacct = '{!syconfig_novendacct}';
+            function classChangedHandler(povclassId) {
+                var initializeFields = {!isNew};
+                console.log('initialize: ' + initializeFields);
+                if ({!isEdit}) {
+                    console.log('[isEdit]');
+                    var userApproved = confirm("{!$Label.PovendPovclassDoYouWantToInitializeExistingDataWithVendorClass}");
+                    initializeFields = userApproved
+                }
+                if (initializeFields) {
+                    sfffSetFieldValue('povend_buyusrno__c', '');
+                    sfffSetFieldValue('povend_poemailtmpl__c', '');
+                    sfffSetFieldValue('povend_terms__c', '');
+                    sfffSetFieldValue('povend_dimval__c', '');
+                    sfffSetFieldValue('povend_carrier__c', '');
+                    sfffSetFieldValue('povend_fob__c', '');
+                    sfffSetFieldValue('povend_frghtrm__c', '');
+                    sfffSetFieldValue('povend_shipviatype__c', '');
+                    if (!isFinancialForceAccounting) {
+                        sfffSetFieldValue('povend_vendcurr__c', '');
+                    }
+
+                    vendorClassChanged(povclassId);
+                }
+            }
+        </script>
+    <style>
+        input[type=checkbox][disabled]{
+            opacity: 0.4;
+        }
+        .modalPopupX{
+            z-index: 30011;
+        }
+        .popupBackgroundX{
+            z-index: 30010;
+        }
+        .ct{
+            text-align:center;
+        }
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="false"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="addPO" action="{!addPO}"/>
+        <apex:actionFunction name="addPoitemvend" action="{!addPoitemvend}"/>
+        <apex:actionFunction name="vendorClassChanged" action="{!classChanged}" immediate="true" oncomplete=";unblockUI();" rerender="pageMessages, 
+            op_maintcurrind, op_buyusrno, op_vendcurr, op_poemailtmpl, pbs_KeyIndicators, pbs_Accounting, pbs_apindicators, pbs_Shipping, pbs_LeadTimes" status="statusProcessing">
+            <apex:param name="povclassid" assignTo="{!o.rstk__povend_povclass__c}" value=""/>
+        </apex:actionFunction>
+        <input name="sfacctid__c" type="hidden"/>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            <apex:outputPanel style="display:none">
+                <apex:inputhidden id="povend_id" value="{!o.id}" />
+                <apex:inputhidden id="povend_multicurrency" value="{!multicurrency}" />
+                <apex:inputhidden id="povend_isffexist" value="{!isFFExist}" />
+                <apex:inputhidden id="povend_deletesfacct" value="{!deleteSFAccount}" />
+            </apex:outputPanel>
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!!syconfig_novendacct}">
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_sf_account__c.inlineHelpText}"> 
+                    <apex:outputLabel value="{!f.rstk__povend_sf_account__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isEditable}">
+                            <apex:outputField value="{!o.rstk__povend_sf_account__c}"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!isEditable}">
+                            <c:autocomplete id="povend_sf_account__c" cntr="{!controller}" slDesc="{!SfCustName}"
+                            query="select id, name from Account where Id not in (select povend_sf_account__c from povend__c)" minChars="{!sfCustMinChars}" tabIndex="1"/>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem id="pbs_buyusrno" helpText="{!f.rstk__povend_buyusrno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_buyusrno__c.label}"/>
+                    <apex:outputPanel id="op_buyusrno">
+                        <apex:outputField value="{!o.rstk__povend_buyusrno__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povend_buyusrno__c" value="{!o.rstk__povend_buyusrno__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            <apex:selectOptions value="{!RespBuyers}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_sf_account_name__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_sf_account_name__c.label}"/>
+                    <c:inputField id="povend_sf_account_name__c" required="true" cntr="{!controller}" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_vendcurr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_vendcurr__c.label}"/>
+                    <apex:outputPanel id="op_vendcurr">
+                        <apex:outputField value="{!o.rstk__povend_vendcurr__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povend_vendcurr__c" value="{!o.rstk__povend_vendcurr__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            <apex:selectOptions value="{!Currencies}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_vendno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_vendno__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:panelGrid columns="2">
+                        <c:inputField id="povend_vendno__c" required="{!!autoNumberVend}" cntr="{!controller}" tabIndex="3"/>
+                        <apex:outputLabel value="{!$Label.rstk__povendvendnoleaveblankforauto}" rendered="{!isNew && autoNumberVend}"/>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_sf_contact__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_sf_contact__c.label}"/>
+                    <apex:outputPanel id="op_sf_contact">
+                        <apex:outputField value="{!o.rstk__povend_sf_contact__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povend_sf_contact__c" value="{!o.rstk__povend_sf_contact__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            <apex:selectOptions value="{!SFContacts}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_povclass__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_povclass__c.label}"/>
+                    <apex:outputPanel id="op_povclass">
+                        <apex:outputField value="{!o.rstk__povend_povclass__c}" rendered="{!isView}"/>
+                        <c:selectList id="povend_povclass__c" cntr="{!controller}" required="{!isRSFinancials}" options="{!Povclasses}" onchange="classChangedHandler(this.value);return false;" tabIndex="10" rendered="{!!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_poemailtmpl__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_poemailtmpl__c.label}"/>
+                    <apex:outputPanel id="op_poemailtmpl">
+                        <apex:outputText value="{!POPrintEmailTemplateName}" rendered="{!isView}"/>
+                        <apex:selectList id="povend_poemailtmpl__c" value="{!o.rstk__povend_poemailtmpl__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            <apex:selectOptions value="{!POPrintEmailTemplates}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_maintcurrind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_maintcurrind__c.label}"/>
+                    <apex:outputPanel id="op_maintcurrind">
+                        <apex:outputField value="{!o.rstk__povend_maintcurrind__c}" rendered="{!isView}"/>
+                        <apex:inputField id="povend_maintcurrind__c" value="{!o.rstk__povend_maintcurrind__c}" rendered="{!!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_custno__c.label}"/>
+                    <c:inputField id="povend_custno__c" required="false" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_fsvendid__c.inlineHelpText}" rendered="{!!isRSFinancials}"> 
+                    <apex:outputLabel value="{!f.rstk__povend_fsvendid__c.label}"/>
+                    <c:inputField id="povend_fsvendid__c" required="false" cntr="{!controller}" tabIndex="105"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_doclanguage__c.inlineHelpText}" rendered="{!!isRSFinancials}">
+                    <apex:outputLabel value="{!f.rstk__povend_doclanguage__c.label}" />
+                    <c:inputField id="povend_doclanguage__c" required="false" cntr="{!controller}" tabIndex="106"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_altfsvendid__c.inlineHelpText}" rendered="{!!isRSFinancials}">
+                    <apex:outputLabel value="{!f.rstk__povend_altfsvendid__c.label}" />
+                    <c:inputField id="povend_altfsvendid__c" required="false" cntr="{!controller}" tabIndex="107"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!isRootStockFinancials}">
+                    <apex:commandButton id="vendorAcctInquiryBtn" value="{!$Label.rstk__btn_vendoracctinquiry}" onclick="openVendorAcctInquiry();return false;"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+
+            <!-- RSTK-1895 -->
+            <apex:pageBlockSection id="pbs_Main2" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!syconfig_novendacct}">
+                 
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_vendno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_vendno__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:panelGrid columns="2">
+                        <c:inputField id="povend_vendno__c" required="{!!autoNumberVend}" cntr="{!controller}" tabIndex="3"/>
+                        <apex:outputLabel value="{!$Label.rstk__povendvendnoleaveblankforauto}" rendered="{!isNew && autoNumberVend}"/>
+                        </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+               
+                <apex:pageBlockSectionItem id="pbs_buyusrno" helpText="{!f.rstk__povend_buyusrno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_buyusrno__c.label}"/>
+                    <apex:outputPanel id="op_buyusrno">
+                        <apex:outputField value="{!o.rstk__povend_buyusrno__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povend_buyusrno__c" value="{!o.rstk__povend_buyusrno__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            <apex:selectOptions value="{!RespBuyers}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!$Label.rstk__name_of_business}">
+                    <apex:outputLabel value="{!$Label.rstk__name_of_business}"/>
+                    <c:inputField id="povend_sf_account_name__c" required="true" cntr="{!controller}" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_vendcurr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_vendcurr__c.label}"/>
+                    <apex:outputPanel id="op_vendcurr">
+                        <apex:outputField value="{!o.rstk__povend_vendcurr__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povend_vendcurr__c" value="{!o.rstk__povend_vendcurr__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            <apex:selectOptions value="{!Currencies}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_povclass__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_povclass__c.label}"/>
+                    <apex:outputPanel id="op_povclass">
+                        <apex:outputField value="{!o.rstk__povend_povclass__c}" rendered="{!isView}"/>
+                        <c:selectList id="povend_povclass__c" cntr="{!controller}" required="{!isRSFinancials}" options="{!Povclasses}" onchange="classChangedHandler(this.value);return false;" tabIndex="10" rendered="{!!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_sf_contact__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_sf_contact__c.label}"/>
+                    <apex:outputPanel id="op_sf_contact">
+                        <apex:outputField value="{!o.rstk__povend_sf_contact__c}" rendered="{!isView}"/>
+                        <apex:selectList id="povend_sf_contact__c" value="{!o.rstk__povend_sf_contact__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            <apex:selectOptions value="{!SFContacts}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_maintcurrind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_maintcurrind__c.label}"/>
+                    <apex:outputPanel id="op_maintcurrind">
+                        <apex:outputField value="{!o.rstk__povend_maintcurrind__c}" rendered="{!isView}"/>
+                        <apex:inputField id="povend_maintcurrind__c" value="{!o.rstk__povend_maintcurrind__c}" rendered="{!!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+              
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_poemailtmpl__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_poemailtmpl__c.label}"/>
+                    <apex:outputPanel id="op_poemailtmpl">
+                        <apex:outputText value="{!POPrintEmailTemplateName}" rendered="{!isView}"/>
+                        <apex:selectList id="povend_poemailtmpl__c" value="{!o.rstk__povend_poemailtmpl__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            <apex:selectOptions value="{!POPrintEmailTemplates}"/>
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_fsvendid__c.inlineHelpText}" rendered="{!!isRSFinancials}"> 
+                    <apex:outputLabel value="{!f.rstk__povend_fsvendid__c.label}"/>
+                    <c:inputField id="povend_fsvendid__c" required="false" cntr="{!controller}" tabIndex="105"/>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__povend_custno__c.label}"/>
+                    <c:inputField id="povend_custno__c" required="false" cntr="{!controller}"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_altfsvendid__c.inlineHelpText}" rendered="{!!isRSFinancials}">
+                    <apex:outputLabel value="{!f.rstk__povend_altfsvendid__c.label}" />
+                    <c:inputField id="povend_altfsvendid__c" required="false" cntr="{!controller}" tabIndex="107"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__povend_doclanguage__c.inlineHelpText}" rendered="{!!isRSFinancials}">
+                    <apex:outputLabel value="{!f.rstk__povend_doclanguage__c.label}" />
+                    <c:inputField id="povend_doclanguage__c" required="false" cntr="{!controller}" tabIndex="106"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem >
+
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem rendered="{!isRootStockFinancials}">
+                    <apex:commandButton id="vendorAcctInquiryBtn" value="{!$Label.rstk__btn_vendoracctinquiry}" onclick="openVendorAcctInquiry();return false;"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+            </apex:pageBlockSection>
+            <!-- RSTK-1895 -->
+            <br/>
+            <apex:tabPanel switchType="client" selectedTab="tab_Options" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_povend_recentorders}" name="tab_Pohdrs" rendered="{!actionType != 'create'}">
+                    <apex:pageBlockSection id="pbs_pohdrs" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+                        <input type="button" value="{!$Label.New_Purchase_Order}" class="btn" onclick="addPO();return false;"/>
+                        <apex:pageBlockTable value="{!pohdrs}" var="po">
+                            <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.rstk__pohdr__c.View, po.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_confsel_view}</apex:outputLink> |&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__pohdr__c.Edit, po.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_edit}</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_pohdr.Name.label}"><apex:outputLink value="{!URLFOR($Action.rstk__pohdr__c.View, po.id)}{!ReturnUrlParms}"><apex:outputField id="pohdr_name" value="{!po.name}"/></apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_pohdr.rstk__pohdr_div__c.label}"><apex:outputField id="pohdr_div__c" value="{!po.rstk__pohdr_div__c}"/></apex:column>
+                            <apex:column headerValue="{!f_pohdr.rstk__pohdr_ordno__c.label}"><apex:outputField id="pohdr_ordno__c" value="{!po.rstk__pohdr_ordno__c}"/></apex:column>
+                            <apex:column headerValue="{!f_pohdr.rstk__pohdr_ordsts__c.label}"><apex:outputField id="pohdr_ordsts__c" value="{!po.rstk__pohdr_ordsts__c}"/></apex:column>
+                            <apex:column headerValue="{!f_pohdr.rstk__pohdr_totamt__c.label}"><apex:outputText id="pohdr_totamt__c" html-decimals="2" value="{!po.rstk__pohdr_totamt__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_items}" name="tab_Poitemvends" rendered="{!actionType != 'create'}">
+                    <apex:pageBlockSection id="pbs_poitemvends" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+                        <apex:commandButton id="itemButton" value="{!$Label.rstk__pagebtn_povend_newitemforvendor}" rendered="{!itemBtnDisp}" onclick="addPoitemvend();return false;"/>
+                        <apex:outputPanel layout="block" styleClass="pSearchShowMore">
+                            {!$Label.rstk__total_records_found}: <apex:outputText >{!poitemVendController.resultSize}{!IF(poitemVendController.resultSize = 9999, '+', '')}</apex:outputText>
+                            <apex:image url="/img/search_prevarrow_disabled.gif" styleClass="prevArrow"
+                                rendered="{!NOT(poitemVendController.HasPrevious)}"/>
+                            <apex:image url="/img/search_prevarrow.gif" title="{!$Label.rstk__previouspage}" styleClass="prevArrow"
+                                rendered="{!poitemVendController.HasPrevious}"/>
+                            <apex:commandLink action="{!previousPoitemvends}" title="{!$Label.rstk__previouspage}" value="{!$Label.rstk__previouspage}"
+                                rendered="{!poitemVendController.HasPrevious}"/>
+                            <apex:outputPanel styleClass="pShowLess noLink" style="color:grey"
+                                rendered="{!NOT(poitemVendController.HasPrevious)}">{!$Label.rstk__previous_page}</apex:outputPanel>
+                            &nbsp;({!IF(poitemVendController.PageNumber == 1, 1, ((poitemVendController.PageNumber - 1) * poitemVendController.PageSize)+1)}&nbsp;-
+                                {!IF(OR(poitemVendController.resultSize < poitemVendController.PageSize, NOT(poitemVendController.HasNext)), poitemVendController.resultSize, poitemVendController.PageNumber * poitemVendController.pageSize)})&nbsp;
+                            <apex:outputPanel styleClass="pShowLess noLink" style="color:grey" rendered="{!NOT(poitemVendController.HasNext)}">{!$Label.rstk__next_page}</apex:outputPanel>
+                            <apex:commandLink title="{!$Label.rstk__nextpage}" value="{!$Label.rstk__nextpage}" rendered="{!poitemVendController.HasNext}" action="{!nextPoitemvends}"/>&nbsp;
+                            <apex:image url="/img/search_nextarrow.gif" title="{!$Label.rstk__nextpage}" styleClass="nextArrow" rendered="{!poitemVendController.HasNext}"/>
+                            <apex:image url="/img/search_nextarrow_disabled.gif" rendered="{!NOT(poitemVendController.HasNext)}"/>
+                        </apex:outputPanel>
+                        <apex:pageBlockTable value="{!poitemvends}" var="pv">
+                            <apex:column headerValue="{!$Label.rstk__action}"><apex:outputLink value="{!URLFOR($Action.rstk__poitemvend__c.View, pv.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_confsel_view}</apex:outputLink> |&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__poitemvend__c.Edit, pv.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_edit}</apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_poitemvend.Name.label}"><apex:outputLink value="{!URLFOR($Action.rstk__poitemvend__c.View, pv.id)}{!ReturnUrlParms}"><apex:outputField id="poitemvend_name" value="{!pv.name}"/></apex:outputLink></apex:column>
+                            <apex:column headerValue="{!f_poitemvend.rstk__poitemvend_div__c.label}"><apex:outputField id="poitemvend_div__c" value="{!pv.rstk__poitemvend_div__c}"/></apex:column>
+                            <apex:column headerValue="{!f_poitemvend.rstk__poitemvend_item__c.label}"><apex:outputField id="poitemvend_item__c" value="{!pv.rstk__poitemvend_item__c}"/></apex:column>
+                            <apex:column headerValue="{!f_poitemvend.rstk__poitemvend_vendpartno__c.label}"><apex:outputField id="poitemvend_vendpartno__c" value="{!pv.rstk__poitemvend_vendpartno__c}"/></apex:column>
+                            <apex:column headerValue="{!f_poitemvend.rstk__poitemvend_poprice__c.label}"><apex:outputText id="poitemvend_poprice__c" html-decimals="2" value="{!pv.rstk__poitemvend_poprice__c}"/></apex:column>
+                            <apex:column headerValue="{!f_poitemvend.rstk__poitemvend_lastpoprice__c.label}"><apex:outputText id="poitemvend_lastpoprice__c" html-decimals="2" value="{!pv.rstk__poitemvend_lastpoprice__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__isprimary}"><apex:outputField id="poitemvend_primeind__c" value="{!pv.rstk__poitemvend_primeind__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_addresses}" name="tab_VendAddress" id="tab_VendAddress" rendered="{!actionType != 'create'}">
+                    <apex:pageBlockSection id="pbs_VendAddr" showHeader="false" title="{!$Label.rstk__information}" columns="1" >
+                        <apex:outputLink value="{!URLFOR($Action.rstk__povendpoaddr__c.New)}{!ReturnUrlParms}" rendered="{!!Addresspolicy}">{!$Label.rstk__new_vendor_address}</apex:outputLink>
+                        <apex:pageBlockTable value="{!povendpoaddrs}" var="a">
+                            <apex:column headerValue="{!$Label.rstk__action}" rendered="{!!Addresspolicy}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__povendpoaddr__c.Edit, a.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_edit}</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__povendpoaddr__c.View, a.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_poship_del}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__action}" rendered="{!Addresspolicy}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__povendpoaddr__c.View, a.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_confsel_view}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__seq}"><apex:outputField id="povendpoaddr_seq__c" value="{!a.rstk__povendpoaddr_seq__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_street__c.label}"><apex:outputField id="povendpoaddr_street__c" value="{!a.rstk__povendpoaddr_street__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_city__c.label}"><apex:outputField id="povendpoaddr_city__c" value="{!a.rstk__povendpoaddr_city__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_stateprov__c.label}"><apex:outputField id="povendpoaddr_stateprov__c" value="{!a.rstk__povendpoaddr_stateprov__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_zippostalcode__c.label}"><apex:outputField id="povendpoaddr_zipostalcode__c" value="{!a.rstk__povendpoaddr_zippostalcode__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_country__c.label}"><apex:outputField id="povendpoaddr_country__c" value="{!a.rstk__povendpoaddr_country__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_phone__c.label}"><apex:outputField id="povendpoaddr_phone__c" value="{!a.rstk__povendpoaddr_phone__c}"/></apex:column>
+                            <apex:column headerValue="{!f_povendpoaddr.rstk__povendpoaddr_contactemail__c.label}"><apex:outputField id="povendpoaddr_contactemail__c" value="{!a.rstk__povendpoaddr_contactemail__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__asmailto}"><apex:outputField id="povendpoaddr_useasmailto__c" value="{!a.rstk__povendpoaddr_useasmailto__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__dfltmailto}"><apex:outputField id="povendpoaddr_defaultmailto__c" value="{!a.rstk__povendpoaddr_defaultmailto__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__asbillto}"><apex:outputField id="povendpoaddr_useasbillto__c" value="{!a.rstk__povendpoaddr_useasbillto__c}"/></apex:column>
+                            <apex:column headerValue="{!$Label.rstk__dfltbillto}"><apex:outputField id="povendpoaddr_defaultbillto__c" value="{!a.rstk__povendpoaddr_defaultbillto__c}"/></apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_vendorcontacts}" id="tab_contacts" rendered="{!!isNew}">
+                    <apex:pageBlock mode="edit">
+                    <c:PageableGrid jsController="contacts" data="{!contactsGrid}" pageSize="15" editable="true" ispopup="false"/>
+                    </apex:pageBlock>
+                    <script>
+                    contacts.resetRow = function(row) {
+                        console.log('contacts.resetRow...');
+                        contactsHandler.prototype.resetRow.call(this, row);
+                    }
+                    contacts.entryChanged = function(row, rowNum, name, value) {
+                        console.log('contacts.entryChanged...');
+                        if (name == 'pocontact_contact__c' && value) {
+                            var samename = jQuery("input[class*=pocontact_contact__c][value$='" + value + "']");
+                            if (samename.length > 0) {
+                                alert("{!$Label.ContactAlreadyExists_EnterDiffName}", value);
+                                contacts.setRowValue(row, 'pocontact_contact__c', '');
+                            }
+                        }
+                    }
+                </script>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_keyindicators}">
+                <apex:pageBlockSection id="pbs_KeyIndicators" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_indmtlind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_indmtlind__c.label}"/>
+                        <apex:outputPanel id="op_povend_indmtlind">
+                            <apex:outputField value="{!o.rstk__povend_indmtlind__c}" rendered="{!isView}"/>
+                            <apex:inputField id="povend_indmtlind__c" value="{!o.rstk__povend_indmtlind__c}" rendered="{!!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_dirmtlind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_dirmtlind__c.label}"/>
+                        <apex:outputPanel id="op_povend_dirmtlind">
+                            <apex:outputField value="{!o.rstk__povend_dirmtlind__c}" rendered="{!isView}"/>
+                            <apex:inputField id="povend_dirmtlind__c"  value="{!o.rstk__povend_dirmtlind__c}" rendered="{!!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_serviceind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_serviceind__c.label}"/>
+                        <apex:outputPanel id="op_povend_serviceind">
+                            <apex:outputField value="{!o.rstk__povend_serviceind__c}" rendered="{!isView}"/>
+                            <apex:inputField id="povend_serviceind__c" value="{!o.rstk__povend_serviceind__c}" rendered="{!!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_accounting}">
+                <apex:pageBlockSection id="pbs_Accounting" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_terms__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_terms__c.label}"/>
+                        <apex:outputPanel id="op_terms">
+                            <apex:outputField value="{!o.rstk__povend_terms__c}" rendered="{!isView}"/>
+                            <apex:selectList id="povend_terms__c" value="{!o.rstk__povend_terms__c}" multiselect="false" rendered="{!!isView}" size="1">
+                                <apex:selectOptions value="{!Terms}"/>
+                            </apex:selectList>
+                    </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_taxid__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_taxid__c.label}"/>
+                            <apex:outputPanel id="op_taxid">
+                                <apex:outputText value="{!o.rstk__povend_taxid__c}" rendered="{!isView}"/>
+                                <apex:inputText value="{!o.rstk__povend_taxid__c}" rendered="{!!isView}"/>
+                            </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_dimval__c.inlineHelpText}" >
+                         <apex:outputLabel value="{!f.rstk__povend_dimval__c.label}" />
+                            <apex:outputPanel id="op_dimval">
+                                <apex:outputField value="{!o.rstk__povend_dimval__c}" rendered="{!isView}"/>
+                                <c:autocomplete id="povend_dimval__c" cntr="{!controller}" slDesc="{!sydimDesc}" 
+                                    query="" 
+                                    queryParms="[]"  
+                                    useCustomAutocomplete="true" 
+                                    autocompleteController="ControllerExtnPovend"
+                                    autocompleteMethodParms="fieldId=povend_dimval__c;divID={!divIDValue}"
+                                    rendered="{!!isView}"/>
+                         </apex:outputPanel>
+                    </apex:pageBlockSectionItem> 
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_vatclass__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_vatclass__c.label}"/>
+                        <apex:outputPanel id="op_vatclass">
+                        	<apex:outputField value="{!o.rstk__povend_vatclass__c}" rendered="{!isView}"/>
+                        	<apex:selectList id="povend_vatclass__c" value="{!o.rstk__povend_vatclass__c}" multiselect="false" rendered="{!!isView}" size="1">
+                            	<apex:selectOptions value="{!VATClass}"/>
+                        	</apex:selectList>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_buyerpaysbc__c.inlineHelpText}">
+	                    <apex:outputLabel value="{!f.rstk__povend_buyerpaysbc__c.label}"/>
+	                    <apex:outputPanel id="op_buyerpaysbc">
+	                        <apex:outputField value="{!o.rstk__povend_buyerpaysbc__c}" rendered="{!isView}"/>
+	                        <apex:inputField id="povend_buyerpaysbc__c" value="{!o.rstk__povend_buyerpaysbc__c}" rendered="{!!isView}"/>
+	                    </apex:outputPanel>
+	                </apex:pageBlockSectionItem>
+                    
+                </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_shipping}">
+                <apex:pageBlockSection id="pbs_Shipping" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_carrier__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_carrier__c.label}"/>
+                        <apex:outputPanel id="op_carrier">
+                            <apex:outputField value="{!o.rstk__povend_carrier__c}" rendered="{!isView}"/>
+                            <apex:selectList id="povend_carrier__c" value="{!o.rstk__povend_carrier__c}" multiselect="false" rendered="{!!isView}" size="1">
+                                <apex:selectOptions value="{!Carriers}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_shipviatype__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_shipviatype__c.label}"/>
+                        <apex:outputPanel id="op_shipviatype">
+                            <apex:outputField value="{!o.rstk__povend_shipviatype__c}" rendered="{!isView}"/>
+                            <apex:selectList id="povend_shipviatype__c" value="{!o.rstk__povend_shipviatype__c}" multiselect="false" rendered="{!!isView}" size="1">
+                                <apex:selectOptions value="{!ShipMethodTypes}"/>
+                            </apex:selectList>
+                    </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_fob__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_fob__c.label}"/>
+                        <apex:outputPanel id="op_fob">
+                            <apex:outputField value="{!o.rstk__povend_fob__c}" rendered="{!isView}"/>
+                            <apex:selectList id="povend_fob__c" value="{!o.rstk__povend_fob__c}" multiselect="false" rendered="{!!isView}" size="1">
+                                <apex:selectOptions value="{!FOBs}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_frghtrm__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_frghtrm__c.label}"/>
+                        <apex:outputPanel id="op_frghtrm">
+                            <apex:outputField value="{!o.rstk__povend_frghtrm__c}" rendered="{!isView}"/>
+                            <apex:selectList id="povend_frghtrm__c" value="{!o.rstk__povend_frghtrm__c}" multiselect="false" rendered="{!!isView}" size="1">
+                                <apex:selectOptions value="{!FreightTerms}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_leadtimes}">
+                <apex:pageBlockSection id="pbs_LeadTimes" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_ltvend__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_ltvend__c.label}"/>
+                        <apex:outputPanel id="op_ltvend">
+                            <apex:outputField value="{!o.rstk__povend_ltvend__c}" rendered="{!isView}"/>
+                            <apex:inputField id="povend_ltvend__c" value="{!o.rstk__povend_ltvend__c}" rendered="{!!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_ltvendovrind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_ltvendovrind__c.label}"/>
+                        <apex:outputPanel id="op_ltvendovrind">
+                            <apex:outputField value="{!o.rstk__povend_ltvendovrind__c}" rendered="{!isView}"/>
+                            <apex:inputField id="povend_ltvendovrind__c" value="{!o.rstk__povend_ltvendovrind__c}" rendered="{!!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_ltvendship__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_ltvendship__c.label}"/>
+                        <apex:outputPanel id="op_ltvendship">
+                            <apex:outputField value="{!o.rstk__povend_ltvendship__c}" rendered="{!isView}"/>
+                            <apex:inputField id="povend_ltvendship__c" value="{!o.rstk__povend_ltvendship__c}" rendered="{!!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__povend_ltvendshipovrind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__povend_ltvendshipovrind__c.label}"/>
+                        <apex:outputPanel id="op_povend_ltvendshipovrind">
+                            <apex:outputField value="{!o.rstk__povend_ltvendshipovrind__c}" rendered="{!isView}"/>
+                            <apex:inputField id="povend_ltvendshipovrind__c" value="{!o.rstk__povend_ltvendshipovrind__c}" rendered="{!!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_povend_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    <script>
+        var allowDeleteAccount = {!allowDeleteAccount};
+        var LABEL_SFAcctAlreadyExistsWithName_SelDiffSFAccNameVal = "{!$Label.SFAcctAlreadyExistsWithName_SelDiffSFAccNameVal}";
+        var LABEL_SFAcctAlreadyExistsWithAccNum_SelDiffVendorNumValToBeUsedAsSFAccNum = "{!$Label.SFAcctAlreadyExistsWithAccNum_SelDiffVendorNumValToBeUsedAsSFAccNum}";
+        var LABEL_OneOrMorePOExist_CurrencyCantBeChanged = "{!$Label.OneOrMorePOExist_CurrencyCantBeChanged}";
+        var LABEL_ProvideSFVendorName = "{!$Label.ProvideSFVendorName}";
+        var LABEL_SelSFVendor = "{!$Label.SelSFVendor}";
+        var LABEL_Warning_SFAcctDoesntHaveAccPayableCntrlAndDefExpAccSet_SetBefInvPostToVendor = "{!$Label.Warning_SFAcctDoesntHaveAccPayableCntrlAndDefExpAccSet_SetBefInvPostToVendor}";
+        var LABEL_ProvideExpAcc_SinceMfgAcctDeivSpecified = "{!$Label.ProvideExpAcc_SinceMfgAcctDeivSpecified}";
+        var LABEL_ProvideMfgAccDiv_SinceExpenseAccSpecified = "{!$Label.ProvideMfgAccDiv_SinceExpenseAccSpecified}";
+        var LABEL_DoYouWantToDelVendor = "{!$Label.DoYouWantToDelVendor}";
+        var LABEL_WantToAlsoDelAssocSFAcc = "{!$Label.WantToAlsoDelAssocSFAcc}";
+        var LABEL_NextAutoNumberingVendorNumberMatchesExistingAccountNumber = "{!$Label.NextAutoNumberingVendorNumberMatchesExistingAccountNumber}";
+        var LABEL_VAcctAlreadyExists = "{!$Label.label_VAcctAlreadyExists}"
+        setSelectListRequired('povend_terms__c');
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

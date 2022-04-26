@@ -1,0 +1,158 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_woscheduling}" standardController="rstk__woscheduling__c" extensions="rstk.ControllerExtnWoscheduling,rstk.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__woscheduling__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__woscheduling__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_woscheduling}" customInclude="{!$Resource.rstk__wo_scheduling_sl_cli}"/> 
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+   
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="loadWorkOrders" action="{!doloadWorkorders}" 
+            oncomplete="enableFixedHeaderSort('pg:fm:pb:pbt'); unblockUI();" 
+            rerender="op_WorkOrders,pageMessages,op_ScheduleStatus" immediate="false"/>
+        <apex:actionFunction name="schedule" action="{!doSchedule}" 
+            oncomplete="checkJobStatus();" 
+            rerender="op_JobStatus,pageMessages" immediate="false"/>
+        <apex:actionFunction name="displayResults" action="{!doDisplayResults}" 
+            oncomplete="enableFixedHeaderSort('pg:fm:pb:pbt_status'); unblockUI();" 
+            rerender="op_ScheduleStatus,pageMessages,op_WorkOrders" immediate="false"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}" disableSave="true" disableDelete="true" disableCancel="true"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_woscheduling_displayworkorders}" onclick="return doLoadWorkOrders();" style="width:150px;"/>
+            <apex:commandButton value="{!$Label.rstk__pagebtn_woscheduling_process}" onclick="return doSchedule();" style="width:75px;"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputHidden id="woscheduling_wolist__c" value="{!o.rstk__woscheduling_wolist__c}" />
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+        <c:division id="woscheduling_div__c" cntr="{!controller}" />
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+            <apex:pageBlockSectionItem helpText="{!f.rstk__woscheduling_runoption__c.inlineHelpText}" >
+                <apex:outputLabel value="{!f.rstk__woscheduling_runoption__c.label}" />
+                <c:selectList id="woscheduling_runoption__c" required="true" cntr="{!controller}" options="{!runOptions}" width="300px" tabIndex="102" />
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        
+        <apex:outputPanel id="op_ScheduleStatus">
+            <apex:outputPanel rendered="{!displayResults}">
+            <table class="list" id="pg:fm:pb:pbt_status" border="0" cellpadding="0" cellspacing="0">
+            <colgroup span="4"></colgroup>
+            <thead class="">
+                <tr class="headerRow">
+                    <th class="headerRow floatingStyle header" scope="col" colspan="1"><div>{!$Label.workOrder}</div></th>
+                    <th class="headerRow floatingStyle" scope="col" colspan="1"><div>{!$Label.extracted}</div></th>
+                    <th class="headerRow floatingStyle" scope="col" colspan="1"><div>{!$Label.scheduled}</div></th>
+                    <th class="headerRow floatingStyle header" scope="col" colspan="1"><div>{!$Label.Comments}</div></th>
+                </tr>
+            </thead>
+            <tbody id="pg:fm:pb:pbt_status:tb">
+                <apex:repeat value="{!resultLists}" var="rl">
+                <apex:repeat value="{!rl.results}" var="rec">
+                <tr class="dataRow even first" onmouseover="if (window.hiOn){hiOn(this);}" onmouseout="if (window.hiOff){hiOff(this);}" onblur="if (window.hiOff){hiOff(this);}" onfocus="if (window.hiOn){hiOn(this);}">
+                    <td class="dataCell" colspan="1">{!rec.ordno}</td>
+                    <td class="dataCell" colspan="1">
+                        <apex:outputPanel rendered="{!rec.extracted}">
+                            <input type="checkbox" checked="checked" disabled="disabled"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!!rec.extracted}">
+                            <input type="checkbox" disabled="disabled"/>
+                        </apex:outputPanel>
+                    </td>
+                    <td class="dataCell" colspan="1">
+                        <apex:outputPanel rendered="{!rec.scheduled}">
+                            <input type="checkbox" checked="checked" disabled="disabled"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!!rec.scheduled}">
+                            <input type="checkbox" disabled="disabled"/>
+                        </apex:outputPanel>
+                    </td>
+                    <td class="dataCell" colspan="1">{!rec.comment}</td>
+                </tr>
+                </apex:repeat>
+                </apex:repeat>
+            </tbody>
+            </table>
+            </apex:outputPanel>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_WorkOrders">
+            <apex:outputPanel rendered="{!displayWos}">
+            <apex:commandButton onclick="markAll(true); return false;" value="{!$Label.rstk__pagebtn_woscheduling_markall}"/>
+            <apex:commandButton onclick="markAll(false); return false;" value="{!$Label.rstk__pagebtn_woscheduling_unmarkall}"/>
+            <apex:outputPanel id="op_gridList" style="height:440px;overflow:auto;display:block">
+
+            <table class="list" id="pg:fm:pb:pbt" border="0" cellpadding="0" cellspacing="0">
+            <colgroup span="6"></colgroup>
+            <thead class="">
+                <tr class="headerRow">
+                    <th class="headerRow" scope="col" colspan="1"><div>{!$Label.select}</div></th>
+                    <th class="headerRow" scope="col" colspan="1"><div>{!$Label.workOrder}</div></th>
+                    <th class="headerRow" scope="col" colspan="1"><div>{!$Label.item}</div></th>
+                    <th class="headerRow" scope="col" colspan="1"><div>{!$Label.Project}</div></th>
+                    <th class="headerRow" scope="col" colspan="1"><div>{!$Label.status}</div></th>
+                    <th class="headerRow" scope="col" colspan="1"><div>{!$Label.opsExtracted}</div></th>
+                </tr>
+            </thead>
+            <tbody id="pg:fm:pb:pbt:tb">
+                <apex:repeat value="{!woItemLists}" var="wl">
+                <apex:repeat value="{!wl.woItems}" var="rec">
+                <tr class="{!rec.htmlclass}" onmouseover="if (window.hiOn){hiOn(this);}" onmouseout="if (window.hiOff){hiOff(this);}" onblur="if (window.hiOff){hiOff(this);}" onfocus="if (window.hiOn){hiOn(this);}">
+                    <td class="dataCell" colspan="1">
+                        <input id="pbt:{!rec.index}:wo_selected" type="checkbox"/>
+                        <input id="pbt:{!rec.index}:wocst_id" type="hidden" value="{!rec.id}"/>
+                    </td>
+                    <td class="dataCell" colspan="1">{!rec.ordno}</td>
+                    <td class="dataCell" colspan="1">{!rec.item}</td>
+                    <td class="dataCell" colspan="1">{!rec.proj}</td>
+                    <td class="dataCell" colspan="1">{!rec.ordsts}</td>
+                    <td class="dataCell" colspan="1">
+                        <apex:outputPanel rendered="{!rec.extracted}">
+                            <input type="checkbox" checked="checked" disabled="disabled"/>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!!rec.extracted}">
+                            <input type="checkbox" disabled="disabled"/>
+                        </apex:outputPanel>
+                    </td>
+                </tr>
+                </apex:repeat>
+                </apex:repeat>
+            </tbody>
+            </table>
+            </apex:outputPanel>
+            </apex:outputPanel>
+        </apex:outputPanel>
+        
+        <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_sysite_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+        
+    </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var SchdRunningInBackground = "{!$Label.rstk__schedulingisrunninginbackground}";      
+        var SelectWO = "{!$Label.rstk__pleaseselectworkorder}";
+
+    </script>
+    
+</apex:page>

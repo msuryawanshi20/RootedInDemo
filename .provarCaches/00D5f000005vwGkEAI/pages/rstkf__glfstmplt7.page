@@ -1,0 +1,167 @@
+<apex:page id="pg" standardController="rstkf__glfstmplt7__c" extensions="rstkf.ControllerExtnGlfstmplt7" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    
+    <apex:variable var="o" value="{!rstkf__glfstmplt7__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__glfstmplt7__c.fields}" />
+    <apex:variable var="o_glfstmplt8" value="{!$ObjectType.rstkf__glfstmplt8__c}" />
+    <apex:variable var="f_glfstmplt8" value="{!$ObjectType.rstkf__glfstmplt8__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__predefined_subline_group_entry_maint}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" customInclude="{!$Resource.rstkf__glfstmplt7_cli}" showHeader="false"/>
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:actionFunction name="toggleGroupOpt" action="{!selectedGroupOption}" reRender="op_pbsMain,op_displaySublineGroupLines" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="loadSublineGroupLines" action="{!displaySublineGroupLines}" reRender="op_displaySublineGroupLines" immediate="false" status="statusProcessing"/>
+        <apex:actionFunction name="addNewGlfstmplt8Rec" action="{!newSublineGrpDetail}" immediate="false" reRender="pageMessages,op_glfstmplt8Popup" oncomplete="showPopup('#glfstmplt8PopupDiv', 820, 280); return false;" status="statusProcessing"/>
+        <apex:actionFunction name="editGlfstmplt8Rec" action="{!editSublineGrpDetail}" immediate="false" reRender="pageMessages,op_glfstmplt8Popup" oncomplete="showPopup('#glfstmplt8PopupDiv', 820, 280); return false;" status="statusProcessing">
+            <apex:param name="recordId" assignTo="{!recordId}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="delGlfstmplt8Rec" action="{!delSublineGrpDetail}" immediate="false" reRender="pageMessages,op_miscPanel" oncomplete="reLoadSublineGroupLines(); return false;" status="statusProcessing">
+            <apex:param name="recordId" assignTo="{!recordId}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="addNewGroup" action="{!addSublineGroupHeader}" immediate="false" reRender="pageMessages,op_miscPanel" oncomplete="acknowledgeAndReloadPage(); return false;" status="statusProcessing"/>    
+        <apex:actionFunction name="delGroupHeaderRec" action="{!delGroupHeader}" immediate="false" reRender="pageMessages,op_miscPanel,op_grpHeaderDelErrPopupDiv" oncomplete="postGroupHeaderDelete(); return false;" status="statusProcessing">
+            <apex:param name="recordId" assignTo="{!recordId}" value=""/>
+        </apex:actionFunction>
+        
+        <apex:outputPanel id="op_miscPanel" >
+            <script>
+                var isSuccess = "{!isSuccess}";
+                var acknowledgement = "{!acknowledgement}";
+                var showGroupHeaderDeleteErrs = "{!showGrpHeaderDelErrPopup}";
+            </script>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        	<apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            <apex:pageBlockSection id="pbs_main" columns="1" rendered="{!isNew}">
+                <apex:outputField value="{!o.rstkf__glfstmplt7_glcmp__c}"/>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glfstmplt7_name__c.inlineHelpText}" >
+                   <apex:outputLabel value="{!f.rstkf__glfstmplt7_name__c.label}"/>
+					<apex:inputField id="glfstmplt7_name__c" value="{!o.rstkf__glfstmplt7_name__c}" required="true"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+                
+			<apex:pageBlockSection id="pbs_main2" columns="1" rendered="{!OR(isView,isEdit)}"  >
+				<apex:outputField value="{!o.rstkf__glfstmplt7_glcmp__c}"/>
+				<apex:outputField value="{!o.rstkf__glfstmplt7_name__c}"/>
+			</apex:pageBlockSection>
+			
+			<br />
+            <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+            	<apex:tab label="Reporting Account Group Lines" name="tab_glfstmplt8" id="tab_glfstmplt8" rendered="{!isView}">
+            		<apex:pageBlockSection id="pbs_statements" columns="1">
+            		<apex:outputPanel id="op_displaySublineGroupLines">
+                    <input type="button" id="addEntry" value="{!$Label.newpredefinedsublinegrouplines}" class="btn" onclick="addNewGlfstmplt8Rec(); return false;"/>  
+	                
+	                <apex:pageBlockTable id="pbt_glfstmplt8" value="{!sublineGroupLines}" var="rec" rendered="{!hasGlfstmplt8Data}">
+	                    <apex:column headerValue="{!$Label.rstkf__pagevalaction}">
+	                        <apex:outputLink value="" id="editRec" onclick="editGlfstmplt8Rec('{!rec.id}'); return false;">{!$Label.rstkf__edit}</apex:outputLink>&nbsp;|&nbsp;
+	                        <apex:outputLink value="" id="deleteRec" onclick="deleteRecord('{!rec.id}'); return false;">{!$Label.rstkf__delete}</apex:outputLink>
+	                    </apex:column>
+	                    <apex:column headerValue="{!f_glfstmplt8.rstkf__glfstmplt8_seq__c.label}">
+	                        <apex:outputField value="{!rec.rstkf__glfstmplt8_seq__c}" />
+	                    </apex:column>
+	                       
+	                    <apex:column headerValue="{!f_glfstmplt8.rstkf__glfstmplt8_command__c.label}">
+	                        <apex:outputField value="{!rec.rstkf__glfstmplt8_command__c}"/>
+	                    </apex:column>
+	                    
+	                    <apex:column headerValue="{!f_glfstmplt8.rstkf__glfstmplt8_rangestart__c.label}">
+	                        <apex:outputField value="{!rec.rstkf__glfstmplt8_rangestart__c}"/>
+	                    </apex:column>
+	                    
+	                    <apex:column headerValue="{!f_glfstmplt8.rstkf__glfstmplt8_rangeend__c.label}">
+	                        <apex:outputField value="{!rec.rstkf__glfstmplt8_rangeend__c}"/>
+	                    </apex:column>
+	                    
+	                    <apex:column headerValue="{!f_glfstmplt8.rstkf__glfstmplt8_glacct__c.label}">
+	                        <apex:outputField value="{!rec.rstkf__glfstmplt8_glacct__c}"/>
+	                    </apex:column>
+	                    
+	                </apex:pageBlockTable>
+	                <apex:panelGrid columns="6" rendered="{!hasGlfstmplt8Data}">
+	                    <apex:commandButton status="fetchStatus2" reRender="pbt_glfstmplt8" value="|<" action="{!sublineGrpHeaderCon.first}" disabled="{!!sublineGrpHeaderCon.hasPrevious}" title="{!$Label.rstkf__labelfirstpage}"/>
+	                    <apex:commandButton status="fetchStatus2" reRender="pbt_glfstmplt8" value="<" action="{!sublineGrpHeaderCon.previous}" disabled="{!!sublineGrpHeaderCon.hasPrevious}" title="{!$Label.rstkf__labelpreviouspage}"/>
+	                    <apex:commandButton status="fetchStatus2" reRender="pbt_glfstmplt8" value=">" action="{!sublineGrpHeaderCon.next}" disabled="{!!sublineGrpHeaderCon.hasNext}" title="{!$Label.rstkf__labelnextpage}"/>
+	                    <apex:commandButton status="fetchStatus2" reRender="pbt_glfstmplt8" value=">|" action="{!sublineGrpHeaderCon.last}" disabled="{!!sublineGrpHeaderCon.hasNext}" title="{!$Label.rstkf__labellastpage}"/>
+	                    <apex:outputText >{!(sublineGrpHeaderCon.pageNumber * recsPerPage)+1-recsPerPage}-{!IF((sublineGrpHeaderCon.pageNumber * recsPerPage)>totRecs, totRecs,(sublineGrpHeaderCon.pageNumber * recsPerPage))} of {!totRecs}</apex:outputText>
+	                    <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+	                    <apex:actionStatus id="fetchStatus2" startText="Fetching..." stopText=""/>
+	                    </apex:outputPanel>
+	                </apex:panelGrid>
+		        	</apex:outputPanel>
+            	</apex:pageBlockSection>
+            	</apex:tab>
+            	
+            	<apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstkf__pagetab_info}" name="tab_Info" id="tab_Info">
+                    <c:InfoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+		</apex:pageBlock>
+        
+		<apex:outputPanel id="op_glfstmplt8Popup">
+	        <div id="glfstmplt8PopupDiv" style="display:none">
+	            <apex:outputPanel id="op_glfstmplt8" rendered="{!showGlfstmplt8Popup}">
+	                <apex:iframe src="{!popupPageUrl}" id="glfstmplt8PopupId" width="820px" height="260px" frameborder="true" scrolling="true" rendered="{!showGlfstmplt8Popup}"/>
+	                <apex:outputPanel >
+	                    <input type="button" id="close" value="{!$Label.pagevalClose}" class="btn" onclick="unblockUI(); return false;"/>  
+	                </apex:outputPanel> 
+	            </apex:outputPanel>
+	        </div>
+	    </apex:outputPanel>
+	    
+	    <apex:outputPanel id="op_grpHeaderDelErrPopupDiv">
+	        <div id="grpHeaderDelErrPopupDiv" style="display:none">
+	            <apex:outputLabel value="{!$Label.rstkf__thisgroupisinvokedbyoneormorefinancialsublinesandcannotbedeleted}"/>
+	            <div id="grpHeaderDelErrPopupDiv2" style="overflow: scroll; width: 820px; height: 180px;">
+	                <apex:pageBlock >
+	                    <apex:pageBlockTable value="{!grpHeaderDelErrs}" var="result">
+	                        <apex:column value="{!result}" />
+	                    </apex:pageBlockTable>
+	                </apex:pageBlock>
+	            </div>
+	            <apex:outputPanel >                  
+	               <input type="button" id="close" value="{!$Label.pagevalClose}" class="btn" onclick="unblockUI(); return false;"/>  
+	           </apex:outputPanel> 
+	        </div>
+	    </apex:outputPanel>
+    </apex:form>
+ 
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    
+    <script>
+        var Label_entervaluefor = "{!$Label.pleaseentervaluefor}";
+        var Label_sublineGrpName = "{!f.rstkf__glfstmplt7_name__c.label}";
+        var Label_warningMsg = "{!$Label.warnIfrecorddeleteditwillimpossibletoshowcorrectpriordata}";
+        var company = "{!o.rstkf__glfstmplt7_glcmp__c}";
+        var Label_alreadyexistsforthecompany = "{!$Label.alreadyexistsforthecompany}";
+        var label_Please_select_group_to_be_deleted = "{!$Label.Please_select_group_to_be_deleted}";
+        var label_Do_you_really_want_to_delete_this_record = "{!$Label.Do_you_really_want_to_delete_this_record}";
+    </script>
+</apex:page>

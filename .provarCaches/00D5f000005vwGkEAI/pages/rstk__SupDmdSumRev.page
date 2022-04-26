@@ -1,0 +1,526 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_summary_review_by_item}" standardController="rstk__supdmd__c" extensions="rstk.ControllerExtnSupDmdSumRev,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__supdmd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__supdmd__c.fields}" />
+    <apex:variable var="f_x" value="{!$ObjectType.rstk__icixr__c.fields}" />
+    <style>
+        .negTotal {background-color: #FFFF00}
+        .posTotal {background-color: #00FF00}
+            td.cellBorder{ border: solid #000 0px;}
+            
+            .activeTab {width: 200px;}
+    </style>
+    <script>
+            function showDetail( divId, op, maxPage ) {
+                var curPage = parseInt(jQuery("#"+divId+"_pg").val());
+                maxPage = ensureInt(maxPage);
+                var origPage = curPage;
+                
+                if (op == 'first') {
+                    curPage = 1;
+                } else if (op == 'prev') {
+                    if (curPage>1) {
+                        curPage--;
+                    }
+                } else if (op == 'next') {
+                    if (curPage < maxPage) {
+                        curPage++;
+                    }
+                } else if (op == 'last') {
+                    curPage = maxPage;
+                } else {
+                    curPage = ensureInt(op);
+                }
+                
+                if (curPage != origPage) {
+                    var div = jQuery("#pg"+origPage+'_'+divId).hide();
+                    if (curPage < 1) curPage = 1;
+                    else if (maxPage != null && curPage > maxPage) curPage = maxPage;
+                    var div = jQuery("#pg"+curPage+'_'+divId).show();
+                    jQuery("#"+divId+"_pg").val(curPage);
+                }
+            }
+
+		function loadPopup(row, col) {
+//			jQuery("a[rel=#ixDtl"+row+"_"+col+"]").overlay().load();
+		}
+        jQuery(document).ready(function() {
+            jQuery("div[id$='pbs_Info'] td.dataCol").css('width','19%');
+            jQuery("div[id$='pbs_Info'] td.labelCol").css('width','14%');
+            jQuery("div[id$='pbs_LeadTimes'] td.dataCol").css('width','19%');
+            jQuery("div[id$='pbs_LeadTimes'] td.labelCol").css('width','14%');
+            jQuery("#supdmd_icitem__c_autocomplete").before("<div class='requiredBlock'/>");
+            jQuery("#supdmd_icitem__c_autocomplete").parent().wrap("<div class='requiredInput'/>");
+            jQuery("td.firstRowPastDueFirming").css({'border-top-style':'solid','border-top-width':2,'border-top-color':'yellow'});
+            jQuery("td.lastRowPastNeedFirming").css({'border-bottom-style':'solid','border-bottom-width':2,'border-bottom-color':'yellow'});
+            jQuery("td.lastRowPastDue").css({'border-bottom-style':'solid','border-bottom-width':2,'border-bottom-color':'red'});
+            jQuery(".wrappingHeader").parent().css('background-size','2px 120px');
+            jQuery("span.prevNext").hover(function() {
+                jQuery(this).css('cursor', 'hand');
+                var x = '';
+                });
+            var hCols = {!IF(!ISNULL(dateRangeHeaders),dateRangeHeaders.size,0)};
+            if (hCols!=0) {
+                jQuery("table[id$='pbt_buckets']").css('width',(200+hCols*80)+'px');
+            }
+            initHoverPopups(jQuery("td[id$=':tab_Buckets']"), {manualLoad:false, displayUp:true});
+            
+	        var params = "&rsparms={!IF(isHorizontal,'H','V')}~{!o.rstk__supdmd_icitem__c}~{!o.rstk__supdmd_proj_ui__c}~{!JSENCODE(dateRangeType)}~{!FLOOR(o.supdmd_numperiods__c)}";
+    	    overrideNavigateToUrl(params);
+        });
+        
+        var supdmdProj = '{!o.rstk__supdmd_proj_ui__c}';
+    </script>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_summary_review_by_item}" customInclude="{!$Resource.rstk__supdmdrev_cli}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__images, 'fixedTableSort.css')}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_cli}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_tablesorter_pager}" />
+    <apex:includeScript value="{!$Resource.rstk__jquery_vfFloatingHeaders}" />
+    
+    <script>
+        jQuery(document).ready(function() {
+        
+            jQuery.tablesorter.addParser({
+				id: "fancyNumber",
+				is: function(s) {
+					return /^[0-9]?[0-9,\.]*$/.test(s);
+				},
+				format: function(s) {
+				return jQuery.tablesorter.formatFloat( s.replace(/,/g,'') );
+				},
+				type: "numeric"
+			});
+        });
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doCancel" action="{!cancel}"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doSubmit" action="{!submit}"/>
+        <apex:actionFunction name="firmUnfirm" action="{!firmUnfirm}" oncomplete="formatLocaleOutputFields();checkJobStatus();" rerender="pageMessages, op_JobStatus"/>
+        <apex:actionFunction name="reload" action="{!reload}"/>
+        
+        <apex:outputPanel id="op_JobStatus">
+        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <style>
+            .unfirmedSupply { background-color: #CCFFCC;}
+            .firmedSupply { background-color: #99FF99; }
+            .firmedSupply span { color: #000000;}
+        </style>
+        <apex:pageBlockButtons >
+            <apex:commandButton value="{!$Label.rstk__pagebtn_supdmdrev_submit}" onclick="enableAllFields();updateOptions();doSubmit();return false;" rendered="{!!showDetails && !firmMode}"/>
+            <apex:commandButton id="chgSrchBtn" value="{!$Label.rstk__pagebtn_supdmdrev_changesearchcriteria}" action="{!changeCriteria}" rendered="{!showDetails || firmMode}"/>
+        </apex:pageBlockButtons>
+        
+        <c:division id="supdmd_div__c" cntr="{!controller}" />
+        <apex:outputPanel style="display:none;">
+          <apex:inputHidden id="firmmode__c" value="{!firmMode}"/>
+        </apex:outputPanel>
+        <apex:outputPanel style="display:none;" rendered="{!firmMode}">
+          <apex:inputHidden id="supdmd_icitem__c" value="{!o.rstk__supdmd_icitem__c}"/>
+          <apex:inputHidden id="supdmd_numperiods__c" value="{!o.rstk__supdmd_numperiods__c}"/>
+        </apex:outputPanel>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2"  rendered="{!!firmMode}">
+        
+            <apex:pageBlockSectionItem helpText="{!f.rstk__supdmd_respinv__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__supdmd_respinv__c.label}"/>
+                <c:selectList id="supdmd_respinv__c" cntr="{!controller}" options="{!planners}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__forecast}" />
+                <apex:inputCheckbox id="fcstChkbox__c" value="{!fcstChkbox}" onclick="fcstChkboxChanged();" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem id="pbsi_icitem" helpText="{!f.rstk__supdmd_icitem__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__supdmd_icitem__c.label}"/>
+			    <apex:outputPanel styleClass="requiredInput" layout="block">
+			   	    <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+			        <apex:inputText id="supdmd_icitem__c_autocomplete" styleClass="ac_input" tabindex="10" value="{!itemDesc}" size="40" />
+			        <apex:inputText id="supdmd_icitem__c" value="{!o.rstk__supdmd_icitem__c}" style="display:none"/>
+                    <script>autocompleteParms["{!$Component.supdmd_icitem__c}"] = {query:"select id, icitem_item__r.peitem_item__c, icitem_item__r.Name from icitem__c where icitem_div__c = 'prm'", queryParms:[['supdmd_div__c','Division']], codeColumn:"id", descColumn:"icitem_item__r.Name" ,minChars:{!minCharForAutoComplete}};</script>
+			    </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+			<apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__sodemands}" />
+                <apex:inputCheckbox id="sodmdChkbox__c" value="{!sodmdChkbox}" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem id="pbsi_proj" helpText="{!f.rstk__supdmd_proj_ui__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__supdmd_proj_ui__c.label}"/>
+			    <apex:outputPanel >
+			        <apex:inputText id="supdmd_proj_ui__c_autocomplete" styleClass="ac_input" tabindex="20" value="{!projDesc}" />
+			        <apex:inputText id="supdmd_proj_ui__c" value="{!o.rstk__supdmd_proj_ui__c}" style="display:none"/>
+                    <script>autocompleteParms["{!$Component.supdmd_proj_ui__c}"] = {query:"select id, name from pjproj__c where pjproj_div__c = 'prm'", queryParms:[['supdmd_div__c','Division']], codeColumn:"id", descColumn:"name"};</script>
+			    </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__wosubdemands}" />
+                <apex:inputCheckbox id="woChkbox__c" value="{!woChkbox}" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__supdmd_fromdate__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__supdmd_fromdate__c.label}"/>
+                <apex:inputField id="supdmd_fromdate__c" value="{!o.rstk__supdmd_fromdate__c}" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__plannedwo}" />
+                <apex:inputCheckbox id="plnwoChkbox__c" value="{!plnwoChkbox}" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__supdmd_todate__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__supdmd_todate__c.label}"/>
+                <apex:inputField id="supdmd_todate__c" value="{!o.rstk__supdmd_todate__c}" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__plannedreqs}" />
+                <apex:inputCheckbox id="plnreqChkbox__c" value="{!plnreqChkbox}" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__supdmd_numperiods__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__supdmd_numperiods__c.label}"/>
+                <apex:inputField id="supdmd_numperiods__c" value="{!o.rstk__supdmd_numperiods__c}" onkeypress="return filterNonNumeric(event, this);"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__purchaseorders}" />
+                <apex:inputCheckbox id="poChkbox__c" value="{!poChkbox}" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel id="dateRangesLabel" value="{!$Label.rstk__daterangetype}" />
+                <apex:outputPanel >
+                <apex:selectRadio id="dateRangeTypes" value="{!dateRangeType}" layout="pageDirection">
+                    <apex:selectOptions value="{!reportTypes}"/>
+                </apex:selectRadio>
+                <apex:outputPanel id="forecastLabel" style="display:none;">{!$Label.rstk__forecast}</apex:outputPanel>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__includeforecastinatp}" />
+                <apex:inputCheckbox id="excFcstChkbox__c" value="{!excFcstChkbox}" disabled="{!IF(fcstChkbox, false, true)}" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem />
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__excludefuturesuppliesfromatp}" />
+                <apex:inputCheckbox id="excSupAtpChkbox__c" value="{!excSupAtpChkbox}" />
+            </apex:pageBlockSectionItem>
+
+        </apex:pageBlockSection>
+
+        <apex:pageBlockSection id="pbs_Info" showHeader="false" title="{!$Label.rstk__information}" columns="3"  rendered="{!firmMode}">
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_itemno__c.label}"/>
+                <apex:outputPanel styleClass="requiredInput" layout="block">
+			   	    <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+			        <apex:inputText id="supdmd_icitem__c_autocomplete" styleClass="ac_input" tabindex="10" value="{!itemDesc}" size="40" onchange="alert('change');filteredItemChanged();"/>
+			        <apex:inputText id="supdmd_icitem__c" value="{!o.rstk__supdmd_icitem__c}" style="display:none"/>
+                    <script>autocompleteParms["{!$Component.supdmd_icitem__c}"] = {query:"select id, icitem_item__r.peitem_item__c, icitem_item__r.Name from icitem__c where icitem_div__c = 'prm'", queryParms:[['supdmd_div__c','Division']], codeColumn:"id", descColumn:"icitem_item__r.Name" ,minChars:{!minCharForAutoComplete}};</script>
+			    </apex:outputPanel>    
+                <!--c:largeSelectList id="supdmd_icitem__c" onchange="filteredItemChanged()" cntr="{!controller}" options="{!filteredItems}"/-->
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_qtyoh__c.label}"/>
+                <apex:outputField value="{!o.rstk__supdmd_qtyoh__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__forecast}" />
+                <apex:inputCheckbox value="{!fcstChkbox}" disabled="true" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_itemdescr__c.label}" />
+                <apex:outputText value="{!o.rstk__supdmd_itemdescr__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_qtycons__c.label}"/>
+                <apex:outputField value="{!o.rstk__supdmd_qtycons__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__sodemands}" />
+                <apex:inputCheckbox value="{!sodmdChkbox}" disabled="true" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_src_pl__c.label}"/>
+                <apex:outputField value="{!o.rstk__supdmd_src_pl__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__safetystockquantity}"/>
+                <apex:outputText value="{!sspolqty}" html-decimals="{!qtydecimal}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__wosubdemands}" />
+                <apex:inputCheckbox value="{!woChkbox}" disabled="true" />
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_comcod__c.label}"/>
+                <apex:outputField value="{!o.rstk__supdmd_comcod__c}"/>
+            </apex:pageBlockSectionItem>
+            <!--  
+            <apex:pageBlockSectionItem rendered="{!isProjectActive}">
+                <apex:outputLabel value="{!f.supdmd_homeproj__c.label}"/>
+                <apex:outputField value="{!o.supdmd_homeproj__c}"/>
+            </apex:pageBlockSectionItem>
+            -->
+            <apex:pageBlockSectionItem rendered="{!isProjectFilter}">
+                <apex:outputLabel value="{!f.rstk__supdmd_proj_ui__c.label}"/>
+                <apex:outputField value="{!o.rstk__supdmd_proj_ui__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!!isProjectFilter}"/>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__plannedwo}" />
+                <apex:inputCheckbox value="{!plnwoChkbox}" disabled="true" />
+            </apex:pageBlockSectionItem>
+                        
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_respinv__c.label}"/>
+                <apex:outputField value="{!o.rstk__supdmd_respinv__c}"/>
+            </apex:pageBlockSectionItem>
+			<apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_invuom__c.label}"/>
+                <apex:outputField value="{!o.rstk__supdmd_invuom__c}"/>
+            </apex:pageBlockSectionItem>
+			<apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__plannedreqs}" />
+                <apex:inputCheckbox value="{!plnreqChkbox}" disabled="true" />
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!f.rstk__supdmd_abc__c.label}"/>
+                <apex:outputText value="{!o.rstk__supdmd_abc__c}"/>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__includeforecastinatp}" />
+                <apex:inputCheckbox value="{!excFcstChkbox}" disabled="true" />
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem >
+                <apex:outputLabel value="{!$Label.rstk__purchaseorders}" />
+                <apex:inputCheckbox value="{!poChkbox}" disabled="true" />
+            </apex:pageBlockSectionItem>
+            
+        </apex:pageBlockSection>
+        
+        <apex:tabPanel switchType="client" id="theTabPanel">
+            <apex:tab label="{!$Label.rstk__pagetab_supdmdrev_summaryreviewbyitem}" name="tab_Buckets" id="tab_Buckets" rendered="{!showDetails}">
+                  <table id='pbt_buckets' class="list" border="0" cellspacing="0" cellpadding="0">
+                    <thead class="rich-table-thead">
+                    <tr class="headerRow">
+                        <th class="headerRow"><div class="wrappingHeader"><br/>Description</div></th>
+                        <apex:repeat value="{!dateRangeHeaders}" var="h">
+                            <th class="headerRow">
+                                <apex:outputPanel styleClass="wrappingHeader" style="text-align:right;" rendered="{!h.size>0}">{!h[0]}<BR/>- {!h[1]}</apex:outputPanel>
+                                <apex:outputPanel styleClass="wrappingHeader" style="text-align:right;" rendered="{!h.size==0}">Past<br/>Due</apex:outputPanel>
+                            </th>
+                        </apex:repeat>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <apex:repeat value="{!hrows}" var="r">
+                      <tr style="{!IF(((r.lbl=='$Label.forecast' && !fcstChkbox) ||
+                      				   (r.lbl=='$Label.soDemands' && !sodmdChkbox) ||
+                      				   (r.lbl=='$Label.wosubDemands' && !woChkbox) ||
+                      				   (r.lbl=='$Label.PlannedWorkOrders' && !plnwoChkbox) ||
+                      				   (r.lbl=='$Label.PlannedRequisitions' && !plnreqChkbox) ||
+                      				   (r.lbl=='$Label.purchaseOrders' && !poChkbox)), 'display:none;', '')}">
+                        <td class="dataRow">{!r.lbl}</td>
+                        <apex:repeat value="{!r.cells}" var="c">
+                          <td class="dataRow" style="text-align:right; {!IF(r.row==hrows.size && c.qty<0,'background-color:red;','')}" >
+                            <apex:outputPanel rendered="{!c.detailPages.size>0}">
+                            <a rel="#ixDtl{!r.row}_{!c.col}" href="javascript:{}"><c:outputFormattedNumber value="{!c.qty}" decimals="{!qtyDecimal}"/></a> 
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!c.detailPages.size==0}">
+                                <c:outputFormattedNumber value="{!c.qty}" decimals="{!qtyDecimal}"/>
+                            </apex:outputPanel>
+                            <div class="overlayStyle" id="ixDtl{!r.row}_{!c.col}" style="padding-top:7px;" rendered="{!c.detailPages.size>0}">
+                              <apex:variable var="page" value="{!0}"/>
+                              <div class="paginator" style="padding-bottom: 6px;">
+<span class="prevNextLinks">
+  <span class="prevNext" onclick="showDetail('ixDtl{!r.row}_{!c.col}','first')"><img src="/s.gif" class="firstoff"/></span>
+    <span class="prevNext" onclick="showDetail('ixDtl{!r.row}_{!c.col}','prev')"><img src="/s.gif" class="prevoff"/>{!$Label.pgllink_Previous}</span>
+    <span class="prevNext" onclick="showDetail('ixDtl{!r.row}_{!c.col}','next', {!c.detailPages.size})" >{!$Label.pglink_Next}<img src="/s.gif" class="nextoff"/></span>
+    <span class="prevNext" onclick="showDetail('ixDtl{!r.row}_{!c.col}','last', {!c.detailPages.size})"><img src="/s.gif" class="lastoff"/></span>
+</span>
+
+<span class="right">Page<input id="ixDtl{!r.row}_{!c.col}_pg" class="pageInput" maxlength="4" onchange="showDetail('ixDtl{!r.row}_{!c.col}',jQuery(this).val(), {!c.detailPages.size})" onkeydown="" value="1"/>of {!c.detailPages.size}</span>
+							  </div>
+
+                              <apex:repeat value="{!c.detailPages}" var="p" >
+                                <apex:variable var="page" value="{!page + 1}"/>
+                                <div id="pg{!FLOOR(page)}_ixDtl{!r.row}_{!c.col}" style="{!IF(page==1,'','display:none;')}">
+                                  <apex:pageBlockTable value="{!p}" var="pr">
+                                    <apex:column styleClass="savereturl" headerValue="{!f_x.rstk__icixr_icitem__c.label}" value="{!pr.ix.rstk__icixr_icitem__c}"/>
+                                    <apex:column headerValue="{!f_x.rstk__icixr_ordtype__c.label}" value="{!pr.ordTypeLbl}"/>
+                                    <apex:column headerValue="{!f_x.rstk__icixr_ordno__c.label}">
+                                    	<apex:outputLink value="/apex/{!pr.objname}?{!IF(AND(pr.objname != 'PurchOrd', pr.objname != 'SalesOrder'), 'actionType=view', 'fromPage=SupdmdSumRev')}&id={!pr.ordid}" rendered="{!pr.ordid != null}"><apex:outputText value="{!pr.ix.rstk__icixr_ordno__c}" /></apex:outputLink>
+                                    	<apex:outputText value="{!pr.ix.rstk__icixr_ordno__c}" rendered="{!pr.ordid == null}"/>
+                                    </apex:column>
+                                    <apex:column headerValue="{!f_x.rstk__icixr_lne__c.label}">
+                                    	<apex:facet name="header"></apex:facet>
+                                    	<apex:outputText value="{0,number,###,###,##0}" rendered="{!pr.ix.rstk__icixr_lne__c > 0}"><apex:param value="{!pr.ix.rstk__icixr_lne__c}" /></apex:outputText>
+                                    </apex:column>
+                                    <apex:column styleClass="savereturl" headerValue="{!f_x.rstk__icixr_proj__c.label}" value="{!pr.ix.rstk__icixr_proj__c}"/>
+                                    <apex:column headerValue="{!f_x.rstk__icixr_dtereqd__c.label}" value="{!pr.ix.rstk__icixr_dtereqd__c}"/>
+                                    <apex:column styleClass="savereturl" headerValue="{!f_x.rstk__icixr_parenticitem__c.label}" value="{!pr.ix.rstk__icixr_parenticitem__c}"/>
+                                    <apex:column headerValue="{!f_x.rstk__icixr_qtyreq__c.label}" value="{!pr.ix.rstk__icixr_qtyreq__c}"/>
+                                    
+                                    <apex:column headerValue="{!f_x.rstk__icixr_dtereqd__c.label}" value="{!pr.ix.rstk__icixr_dtereqd__c}"/>
+                                    <apex:column headerValue="{!f_x.rstk__icixr_sts__c.label}" value="{!pr.statusLbl}"/>
+                                  </apex:pageBlockTable>
+                                </div>
+                              </apex:repeat>
+                              <a class='close' href='javascript:{}'>close</a>
+                            </div>
+                          </td>
+                        </apex:repeat>
+                      </tr>
+                    </apex:repeat>
+                    </tbody>   
+                  </table>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_supdmdrev_mrppolicies}" name="MRP" id="MRP" rendered="{!firmMode}">
+                <apex:pageBlockSection id="pbs_MRP" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__mrpplanpolicy}"/>
+                        <apex:outputText value="{!mrpplanpol}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__safetystockqty}" />
+                        <apex:outputText value="{!sspolqty}" html-decimals="{!qtyDecimal}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__mrppolicyqty}" />
+                        <apex:outputText value="{!mrppolqty}" html-decimals="{!qtyDecimal}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__yield}" />
+                        <apex:outputText value="{!yield}" html-decimals="{!qtyDecimal}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__minimumqty}" />
+                        <apex:outputText value="{!mrpminqty}" html-decimals="{!qtyDecimal}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__homeprojectindicator}" />
+                        <apex:outputText value="{!homeprojind}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__maximumqty}" />
+                        <apex:outputText value="{!mrpmaxqty}" html-decimals="{!qtyDecimal}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__backflushpolicy}" />
+                        <apex:outputText value="{!backflushpolicy}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_supdmdrev_leadtimes}" name="LeadTimes" id="LeadTimesPanel" rendered="{!firmMode}">
+                <apex:pageBlockSection id="pbs_LeadTimes" showHeader="false" columns="3">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__shopfloor}" />
+                        <apex:outputText value="{!ltmfgwoshopflr}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__rcvinspection}" />
+                        <apex:outputText value="{!ltrcvinsp}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__wofirm}" />
+                        <apex:outputText value="{!ltfrmwo}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__vendorship}" />
+                        <apex:outputText value="{!ltvendship}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__reqfirm}" />
+                        <apex:outputText value="{!ltfrmreq}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__wopick}" />
+                        <apex:outputText value="{!ltmfgwopick}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__compship}" />
+                        <apex:outputText value="{!ltshipcomp}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__worelease}" />
+                        <apex:outputText value="{!ltmfgworel}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__povendor}" />
+                        <apex:outputText value="{!ltvend}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$Label.rstk__porequisitionconvert}" />
+                        <apex:outputText value="{!ltmfgworel}" html-decimals="2"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_supdmdrev_inventory}" name="ItemInventory" id="tab_inventory" rendered="{!firmMode}">
+                <apex:pageBlockSection id="pbs_inventory" showHeader="false" columns="1">
+                	<apex:outputPanel rendered="{!inventoryCnt == 0}">
+	 					<apex:outputLabel value="{!$Label.rstk__norecordfound}" />
+	 				</apex:outputPanel>
+                	<apex:outputPanel rendered="{!inventoryCnt > 0}">
+		 				<div style="height:300px; overflow:auto;">
+				        	<div id="pagerinvTable" class="pager">
+				            	<apex:outputLink value="javascript:{}" styleclass="first">First</apex:outputLink> &nbsp;
+				                <apex:outputLink value="javascript:{}" styleclass="prev">Previous</apex:outputLink> &nbsp;
+				                <apex:outputLabel value="{!$Label.rstk__page}" />
+				                <input type="text" id="poPage" class="pagedisplay" disabled="true" style="width:50px;"/> &nbsp;
+				                &nbsp; &nbsp;
+				                <apex:outputLink value="javascript:{}" styleclass="next">Next</apex:outputLink> &nbsp;
+				                <apex:outputLink value="javascript:{}" styleclass="last">Last</apex:outputLink> &nbsp;&nbsp;&nbsp;
+				                <apex:outputLabel value="{!$Label.rstk__gotopage}" />
+				                <input type="text" class="gotoPage" maxLength="4" style="width:40px;" onkeyup="this.value=this.value.replace(/[^\d]/,'')" />
+				                <input id="pagesize" class="pagesize" type="hidden" value="10" /> &nbsp;&nbsp;&nbsp;
+				                <apex:outputLabel value="{!$Label.rstk__largedatasetonly2000transactionsdisplayed}" rendered="{!inventoryCnt >= 2000}"/>
+				            </div>
+				            <br />
+				            <apex:outputPanel id="inventoryList" style="height:240px;overflow:auto;display:block">
+				            </apex:outputPanel>
+				        </div>
+            		</apex:outputPanel>
+                </apex:pageBlockSection>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    <!-- RSTK-3944: Added variables for custom labels referenced in "supdmdrev_cli.js"-->
+    <script>       
+        var LABEL_Site = "{!$Label.site}";
+        var LABEL_Loc_ID = "{!$Label.rstk__loc_id}";
+        var LABEL_Loc_Number = "{!$Label.rstk__loc_number}";
+        var LABEL_Lot_Serial_Number = "{!$Label.rstk__lot_serial_number}";
+        var LABEL_Loc_Type = "{!$Label.rstk__loc_type}";
+        var LABEL_Location_Qty = "{!$Label.rstk__location_qty}";
+    </script>
+    <!--  -->
+</apex:page>

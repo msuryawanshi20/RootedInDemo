@@ -1,0 +1,1002 @@
+<apex:page id="pg" standardController="rstk__sobol__c" extensions="rstk.ControllerExtnSOBOL,rstk.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>    
+    <apex:variable var="c" value="{!rstk__sobol__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sobol__c.fields}" /> 
+    <apex:variable var="f_c" value="{!$ObjectType.rstk__sobolc__c.fields}" />
+    <apex:variable var="f_s" value="{!$ObjectType.rstk__sobols__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sobol}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <script>
+      function _shd() { showTopDialog('pleaseWaitPopup'); }
+      function _cld() { closeTopDialog(); }
+      var isDrawloop = {!isDrawloop};
+      var isRootDox = {!isRootDox};
+      var overrideSocntlTemplate = '{!overrideSocntlTemplate}';
+      function checkMaxLength(e, maxLen)
+      {
+        var srcEl = getSourceElement(e);
+        if (srcEl != null && srcEl.value != null)
+        {
+            var numNewLines = (srcEl.value.match(/\n/g)||[]).length;
+            if ((srcEl.value.length + numNewLines) > maxLen)
+            {
+                srcEl.value=srcEl.value.substring(0,maxLen-numNewLines)
+            }
+        }
+        return false;
+      }
+    
+      var tempLateID = '{!tempLateID}';
+    </script>
+    <style>
+            .modal {
+                background-color:#fff;
+                display:none;
+                width:800px;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50px #ccc;
+            }
+    </style>    
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="updateCustomerAddress" action="{!updateCustomerAddress}" immediate="true" 
+            reRender="addressPanel" oncomplete="_cld();">
+            <apex:param name="custId" assignTo="{!c.rstk__sobol_custno__c}" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="updateCarrierDescription" action="{!updateCarrierDescription}" immediate="true" 
+            reRender="sobol_carrierdesc__c, sobol_shipvia__c" oncomplete="_cld();">
+            <apex:param name="carrierId" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="updateFOBDescription" action="{!updateFOBDescription}" immediate="true" 
+            reRender="sobol_fobdescr__c" oncomplete="_cld();">
+            <apex:param name="fobId" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="updateFreightTermsDescription" action="{!updateFreightTermsDescription}" immediate="true" 
+            reRender="sobol_frttermdescr__c" oncomplete="_cld();">
+            <apex:param name="freightTermsId" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="updateShipMethodDescription" action="{!updateShipMethodDescription}" immediate="true" 
+            reRender="sobol_shipviadesc__c, sobol_carrier__c"  oncomplete="_cld();">
+            <apex:param name="shipViaId" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="updateNetWeight" action="{!updateNetWeight}" immediate="true" reRender="sobol_grosswt__c">
+            <apex:param name="netWeight" value=""/>
+        </apex:actionFunction>
+        <apex:actionFunction name="updateTareWeight" action="{!updateTareWeight}" immediate="true" reRender="sobol_grosswt__c">
+            <apex:param name="tareWeight" value=""/>
+        </apex:actionFunction>        
+
+
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSaveAndNew="false"/>
+               <apex:commandButton value="{!$Label.rstk__pagebtn_sobol_printbol}" immediate="true" action="{!printBOL}" disabled="{!isEditable}"
+                 onclick="showTopDialog('pleaseWaitPopup');" reRender="sobol_prtdate" oncomplete="closeTopDialog(); printMemoCheck();"/>
+            <script>
+                  function openBOL(templateSelected)
+                  {
+                    if (isRootDox){
+                        window.open("/apex/printDOX?oid={!c.id}" + '&template=' + templateSelected, "Bill of Lading");
+                    }else if (isDrawloop)
+                        window.open("/apex/printDDP?oid={!c.id}" + '&type=bol'+ '&template=' + templateSelected, "Bill of Lading");
+                    else
+                        window.open("/apex/sobolprint?Id={!c.id}" + '&template=' + templateSelected, "Bill of Lading");
+                  }
+            </script>              
+          </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none" />
+        
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+              
+              
+               <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_div__c.label}"/>
+                    <apex:outputPanel >
+                        <c:selectList id="sobol_div__c" required="true" cntr="{!controller}" options="{!SalesDivisions}" width="300px"  tabIndex="1" rendered="{!isNew}"/>
+                        <apex:outputField value="{!c.rstk__sobol_div__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_netwt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_netwt__c.label}"/>
+                    <c:inputField id="sobol_netwt__c" required="false" cntr="{!controller}" onchange="updateNetWeight(getSelectedFloat(event))" tabIndex="12"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_bolno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_bolno__c.label}"/>
+                    <c:inputField id="sobol_bolno__c" required="true" cntr="{!controller}" editable="{!isNew}" width="300px" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_tarewt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_tarewt__c.label}"/>
+                    <c:inputField id="sobol_tarewt__c" filterNonNumeric="true" required="false" cntr="{!controller}" onchange="updateTareWeight(getSelectedFloat(event))" tabIndex="13"/>
+                </apex:pageBlockSectionItem>
+ 
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_fterms__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_fterms__c.label}"/>
+                    <c:selectList id="sobol_fterms__c" cntr="{!controller}" options="{!freightTerms}" width="300px" 
+                      onchange="_shd(); updateFreightTermsDescription(getSelectedValue(event));" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_grosswt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_grosswt__c.label}"/>
+                    <c:inputField id="sobol_grosswt__c" required="false" editable="false" cntr="{!controller}" tabIndex="14"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_frttermdescr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_frttermdescr__c.label}"/>
+                    <c:inputField id="sobol_frttermdescr__c" required="false" cntr="{!controller}" width="300px" tabIndex="4"/>
+                </apex:pageBlockSectionItem>
+                
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_freightamt__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_freightamt__c.label}"/>
+                    <c:inputField id="sobol_freightamt__c" required="false" cntr="{!controller}" tabIndex="15"/>
+                </apex:pageBlockSectionItem>               
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_fob__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_fob__c.label}"/>
+                    <c:selectList id="sobol_fob__c" cntr="{!controller}" options="{!fobs}" width="300px"
+                     onchange="_shd(); updateFOBDescription(getSelectedValue(event));" tabIndex="5"/>
+                </apex:pageBlockSectionItem>             
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_schdeldate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_schdeldate__c.label}"/>
+                    <c:inputField id="sobol_schdeldate__c" required="false" cntr="{!controller}" tabIndex="16"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_fobdescr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_fobdescr__c.label}"/>
+                    <c:inputField id="sobol_fobdescr__c" required="false" cntr="{!controller}" width="300px" tabIndex="6"/>
+                </apex:pageBlockSectionItem>                
+                
+                <apex:pageBlockSectionItem />
+                                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_carrier__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_carrier__c.label}"/>
+                    <c:selectList id="sobol_carrier__c" cntr="{!controller}" options="{!carriers}" width="300px" 
+                    onchange="_shd(); updateCarrierDescription(getSelectedValue(event));" tabIndex="7"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_actdeldate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_actdeldate__c.label}"/>
+                    <c:inputField id="sobol_actdeldate__c" required="false" cntr="{!controller}" tabIndex="17"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_carrierdesc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_carrierdesc__c.label}"/>
+                    <c:inputField id="sobol_carrierdesc__c" required="false" cntr="{!controller}" width="300px" tabIndex="8"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_prtdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_prtdate__c.label}"/>
+                    <apex:outputField id="sobol_prtdate" value="{!c.rstk__sobol_prtdate__c}" style="width:300px;"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_shipvia__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_shipvia__c.label}"/>
+                    <c:selectList id="sobol_shipvia__c" cntr="{!controller}" options="{!shipmethods}" width="300px" 
+                    onchange="_shd(); updateShipMethodDescription(getSelectedValue(event));" tabIndex="9"/>
+                </apex:pageBlockSectionItem>
+                                     
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_route__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_route__c.label}"/>
+                    <c:inputField id="sobol_route__c" required="false" cntr="{!controller}" width="300px" tabIndex="18"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_shipviadesc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_shipviadesc__c.label}"/>
+                   <c:inputField id="sobol_shipviadesc__c" required="false" cntr="{!controller}" width="300px" tabIndex="10"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_vehicle__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_vehicle__c.label}"/>
+                    <c:inputField id="sobol_vehicle__c" required="false" cntr="{!controller}" width="300px" tabIndex="19"/>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_custno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_custno__c.label}"/>
+                    <apex:outputPanel >
+                         <c:autocomplete id="sobol_custno__c" cntr="{!controller}" required="true" query="select id, name from socust__c" width="300px"
+                                tabIndex="11" rendered="{!isNew}"/>
+                         <apex:outputField value="{!c.rstk__sobol_custno__c}" rendered="{!!isNew}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_printshipper__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sobol_printshipper__c.label}"/>
+                    <c:inputField id="sobol_printshipper__c" required="false" cntr="{!controller}" tabIndex="20"/>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>
+            
+            
+            <apex:pageBlockSection id="pbs_Additional" showHeader="true" collapsible="true" title="{!$Label.rstk__pagetab_sobol_additional}" columns="1">
+    <apex:tabPanel switchType="client" selectedTab="address" id="tabPanel">
+        <apex:tab label="{!$Label.rstk__pagetab_sobol_address}" name="address" id="address">
+            <apex:outputPanel id="addressPanel">
+                        <apex:pageBlockSection showHeader="false" collapsible="false" title="{!$Label.rstk__address}" columns="2">
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_address1__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_address1__c.label}"/>
+                                <c:inputField id="sobol_address1__c" cntr="{!controller}" tabIndex="21"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_name__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_name__c.label}"/>
+                                <c:inputField id="sobol_name__c" cntr="{!controller}" tabIndex="28"/>
+                            </apex:pageBlockSectionItem>
+
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_address2__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_address2__c.label}"/>
+                                <c:inputField id="sobol_address2__c" cntr="{!controller}" tabIndex="22"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_phone__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_phone__c.label}"/>
+                                <c:inputField id="sobol_phone__c" cntr="{!controller}" tabIndex="29"/>
+                            </apex:pageBlockSectionItem>
+
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_address3__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_address3__c.label}"/>
+                                <c:inputField id="sobol_address3__c" cntr="{!controller}" tabIndex="23"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_fax__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_fax__c.label}"/>
+                                <c:inputField id="sobol_fax__c" cntr="{!controller}" tabIndex="30"/>
+                            </apex:pageBlockSectionItem>
+
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_city__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_city__c.label}"/>
+                                <c:inputField id="sobol_city__c" cntr="{!controller}" tabIndex="24"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_email__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_email__c.label}"/>
+                                <c:inputField id="sobol_email__c" cntr="{!controller}" tabIndex="31"/>
+                            </apex:pageBlockSectionItem>
+
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_state__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_state__c.label}"/>
+                                <c:inputField id="sobol_state__c" cntr="{!controller}" tabIndex="25"/>
+                            </apex:pageBlockSectionItem>
+
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_country__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_country__c.label}"/>
+                                <apex:panelGrid columns="2">
+                                    <c:inputField id="sobol_country__c" cntr="{!controller}" tabIndex="32"/>
+                                    <!--c:inputField id="sobol_isocountry__c" cntr="{!controller}" onchange="isocountryChanged();"/-->
+                                    <apex:inputField id="sobol_isocountry__c" value="{!c.rstk__sobol_isocountry__c}" rendered="{!!isView}" onchange="isocountryChanged();"/>
+                                </apex:panelGrid>    
+                            </apex:pageBlockSectionItem>
+
+                            <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_zip__c.inlineHelpText}">
+                                <apex:outputLabel value="{!f.rstk__sobol_zip__c.label}"/>
+                                <c:inputField id="sobol_zip__c" cntr="{!controller}" tabIndex="26"/>
+                            </apex:pageBlockSectionItem>
+ 
+                 </apex:pageBlockSection>
+            </apex:outputPanel>
+       </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_sobol_comments}" name="comments" id="comments">
+            <apex:pageBlockSection showHeader="false" collapsible="false" title="{!f.rstk__sobol_comments__c.label}" columns="1">
+              <apex:pageBlockSectionItem helpText="{!f.rstk__sobol_comments__c.inlineHelpText}">
+                 <apex:inputTextarea rows="13" cols="0" style="width:100%;" value="{!c.rstk__sobol_comments__c}" 
+                    onkeyup="return checkMaxLength(event, {!f.rstk__sobol_comments__c.length})" 
+                    onchange="return checkMaxLength(event, {!f.rstk__sobol_comments__c.length})"
+                    tabIndex="41" rendered="{!isEditable}"/>
+                 <apex:outputText value="{!c.rstk__sobol_comments__c}" rendered="{!!isEditable}"/>
+               </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+        </apex:tab>
+   </apex:tabPanel>
+
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection id="pbs_bolcDetail" showHeader="true" collapsible="false" title="{!$Label.rstk__pagetab_sobol_billofladingcontainerdetail}" columns="1">
+                 <apex:outputPanel rendered="{!isEditable}">
+                    <input type="button" class="btn" value="{!$Label.socontainer_Add}" onclick="bc.addRowDialog()" />
+                    <input type="button" class="btn" id="bc_removeSelected" value="{!$Label.Remove_Selected}" onclick="bc.deleteSelectedRows()" />
+                    <input type="button" class="btn" id="bc_undoDelete" value="{!$Label.Undo_Deleted}" onclick="bc.undoDeleted()" />
+                </apex:outputPanel>
+
+ <apex:actionRegion >
+<!-- ======================================================================
+     <<<<<<< CONTAINER DETAIL TABLE
+     ====================================================================== -->
+                    <apex:pageBlockTable id="bolcsTable" value="{!bolcs.bolcRows}" var="d">
+                        <apex:column headerValue="" rendered="{!isEditable}">
+                            <apex:facet name="header">
+                                <a href="#" onclick="bc.selectAll(); return false;">{!$Label.rstk__soship_sel}</a>
+                            </apex:facet>
+                            <input type="checkbox" id="rowSelected"
+                                onchange="bc.isDirty();bc.enableOptionalButtons()" />
+                        </apex:column>
+                        <apex:column headerValue="{!f_c.name.label}">
+                            <apex:inputHidden id="idx" value="{!d.idx}" />
+                            <apex:inputHidden id="state" value="{!d.state}" />
+                            <a href="#" id="rowname" onclick="bc.editRowDialog(event)">{!d.bolc.name}</a>
+                        </apex:column>
+                        <apex:column headerValue="{!f_c.rstk__sobolc_socontainer__c.label}">
+                            <apex:outputField id="container" value="{!d.bolc.rstk__sobolc_socontainer__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!f_c.rstk__sobolc_containerid__c.label}">
+                            <apex:outputField id="containerId" value="{!d.bolc.rstk__sobolc_containerid__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!f_c.rstk__sobolc_netwt__c.label}">
+                            <apex:outputField id="netWeight" value="{!d.bolc.rstk__sobolc_netwt__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_c.rstk__sobolc_tarewt__c.label}">
+                            <apex:outputField id="tareWeight" value="{!d.bolc.rstk__sobolc_tarewt__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_c.rstk__sobolc_grosswt__c.label}">
+                            <apex:outputField id="grossWeight" value="{!d.bolc.rstk__sobolc_grosswt__c}" />
+                        </apex:column>
+                    </apex:pageBlockTable>
+     <!-- ======================================================================
+     CONTAINER DETAIL TABLE >>>>>>>
+     ====================================================================== -->      
+
+             <apex:actionFunction name="bc_update" action="{!bolcs.addRowChunks}" immediate="false" reRender="bolcsTable" oncomplete="bc.saveAndRun(null)">
+                <apex:param name="numOf" value="0"/>
+             </apex:actionFunction>
+             <apex:actionFunction name="bc_addRowChunk" action="{!bolcs.addRowChunks}" immediate="false" reRender="bolcsTable" oncomplete="bc.addRow()">
+                <apex:param name="numOf" value=""/>
+             </apex:actionFunction>
+</apex:actionRegion>
+            </apex:pageBlockSection>
+
+
+<!-- ======================================================================
+     <<<<<<< BOLC ADD ROW
+     ====================================================================== -->      
+
+           <apex:outputPanel >
+              <div id="bc_addRowPopup" style="display:none">
+                 <apex:outputPanel styleClass="popupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="modalPopup">
+
+<apex:actionRegion >
+           <apex:actionFunction name="bc_resetCurrentRow" action="{!bolcs.updateCurrentRow}" immediate="false" reRender="bc_addRowTable"
+               oncomplete="bc.postUpdateRows();_closeDialog()">
+               <apex:param name="state" value="cancel"/>
+           </apex:actionFunction>
+           
+            <apex:actionFunction name="bc_setCurrentRow" action="{!bolcs.setCurrentRow}" immediate="false" reRender="bc_addRowTable" oncomplete="bc.onCurrentRowSet();">
+               <apex:param name="idx" value=""/>
+               <apex:param name="reset" value="false"/>
+           </apex:actionFunction>
+</apex:actionRegion>
+
+<apex:actionRegion >
+           <apex:actionFunction name="bc_updateContainerId" action="{!bolcs.updateCurrentContainerId}" immediate="false" reRender="bc_addRowTable" oncomplete="ht();">
+               <apex:param name="idx" value=""/>
+           </apex:actionFunction>
+
+           <apex:actionFunction name="bc_updateCurrentRow" action="{!bolcs.updateCurrentRow}" immediate="false" reRender="bc_addRowTable,bolcsTable" oncomplete="bc.postUpdateRows();if (bc_noErrors()) { _closeDialog(); }">
+               <apex:param name="state" value=""/>
+           </apex:actionFunction> 
+           <script>
+           function bc_noErrors()
+           {
+              var errors = jQuery("span[id$='bc_messages']").children();
+              return (errors.size() == 0);
+           }
+           function bc_updateGrossWeight(e)
+           {
+              var nete = jQuery("input[id$='bc_netWeight']");
+              var tare = jQuery("input[id$='bc_tareWeight']");
+              var net = parseLocaleFloat(nete.val()) || 0.0;
+              var tar = parseLocaleFloat(tare.val()) || 0.0;
+              nete.val(formatLocaleFloat(net, 2));
+              tare.val(formatLocaleFloat(tar, 2));
+              jQuery("span[id$='bc_grossWeight']").text(formatLocaleFloat(net + tar, 2));
+           }
+           </script>
+
+         <apex:outputPanel id="bc_addRowTable">
+             <apex:pageMessages id="bc_messages" rendered="{!bolcs.currentRow != null}"/>
+             <apex:pageBlockSection showHeader="true" collapsible="false" title="{!$Label.rstk__pagetab_sobol_bolcontainerdetail}" columns="1">
+                   <!-- apex:pageBlockSectionItem >
+                        <apex:outputLabel value="State"/>
+                        <apex:inputText value="{!bolcs.currentBolcRow.state}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                  <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="Idx"/>
+                        <apex:inputText value="{!bolcs.currentBolcRow.Idx}"/>
+                    </apex:pageBlockSectionItem>  -->
+
+                    <apex:pageBlockSectionItem helpText="{!f_c.rstk__sobolc_socontainer__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_c.rstk__sobolc_socontainer__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:selectList id="container" value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_socontainer__c}" size="1" tabIndex="101" 
+                                         multiselect="false" onchange="st('pleaseWaitPopup');bc_updateContainerId();" rendered="{!bolcs.currentRow.isNew}">
+                                <apex:selectOptions value="{!containers}"/>
+                            </apex:selectList>
+                            <apex:outputField value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_socontainer__c}"
+                                   rendered="{!!bolcs.currentRow.isNew}"/>
+                         </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                   <apex:pageBlockSectionItem helpText="{!f_c.rstk__sobolc_containerid__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_c.rstk__sobolc_containerid__c.label}"/>
+                       <apex:outputPanel >
+                          <apex:inputField id="containerid" value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_containerid__c}"  style="width:300px;" taborderhint="102" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_containerid__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f_c.rstk__sobolc_tarewt__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_c.rstk__sobolc_tarewt__c.label}"/>
+                       <apex:outputPanel >
+                          <apex:inputField id="bc_netWeight" value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_tarewt__c}"  style="width:300px;" taborderhint="103" onchange="bc_updateGrossWeight(event)" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_tarewt__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f_c.rstk__sobolc_netwt__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_c.rstk__sobolc_netwt__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="bc_tareWeight" value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_netwt__c}"  style="width:300px;"  onchange="bc_updateGrossWeight(event)" taborderhint="104" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_netwt__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f_c.rstk__sobolc_grosswt__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_c.rstk__sobolc_grosswt__c.label}"/>
+                        <apex:outputField id="bc_grossWeight" value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_grosswt__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_c.rstk__sobolc_desc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_c.rstk__sobolc_desc__c.label}"/>
+                       <apex:outputPanel >
+                          <apex:inputField id="desc" value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_desc__c}"  style="width:300px;" taborderhint="105" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_desc__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f_c.rstk__sobolc_comments__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_c.rstk__sobolc_comments__c.label}"/>
+                       <apex:outputPanel >
+                          <apex:inputField id="comments" value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_comments__c}"  style="width:300px;" taborderhint="106" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolcs.currentBolcRow.bolc.rstk__sobolc_comments__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                     </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                
+                 <apex:pageBlockSection columns="1">
+                  <apex:outputPanel >
+                    <apex:outputPanel rendered="{!isEditable}">
+                        <input type="button" class="btn" value="{!$Label.pagebtn_soshipcontainerpopup_Save}" 
+                          onclick="_shd();bc_updateCurrentRow();" tabIndex="1100"/>
+                     </apex:outputPanel>
+                     <input type="button" class="btn" value="{!$Label.pagebtn_soship_Cancel}" onclick="_shd();bc_resetCurrentRow();" tabIndex="1200"/>
+                  </apex:outputPanel>
+              </apex:pageBlockSection>
+          </apex:outputPanel>
+</apex:actionRegion>
+
+               </apex:outputPanel>
+            </div>            
+           </apex:outputPanel>     
+<!-- ======================================================================
+     BOLC ADD ROW >>>>>>>
+     ====================================================================== -->    
+
+            <apex:pageBlockSection id="pbs_bolsDetail" showHeader="true" collapsible="false" title="{!$Label.rstk__pagetab_sobol_billofladingshipperdetail}" columns="1">
+                 <apex:outputPanel rendered="{!isEditable}">
+                    <input type="button" class="btn" value="{!$Label.socontainer_Add}" onclick="bs.addRowDialog()" />
+                    <input type="button" class="btn" id="bs_removeSelected" value="{!$Label.Remove_Selected}" onclick="bs.deleteSelectedRows()" />
+                    <input type="button" class="btn" id="bs_undoDelete" value="{!$Label.Undo_Deleted}" onclick="bs.undoDeleted()" />
+                </apex:outputPanel>
+
+ <apex:actionRegion >
+<!-- ======================================================================
+     <<<<<<< SHIPPER DETAIL TABLE
+     ====================================================================== -->
+                    <apex:pageBlockTable id="bolssTable" value="{!bolss.bolsRows}" var="d">
+                        <apex:column headerValue="" rendered="{!isEditable}">
+                            <apex:facet name="header">
+                                <a href="#" onclick="bs.selectAll(); return false;">{!$Label.rstk__soship_sel}</a>
+                            </apex:facet>
+                            <input type="checkbox" id="rowSelected"
+                                onchange="bs.isDirty();bs.enableOptionalButtons()" />
+                        </apex:column>
+                        <apex:column headerValue="{!f_c.name.label}">
+                            <apex:inputHidden id="idx" value="{!d.idx}" />
+                            <apex:inputHidden id="state" value="{!d.state}" />
+                            <a href="#" id="rowname" onclick="bs.editRowDialog(event)">{!d.bols.name}</a>
+                        </apex:column>
+                        <apex:column headerValue="{!f_s.rstk__sobols_product__c.label}">
+                            <apex:outputField id="product" value="{!d.bols.rstk__sobols_product__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!f_s.rstk__sobols_quantity__c.label}">
+                            <apex:outputField id="quantity" value="{!d.bols.rstk__sobols_quantity__c}" />
+                        </apex:column>
+                        <apex:column headerValue="{!f_s.rstk__sobols_netwt__c.label}">
+                            <apex:outputField id="netWeight" value="{!d.bols.rstk__sobols_netwt__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_s.rstk__sobols_tarewt__c.label}">
+                            <apex:outputField id="tareWeight" value="{!d.bols.rstk__sobols_tarewt__c}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_s.rstk__sobols_grosswt__c.label}">
+                            <apex:outputField id="grossWeight" value="{!d.bols.rstk__sobols_grosswt__c}" />
+                        </apex:column>
+                    </apex:pageBlockTable>
+     <!-- ======================================================================
+     SHIPPER DETAIL TABLE >>>>>>>
+     ====================================================================== -->      
+
+             <apex:actionFunction name="bs_update" action="{!bolss.addRowChunks}" immediate="false" reRender="bolssTable" oncomplete="bs.saveAndRun(null)">
+                <apex:param name="numOf" value="0"/>
+             </apex:actionFunction>
+             <apex:actionFunction name="bs_addRowChunk" action="{!bolss.addRowChunks}" immediate="false" reRender="bolssTable" oncomplete="bs.addRow()">
+                <apex:param name="numOf" value=""/>
+             </apex:actionFunction>
+</apex:actionRegion>
+            </apex:pageBlockSection>
+
+<!-- ======================================================================
+     <<<<<<< BOLS ADD ROW
+     ====================================================================== -->      
+
+           <apex:outputPanel >
+              <div id="bs_addRowPopup" style="display:none">
+                 <apex:outputPanel styleClass="popupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="modalPopup">
+<apex:actionRegion >
+           <apex:actionFunction name="bs_resetCurrentRow" action="{!bolss.updateCurrentRow}" immediate="false" reRender="bs_addRowTable"
+               oncomplete="bs.postUpdateRows();_closeDialog()">
+               <apex:param name="state" value="cancel"/>
+           </apex:actionFunction>
+           
+             <apex:actionFunction name="bs_setCurrentRow" action="{!bolss.setCurrentRow}" immediate="false" reRender="bs_addRowTable" oncomplete="bs.onCurrentRowSet();">
+               <apex:param name="idx" value=""/>
+               <apex:param name="reset" value="false"/>
+           </apex:actionFunction>
+</apex:actionRegion>
+
+<apex:actionRegion >
+           <apex:actionFunction name="bs_updateShipperId" action="{!bolss.updateCurrentShipperId}" immediate="false" reRender="bs_addRowTable" oncomplete="ht();">
+               <apex:param name="idx" value=""/>
+           </apex:actionFunction>
+
+           <apex:actionFunction name="bs_updateShipLineId" action="{!bolss.updateCurrentShipLineId}" immediate="false" reRender="bs_addRowTable" oncomplete="ht();">
+               <apex:param name="idx" value=""/>
+           </apex:actionFunction>
+
+           <apex:actionFunction name="bs_updateCurrentRow" action="{!bolss.updateCurrentRow}" immediate="false" reRender="bs_addRowTable,bolssTable" oncomplete="bs.postUpdateRows();if (bs_noErrors()) { _closeDialog(); }">
+               <apex:param name="state" value=""/>
+           </apex:actionFunction> 
+           <script>
+           function bs_noErrors()
+           {
+              var errors = jQuery("span[id$='bs_messages']").children();
+              return (errors.size() == 0);
+           }
+           function bs_updateGrossWeight(e)
+           {
+              var nete = jQuery("input[id$='bs_netWeight']");
+              var tare = jQuery("input[id$='bs_tareWeight']");
+              var net = parseLocaleFloat(nete.val()) || 0.0;
+              var tar = parseLocaleFloat(tare.val()) || 0.0;
+              nete.val(formatLocaleFloat(net, 2));
+              tare.val(formatLocaleFloat(tar, 2));
+              jQuery("span[id$='bs_grossWeight']").text(formatLocaleFloat(net + tar, 2));
+           }
+           </script>
+
+         <apex:outputPanel id="bs_addRowTable">
+             <apex:pageMessages id="bs_messages" rendered="{!bolss.currentRow != null}"/>
+            <apex:pageBlockSection showHeader="true" collapsible="false" title="{!$Label.rstk__pagetab_sobol_bolshipperdetail}" columns="1">
+                   <!-- apex:pageBlockSectionItem >
+                        <apex:outputLabel value="State"/>
+                        <apex:inputText value="{!bolss.currentbolsRow.state}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                  <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="Idx"/>
+                        <apex:inputText value="{!bolss.currentbolsRow.Idx}"/>
+                    </apex:pageBlockSectionItem -->
+
+                    <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_soship__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_soship__c.label}"/>
+                        <apex:outputPanel >
+                            <c:largeSelectList id="soship" cntr="{!controller}" useValue="true" value="{!bolss.currentbolsRow.bols.rstk__sobols_soship__c}" options="{!shippers}" 
+                                        onchange="st('pleaseWaitPopup');bs_updateShipperId();" rendered="{!bolss.currentRow.isNew}" tabIndex="200"/>
+                            <apex:outputField value="{!bolss.currentbolsRow.bols.rstk__sobols_soship__c}"
+                                   rendered="{!!bolss.currentRow.isNew}"/>
+                         </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_soshipline__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_soshipline__c.label}"/>
+                        <apex:outputPanel >
+                            <c:largeSelectList id="soshipine" cntr="{!controller}" useValue="true" value="{!bolss.currentbolsRow.bols.rstk__sobols_soshipline__c}" options="{!shipperLines}" 
+                                        onchange="st('pleaseWaitPopup');bs_updateShipLineId();" rendered="{!bolss.currentRow.isNew}" tabIndex="201"/>
+                            <apex:outputField value="{!bolss.currentbolsRow.bols.rstk__sobols_soshipline__c}"
+                                   rendered="{!!bolss.currentRow.isNew}"/>
+                         </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                   <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_shipper__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_shipper__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="shipper" value="{!bolss.currentBolsRow.bols.rstk__sobols_shipper__c}"  style="width:300px;" taborderhint="202" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_shipper__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                   <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_shipperline__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_shipperline__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="shipperline" value="{!bolss.currentBolsRow.bols.rstk__sobols_shipperline__c}"  style="width:300px;" taborderhint="203" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_shipperline__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_product__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_product__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="product" value="{!bolss.currentBolsRow.bols.rstk__sobols_product__c}"  style="width:300px;" taborderhint="204" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_product__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_quantity__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_quantity__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="quantity" value="{!bolss.currentBolsRow.bols.rstk__sobols_quantity__c}"  style="width:300px;" taborderhint="205" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_quantity__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_uom__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_uom__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="uom" value="{!bolss.currentBolsRow.bols.rstk__sobols_uom__c}"  style="width:300px;" taborderhint="206" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_uom__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_tarewt__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_tarewt__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="bs_netWeight" value="{!bolss.currentBolsRow.bols.rstk__sobols_tarewt__c}"  style="width:300px;" onchange="bs_updateGrossWeight(event);" taborderhint="207" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_tarewt__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_netwt__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_netwt__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="bs_tareWeight" value="{!bolss.currentBolsRow.bols.rstk__sobols_netwt__c}"  style="width:300px;" onchange="bs_updateGrossWeight(event);" taborderhint="208" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_netwt__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                   <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_grosswt__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_grosswt__c.label}"/>
+                        <apex:outputField id="bs_grossWeight" value="{!bolss.currentBolsRow.bols.rstk__sobols_grosswt__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_desc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_desc__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="comments" value="{!bolss.currentBolsRow.bols.rstk__sobols_desc__c}"  style="width:300px;" taborderhint="209" rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_desc__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f_s.rstk__sobols_comments__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f_s.rstk__sobols_comments__c.label}"/>
+                        <apex:outputPanel >
+                          <apex:inputField id="comments" value="{!bolss.currentBolsRow.bols.rstk__sobols_comments__c}"  style="width:300px;" taborderhint="210"  rendered="{!isEditable}"/>
+                          <apex:outputField value="{!bolss.currentBolsRow.bols.rstk__sobols_comments__c}" style="width:300px;" rendered="{!!isEditable}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                
+                 <apex:pageBlockSection columns="1">
+                  <apex:outputPanel >
+                     <apex:outputPanel rendered="{!isEditable}">
+                       <input type="button" class="btn" value="{!$Label.pagebtn_soshipcontainerpopup_Save}" 
+                        onclick="_shd();bs_updateCurrentRow();" tabIndex="2800"/>
+                     </apex:outputPanel>
+                     <input type="button" class="btn" value="{!$Label.pagebtn_soship_Cancel}" onclick="_shd();bs_resetCurrentRow();" tabIndex="2900"/>
+                  </apex:outputPanel>
+                 </apex:pageBlockSection>
+            </apex:outputPanel>
+</apex:actionRegion>
+
+               </apex:outputPanel>
+            </div>            
+           </apex:outputPanel>     
+<!-- ======================================================================
+     BOLS ADD ROW >>>>>>>
+     ====================================================================== -->    
+
+
+             <div id="pleaseWaitPopup" style="display:none">
+                 <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+                 <apex:outputPanel styleClass="topPopup">
+                    <apex:image url="{!$Resource.rstk__busy}"/>
+                 </apex:outputPanel>
+             </div>
+             
+      <script>
+var _td = null;     
+function st(forId)
+{
+  var jel = jQuery('#'+escapeId(forId));
+  _td = jel; 
+  var theWin=jQuery(window);
+  jel.show();
+  var thePopup=jel.find('.topPopup');
+  thePopup.offset({
+     top  : 100 + theWin.scrollTop(),
+     left  : (theWin.width() - thePopup.width()) / 2,
+     });
+  }
+function ht()
+{
+  if (_td !=  null)
+  {
+    _td.hide();
+    _td = null;
+  }
+}
+      
+      
+            var SDHandler = function(){};
+            SDHandler.prototype = new RowHandlerBase();
+            SDHandler.prototype.updateGrossWeight = function(e) {
+                    this.rowChanged(e,true);
+                    var srcEl = getSourceElement(e);
+                    if (srcEl != null)
+                    {
+                        var parentRow = jQuery(srcEl).closest("tr");
+                        if (parentRow.size() > 0)
+                        {
+                            var tareWeightValue = parseLocaleFloat(parentRow.find("input[id$='tareWeight']").val()) || 0.0;
+                            var netWeightValue  = parseLocaleFloat(parentRow.find("input[id$='netWeight']").val()) || 0.0;
+                            var grossWeightEl   =parentRow.find("span[id$='grossWeight']");
+                             
+                            grossWeightEl.text(formatLocaleFloat(tareWeightValue + netWeightValue, 2));
+                        }
+                    }
+                };
+
+            var BHandler = function(){};
+            BHandler.prototype = new SDHandler();
+            BHandler.prototype.addRowDialog = function(e) {
+                        self = this;
+                        this.saveAndRun(function(){
+                          st('pleaseWaitPopup');
+                          self.setCurrentRowFn(-1, "true");
+                        });
+                };
+            BHandler.prototype.onCurrentRowSet = function() {
+                    ht();
+                    _showDialog(this.addRowDlg, 450);
+                };
+                
+            BHandler.prototype.editRowDialog = function(e) {
+                   var srcEl = getSourceElement(e);
+                    if (srcEl != null)
+                    {
+                        var parentRow = jQuery(srcEl).closest("tr");
+                        if (parentRow.size() > 0)
+                        {
+                            st('pleaseWaitPopup');
+                            var rowIdx = parentRow.find("input[id$='idx']").val();
+                            self = this;
+                            this.saveAndRun(function(){
+                              st('pleaseWaitPopup');
+                              self.setCurrentRowFn(rowIdx, "false");
+                            });
+                        }
+                    }
+                 };
+
+
+            var BCHandler = function(){};
+            BCHandler.prototype = new BHandler();
+            BCHandler.prototype.resetRow = function(row) {
+                BHandler.prototype.resetRow.call(this, row);
+                row.find("a[id$='rowname']").text("");
+                row.find("span[id$='container']").text("");
+                row.find("span[id$='grossWeight']").text("0.0");
+                row.find("span[id$='netWeight']").text("0.0");
+                row.find("span[id$='tareWeight']").text("0.0");
+            };
+            
+            var BSHandler = function(){};
+            BSHandler.prototype = new BHandler();
+            BSHandler.prototype.resetRow = function(row) {
+                BHandler.prototype.resetRow.call(this, row);
+                row.find("a[id$='rowname']").text("");
+                row.find("span[id$='product']").text("");
+                row.find("span[id$='quantity']").text("");
+                row.find("span[id$='grossWeight']").text("0.0");
+                row.find("span[id$='netWeight']").text("0.0");
+                row.find("span[id$='tareWeight']").text("0.0");
+            };
+            
+                                            
+            
+            var bc = new BCHandler(); 
+            bc.init("{!$Component.pbs_bolcDetail.bolcsTable}:tb", bc_update, "bc_removeSelected", "bc_undoDelete", bc_addRowChunk);
+            bc.setCurrentRowFn = bc_setCurrentRow;
+            bc.addRowDlg       = 'bc_addRowPopup';
+      
+            var bs = new BSHandler(); 
+            bs.init("{!$Component.pbs_bolsDetail.bolssTable}:tb", bs_update, "bs_removeSelected", "bs_undoDelete", bs_addRowChunk);
+            bs.setCurrentRowFn = bs_setCurrentRow;
+            bs.addRowDlg       = 'bs_addRowPopup';
+      </script>
+           
+            <apex:pageBlockSection columns="1" rendered="{!OR(isEdit,isView)}">     
+                <apex:tabPanel switchType="client" selectedTab="tab_Info" id="theTabPanel">
+                    <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                        <c:customFields cntr="{!controller}" cols="2"/>
+                    </apex:tab>
+                    <apex:tab label="{!$Label.rstk__info}" name="tab_Info" id="tab_Info">
+                        <c:infoSection cntr="{!controller}" showHeader="false"/>
+                    </apex:tab>
+                </apex:tabPanel>
+            </apex:pageBlockSection>
+            
+        </apex:pageBlock>
+        <apex:outputPanel rendered="{!!isEditable}">
+            <button style="visibility: hidden" class="btnSelectTemplate" rel="#winEmailTemplate"></button>
+        </apex:outputPanel> 
+        <div class="modal" id="winEmailTemplate" style="width:450px">
+            <h1>{!$Label.rstk__select_email_template}</h1>
+            <apex:pageBlock >
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockSectionItem >
+                        <apex:selectList id="selected_template__c" style="width:300px" multiselect="false" size="1" value="{!tempLateID}" disabled="{!!overrideSocntlTemplate}">
+                            <apex:selectOptions value="{!BOLEmailTemplates}"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                   </apex:pageBlockSection>
+            </apex:pageBlock>
+            <button type="button" onclick="template_ok()">{!$Label.pagebtn_Ok}</button>
+            <button type="button" class="close" onclick="template_cancel()">{!$Label.pagebtn_Cancel}</button>
+        </div> 
+    </apex:form>
+            
+        <!-- apex:outputPanel id="debug">
+        <textarea rows='20' cols='200'>{!debug}</textarea>
+        </apex:outputPanel -->
+        
+    
+    <c:footerInclude cntr="{!controller}" />
+
+    
+    <script>
+        var ProvideSFContact = "{!$Label.rstk__pleaseprovidesfcontact}";       
+        function isocountryChanged(type, name)
+        {
+            var isocountry = sfffGetFieldValue('sobol_isocountry__c');
+            console.log('isocountry '+isocountry);
+            sfffSetFieldValue('sobol_country__c', isocountry);
+            
+        }
+    
+        function template_ok() {
+            var tempLateID = sfffGetFieldValue('selected_template__c');
+            if(tempLateID == '') {
+                alert("{!$Label.rstk__please_select_email_template}");Please_Select_Email_Template
+                // alert(Label_Email_Template_is_not_specified_in_Accounts_Receivable_Control_of_Company);
+            } else {
+                jQuery(".close").click();
+                openBOL(tempLateID);
+                // creatEmailtemplatedata();
+            }
+        }
+
+        function template_cancel() {}
+
+        function jqueryOnReady() {
+             jQuery("button[rel*=popup]").overlay({
+            
+                top: "10%",
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                fixed:false,
+                
+                closeOnClick: false
+            });
+            
+            jQuery("button[rel*=win]").overlay({
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                fixed:false,
+                closeOnClick: false,
+                
+                onBeforeLoad: function(e) {
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+'Frame');
+                    var blockWin =content.closest('div');
+  
+                    var src = null;
+                   
+                    if (winId == 'PopupNotesAttachments')
+                    {
+                        var notesLine = sfffGetFieldValue('notes_lineid__c');
+                        src = "{!URLFOR($Page.rstk__Notesandattachments)}?objname=arinvtxn__c&id=" + notesLine;
+                        //+ "&nea=Y&nda=Y&nn=Y&na=Y"
+                    }
+                    if (src != null)
+                    {
+                        blockWin.block({
+                            message: '',
+                            centerX: true, 
+                            centerY: true,
+                            css: { 
+                                border: 'none', 
+                                padding: '15px', 
+                                cursor: 'wait',
+                                opacity: .5, 
+                                textAlign: 'center'
+                            }
+                        });
+                        content[0].src = src;
+                        
+                        content.load(function() { blockWin.unblock(); });
+                    }
+                }
+            });
+        }
+    
+        function printMemoCheck() {
+            console.log('printMemoCheck tempLateID ',tempLateID);
+            
+            sfffSetFieldValue('selected_template__c', tempLateID);
+            var billofLading = "{!$Label.rstk__bill_of_lading}";
+            if(overrideSocntlTemplate == "false") {
+                if(tempLateID != null && tempLateID != '') {
+                    if (isRootDox){
+                        window.open("/apex/printDOX?oid={!c.id}" + '&template=' + tempLateID, billofLading);
+                    }else if (isDrawloop) {
+                        window.open("/apex/printDDP?oid={!c.id}" + '&type=bol'+ '&template=' + tempLateID, billofLading);
+                    } else {
+                        window.open("/apex/sobolprint?Id={!c.id}" + '&template=' + tempLateID, billofLading);
+                    }
+                } else {
+                    alert("{!$Label.rstk__bill_of_lading_email_template_is_not_defined_on_sales_order_control}");                    
+                } 
+            } else {
+                jQuery(".btnSelectTemplate").click();
+            }            
+            
+            return false;        
+        }
+
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+
+</apex:page>

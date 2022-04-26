@@ -1,0 +1,253 @@
+<apex:page id="pg" standardController="rstkf__glbankacct__c" extensions="rstkf.ControllerExtnGlbankcardtxnGrid,rstkf.RemoteQueryController" sideBar="false" showHeader="false" action="{!doBeforePageLoad}">
+    <apex:stylesheet value="{!$Resource.rstkf__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstkf__RowHandler_js}"/>
+    
+    <c:standardHeader cntr="{!controller}" showHeader="false" enableAutocomplete="true"/>
+    
+    <apex:form id="fm">
+        <apex:pageBlock id="pb" mode="detail">
+            <rstk:FilterGrid pageSize="10"  jsController="glbankcardtxns" data="{!glbankcardtxns}" editable="true" ispopup="true" opOrder="DUA" confirmSave="true" allowFiterSearch="true" disableDelete="false"/>
+            <script>
+            	var nsp = '{!nsp}';
+                glbankcardtxns.onGridLoad = function() {
+                    self = this;
+                    glbankcardtxns.getSelectableRows().each(
+                        function (index, el) {
+                            var row = jQuery(this);
+                            var rowId = self.getRowValue(row, 'Id');
+                            populateProjs(glbankcardtxns, row);
+                            populateDims(glbankcardtxns, row);
+                        });
+                }
+                
+                glbankcardtxns.addRow = function(rowCallback) {
+                    self = this;
+                    glbankcardtxnsHandler.prototype.addRow.call(self, rowCallback);
+                    this.getVisibleRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        var rowId = self.getRowValue(row, 'Id');
+                        
+                        populateDims(glbankcardtxns, row);
+                    });
+                }
+                
+                glbankcardtxns.deleteSelectedRows = function() {
+                	self = this;
+                	var candelete = true;
+                    this.getSelectedRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        var posted = glbankcardtxns.getRowObj(row, nsp + 'glbankcardtxn_posted__c')[0].value;
+                        
+                        if(posted == 'true') {
+                            alert("{!$Label.RecIsPostedAndCantBeDeleted}");
+                            candelete = false;
+                            return false;;
+                        }
+                     });
+                     
+                     if(candelete) {
+                     	glbankcardtxnsHandler.prototype.deleteSelectedRows.call(this);
+                     }
+                }
+        
+                glbankcardtxns.onSaved = function() {
+                    unblockUI();
+                }
+                
+                glbankcardtxns.onSaveFailed = function() {
+                    unblockUI();
+                }
+                
+                glbankcardtxns.validate = function() {
+                    self = this;
+                    var isvalid = true;
+                    this.getVisibleRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        var glacct = glbankcardtxns.getRowObj(row, nsp + 'glbankcardtxn_glacct__c')[0].value;
+                        var txnamount = glbankcardtxns.getRowObj(row, nsp + 'glbankcardtxn_txnamount__c')[0].value;
+                        var misccredit = glbankcardtxns.getRowObj(row, nsp + 'glbankcardtxn_misccredit__c')[0].checked;
+                        
+                        if(glacct.length == 0) {
+                            alert("{!$Label.ExpenseAccountisrequired}");
+                            isvalid = false;
+                        }
+                        
+                        if(parseLocaleFloat(txnamount) == 0) {
+			                alert("{!$Label.TranAmtIsReqdAndCantBeZero}");
+			                isvalid = false;
+			            }
+			            else {
+			            	if(misccredit == true && parseLocaleFloat(txnamount) > 0){
+	                            alert("{!$Label.TranAmtCantBeGTZeroIfMiscReconCreditIsChecked}");
+	                            isvalid = false;
+			                }else if(misccredit == false && parseLocaleFloat(txnamount) < 0){
+	                            alert("{!$Label.TranAmtCantBeLTZeroIfMiscReconCreditIsUnchecked}");
+	                            isvalid = false;
+			                }
+			            }
+                      });
+                     
+                     return isvalid;
+                }
+                
+                glbankcardtxns.entryChanged = function(row, rowNum, name, value) {
+                    if (name == nsp + 'glbankcardtxn_bankcardtt__c') {
+                        setValuesFromTemplate(glbankcardtxns, row);
+                    }
+                    else if (name == nsp + 'glbankcardtxn_gldiv__c') {
+                        populateProjs(glbankcardtxns, row);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_glproj__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_glproj__c", value);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_dim1__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_dim1__c", value);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_dim2__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_dim2__c", value);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_dim3__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_dim3__c", value);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_dim4__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_dim4__c", value);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_dim5__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_dim5__c", value);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_dim6__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_dim6__c", value);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_dim7__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_dim7__c", value);
+                    }
+                    else if(name == 'select_' + nsp + 'glbankcardtxn_dim8__g') {
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_dim8__c", value);
+                    }  
+                }                
+                
+                function setValuesFromTemplate(glbankcardtxns, row) {
+                    var bankcardttId = glbankcardtxns.getRowObj(row, nsp + 'glbankcardtxn_bankcardtt__c')[0].value;
+                    if(bankcardttId) {
+                        var bankcardtts = execQuery("select bankcardtt_glacct2__c, bankcardtt_glacct2__r.Name, bankcardtt_dfltamount__c, bankcardtt_desc__c, bankcardtt_payee__c, bankcardtt_odcid__c, bankcardtt_gldiv__c, bankcardtt_glproj__c, bankcardtt_dim1__c, bankcardtt_dim2__c, bankcardtt_dim3__c, bankcardtt_dim4__c, bankcardtt_dim5__c, bankcardtt_dim6__c, bankcardtt_dim7__c, bankcardtt_dim8__c from bankcardtt__c where Id = '" + bankcardttId +"'");       
+                        if(bankcardtts && bankcardtts.length > 0) {
+                            var bankcardtt = bankcardtts[0];
+                            glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_glacct__c', bankcardtt.bankcardtt_glacct2__c);
+                            glbankcardtxns.setRowAutoValue(row, nsp + 'glbankcardtxn_glacct__c', bankcardtt.bankcardtt_glacct2__r.Name);
+                            
+                            glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_txnamount__c', bankcardtt.bankcardtt_dfltamount__c);
+                            glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_desc__c', bankcardtt.bankcardtt_desc__c);
+                            glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_payee__c', bankcardtt.bankcardtt_payee__c);
+                            glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_odcid__c', bankcardtt.bankcardtt_odcid__c);
+                            
+                            glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_gldiv__c", bankcardtt.bankcardtt_gldiv__c);
+                            glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_glproj__c', bankcardtt.bankcardtt_glproj__c)
+                            populateProjs(glbankcardtxns, row);
+                            
+                            var numdims = getNumdims();
+                            if(numdims >= 1) { glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_dim1__c', bankcardtt.bankcardtt_dim1__c) }
+                            if(numdims >= 2) { glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_dim2__c', bankcardtt.bankcardtt_dim2__c) }
+                            if(numdims >= 3) { glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_dim3__c', bankcardtt.bankcardtt_dim3__c) }
+                            if(numdims >= 4) { glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_dim4__c', bankcardtt.bankcardtt_dim4__c) }
+                            if(numdims >= 5) { glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_dim5__c', bankcardtt.bankcardtt_dim5__c) }
+                            if(numdims >= 6) { glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_dim6__c', bankcardtt.bankcardtt_dim6__c) }
+                            if(numdims >= 7) { glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_dim7__c', bankcardtt.bankcardtt_dim7__c) }
+                            if(numdims >= 8) { glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_dim8__c', bankcardtt.bankcardtt_dim8__c) }
+                            
+                            populateDims(glbankcardtxns, row);
+                        }
+                    }
+                    else {
+                        glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_glacct__c', '');
+                        glbankcardtxns.setRowAutoValue(row, nsp + 'glbankcardtxn_glacct__c', '');
+                        glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_txnamount__c', '');
+                        glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_desc__c', '');
+                        glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_payee__c', '');
+                        glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_odcid__c', '');
+                        glbankcardtxns.setRowValue(row, nsp + "glbankcardtxn_gldiv__c", '');
+                        glbankcardtxns.setRowValue(row, nsp + 'glbankcardtxn_glproj__c', '')
+                        populateProjs(glbankcardtxns, row);
+                        resetDims(glbankcardtxns, row);
+                    }
+                }
+                 
+                function populateProjs(glbankcardtxns, row) {
+                    var gldiv = glbankcardtxns.getRowObj(row, nsp + 'glbankcardtxn_gldiv__c')[0].value;
+                    if(gldiv) {
+                        var glprojs = execQuery("select Id, Name from glproj__c where glproj_gldiv__c = '" + gldiv +"' order by name ");
+                    }
+                    setSelectList(glbankcardtxns, row, nsp + 'glbankcardtxn_glproj__g', glprojs, nsp + 'glbankcardtxn_glproj__c', true);
+                }
+                
+                function resetDims(glbankcardtxns, row) {
+                    var numdims = getNumdims();
+                    for(var i=1; i<=numdims; i++) {
+                        var fieldId = 'glbankcardtxn_dim' + i + '__g';
+                        var valueFieldId = 'glbankcardtxn_dim' + i + '__c';
+                        
+                        glbankcardtxns.setRowValue(row, nsp + valueFieldId, '');
+                        var dimSl = glbankcardtxns.getRowObj(row, nsp + fieldId).find('select')[0];
+                        dimSl.value = ''; 
+                    }
+                }
+                
+                function populateDims(glbankcardtxns, row) {
+                    var sycmp_numdims = getNumdims();
+                    
+                    for(var i=1; i<=sycmp_numdims; i++) {
+                        var fieldId = nsp + 'glbankcardtxn_dim' + i + '__g';
+                        var valueFieldId = nsp + 'glbankcardtxn_dim' + i + '__c';
+                        var dimnum = '' + i + '';
+                        populateDim(glbankcardtxns, row, dimnum, fieldId, valueFieldId);
+                    }
+                    
+                }
+                
+                function getNumdims() {
+                    var sycmp_numdims = '{!currCompany.glcmp_cmpno__r.rstk__sycmp_numdims__c}';
+                    if(sycmp_numdims == null || sycmp_numdims.length == 0) {
+                        sycmp_numdims = 0;
+                    }
+                    sycmp_numdims = parseLocaleFloat(sycmp_numdims);
+                    return sycmp_numdims;
+                }
+                 
+                function populateDim(glbankcardtxns, row, dimnum, fieldId, valueFieldId) {
+                    var sycmpId = '{!glbankacct.glbankacct_cmpno__r.glcmp_cmpno__c}';
+                    var dimvals = execQuery("select Id, Name from rstk__sydim__c where rstk__sydim_cmpno__c = '" + sycmpId +"' and rstk__sydim_dimnum__c = '" + dimnum + "'order by name ");
+                    setSelectList(glbankcardtxns, row, fieldId, dimvals, valueFieldId, true);
+                }
+                 
+                function setSelectList(rowCtrl, row, fieldId, values, valueFieldId, withNone) {
+                    var col = rowCtrl.getRowObj(row, fieldId);
+                    var nameOf = rowCtrl.nameOf();
+                    col.children().remove();
+                    col.html('<select style="max-width:90%;" class="'+nameOf+'-'+rowCtrl.getRowNum(row)+'-select_'+fieldId+'" onchange="'+nameOf+'.rowChanged(event);"/>');
+                    var theSel = col.find('select');
+                    if (!!withNone) {
+                        theSel.append('<option value="">--None--</option>');
+                    }
+                    if(values) {
+                        for (var i=0;i <values.length; i++) {
+                            theSel.append('<option value="'+values[i].Id+'">'+escapeHtml(values[i].Name)+'</option>');
+                        }
+                    }   
+                    
+                    if (valueFieldId != null && valueFieldId != '') {
+                        jQuery(theSel).val(rowCtrl.getRowValue(row, valueFieldId));
+                        rowCtrl.setRowValue(row, valueFieldId, jQuery(theSel).val());
+                    }
+                }
+            </script>
+        </apex:pageBlock>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+                <apex:image url="{!$Resource.rstkf__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+</apex:page>

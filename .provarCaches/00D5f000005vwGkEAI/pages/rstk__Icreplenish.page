@@ -1,0 +1,253 @@
+<apex:page id="pg" standardController="rstk__icreplenish__c" extensions="rstk.ControllerExtnIcreplenish,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__icreplenish__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__icreplenish__c.fields}" />
+	
+    <c:standardHeader cntr="{!controller}"
+        title="{!$Label.rstk__replenishmentlocationmaintenance}"
+        customInclude="{!$Resource.rstk__icreplenish_cli}" enableAutocomplete="true"/>
+	
+	<script>
+	function populateLocnums(sl, locnums, slvalue) {
+		if (sl) {
+			if (typeof slvalue == 'undefined') slvalue = "";
+			sl.options.length = 0;
+			sl.options[sl.length] = new Option(LABEL_SelectOptionNone, "", false, false);
+			for(var i = 0; i < locnums.length; i++) {
+          		sl.options[sl.length] = new Option(locnums[i], locnums[i], false, (slvalue == locnums[i]));
+          	}
+		}
+	}
+	</script>
+	
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" />
+        <apex:actionFunction name="doView" action="{!view}" immediate="true" />
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true" />
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true" />
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true" />
+        <apex:actionFunction name="doSave" action="{!save}" />
+
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" />
+            </apex:pageBlockButtons>
+
+            <apex:outputPanel style="display:none">
+                <apex:inputHidden id="icreplenish_div__c" value="{!o.rstk__icreplenish_div__c}"/>
+                <apex:inputHidden id="icreplenish_item__c" value="{!o.rstk__icreplenish_item__c}"/>
+                <apex:inputHidden id="icreplenish_project__c" value="{!o.rstk__icreplenish_project__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="icreplenish_site__c" value="{!o.rstk__icreplenish_site__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="icreplenish_locid__c" value="{!o.rstk__icreplenish_locid__c}" rendered="{!isEdit}"/>
+                <apex:inputHidden id="icreplenish_locnum__c" value="{!o.rstk__icreplenish_locnum__c}" rendered="{!isEdit}"/>
+            </apex:outputPanel>
+
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!OR(isNew, isEdit)}">
+                <apex:outputField value="{!o.rstk__icreplenish_div__c}" />
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_item__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icreplenish_item__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="icreplenish_item__c" cntr="{!controller}" rendered="{!isNew}" slDesc="{!icitemName}" required="true" tabIndex="200"
+                            query="select id, name from icitem__c where icitem_div__c = '{!o.rstk__icreplenish_div__c}'" 
+                            queryParms="[]"/>
+                        <apex:outputField value="{!o.rstk__icreplenish_item__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_frproject__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_frproject__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="icreplenish_frproject__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_div__c = '{!o.rstk__icreplenish_div__c}'" slDesc="{!fprojectDesc}" required="true" tabIndex="400"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_project__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_project__c.label}" />
+                    <apex:outputPanel >
+                        <c:autocomplete id="icreplenish_project__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_div__c = '{!o.rstk__icreplenish_div__c}'" slDesc="{!projectDesc}" required="true" tabIndex="210" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstk__icreplenish_project__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_frsite__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_frsite__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList cntr="{!controller}" options="{!frsites}" id="icreplenish_frsite__c" value="{!o.rstk__icreplenish_frsite__c}" required="true" width="250px" tabindex="410"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_site__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_site__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList cntr="{!controller}" options="{!sites}" id="icreplenish_site__c" value="{!o.rstk__icreplenish_site__c}" rendered="{!isNew}" required="true" width="250px"  tabindex="220"/>
+                        <apex:outputField value="{!o.rstk__icreplenish_site__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_frlocid__c.inlineHelpText}"  >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_frlocid__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList id="icreplenish_frlocid__c" value="{!o.rstk__icreplenish_frlocid__c}" cntr="{!controller}" options="{!frlocids}" width="250px" tabIndex="420"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_locid__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_locid__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList id="icreplenish_locid__c" value="{!o.rstk__icreplenish_locid__c}" cntr="{!controller}" options="{!locids}" width="250px" tabIndex="230" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstk__icreplenish_locid__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+            
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_frlocnum__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_frlocnum__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="icreplenish_frlocnum__c" value="{!o.rstk__icreplenish_frlocnum__c}"  taborderhint="43"/>
+                        <select id="sl_icreplenish_frlocnum__c" size="1" 
+                        	onchange="sfffSetFieldValue('icreplenish_frlocnum__c', this.value);"
+                        	style="width:120px;display:{!IF(displayfrlocnumlist,'inline','none')};"
+                        	tabIndex="430" />
+                        <script>
+                        	var frlocnumlistfld = document.getElementById("sl_icreplenish_frlocnum__c");
+                        	populateLocnums(frlocnumlistfld, {!frlocnumslist}, "{!o.rstk__icreplenish_frlocnum__c}");
+                        	var frlocnumfld = document.getElementById("{!$Component.icreplenish_frlocnum__c}");
+                            if(frlocnumfld)frlocnumfld.disabled = {!displayfrlocnumlist};
+                        </script>
+                    </apex:outputPanel>
+                 </apex:pageBlockSectionItem>   
+                 
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_locnum__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_locnum__c.label}"/>
+                     <apex:outputPanel >
+                        <apex:inputField id="icreplenish_locnum__c" value="{!o.rstk__icreplenish_locnum__c}" rendered="{!isNew}" taborderhint="24"/>
+                        <select id="sl_icreplenish_locnum__c" size="1" 
+                        	onchange="sfffSetFieldValue('icreplenish_locnum__c', this.value);"
+                        	style="width:120px;display:{!IF(AND(isNew, displaylocnumlist),'inline','none')};"
+                        	tabIndex="240" />
+                        <apex:outputField value="{!o.rstk__icreplenish_locnum__c}" rendered="{!isEdit}"/>
+                        <script>
+                        	var locnumlistfld = document.getElementById("sl_icreplenish_locnum__c");
+                        	populateLocnums(locnumlistfld, {!locnumslist}, "{!o.rstk__icreplenish_locnum__c}");
+                            var locnumfld = document.getElementById("{!$Component.icreplenish_locnum__c}");
+                            if(locnumfld)locnumfld.disabled = {!displaylocnumlist};
+                        </script>
+                      </apex:outputPanel>
+                  </apex:pageBlockSectionItem>              
+                
+                <apex:inputField id="icreplenish_shiptoname__c" value="{!o.rstk__icreplenish_shiptoname__c}" taborderhint="44"/>
+                                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_tolocid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__icreplenish_tolocid__c.label}" />
+                    <apex:outputPanel >
+                        <c:largeSelectList id="icreplenish_tolocid__c" value="{!o.rstk__icreplenish_tolocid__c}" cntr="{!controller}" options="{!tolocids}" width="250px" tabIndex="250"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+        
+                <apex:inputField id="icreplenish_shiptostreet__c" value="{!o.rstk__icreplenish_shiptostreet__c}" taborderhint="45"/>
+        
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_tolocnum__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_tolocnum__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputField id="icreplenish_tolocnum__c" value="{!o.rstk__icreplenish_tolocnum__c}" taborderhint="26"/>
+                            <select id="sl_icreplenish_tolocnum__c" size="1" 
+	                        	onchange="sfffSetFieldValue('icreplenish_tolocnum__c', this.value);"
+	                        	style="width:120px;display:{!IF(displaylocnumlist,'inline','none')};"
+	                        	tabIndex="260" />
+                            <script>
+                            	var tolocnumlistfld = document.getElementById("sl_icreplenish_tolocnum__c");
+                            	populateLocnums(tolocnumlistfld, {!tolocnumslist}, "{!o.rstk__icreplenish_tolocnum__c}");
+                                var tolocnumfld = document.getElementById("{!$Component.icreplenish_tolocnum__c}");
+                                if(tolocnumfld)tolocnumfld.disabled = {!displaylocnumlist};
+                            </script>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>    
+        
+                <apex:inputField id="icreplenish_shiptocity__c" value="{!o.rstk__icreplenish_shiptocity__c}" taborderhint="46"/>
+                
+                <apex:inputField id="icreplenish_minstockqty__c" value="{!o.rstk__icreplenish_minstockqty__c}" onkeypress="return filterNonNumeric(event, this)" taborderhint="27"/>
+                
+                <apex:inputField id="icreplenish_shiptostate__c" value="{!o.rstk__icreplenish_shiptostate__c}" taborderhint="47"/>
+                
+                <apex:inputField id="icreplenish_maxqtyoh__c" value="{!o.rstk__icreplenish_maxqtyoh__c}" onkeypress="return filterNonNumeric(event, this)" taborderhint="29" />  
+                <apex:pageBlockSectionItem helpText="{!f.rstk__icreplenish_shiptocountry__c.inlineHelpText}" >
+                    <apex:outputLabel value="{!f.rstk__icreplenish_shiptocountry__c.label}"/>
+                    <apex:panelGrid columns="2">
+                        <apex:inputField id="icreplenish_shiptocountry__c" value="{!o.rstk__icreplenish_shiptocountry__c}" taborderhint="48" />
+                        <!--c:inputField id="icreplenish_isocountry__c" cntr="{!controller}"/-->
+                        <apex:inputField id="icreplenish_isocountry__c" value="{!o.rstk__icreplenish_isocountry__c}" rendered="{!!isView}"/>
+                    </apex:panelGrid> 
+                </apex:pageBlockSectionItem>     
+                <apex:inputField id="icreplenish_multiplier__c" value="{!o.rstk__icreplenish_multiplier__c}" onkeypress="return filterNonNumeric(event, this)" taborderhint="30" />
+                
+                <apex:inputField id="icreplenish_shiptozip__c" value="{!o.rstk__icreplenish_shiptozip__c}" taborderhint="49" />
+                
+                <apex:inputField id="icreplenish_netsupdmd__c" value="{!o.rstk__icreplenish_netsupdmd__c}" taborderhint="32" />
+                
+                <apex:inputField id="icreplenish_createicreq__c" value="{!o.rstk__icreplenish_createicreq__c}" taborderhint="50" />
+                
+                <apex:pageBlockSectionItem />  
+                
+                <apex:inputField id="icreplenish_delaydays__c" value="{!o.rstk__icreplenish_delaydays__c}" onkeypress="return filterNonNumeric(event, this)" taborderhint="51" />
+                
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection showHeader="false" columns="2" rendered="{!isView}">
+                <apex:outputField value="{!o.rstk__icreplenish_div__c}" />
+                <apex:pageBlockSectionItem />
+                <apex:outputField value="{!o.rstk__icreplenish_item__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_frproject__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_project__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_frsite__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_site__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_frlocid__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_locid__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_frlocnum__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_locnum__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_shiptoname__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_tolocid__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_shiptostreet__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_tolocnum__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_shiptocity__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_minstockqty__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_shiptostate__c}" />
+                <apex:outputField value="{!o.rstk__icreplenish_maxqtyoh__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_shiptocountry__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_multiplier__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_shiptozip__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_netsupdmd__c}"/>
+                <apex:outputField value="{!o.rstk__icreplenish_createicreq__c}"/>
+                <apex:pageBlockSectionItem />
+                <apex:outputField value="{!o.rstk__icreplenish_delaydays__c}"/>
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_icreplenish_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false" />
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        <script>
+            //setSelectListRequired("icreplenish_item__c");
+            setSelectListRequired("icreplenish_project__c");
+            setSelectListRequired("icreplenish_site__c");
+            setSelectListRequired("icreplenish_frproject__c");
+            setSelectListRequired("icreplenish_frsite__c");
+            //setSelectListRequired("icreplenish_tolocid__c");
+            //setInputFieldRequired("icreplenish_tolocnum__c");
+        </script>
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_DefTransferQtyMustGrtrThaz0 = "{!$Label.rstk__deftransferqtymustgrtrthaz0}";
+        var LABEL_TransfRequestDelayDaysCantLessThan0 = "{!$Label.rstk__transfrequestdelaydayscantlessthan0}";
+        var LABEL_MinStockingQtyCantLessThan0 = "{!$Label.rstk__minstockingqtycantlessthan0}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

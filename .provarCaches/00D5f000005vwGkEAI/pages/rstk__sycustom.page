@@ -1,0 +1,133 @@
+<apex:page id="pg" standardController="rstk__sycustom__c" extensions="rstk.ControllerExtnSycustom" action="{!doBeforePageLoad}" sideBar="false">
+    <apex:variable var="o" value="{!rstk__sycustom__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__sycustom__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_sycustom}" customInclude="{!$Resource.rstk__sycustom_cli}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <script>
+        var headerFields = {!headerfieldString};
+        var lineFields = {!linefieldString};
+        var lastTypeSelected;
+        var hasExistingRecords = {!hasExistingRecords};
+    </script>
+   
+    <apex:form id="fm">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" 
+                    disableSaveAndNew="false"
+                    saveScript="conditionalNotifyOfExistingRecords(hasExistingRecords, 'existingRecordsPopup');"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                <apex:pageBlockSectionItem helpText="{!f.name.inlineHelpText}">
+                    <apex:outputLabel value="{!f.name.label}"/>
+                    <apex:inputText id="name_string__c" required="true" value="{!nameString}" style="width:250px;"/>
+                </apex:pageBlockSectionItem> 
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sycustom_oldim__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sycustom_oldim__c.label}"/>
+                    <apex:inputField id="sycustom_oldim__c" required="false" value="{!o.rstk__sycustom_oldim__c}" style="width:250px;" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sycustom_oplproduct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sycustom_oplproduct__c.label}"/>
+                    <apex:inputField id="sycustom_oplproduct__c" required="false" value="{!o.rstk__sycustom_oplproduct__c}" style="width:250px;" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sycustom_qldim__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sycustom_qldim__c.label}"/>
+                    <apex:inputField id="sycustom_qldim__c" required="false" value="{!o.rstk__sycustom_qldim__c}" style="width:250px;" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sycustom_qlproduct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sycustom_qlproduct__c.label}"/>
+                    <apex:inputField id="sycustom_qlproduct__c" required="false" value="{!o.rstk__sycustom_qlproduct__c}" style="width:250px;" />
+                </apex:pageBlockSectionItem>                  
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sycustom_oluom__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sycustom_oluom__c.label}"/>
+                    <apex:inputField id="sycustom_oluom__c" required="false" value="{!o.rstk__sycustom_oluom__c}" style="width:250px;" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sycustom_oppjobnum__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sycustom_oppjobnum__c.label}"/>
+                    <apex:inputField id="sycustom_oppjobnum__c" required="false" value="{!o.rstk__sycustom_oppjobnum__c}" style="width:250px;" />
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__sycustom_qluom__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__sycustom_qluom__c.label}"/>
+                    <apex:inputField id="sycustom_qluom__c" required="false" value="{!o.rstk__sycustom_qluom__c}" style="width:250px;"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_mapping" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_sycustom_sfquote_oppconversioncustomfieldmapping}" 
+                    name="tab_mapping" id="tab_mapping">
+                    <c:EditableGrid jsController="mappings" data="{!MappingGrid}" editable="true" ispopup="false"/>
+                    <script>
+                        mappings.resetRow = function(row) {
+                           console.log('mappings.resetRow...');
+                           mappingsHandler.prototype.resetRow.call(this, row);
+                           var previousVisibleRow = getPreviousVisibleRow(row[0]);
+                           if (previousVisibleRow) {
+                               var lastSelection = jQuery(previousVisibleRow).find('select[class*=type]')[0].value;
+                               if (lastSelection) {
+                                   var rowTypeSelect = row.find('select[class*=type]');
+                                   rowTypeSelect.val(lastSelection);
+                                   rowTypeSelect.change();
+                               }
+                           }
+                        }
+                        mappings.entryChanged = function(row, rowNum, name, value) {
+                           console.log('mappings.entryChanged...');
+                           if (name == 'sycustcopy_type__c') {
+                               var field = jQuery(row).find('select[class*=destfield]');
+                               if (value == 'Opportunity to Sales Order' ||
+                                   value == 'SF Quote to Sales Order') {
+                                   setPicklistOptions(field[0], headerFields); 
+                               } else if (value) {
+                                   setPicklistOptions(field[0], lineFields);   
+                               } else {
+                                   setPicklistOptions(field[0], []);   
+                               }
+                               lastTypeSelected = value;
+                           }
+                        }
+                        mappings.rowsUpdated = function() {
+                           console.log('mappings.rowsUpdated...');
+                           setDestFieldOptions();
+                        }
+                    </script>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_sycustom_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+                <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+        <c:Popup popupId="existingRecordsPopup" title="Multiple System Customizations Exist" onOk="_closeDialog(); doSave();">
+            {! $Label.Multiple_SyCustom_records }
+        </c:Popup>
+    </apex:form>
+
+    <c:footerInclude cntr="{!controller}" />
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

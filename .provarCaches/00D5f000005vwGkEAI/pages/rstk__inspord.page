@@ -1,0 +1,841 @@
+<apex:page id="pg" standardController="rstk__inspord__c" extensions="rstk.ControllerExtnInspord,rstk.RemoteQueryController" sidebar="true" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!rstk__inspord__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__inspord__c.fields}" />
+    
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_inspectionorder}" enableAutocomplete="true" />
+	
+	 <!-- Includes -->
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_autocomplete}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+	
+	<script>
+	    var isNew = {!isNew};
+	    var isEdit = {!isEdit};
+	    var isView = {!isView};
+	    var reqind = {!reqind};
+	    var isQuantityDisabled = {!isQuantityDisabled};
+	    var siteInfo;
+	    if(isEdit){
+	    	siteInfo = '{!o.rstk__inspord_site__c}'
+	    }
+		//RSTK-3309 - Removing the validation related to "indirect item"
+		// Updated by : Parthiban C
+	    // function getPoitemValue(){
+	    // 	return isNew ? sfffGetFieldValue('inspord_poitem__c') : document.getElementById('{!$Component.pg.fm.pb.pbs_main.inspord_poitem__PBSI.linspord_poitem__c}').value;
+		// }
+		//
+	    
+	    function getQtyreqValue(){
+	    	return isNew ? sfffGetFieldValue('linspord_qtyreq__c') : document.getElementById('{!$Component.pg.fm.pb.pbs_main.inspord_qtyreq__PBSI.linspord_qtyreq__c}').value;
+	    }
+	    
+	    function getSelectedStatus(){
+	    	var statusFld = document.getElementById('{!$Component.pg.fm.pb.pbs_main.inspord_status__PBSI.inspord_status__c}');
+	    	if(statusFld){
+	    		return jQuery("#" + statusFld.id.replace(/:/g, '\\:')+ " option:selected").text();
+	    	} else {
+	    		return document.getElementById('{!$Component.pg:fm:pb:pbs_view:inspord_status_pbsi:inspord_status}').innerHTML;
+	    	}
+	    }
+	    
+	    function pageInit(type){
+	    	disableDispositionButton();
+			
+			//RSTK-3309 - Removing the validation related to "indirect item"
+			// Updated by : Parthiban C
+			// poitemChanged();
+			//
+	    	
+	    	if(isEdit || isView){
+	    		var selectedStatus = getSelectedStatus();
+		    	//if('Dispositioned' == selectedStatus ||  selectedStatus == Enums.StaticList.InspectionOrderStatus.pending){
+		    	if({!isStatusFldDisabled}){
+		    		document.getElementById('{!$Component.pg.fm.pb.pbs_main.inspord_status__PBSI.inspord_status__c}').disabled = true;
+		    	}
+		    	if('Completed' == selectedStatus){
+		    		enableDispositionButton();
+		    	}
+		    }
+	    }
+	    
+	    function disableButton(btn){
+	    	if(btn){
+		    	btn.disabled = true;
+	   			btn.classList.remove('btn');
+	   			btn.classList.add('btnDisabled');
+   			}
+	    }
+	    
+	    function enableButton(btn){
+	    	if(btn){
+		    	btn.disabled = false;
+	   			btn.classList.remove('btnDisabled');
+	   			btn.classList.add('btn');
+   			}
+	    }
+	    
+	    function disableDispositionButton(){
+	    	disableButton(document.getElementById('{!$Component.pg.fm.pb.pbButton.finalDispositionBtn}'));
+	    	disableButton(document.getElementById('pg:fm:pb:pbButton:bottom:finalDispositionBtn'));
+	    }
+	    
+	    function enableDispositionButton(){
+	    	enableButton(document.getElementById('{!$Component.pg.fm.pb.pbButton.finalDispositionBtn}'));
+	    	enableButton(document.getElementById('pg:fm:pb:pbButton:bottom:finalDispositionBtn'));
+	    }
+	    
+	    function statusChanged(fld){
+	    	if(fld){
+	    		var selectedStatus = getSelectedStatus();
+	    		if('Dispositioned' == selectedStatus && document.getElementById('{!$Component.pg.fm.pb.pbs_main.inspord_status__PBSI.inspord_status__c}').disabled == false){
+	    			alert('{!$Label.CannotChangeIOStatusToDispositioned}');
+	    			return false;
+	    		}
+	    		if('Completed' == selectedStatus && !isTotalsCorrect()){
+	    			alert('{!$Label.CannotChangeIOStatusToCompleted}');
+	    			return false;
+	    		}
+	    		
+	    		if(isNew && 'New' != selectedStatus && 'In Process' != selectedStatus){
+	    			alert('{!$Label.InspordAllowedStatusAreNewAndInProcess}');
+	    			return false;
+	    		}
+	    	}
+	    	return true;
+	    }
+	    
+	    function isTotalsCorrect(){
+	    	var qtyOk = isQuantityDisabled ? document.getElementById('{!$Component.pg:fm:pb:pbs_main:inspord_qtyok__PBSI:linspord_qtyok__c}').innerHTML : sfffGetFieldValue('inspord_qtyok__c');
+   			var qtyScrap = isQuantityDisabled ? document.getElementById('{!$Component.pg:fm:pb:pbs_main:inspord_qtyscrap__PBSI:linspord_qtyscrap__c}').innerHTML : sfffGetFieldValue('inspord_qtyscrap__c');
+   			var qtyOther = isQuantityDisabled ? document.getElementById('{!$Component.pg:fm:pb:pbs_main:inspord_qtyother__PBSI:linspord_qtyother__c}').innerHTML : sfffGetFieldValue('inspord_qtyother__c');
+   			var qtyReq = getQtyreqValue();
+   			var total = 0;
+   			if(qtyOk){
+   				total += parseLocaleInt(qtyOk);
+   			}
+   			if(qtyScrap){
+   				total += parseLocaleInt(qtyScrap);
+   			}
+   			if(qtyOther){
+   				total += parseLocaleInt(qtyOther);
+   			}
+   			if((!qtyReq && total > 0) || (qtyReq && total != parseInt(qtyReq))){
+   				return false;
+   			}
+   			return true;
+	    }
+	    
+	    function validateTotals(){
+	    	var qtyOk = sfffGetFieldValue('inspord_qtyok__c');
+	    	if(qtyOk && qtyOk < 0){
+	    		alert('{!$Label.QuantityOKCannotBeLessThanZero}');
+	    		return false;
+	    	}
+   			var qtyScrap = sfffGetFieldValue('inspord_qtyscrap__c');
+   			if(qtyScrap && qtyScrap < 0){
+	    		alert('{!$Label.QuantityToBeScrappedCannotBeLessThanZero}');
+	    		return false;
+	    	}
+   			var qtyOther = sfffGetFieldValue('inspord_qtyother__c');
+   			if(qtyOther && qtyOther < 0){
+	    		alert('{!$Label.QuantityInOtherDispCannotBeLessThanZero}');
+	    		return false;
+	    	}
+	    	return true;
+	    }
+	    
+	    function saveRecord() {
+	    	if(isNew){
+	    		var qtyReq = sfffGetFieldValue('inspord_qtyreq__c');
+	    		if(!qtyReq){
+	    			alert('{!$Label.InspectionQuantityIsRequired}');
+	    			return false;
+	    		}
+	    		if(isNaN(qtyReq) || qtyReq <= 0){
+	    			alert('{!$Label.InvalidInspectionQuantity}');
+	    			return false;
+	    		}
+				
+				//RSTK-3309 - Removing the validation related to "indirect item"
+				// Updated by : Parthiban C
+	    		// var poitem = getPoitemValue();
+    			// if(!poitem){
+    			// 	alert('{!$Label.IndirectItemIsRequired}');
+	    		// 	return false;
+				// }
+				//
+	    	}
+	    	
+	    	if(isEdit){
+	    		reqind = false;
+	    	    if(siteInfo){
+		    		reqind = isLocNumReq();
+		    	}else{
+		    		reqind = false;
+		    	}
+	    	    
+		    	if(!isQuantityDisabled && !validateTotals()){
+		    		return false;
+		    	}
+		    	if(!isQuantityDisabled && !isTotalsCorrect() && sfffGetFieldValue('inspord_status__c') == 'Completed'){
+	    			alert('{!$Label.TotalValueCannotExceedInspectionQuantity}');
+	    			return false;
+	    		}
+    		}
+    		var statusCheck = statusChanged(document.getElementById('{!$Component.pg.fm.pb.pbs_main.inspord_status__PBSI.inspord_status__c}'));
+    		if(!statusCheck){
+    			return false;
+			}
+			//RSTK-3309 - Removing the validation related to "indirect item"
+			// Updated by : Parthiban C
+    		// var poitem = getPoitemValue();
+    		// if(!poitem){
+    			var scraplocid = sfffGetFieldValue('inspord_scraplocid__c');
+    			if(!scraplocid){
+    				alert('{!$Label.LocIDForScrappedDispositionCannotBeEmpty}');
+    				return false;
+    			}
+    			var scraplocnum = sfffGetFieldValue('inspord_scraplocnum__c');
+    			if(!scraplocnum){
+    				alert('{!$Label.LocNumberForScrappedDisposCannotBeEmpty}');
+    				return false;
+    			}
+    			if(reqind == true){
+    				if(!isSylocnumExist(scraplocid, scraplocnum)){
+	    				alert('{!$Label.InvalidLocationIDOrLocationNumber}');
+	    				return false;
+	    			}
+    			}
+    			
+    			var otherlocid = sfffGetFieldValue('inspord_otherlocid__c');
+    			if(!otherlocid){
+    				alert('{!$Label.LocationIDForOtherDispositionCannotBeEmpty}');
+    				return false;
+    			}
+    			var otherlocnum = sfffGetFieldValue('inspord_otherlocnum__c');
+    			if(!otherlocnum){
+    				alert('{!$Label.LocNoForOtherDispositionCannotBeEmpty}');
+    				return false;
+    			}
+    			if(reqind == true){
+    				if(!isSylocnumExist(otherlocid, otherlocnum)){
+	    				alert('{!$Label.InvalidLocIDOrLocNoForOtherDisposition}');
+	    				return false;
+	    			}
+    			}
+			// }
+			//
+    		return true;
+	    }
+	    
+	    function isLocNumReq(){
+	    	var sites = execQuery("select Id,sysite_sylocnum_reqind__c from sysite__c where id = '" + siteInfo + "'", true);
+            return sites[0].sysite_sylocnum_reqind__c;
+	    }
+	    
+	    function isSylocnumExist(locId, locNum){
+	    	if(!locId || !locNum){
+	    		return false;
+	    	}
+	    	var sylocnums = execQuery("select Id from sylocnum__c where sylocnum_locid__c = '" + locId + "' and sylocnum_locnum__c = '" + locNum + "'", true);
+            return sylocnums.length > 0;
+	    }
+	    
+	    function openInsOrderSerialPopup(){
+		    _showDialog('insOrderSerialPopup', 1100); 
+		    return false;
+		}
+		
+		function closeInsOrderSerialPopup(){
+		    window.location.reload();
+		}
+		
+		function clearAndDisableAutoComplete(fId){
+			document.getElementById(fId).disabled = true;
+			jQuery("#" + fId).next().val('');
+		}
+		
+		function disableField(fId){
+			document.getElementById(fId).disabled = false;
+		}
+		
+		//RSTK-3309 - Removing the validation related to "indirect item"
+		// Updated by : Parthiban C
+		// function poitemChanged(){
+		// 	var poitemValue = getPoitemValue();
+		// 	if(poitemValue){
+		// 		clearAndDisableAutoComplete('inspord_scraplocid__c_autocomplete');
+		// 		clearAndDisableAutoComplete('inspord_otherlocid__c_autocomplete');
+		// 		document.getElementById('{!$Component.pg.fm.pb.pbs_locations.inspord_scraplocnum__PBSI.inspord_scraplocnum__c}').disabled = true;
+		// 		document.getElementById('{!$Component.pg.fm.pb.pbs_locations.inspord_otherlocnum__PBSI.inspord_otherlocnum__c}').disabled = true;
+		// 	} else{
+		// 		disableField('inspord_scraplocid__c_autocomplete');
+		// 		disableField('inspord_otherlocid__c_autocomplete');
+		// 		disableField('{!$Component.pg.fm.pb.pbs_locations.inspord_scraplocnum__PBSI.inspord_scraplocnum__c}');
+		// 		disableField('{!$Component.pg.fm.pb.pbs_locations.inspord_otherlocnum__PBSI.inspord_otherlocnum__c}');
+		// 	}
+		//}
+		//
+		
+		function showPopup(header, fld){
+			content = jQuery(fld).next().val();
+	    	var container = jQuery("#detailsContentContainer");
+        	container.empty();
+        	container.append('<textarea readonly style="border: none;overflow: auto;width: 100%" rows="10">' + content + '</textarea>');
+        	
+        	var head = jQuery("#detailsHeaderContainer");
+        	head.empty();
+        	head.append(header);
+        	
+	    	jQuery.blockUI({
+	            message: jQuery('#detailsPopupDiv'),
+	            blockMsgClass: 'popupscroll',
+	            css: {
+	                backgroundColor:'#fff',
+	                top: '5%',
+	                left: '30%',
+					width: '40%',
+					height:'35%',
+	                padding:'10px',
+	                textAlign:'left',
+	                fontSize:'1em',
+	                border:'2px solid #333',
+	                
+	                opacity:'1.0',
+	                '-moz-border-radius':'6px',
+	                '-webkit-border-radius':'6px',
+	                '-moz-box-shadow': '0 0 50px #ccc',
+	                '-webkit-box-shadow': '0 0 50x #ccc'
+	            }
+        	});
+        }
+        
+        function navigateToStepCreatePage(){
+	    	window.location = '/apex/inspordstep?inspord={!o.id}&returnURL=' + encodeURIComponent(window.location.href);
+	    }
+	    
+	    function navigateToStepEditPage(sId){
+	    	window.location = '/apex/inspordstep?id=' + sId + '&returnURL=' + encodeURIComponent(window.location.href);
+	    }
+	    
+	    function validateSerialsQnt(){
+	    	var isChecked = false;
+	    	var numOfrec = 0;
+			for (i = 0; i < selectcbxs.length; i++) {
+				if(selectcbxs[i].checked){
+					isChecked = true ;
+					numOfrec ++;
+				}
+			}
+			if(!isChecked) {
+				alert('{!$Label.Please_select_at_least_one_record}');
+				unblockUI();
+			}else{
+				if(numOfrec != {!o.rstk__inspord_qtyreq__c} ){
+					alert('{!$Label.quantityBeingInspected}',{!o.rstk__inspord_qtyreq__c});
+					unblockUI();
+				}else{
+					processSerialDetails();
+				}
+			}
+			return false;
+			
+	    }
+	    
+	    function selectall(el) {
+	    	for(i = 0; i < selectcbxs.length; i++) {
+				selectcbxs[i].checked = el.checked;
+			}
+		}
+	</script>
+    
+    <apex:form id="fm">
+    	<apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="serialDetails" action="{!serialDetails}" immediate="true" oncomplete="unblockUI();" rerender="pb_table2"/>
+        <apex:actionFunction name="processSerialDetails" action="{!processSerialDetails}" immediate="false" rerender="pageMessages"/>
+        
+    	<apex:pageBlock id="pb" mode="detail">
+    		<apex:pageBlockButtons id="pbButton">
+                <c:standardButtons cntr="{!controller}" />
+                <apex:commandbutton value="{!$Label.rstk__specifyserialnumber}" onclick="blockUI();serialDetails();_showDialog('specifySerialNumPopup', '750');return false;" style="margin-top:5px;margin-bottom:10px;" rendered="{!!isSerialSpecifyButDisabled}" disabled="{!isSerialSpecifyButDisabled}"/>
+            </apex:pageBlockButtons>
+            
+            <c:division id="inspord_sydiv__c" cntr="{!controller}" />
+			<apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!OR(isNew,isEdit)}">		        
+		        <!-- Inspection Order Number -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_ordno__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_ordno__c.label}" />
+		            <apex:outputPanel >
+			            <apex:outputlabel value="{!$Label.rstk__ordernumberassignedonsave}" rendered="{!isNew}" />
+			            <apex:outputField value="{!o.rstk__inspord_ordno__c}" rendered="{!isEdit}" />
+		            </apex:outputPanel>
+		        </apex:pageBlockSectionItem>
+		        <!-- Order Status -->
+		        <apex:pageBlockSectionItem id="inspord_status__PBSI" helpText="{!f.rstk__inspord_status__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_status__c.label}" />
+		            <apex:inputField id="inspord_status__c" value="{!o.rstk__inspord_status__c}" onchange="statusChanged(this);"/> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Inventory Item -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_icitem__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_icitem__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_icitem__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        <!-- Inspection Extension -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_extension__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_extension__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_extension__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Inspection Quantity -->
+		        <apex:pageBlockSectionItem id="inspord_qtyreq__PBSI" helpText="{!f.rstk__inspord_qtyreq__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_qtyreq__c.label}" />
+		            <apex:outputPanel >
+		            	<apex:inputField id="inspord_qtyreq__c" value="{!o.rstk__inspord_qtyreq__c}" required="true" rendered="{!isNew}" />
+		            	<apex:outputField value="{!o.rstk__inspord_qtyreq__c}" rendered="{!isEdit}" />
+		            	<apex:inputHidden id="linspord_qtyreq__c" value="{!o.rstk__inspord_qtyreq__c}" rendered="{!isEdit}" />
+		            </apex:outputPanel>
+				</apex:pageBlockSectionItem>
+				
+		        <!-- Indirect Item -->
+		        <!-- <apex:pageBlockSectionItem id="inspord_poitem__PBSI" helpText="{!f.inspord_poitem__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.inspord_poitem__c.label}" />
+		            <apex:outputPanel >
+		            	<apex:outputPanel rendered="{!isNew}">
+		            		<apex:inputText id="inspord_poitem__c_autocomplete" styleClass="ac_input" size="30" value="{!PoitemName}" />
+							<apex:inputText id="inspord_poitem__c" value="{!o.inspord_poitem__c}" onchange="poitemChanged();" style="display:none" />
+							<script>
+								autocompleteParms["{!$Component.inspord_poitem__c}"] = 
+								{query:"select id, name from poitem__c where poitem_div__c = '{!o.inspord_sydiv__c}' and poitem_type__c = 'Indirect Material'", queryParms:[], codeColumn:"id", descColumn:"Name"};
+							</script>
+						</apex:outputPanel>
+		            	<apex:outputField value="{!o.inspord_poitem__c}" rendered="{!isEdit}" />
+		            	<apex:inputHidden id="linspord_poitem__c" value="{!o.inspord_poitem__c}" rendered="{!isEdit}" />
+		            </apex:outputPanel>
+				</apex:pageBlockSectionItem> -->
+
+				<!-- Inventory Site -->
+				  <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_site__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_site__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_site__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Quantity OK -->
+		        <apex:pageBlockSectionItem id="inspord_qtyok__PBSI" helpText="{!f.rstk__inspord_qtyok__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_qtyok__c.label}" />
+		            <apex:outputPanel >
+			            <apex:outputField id="linspord_qtyok__c" value="{!o.rstk__inspord_qtyok__c}" rendered="{!isQuantityDisabled}" />
+			            <apex:inputField id="inspord_qtyok__c" value="{!o.rstk__inspord_qtyok__c}" rendered="{!!isQuantityDisabled}" />
+		            </apex:outputPanel>
+		        </apex:pageBlockSectionItem>
+				
+				<!-- Project -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_proj__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_proj__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_proj__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Quantity to be Scrapped -->
+		        <apex:pageBlockSectionItem id="inspord_qtyscrap__PBSI" helpText="{!f.rstk__inspord_qtyscrap__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_qtyscrap__c.label}" />
+		            <apex:outputPanel >
+		            	<apex:outputField id="linspord_qtyscrap__c" value="{!o.rstk__inspord_qtyscrap__c}" rendered="{!isQuantityDisabled}" />
+		            	<apex:inputField id="inspord_qtyscrap__c" value="{!o.rstk__inspord_qtyscrap__c}" rendered="{!!isQuantityDisabled}" />
+		            </apex:outputPanel>
+		        </apex:pageBlockSectionItem>
+				
+				<!-- Lot Number -->
+				 <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_lotno__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_lotno__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_lotno__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Quantity in Other Disposition -->
+		        <apex:pageBlockSectionItem id="inspord_qtyother__PBSI" helpText="{!f.rstk__inspord_qtyother__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_qtyother__c.label}" />
+		            <apex:outputPanel >
+		            	<apex:outputField id="linspord_qtyother__c" value="{!o.rstk__inspord_qtyother__c}" rendered="{!isQuantityDisabled}" />
+		            	<apex:inputField id="inspord_qtyother__c" value="{!o.rstk__inspord_qtyother__c}" rendered="{!!isQuantityDisabled}" />
+		            </apex:outputPanel>
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSection >
+
+				</apex:pageBlockSection>
+		       
+		        
+		        <!-- Comments -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_comments__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_comments__c.label}" />
+		            <apex:inputField value="{!o.rstk__inspord_comments__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        <apex:pageBlockSectionItem >
+		        </apex:pageBlockSectionItem>
+			</apex:pageBlockSection>
+			
+			<apex:pageBlockSection id="pbs_view" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!isView}">
+		        <!-- Inspection Order Number -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_ordno__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_ordno__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_ordno__c}" />
+		        </apex:pageBlockSectionItem>
+		        <!-- Order Status -->
+		        <apex:pageBlockSectionItem id="inspord_status_pbsi" helpText="{!f.rstk__inspord_status__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_status__c.label}" />
+		            <apex:outputField id="inspord_status" value="{!o.rstk__inspord_status__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Inventory Item -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_icitem__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_icitem__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_icitem__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        <!-- Inspection Extension -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_extension__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_extension__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_extension__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Inspection Quantity -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_qtyreq__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_qtyreq__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_qtyreq__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        <!-- Indirect Item -->
+		        <!-- <apex:pageBlockSectionItem helpText="{!f.inspord_poitem__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.inspord_poitem__c.label}" />
+		            <apex:outputField value="{!o.inspord_poitem__c}" /> 
+				</apex:pageBlockSectionItem> -->
+				
+				 <!-- Inventory Site -->
+				 <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_site__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_site__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_site__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Quantity OK -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_qtyok__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_qtyok__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_qtyok__c}" /> 
+		        </apex:pageBlockSectionItem>
+		       
+		        <!-- Project -->
+				  <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_proj__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_proj__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_proj__c}" /> 
+				</apex:pageBlockSectionItem>
+				
+		        <!-- Quantity to be Scrapped -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_qtyscrap__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_qtyscrap__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_qtyscrap__c}" /> 
+				</apex:pageBlockSectionItem>
+				
+				<!-- Lot Number -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_lotno__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_lotno__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_lotno__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        
+		        <!-- Quantity in Other Disposition -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_qtyother__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_qtyother__c.label}" />
+		            <apex:outputField value="{!o.rstk__inspord_qtyother__c}" /> 
+				</apex:pageBlockSectionItem>
+				
+				<apex:pageBlockSectionItem >
+				</apex:pageBlockSectionItem>
+		        
+		        
+		        <!-- Comments -->
+		        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_comments__c.inlineHelpText}">
+		            <apex:outputLabel value="{!f.rstk__inspord_comments__c.label}" />
+		            <apex:outputField id="inspord_comments__c" value="{!o.rstk__inspord_comments__c}" /> 
+		        </apex:pageBlockSectionItem>
+		        <apex:pageBlockSectionItem >
+		        </apex:pageBlockSectionItem>
+			</apex:pageBlockSection>
+			
+			<apex:tabPanel switchType="client" selectedTab="tab_locations" id="theTabPanel">
+		        <apex:tab label="{!$Label.rstk__pagetab_inspord_locations}" name="tab_locations" id="tab_locations">
+		        	<apex:pageBlockSection id="pbs_locations" showHeader="false" columns="2">
+		        		<!-- Inspection Order Location ID -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_locid__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_locid__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_locid__c}" /> 
+				        </apex:pageBlockSectionItem>
+			        	<!-- Location ID for Scrapped Disposition -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_scraplocid__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_scraplocid__c.label}" />
+				            <apex:outputPanel >
+				            	<c:autocomplete id="inspord_scraplocid__c" cntr="{!controller}" slDesc="{!ScraplocidName}" 
+									query="select id, name from sylocid__c where sylocid_div__c='{!o.rstk__inspord_sydiv__c}' and sylocid_loctype_pl__c='Non-nettable' and sylocid_inspection__c=false and sylocid_site__c = '{!o.rstk__inspord_site__c}'"
+									rendered="{!OR(isNew,isEdit)}" /> 
+								<apex:outputField value="{!o.rstk__inspord_scraplocid__c}" rendered="{!isView}" /> 
+							</apex:outputPanel>
+				        </apex:pageBlockSectionItem>
+				        
+				        <!-- Inspection Order Location Number -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_locnum__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_locnum__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_locnum__c}" /> 
+				        </apex:pageBlockSectionItem>
+			        	<!-- Location Number for Scrapped Disposition -->
+				        <apex:pageBlockSectionItem id="inspord_scraplocnum__PBSI" helpText="{!f.rstk__inspord_scraplocnum__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_scraplocnum__c.label}" />
+				            <apex:outputPanel >
+				            	<apex:inputField id="inspord_scraplocnum__c" value="{!o.rstk__inspord_scraplocnum__c}" rendered="{!OR(isNew,isEdit)}" />
+				            	<apex:outputField value="{!o.rstk__inspord_scraplocnum__c}" rendered="{!isView}" />
+				            </apex:outputPanel>
+				        </apex:pageBlockSectionItem>
+				        
+				        <!-- Originating Inventory Site -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_frsite__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_frsite__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_frsite__c}" /> 
+				        </apex:pageBlockSectionItem>
+			        	<!-- Location ID for Other Disposition -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_otherlocid__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_otherlocid__c.label}" />
+				            <apex:outputPanel >
+				            	<c:autocomplete id="inspord_otherlocid__c" cntr="{!controller}" slDesc="{!OtherlocidName}" 
+									query="select id, name from sylocid__c where sylocid_div__c='{!o.rstk__inspord_sydiv__c}' and sylocid_inspection__c=false and sylocid_site__c = '{!o.rstk__inspord_site__c}'" queryParms="[]" rendered="{!OR(isNew,isEdit)}" /> 
+				        		<apex:outputField value="{!o.rstk__inspord_otherlocid__c}" rendered="{!isView}" />
+				        	</apex:outputPanel>
+				        </apex:pageBlockSectionItem>
+				        
+				        
+				         <!-- Originating Location ID -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_frlocid__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_frlocid__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_frlocid__c}" /> 
+				        </apex:pageBlockSectionItem>
+			        	<!-- Location Number for Other Disposition -->
+				        <apex:pageBlockSectionItem id="inspord_otherlocnum__PBSI" helpText="{!f.rstk__inspord_otherlocnum__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_otherlocnum__c.label}" />
+				            <apex:outputPanel >
+				            	<apex:inputField id="inspord_otherlocnum__c" value="{!o.rstk__inspord_otherlocnum__c}" rendered="{!OR(isNew,isEdit)}" />
+				            	<apex:outputField value="{!o.rstk__inspord_otherlocnum__c}" rendered="{!isView}" />
+				            </apex:outputPanel>
+				        </apex:pageBlockSectionItem>
+				        
+				        <!-- Originating Location Number -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_frlocnum__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_frlocnum__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_frlocnum__c}" /> 
+				        </apex:pageBlockSectionItem>
+				        <apex:pageBlockSectionItem />
+				    </apex:pageBlockSection>
+		        </apex:tab>
+		        
+		        <apex:tab label="{!$Label.rstk__pagetab_inspord_origination}" name="tab_origination" id="tab_origination">
+		        	<apex:pageBlockSection id="pbs_origination" showHeader="false" columns="2">
+			        	<!-- Inspection Order Template -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_insptempl__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_insptempl__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_insptempl__c}" /> 
+				        </apex:pageBlockSectionItem>
+				        <!-- Originating PO Receipt -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_porcptap__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_porcptap__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_porcptap__c}" /> 
+				        </apex:pageBlockSectionItem>
+				        
+				        <!-- Source of Inspection -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_source__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_source__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_source__c}" /> 
+				        </apex:pageBlockSectionItem>
+				        <!-- Originating RMA Line -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_sorma__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_sorma__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_sorma__c}" /> 
+				        </apex:pageBlockSectionItem>
+				        
+				        <!-- Inspection Material Originated in WIP -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_wip__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_wip__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_wip__c}" /> 
+				        </apex:pageBlockSectionItem>
+				        <!-- Originating Shipper Line -->
+				        <!-- <apex:pageBlockSectionItem helpText="{!f.inspord_soshipline__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.inspord_soshipline__c.label}" />
+				            <apex:outputField value="{!o.inspord_soshipline__c}" /> 
+				        </apex:pageBlockSectionItem>  -->
+				        
+				        <!-- Originating Work Order Operation -->
+				        <apex:pageBlockSectionItem helpText="{!f.rstk__inspord_woordop__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.rstk__inspord_woordop__c.label}" />
+				            <apex:outputField value="{!o.rstk__inspord_woordop__c}" /> 
+				        </apex:pageBlockSectionItem>
+				        
+				        <!-- Originating Inventory Location -->
+				        <!-- <apex:pageBlockSectionItem helpText="{!f.inspord_iclocitem__c.inlineHelpText}">
+				            <apex:outputLabel value="{!f.inspord_iclocitem__c.label}" />
+				            <apex:outputField value="{!o.inspord_iclocitem__c}" /> 
+				        </apex:pageBlockSectionItem> -->
+				        
+			        </apex:pageBlockSection>
+		        </apex:tab>
+		        
+		        <apex:tab label="{!$Label.rstk__pagetab_inspectionordersteps}" name="tab_iostep" id="tab_iostep" rendered="{!OR(isView,isEdit)}">
+					<apex:outputPanel >
+		        		<apex:commandbutton value="{!$Label.rstk__inspord_pagebtn_newinspectiontemplatest}" onclick="navigateToStepCreatePage();return false;" style="margin-top:5px;margin-bottom:10px;" />
+		        	</apex:outputPanel>
+                    <apex:outputPanel id="stepsPanel">
+			            <apex:pageBlockTable value="{!InspordSteps}" var="i" id="stepsBlockTable">
+	                        <apex:column >
+	                        	<apex:outputLink onclick="navigateToStepEditPage('{!i.id}');return false;">{!$Label.rstk__edit}</apex:outputLink>
+	                        </apex:column>
+	                        <apex:column >
+	                        	<apex:facet name="header">{!$ObjectType.rstk__inspordstep__c.fields.rstk__inspordstep_seq__c.label}</apex:facet>
+	                        	<apex:outputLink value="/apex/inspordstep?actionType=view&id={!i.id}"><apex:outputfield value="{!i.rstk__inspordstep_seq__c}" /></apex:outputLink>
+	                        </apex:column>
+	                        <apex:column value="{!i.rstk__inspordstep_desc__c}">
+	                        	<apex:facet name="header">{!$ObjectType.rstk__inspordstep__c.fields.rstk__inspordstep_desc__c.label}</apex:facet>
+	                        </apex:column>
+	                        <apex:column >
+	                        	<apex:facet name="header">{!$ObjectType.rstk__inspordstep__c.fields.rstk__inspordstep_instructions__c.label}</apex:facet>
+	                        	<apex:outputLink onclick="showPopup('{!$ObjectType.rstk__inspordstep__c.fields.rstk__inspordstep_instructions__c.label}',this);return false;">
+	                        		{!$ObjectType.rstk__inspordstep__c.fields.rstk__inspordstep_instructions__c.label}
+	                        	</apex:outputLink>
+	                        	<textarea style="display:none;">{!i.rstk__inspordstep_instructions__c}</textarea>
+	                        </apex:column>
+	                        <apex:column >
+	                        	<apex:facet name="header">{!$ObjectType.rstk__inspordstep__c.fields.rstk__inspordstep_comments__c.label}</apex:facet>
+	                        	<apex:outputLink onclick="showPopup('{!$ObjectType.rstk__inspordstep__c.fields.rstk__inspordstep_comments__c.label}',this);return false;">
+	                        		{!$ObjectType.rstk__inspordstep__c.fields.rstk__inspordstep_comments__c.label}
+	                        	</apex:outputLink>
+	                        	<textarea style="display:none;">{!i.rstk__inspordstep_comments__c}</textarea>
+	                        </apex:column>
+	                    </apex:pageBlockTable>
+	                    <apex:panelGrid columns="6">
+	                        <apex:commandButton status="fetchStatus1" reRender="stepsPanel" value="|<" action="{!setCon.first}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__firstpage}" />
+	                        <apex:commandButton status="fetchStatus1" reRender="stepsPanel" value="<" action="{!setCon.previous}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__previouspage}" />
+	                        <apex:commandButton status="fetchStatus1" reRender="stepsPanel" value=">" action="{!setCon.next}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__nextpage}" />
+	                        <apex:commandButton status="fetchStatus1" reRender="stepsPanel" value=">|" action="{!setCon.last}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__lastpage}" />
+	                        <apex:outputText >{!(setCon.pageNumber * size)+1-size}-{!IF((setCon.pageNumber * size)>noOfRecords, noOfRecords,(setCon.pageNumber * size))} of {!noOfRecords}</apex:outputText>
+	                        <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+	                            <apex:actionStatus id="fetchStatus1" startText="{!$Label.rstk__fetching}" stopText=""/>
+	                        </apex:outputPanel>
+	                    </apex:panelGrid>
+                    </apex:outputPanel>
+                </apex:tab>
+                
+		        <apex:tab label="{!$Label.rstk__pagetab_inspectionorderserials}" name="tab_ioserial" id="tab_ioserial" rendered="{!OR(isView,isEdit)}">
+		            <apex:outputPanel >
+		        		<apex:commandbutton value="{!$Label.rstk__inspord_pagebtn_setserialdisposition}" onclick="openInsOrderSerialPopup();return false;" style="margin-top:5px;margin-bottom:10px;"
+		        		          disabled="{!isSerialDispositionBtnDisabled}" />
+		        	</apex:outputPanel>
+		        	<apex:pageBlockSection id="pbs_inspectionOrderSerialsGrid" title="" showHeader="true" columns="1" collapsible="false">
+			            <c:PageableGrid pageSize="10" width="1000" jsController="inspectionOrderSerials" data="{!InspectionOrderSerials}" editable="false" ispopup="false" 
+			                            disableAdd="true" disableDelete="true" noselects="true"/>
+			        </apex:pageBlockSection>
+		        </apex:tab>
+		        
+		        <apex:tab label="{!$Label.rstk__pagetab_syusr_info}" name="tab_Info" id="tab_Info" rendered="{!OR(isView,isEdit)}">
+		        	<c:infoSection cntr="{!controller}" showHeader="false"/>
+		        </apex:tab>
+		        <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+			</apex:tabPanel>
+		</apex:pageBlock>
+		
+		<c:Popup popupId="insOrderSerialPopup" title="{!$Label.rstk__popuptitle_inspectionorderserials}" onCancel="closeInsOrderSerialPopup();" cancelCaption="Close" rendered="{!OR(isView,isEdit)}">
+			<apex:commandbutton value="{!$Label.rstk__inspord_pagebtn_allok}" onclick="editableInsOrderSerials.setAllSerialToOk();return false;" style="margin-top:5px;margin-bottom:10px;" />
+			<c:PageableGrid pageSize="10" width="800" jsController="editableInsOrderSerials" data="{!EditableInspectionOrderSerials}" editable="true" ispopup="true" 
+				                            disableAdd="true" disableDelete="true" noselects="true"/>
+			<script>
+				editableInsOrderSerials.validate = function() {
+	                self = this;
+	                var isValid = true;
+	                this.getVisibleRows().each(function (index, el) {
+	                	var row = jQuery(this);
+	                    var ok = editableInsOrderSerials.getRowValue(row, 'inspordsrl_ok__c');
+	                    var scrap = editableInsOrderSerials.getRowValue(row, 'inspordsrl_scrap__c');
+	                    var other = editableInsOrderSerials.getRowValue(row, 'inspordsrl_other__c');
+	                	if((ok == 1 && scrap == 1) || (scrap == 1 && other == 1) || (ok == 1 && other == 1)){
+	                		alert('{!$Label.InsOrderMutuallyExclusiveCheckboxError}');
+	                		isValid = false;
+	                		return false;
+	                	}
+	                });
+	                return isValid;
+	            }
+	            
+	            editableInsOrderSerials.setAllSerialToOk = function() {
+	            	editableInsOrderSerials.getVisibleRows().each(function (index, el) {
+	                	var row = jQuery(this);
+	                	editableInsOrderSerials.setRowValue(row, 'inspordsrl_ok__c', 1);
+	                	editableInsOrderSerials.setRowValue(row, 'inspordsrl_scrap__c', 0);
+	                	editableInsOrderSerials.setRowValue(row, 'inspordsrl_other__c', 0);
+	                	editableInsOrderSerials.markRowChanged(row);
+	                });
+	            }
+	            
+	            editableInsOrderSerials.entryChanged = function(row, rowNum, name, value) {
+	            	if ((name == 'inspordsrl_ok__c' || name == 'inspordsrl_scrap__c' || name == 'inspordsrl_other__c') && value == 1) {
+	            		if(name == 'inspordsrl_ok__c'){
+	            			editableInsOrderSerials.setRowValue(row, 'inspordsrl_scrap__c', 0);
+	            			editableInsOrderSerials.setRowValue(row, 'inspordsrl_other__c', 0);
+	            		} else if(name == 'inspordsrl_scrap__c'){
+	            			editableInsOrderSerials.setRowValue(row, 'inspordsrl_ok__c', 0);
+	            			editableInsOrderSerials.setRowValue(row, 'inspordsrl_other__c', 0);
+	            		} else if(name == 'inspordsrl_other__c'){
+	            			editableInsOrderSerials.setRowValue(row, 'inspordsrl_scrap__c', 0);
+	            			editableInsOrderSerials.setRowValue(row, 'inspordsrl_ok__c', 0);
+	            		}
+	            	}
+	            }
+            </script>
+		</c:Popup>
+		
+		<script>rows = {}; selectcbxs = []; </script>
+        <c:Popup popupId="specifySerialNumPopup" okCaption="{!$Label.rstk__processselectedserials}" buttonsOnTop="true" title="{!$Label.rstk__specifyserialnumber}" onOk="blockUI();validateSerialsQnt();">
+             <input type="checkbox" onclick="selectall(this)" />
+             <apex:outputLabel value="{!$Label.rstk__selectall}" />
+             <apex:pageBlockTable value="{!serialInfoList}" var="i" id="pb_table2">
+                 <apex:column headerValue="{!$Label.rstk__select}">
+                    <apex:inputCheckbox id="selected" value="{!i.selected}" />
+                    <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                 </apex:column>
+                 <apex:column headerValue="Serial Number" >
+                    <apex:outputText value="{!i.serialNum}"/>
+                    <script>
+                        rows["{!i.key}"] = {
+                            selected: document.getElementById("{!$Component.selected}")
+                        };   
+                    </script>
+                   </apex:column>
+             </apex:pageBlockTable>
+        </c:Popup>
+		
+		
+		<div id="pleaseWaitPopup" style="display:none">
+           <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+           <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+           </apex:outputPanel>
+        </div>
+        
+        <div id="detailsPopupDiv" style="display:none">
+	        <p align="right">
+	        	<span style="float:left;font-size: 150%;" id="detailsHeaderContainer"></span>
+		        <input type="button" value="X" onclick="unblockUI();"/>
+	        </p>
+	        <div id="detailsContentContainer"></div>
+	    </div>
+	</apex:form>
+	
+	<c:footerInclude cntr="{!controller}" />
+</apex:page>

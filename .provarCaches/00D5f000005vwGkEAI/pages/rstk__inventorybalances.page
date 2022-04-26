@@ -1,0 +1,69 @@
+<apex:page id="pg" standardController="rstk__uponhand__c" extensions="rstk.ControllerExtnInventoryBalances,rstk.RemoteQueryController" sidebar="true" action="{!doBeforePageLoad}">
+	<apex:variable var="o" value="{!customext}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+    
+	<c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_inventorybalances}" enableAutocomplete="true" />
+	
+	<script>
+	var recs = {!noOfRecords};
+		function recAvailable(){
+			if(recs == 0){
+				alert('No records available for processing');
+			} 
+			return recs > 0 ;  
+		}
+	</script>
+	
+	<apex:form id="fm">
+		<apex:pageBlock id="pb" mode="detail">
+		    <apex:actionFunction name="deleteUploadSet" action="{!deleteAllIconHand}" oncomplete="unblockUI();refreshIconhands()" rerender="pageMessages"></apex:actionFunction>
+		    <apex:actionFunction name="refreshIconhands" action="{!divChanged}" oncomplete="unblockUI();" rerender="pageMessages,ihPanel"></apex:actionFunction>
+		    <apex:actionFunction name="processInventoryBalanceUpload" action="{!processInventoryBalanceUpload}" oncomplete="unblockUI();" rerender="pageMessages"></apex:actionFunction>
+    		
+   			<apex:pageBlockButtons >
+    			<apex:commandbutton value="{!$Label.rstk__processinventorybalanceupload}" onclick="if(recAvailable()){blockUI();processInventoryBalanceUpload();}return false;"/>
+                <apex:commandbutton value="{!$Label.rstk__deletecurrentuploadset}" onclick="if(recAvailable()){blockUI();deleteUploadSet();}return false;" />
+            </apex:pageBlockButtons>
+    		
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false">
+            	<apex:pageBlockSectionItem helpText="{!f.rstk__div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__div__c.label}"/>
+                    <apex:selectList id="div__c" value="{!o.rstk__div__c}" onchange="blockUI();refreshIconhands();" size="1" style="width:250px;"> 
+                        <apex:selectOptions value="{!AllDivision}" /> 
+                    </apex:selectList>                        
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            
+            <apex:outputPanel id="ihPanel">
+            <script>
+            recs = {!noOfRecords};
+            </script>
+	            <apex:pageBlockTable value="{!Iconhands}" var="i" id="iconhandsBlockTable">
+	            	<apex:column value="{!i.rstk__iconhand_item__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_lotno__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_expdate__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_location__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_locqty__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_locfreeqty__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_condition__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_locid__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_locidnn__c}" />
+	            	<apex:column value="{!i.rstk__iconhand_askdate__c}" />
+	            </apex:pageBlockTable>
+	            <apex:panelGrid columns="6">
+                    <apex:commandButton status="fetchStatus1" reRender="ihPanel" value="|<" action="{!setCon.first}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__firstpage}" />
+                    <apex:commandButton status="fetchStatus1" reRender="ihPanel" value="<" action="{!setCon.previous}" disabled="{!!setCon.hasPrevious}" title="{!$Label.rstk__previouspage}" />
+                    <apex:commandButton status="fetchStatus1" reRender="ihPanel" value=">" action="{!setCon.next}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__nextpage}" />
+                    <apex:commandButton status="fetchStatus1" reRender="ihPanel" value=">|" action="{!setCon.last}" disabled="{!!setCon.hasNext}" title="{!$Label.rstk__lastpage}" />
+                    <apex:outputText >{!(setCon.pageNumber * size)+1-size}-{!IF((setCon.pageNumber * size)>noOfRecords, noOfRecords,(setCon.pageNumber * size))} of {!noOfRecords}</apex:outputText>
+                    <apex:outputPanel style="color:#4AA02C;font-weight:bold">
+                        <apex:actionStatus id="fetchStatus1" startText="{!$Label.rstk__fetching}" stopText=""/>
+                    </apex:outputPanel>
+                </apex:panelGrid>
+	        </apex:outputPanel>
+        </apex:pageBlock>
+	</apex:form>
+	
+	<c:footerInclude cntr="{!controller}" />
+</apex:page>

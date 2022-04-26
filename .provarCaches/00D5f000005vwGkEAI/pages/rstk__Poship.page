@@ -1,0 +1,849 @@
+<apex:page id="pg" standardController="rstk__poship__c" extensions="rstk.ControllerExtnPoship,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__poship__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__poship__c.fields}" /> 
+     <apex:variable var="f_poshipcont" value="{!$ObjectType.rstk__poshipcont__c.fields}" /> 
+     
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poship}" enableAutocomplete="true" customInclude="{!$Resource.rstk__poship_cli}" />
+    <c:jquery_client_labels />
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_autocomplete}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__autocomplete, 'autocomplete/css/jquery.autocomplete.css')}" />
+    
+    <script>
+        var isNew = {!isNew};
+        var isEdit = {!isEdit};
+        var isView = {!isView};
+        var mode = null;
+        var poshipId;
+        var divId = '{!o.rstk__poship_div__c}';
+        var contentsClicked = false;
+        var routeLocked = {!o.rstk__poship_routelock__c};
+        var postepActualArrDte = '{!o.poship_arrivalDateRollUp__c}' ;
+        var rows = {};
+        var selectcbxs = [];
+        if(isEdit){
+            poshipId = '{!o.id}';
+        }
+        
+        function uploadBookCnf() {
+            var recId = '{!o.id}';
+            if(checkUploadFlag(recId , 'poship_havebookcon__c')){
+                try {
+                    window.open('/apex/NotesAndAttachments?id={!o.id}&objname=poship__c&parms=set_poship_havebookcon');
+                } finally {
+                    return false;
+                }
+            }
+        }
+        
+        function checkUploadFlag(recId,field){
+            var poshipRecord = execQuery("select poship_havebookcon__c from poship__c where id = '" + recId + "'",true);
+            if(poshipRecord.length > 0){
+                if(field == 'poship_havebookcon__c' && poshipRecord[0].poship_havebookcon__c == 'true'){
+                    alert("{!$Label.BookingConfirmationDocAlreadyAttached}");
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        
+        function doRecalcDates() {
+            doRemoteAction({
+                controllerMethod: getController("ControllerExtnPoship").recalculateDatesNeeded,
+                parameters: { poshipId: pageParms.recordId },
+                callback: function(response) {
+                    if(response && response.success == 'true') {
+                        window.location.reload();
+                    } else {
+                        alert("{!$Label.ErrorOccuredDuringProcessing}", response.error);
+                        unblockUI();
+                    }
+                },
+                blockui: true,
+                waitMessage: "Please Wait...",
+                allowRuninbackground: false,
+                uiBlockedAfterComplete: true
+            });
+        }
+        
+        function doUpdatePODates() {
+            doRemoteAction({
+                controllerMethod: getController("ControllerExtnPoship").updatePODates,
+                parameters: { poshipId: pageParms.recordId },
+                callback: function(response) {
+                    if(response && response.success == 'true') {
+                        window.location.reload();
+                    } else {
+                        alert("{!$Label.ErrorOccuredDuringProcessing}", response.error);
+                        unblockUI();
+                    }
+                },
+                blockui: true,
+                waitMessage: "Please Wait...",
+                allowRuninbackground: false,
+                uiBlockedAfterComplete: true
+            });
+        }
+        function porouteChanged() {
+            var porouteId = sfffGetFieldValue('poship_poroute__c');
+            if (porouteId) {
+                porouteInfo = sfffLookupField('poroute__c', porouteId,['poroute_routetype__c']);
+                sfffSetFieldValue('poship_routetype__c', porouteInfo.poroute_routetype__c);
+            }
+        }
+        function doDisplayImportContainers() {
+            if (execQuery("select count() from pocontainer__c where pocontainer_div__c = '{!o.rstk__poship_div__c}' "+
+            "and pocontainer_poship__c = null "+
+            "and pocontainer_converted__c = false and pocontainer_poconctr__c = '{!o.rstk__poship_poconctr__c}' limit 1") == 0) {
+                alert("{!$Label.NoMoreInterimContainersFoundForImport}");
+                return;
+            }
+            blockUI();
+            displayImportContainers();
+        }
+        function loadDockReport() {
+            if({!displayDockReport}){
+                try {
+                    window.open('/apex/dockReceiptPDF?id={!o.id}');
+                } finally {
+                    return false;
+                }
+            }else{
+                alert("{!$Label.Poship_Not_all_required_data_has_been_specified_on_the_Shipment_necessary_to}");
+            }
+        }
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <!-- <apex:actionFunction name="doSave" action="{!save}" oncomplete="saveSteps();" rerender="pageMessages"/> -->
+        <apex:actionFunction name="doSave" action="{!save}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="doRefreshDetails" action="{!setCurrentContainerId}" oncomplete="contdtl_reset();return false;" immediate="true" >
+            <apex:param name="firstParam" assignTo="{!poshipcontId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="displayImportContainers" action="{!displayImportContainers}" oncomplete="unblockUI();" rerender="op_mainpb, op_importcontainers, op_footer" immediate="true" />
+        <apex:actionFunction name="importContainers" action="{!importContainers}" oncomplete="unblockUI();" rerender="pageMessages"/>
+        <apex:actionFunction name="shipperDetails" action="{!shipperDetails}" immediate="true" oncomplete="unblockUI();" rerender="pb_table2"/>
+        
+        <apex:actionFunction name="processShipperDetails" action="{!processShipperDetails}" immediate="false" rerender="pageMessages"/> 
+        
+        <script>rows = {}; selectcbxs = []; </script>
+        <c:Popup popupId="chdShipper" okCaption="Save" buttonsOnTop="true" title="{!$Label.rstk__pagepopup_poship_childshipperdetail}" onOk="blockUI();processShipperDetails();">
+             <input type="checkbox" onclick="selectall(this)" />
+             <apex:outputLabel value="{!$Label.rstk__selectall}" />
+             <apex:pageBlockTable value="{!childShipperDetails}" var="i" id="pb_table2">
+                 <apex:column headerValue="{!$Label.rstk__select}">
+                    <apex:inputCheckbox id="selected" value="{!i.selected}" />
+                    <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script>
+                 </apex:column>
+                 <apex:column value="{!i.poship.Name}"/> 
+                 <apex:column headerValue="{!f.rstk__poship_comments2__c.label}" >
+                    <apex:outputField value="{!i.poship.rstk__poship_comments2__c}"/>
+                    <script>
+                        rows["{!i.key}"] = {
+                            selected: document.getElementById("{!$Component.selected}")
+                        };   
+                    </script>
+                   </apex:column>
+             </apex:pageBlockTable>
+        </c:Popup>
+        
+        <apex:outputPanel id="op_mainpb">
+        <apex:pageBlock id="pb" mode="detail" rendered="{!!importContainersMode}">
+            <apex:outputPanel id="op_hidden" style="display:none">
+               <apex:inputHidden id="poship_outbound__c" value="{!o.rstk__poship_outbound__c}"/>
+               <apex:inputHidden id="isDirty__c" value="{!dirtySteps}" rendered="{!isEdit}"/>
+            </apex:outputPanel> 
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" />
+                <apex:commandButton onclick="doRecalcDates();return false;" value="{!$Label.rstk__pagebtn_poship_calculatedatesneeded}" style="width:150px" disabled="{!!enableCalculateDates}" rendered="{!isView && !IsBoc}"/>
+                <apex:commandButton onclick="doUpdatePODates();return false;" value="{!$Label.rstk__pagebtn_poship_updateposwithplannedarrivaldate}" style="width:210px" disabled="{!DisablePOUpdateDates}" rendered="{!isView && !IsBoc}"/>
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_poship_importinterimcontainers}" onclick="doDisplayImportContainers();" style="width:210px" rendered="{!AND(isView, !ISBLANK(o.rstk__poship_poconctr__c))}"/>
+                <apex:commandbutton value="{!$Label.rstk__poship_pagebtn_childshipperdetail}" onclick="blockUI();shipperDetails();_showDialog('chdShipper', '720');return false;" style="width:170px;" rendered="{!isView && o.rstk__poship_master__c}" />
+                <c:nosubmitbutton label="{!$Label.rstk__poship_pagebtn_dockreceiptreport}" onclick="loadDockReport();" style="width:150px" rendered="{!isView}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+
+            </apex:outputPanel>
+            
+            <!--  <c:division id="poship_div__c" cntr="{!controller}" /> -->
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!!isView}">
+                 <apex:outputField value="{!o.rstk__poship_div__c}"/>
+                 
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__poship_poupdatedate__c.inlineHelpText}" rendered="{!!IsBoc}">
+                    <apex:outputLabel value="{!f.rstk__poship_poupdatedate__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poship_poupdatedate__c}"></apex:outputField>
+                 </apex:pageBlockSectionItem>
+                 <apex:pageBlockSectionItem rendered="{!IsBoc}" />
+                 
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__poship_shipmentid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_shipmentid__c.label}"/>
+                    <c:inputField id="poship_shipmentid__c" required="true" cntr="{!controller}" tabIndex="10"/>
+                 </apex:pageBlockSectionItem>
+                
+                <!-- <apex:inputField id="poship_outbound__c" value="{!o.rstk__poship_outbound__c}"  taborderhint="8" rendered="{!isNew}"/> 
+                <apex:outputField value="{!o.rstk__poship_outbound__c}" rendered="{!!isNew}" />  -->
+               	<apex:pageBlockSectionItem />
+               
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_poroute__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_poroute__c.label}"/>
+                    <c:selectList id="poship_poroute__c" required="true" cntr="{!controller}" options="{!poroutes}" tabIndex="11"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="poship_destination__c" value="{!o.rstk__poship_destination__c}"  taborderhint="9"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_routetype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_routetype__c.label}"/>
+                    <c:selectList id="poship_routetype__c" required="true" cntr="{!controller}" options="{!portetypes}" tabIndex="12"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="poship_destaddress__c" value="{!o.rstk__poship_destaddress__c}"  taborderhint="10"/> 
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_loadingsite__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_loadingsite__c.label}"/>
+                    <c:inputField id="poship_loadingsite__c" cntr="{!controller}" tabIndex="13"/>
+                 </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="poship_wmsdirectrqst__c" value="{!o.rstk__poship_wmsdirectrqst__c}"  taborderhint="11"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_comments2__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_comments2__c.label}"/>
+                    <!-- <c:inputText id="poship_comments__c" required="false" cntr="{!controller}" maxlength="200" width="350px" tabIndex="14"/> -->
+                    <apex:inputField id="poship_comments2__c" value="{!o.rstk__poship_comments2__c}" taborderhint="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poship_poconctr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_poconctr__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="poship_poconctr__c" value="{!o.rstk__poship_poconctr__c}" size="1" style="width:250px;" tabIndex="111">
+                            <apex:selectOptions value="{!consolidationCenter}" />
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>  
+               
+               <apex:inputField id="poship_priority__c" value="{!o.rstk__poship_priority__c}"  taborderhint="3" />
+               
+                 <apex:inputField id="poship_siclosedate__c" value="{!o.rstk__poship_siclosedate__c}"  taborderhint="12" />
+                
+                <apex:inputField id="poship_routelock__c" value="{!o.rstk__poship_routelock__c}"  taborderhint="4" />
+                 
+                 <apex:inputField id="poship_dgbookclosedate__c" value="{!o.rstk__poship_dgbookclosedate__c}"  taborderhint="13" />
+                
+                <apex:inputField id="poship_vessels__c" value="{!o.rstk__poship_vessels__c}"  taborderhint="5" />
+                <apex:inputField id="poship_portcutdate__c" value="{!o.rstk__poship_portcutdate__c}"  taborderhint="14" />
+                
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_portrouting2__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_portrouting2__c.label}"/>
+                    <c:inputField id="poship_portrouting2__c" cntr="{!controller}" tabIndex="51"/>
+                 </apex:pageBlockSectionItem>
+                <apex:inputField id="poship_customscleared__c" value="{!o.rstk__poship_customscleared__c}"  taborderhint="15" />
+                
+                <apex:inputField id="poship_termaddress__c" value="{!o.rstk__poship_termaddress__c}"  taborderhint="6" />
+                <apex:inputField id="poship_actlocwhdate__c" value="{!o.rstk__poship_actlocwhdate__c}"  taborderhint="16" />
+                
+                
+                <apex:inputField id="poship_bookingno__c" value="{!o.rstk__poship_bookingno__c}"  taborderhint="7" />
+                <apex:outputField value="{!o.rstk__poship_origduedate__c}" />
+                
+                
+                <apex:inputField id="poship_serialno__c" value="{!o.rstk__poship_serialno__c}"  taborderhint="8" />
+                <apex:outputField value="{!o.rstk__poship_currduedate__c}" />
+                
+                
+                <apex:inputField id="poship_docclosedate__c" value="{!o.rstk__poship_docclosedate__c}"  taborderhint="9" />
+                <apex:outputField value="{!o.rstk__poship_actduedate__c}" />
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poship_frtplanner__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_frtplanner__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="poship_frtplanner__c" value="{!o.rstk__poship_frtplanner__c}" size="1" style="width:250px;" tabIndex="91">
+                            <apex:selectOptions value="{!freightPlanner}" />
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="poship_readyforpu__c" value="{!o.rstk__poship_readyforpu__c}"  taborderhint="20" />
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poship_carrier__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_carrier__c.label}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="poship_carrier__c" value="{!o.rstk__poship_carrier__c}" size="1" style="width:250px;" tabIndex="92">
+                            <apex:selectOptions value="{!carriers}" /> 
+                        </apex:selectList>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputField id="poship_received__c" value="{!o.rstk__poship_received__c}"  taborderhint="40" />
+                
+                <apex:pageBlockSectionItem helptext="{!f.rstk__poship_master__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_master__c.label}" />
+                    <apex:outputPanel >
+                        <apex:inputField id="poship_master__c" value="{!o.rstk__poship_master__c}"  taborderhint="20" rendered="{!isNew}"/>
+                        <apex:outputField value="{!o.rstk__poship_master__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:inputField id="poship_haulage__c" value="{!o.rstk__poship_haulage__c}"  taborderhint="50" />
+                
+                
+                <apex:outputField value="{!o.rstk__poship_masterpoship__c}"/>
+                <apex:inputField id="poship_haulier__c" value="{!o.rstk__poship_haulier__c}"  taborderhint="60" />
+                
+                <apex:pageBlockSectionItem />
+                <apex:inputField id="poship_hauliercomment__c" value="{!o.rstk__poship_hauliercomment__c}"  taborderhint="70" />
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_Main_view" showHeader="false" title="{!$Label.rstk__information}" columns="2" rendered="{!isView}">
+                 <apex:outputField value="{!o.rstk__poship_div__c}"/>
+                 
+                <apex:outputField value="{!o.rstk__poship_poupdatedate__c}" rendered="{!!IsBoc}" />
+                <apex:pageBlockSectionItem rendered="{!IsBoc}" />
+                 
+                <apex:outputField value="{!o.rstk__poship_shipmentid__c}" />
+                
+                <!-- <apex:outputField value="{!o.rstk__poship_outbound__c}" />  -->
+               <apex:pageBlockSectionItem />
+               
+                <apex:outputField value="{!o.rstk__poship_poroute__c}" />
+                
+                <apex:outputField value="{!o.rstk__poship_destination__c}" />
+                
+                <apex:outputField value="{!o.rstk__poship_routetype__c}" />
+                
+                <apex:outputField value="{!o.rstk__poship_destaddress__c}" />
+                
+                <apex:outputField value="{!o.rstk__poship_loadingsite__c}" />
+                                
+                <apex:outputField value="{!o.rstk__poship_wmsdirectrqst__c}" />
+                
+                <apex:outputField value="{!o.rstk__poship_comments2__c}" />
+                
+                <apex:outputField value="{!o.rstk__poship_poconctr__c}"   />
+                
+                <apex:outputField value="{!o.rstk__poship_priority__c}"   />  
+               
+                <apex:outputField value="{!o.rstk__poship_siclosedate__c}"   />
+               
+                <apex:outputField value="{!o.rstk__poship_routelock__c}"  />  
+               
+                <apex:outputField value="{!o.rstk__poship_dgbookclosedate__c}"   />
+                
+                <apex:outputField value="{!o.rstk__poship_vessels__c}"   />
+                
+                <apex:outputField value="{!o.rstk__poship_portcutdate__c}"  />
+               
+                <apex:outputField value="{!o.rstk__poship_portrouting2__c}"   />
+                
+                <apex:outputField value="{!o.rstk__poship_customscleared__c}"   />
+               
+                <apex:outputField value="{!o.rstk__poship_termaddress__c}"   />
+                
+                <apex:outputField value="{!o.rstk__poship_actlocwhdate__c}"  />
+               
+                <apex:outputField value="{!o.rstk__poship_bookingno__c}"   />
+                
+                <apex:outputField value="{!o.rstk__poship_origduedate__c}" />
+               
+                <apex:outputField value="{!o.rstk__poship_serialno__c}"  />
+               
+                <apex:outputField value="{!o.rstk__poship_currduedate__c}" />
+               
+                <apex:outputField value="{!o.rstk__poship_docclosedate__c}"  />
+                
+                <apex:outputField value="{!o.rstk__poship_actduedate__c}" />
+               
+                <apex:outputField value="{!o.rstk__poship_frtplanner__c}"   />
+                
+                <apex:outputField value="{!o.rstk__poship_readyforpu__c}"/> 
+               
+                <apex:outputField value="{!o.rstk__poship_carrier__c}"   />
+                
+                <apex:outputField value="{!o.rstk__poship_received__c}"/>
+               
+                <apex:outputField value="{!o.rstk__poship_master__c}"/>
+                
+                <apex:outputField value="{!o.rstk__poship_haulage__c}"/>
+                
+                <apex:outputField value="{!o.rstk__poship_masterpoship__c}"/>
+                <apex:outputField value="{!o.rstk__poship_haulier__c}"/>
+                
+                
+                <apex:pageBlockSectionItem >
+                   <apex:commandButton value="{!$Label.rstk__pagebtn_poship_bookingconfirmationattached}" onclick="return uploadBookCnf();" disabled="{!o.rstk__poship_havebookcon__c}"/>
+                   <apex:outputPanel ></apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:outputField value="{!o.rstk__poship_hauliercomment__c}"/>
+                
+            </apex:pageBlockSection>
+            
+            <apex:tabPanel switchType="client" selectedTab="tab_Poshipsteps" id="theTabPanel" rendered="{!!isNew}">
+                <apex:tab label="{!$Label.rstk__pagetab_poship_steps}" name="tab_Poshipsteps" id="tab_Poshipsteps">
+                    <!-- <c:EditableGrid width="1150" jsController="poshipsteps" data="{!poshipstepGrid}" editable="{!isEdit}" disableDelete="{!o.rstk__poship_routelock__c}" disableAdd="{!o.rstk__poship_routelock__c}" noselects="{!o.rstk__poship_routelock__c}"   ispopup="false" disableSave="true"/>
+                        <script>
+                            function updateDate() {
+                            }
+                            poshipsteps.onGridLoad = function() {
+                            
+                                poshipsteps.getSelectableRows().each(function (index, el) {
+                                    var row = jQuery(this);
+                                    var recId = poshipsteps.getRowValue(row, 'Id');
+                                    if (!isEmpty(recId)) {
+                                        poshipsteps.getRowObj(row, 'poshipstep_stepid__c').attr('disabled', true);
+                                        if(routeLocked){
+                                            poshipsteps.getRowObj(row, 'poshipstep_seq__c').attr('disabled', true);
+                                        }
+                                    }
+                                });
+                                poshipsteps.getRows().each(function (index, el) {
+                                    var row = jQuery(this);
+                                    poshipsteps.getRowObj(row, 'poshipstep_needdepartdate__c').attr('disabled', true,'onclick','updateDate()');
+                                    poshipsteps.getRowObj(row, 'poshipstep_needarrivaldate__c').attr('disabled', true);
+                                    if(isEdit){
+                                        poshipsteps.getRowObj(row, 'poshipstep_needdepartdate__c')[0].nextSibling.style.display= 'none';
+                                        poshipsteps.getRowObj(row, 'poshipstep_needarrivaldate__c')[0].nextSibling.style.display= 'none';
+                                        poshipsteps.getRowObj(row, 'poshipstep_plandepartdate__c')[0].nextSibling.style.display= 'none';
+                                        poshipsteps.getRowObj(row, 'poshipstep_planarrivaldate__c')[0].nextSibling.style.display= 'none';
+                                        poshipsteps.getRowObj(row, 'poshipstep_actdepartdate__c')[0].nextSibling.style.display= 'none';
+                                        poshipsteps.getRowObj(row, 'poshipstep_actarrivaldate__c')[0].nextSibling.style.display= 'none';
+                                    }
+                                });
+                            }
+                            
+                            poshipsteps.onSaved = function(row) {
+                                saveConts();
+                            }
+                            
+                            poshipsteps.onSaveFailed = function(row) {
+                                unblockUI();
+                            }
+                            
+                            poshipsteps.resetRow = function(row) {
+                                self=this;
+                                poshipstepsHandler.prototype.resetRow.call(self, row);
+                                var maxSeq = -1;
+                                poshipsteps.getRows().each(function(){
+                                    var r=jQuery(this);
+                                    var v = parseLocaleFloat(poshipsteps.getRowValue(r, 'poshipstep_seq__c')) || 0;
+                                    if (maxSeq < v) {
+                                        maxSeq = v;
+                                    }
+                                });
+                                poshipsteps.setRowValue(row, "poshipstep_seq__c", maxSeq + 1);
+                            }
+                            
+                            function saveSteps() {
+                                if (poshipsteps.validate()) {
+                                    poshipsteps_save();
+                                }
+                            }
+                            
+                            function updateArrivalDate(newDate,seq){
+                                var eachDate = newDate.split('~');
+                                if(eachDate.length > 0){
+                                    var  i = 0;
+                                    poshipsteps.getRows().each(function (index, el) {
+                                        var row = jQuery(this);
+                                        if(toNumber(poshipsteps.getRowObj(row, 'poshipstep_seq__c')[0].value) > seq){
+                                            poshipsteps.getRowObj(row, 'poshipstep_planarrivaldate__c')[0].value = eachDate[i];
+                                            poshipsteps.markRowChanged(row);
+                                            i++;
+                                        }
+                                        return;
+                                    });
+                                    unblockUI();
+                                } 
+                            }
+                            
+                            function getTransitTimeDetails(seq){
+                                var transitDetails ='';
+                                poshipsteps.getRows().each(function (index, el) {
+                                    var row = jQuery(this);
+                                    if(toNumber(poshipsteps.getRowObj(row, 'poshipstep_seq__c')[0].value) >= seq){
+                                        transitDetails +=(transitDetails == '' ? '' : '~') + toNumber(poshipsteps.getRowObj(row, 'poshipstep_transtime__c')[0].value);
+                                    }
+                                });
+                                return transitDetails;
+                            }
+                            
+                            poshipsteps.entryChanged = function(row, rowNum, name, value) {
+                                if (name == 'poshipstep_planarrivaldate__c' && poshipsteps.getRowObj(row, 'poshipstep_planarrivaldate__c')[0].value != '' ) {
+                                    var lastSeq = poshipsteps.getRowObj(row, 'poshipstep_lastseq__c')[0].value;
+                                    if(lastSeq == 'false'){
+                                        var response = confirm("{!$Label.WouldYouLikeToAutoUpdateCurrentArrivalDateForAllSubsequentShipmentSteps}");
+                                        if(response){
+                                        blockUI();
+                                            var calculatedDate; 
+                                            var seq = toNumber(poshipsteps.getRowObj(row, 'poshipstep_seq__c')[0].value);
+                                            var userDate = poshipsteps.getRowObj(row, 'poshipstep_planarrivaldate__c')[0].value +'';
+                                            var transitDaysString = getTransitTimeDetails(seq)+'';
+                                            Visualforce.remoting.Manager.invokeAction(  
+                                                '{!$RemoteAction.ControllerExtnPoship.calcDate}', //NameSpace  
+                                                userDate, transitDaysString,   
+                                                function(result, event){
+                                                    if (event.status) {
+                                                       updateArrivalDate(result,seq) ;
+                                                    } else if (event.type === 'exception') {
+                                                        alert('Exception: '+event.message);
+                                                    } else {
+                                                        alert("{!$Label.UnexpectedStatus}", event.message);
+                                                    }
+                                                }, {escape:false}
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            
+                        </script>  -->
+                         
+                         <apex:pageBlockSection id="poshipstepsGridDisplay" showHeader="false" columns="4" rendered="{!isView}">
+                            <apex:outputLabel value=""/>
+                            <apex:outputLabel value="{!$Label.rstk__original}"/>
+                            <apex:outputLabel value="{!$Label.rstk__current}"/>
+                            <apex:outputLabel value="{!$Label.rstk__actual}"/>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__collectionatorigin}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_needdepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_plandepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_actdepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__usportetd}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_needusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_planusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_actusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__portetatransit}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_needporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_planporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_actporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                                                        
+                            <apex:outputLabel value="{!$Label.rstk__irelandporteta}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_needarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_planarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:outputField value="{!step.rstk__poshipstep_actarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem> 
+                         </apex:pageBlockSection>  
+                                
+                        <apex:pageBlockSection id="poshipstepsGrid" showHeader="false" columns="4" rendered="{!isEdit}">
+                            <apex:outputLabel value=""/>
+                            <apex:outputLabel value="{!$Label.rstk__original}"/>
+                            <apex:outputLabel value="{!$Label.rstk__current}"/>
+                            <apex:outputLabel value="{!$Label.rstk__actual}"/>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__collectionatorigin}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_needdepartdate__c" value="{!step.rstk__poshipstep_needdepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_plandepartdate__c" value="{!step.rstk__poshipstep_plandepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_actdepartdate__c" value="{!step.rstk__poshipstep_actdepartdate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__usportetd}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_needusportetd__c" value="{!step.rstk__poshipstep_needusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_planusportetd__c" value="{!step.rstk__poshipstep_planusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_actusportetd__c" value="{!step.rstk__poshipstep_actusportetd__c}"/>
+                            </apex:pageBlockSectionItem>
+                            
+                            <apex:outputLabel value="{!$Label.rstk__portetatransit}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_needporteta__c" value="{!step.rstk__poshipstep_needporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_planporteta__c" value="{!step.rstk__poshipstep_planporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_actporteta__c" value="{!step.rstk__poshipstep_actporteta__c}"/>
+                            </apex:pageBlockSectionItem>
+                                                        
+                            <apex:outputLabel value="{!$Label.rstk__irelandporteta}"/>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_needarrivaldate__c" value="{!step.rstk__poshipstep_needarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_planarrivaldate__c" value="{!step.rstk__poshipstep_planarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                 <apex:inputField id="poshipstep_actarrivaldate__c" value="{!step.rstk__poshipstep_actarrivaldate__c}"/>
+                            </apex:pageBlockSectionItem> 
+                         </apex:pageBlockSection>
+                        
+                    </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_poship_containers}" name="tab_Poshipconts" id="tab_Poshipconts" rendered="{!!IsBoc && !o.rstk__poship_master__c}">
+                    <apex:pageBlockSection id="pbs_Poshipcont" showHeader="false" title="{!$Label.rstk__containers}" columns="1" >
+                        <apex:outputLink value="{!URLFOR($Action.rstk__poshipcont__c.New)}{!ReturnUrlParms}" >{!$Label.rstk__pagelink_poship_newshipmentcontainer}</apex:outputLink>
+                        <apex:pageBlockTable value="{!poshipconts}" var="c">
+                            <apex:column headerValue="{!$Label.rstk__action}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__poshipcont__c.Edit, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__poshipcont__c.View, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_poship_del}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_poshipcont.rstk__poshipcont_containerid__c.label}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__poshipcont__c.View, c.id)}{!ReturnUrlParms}">{!c.rstk__poshipcont_containerid__c}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!f_poshipcont.rstk__poshipcont_poconttype__c.label}">
+                                <apex:outputField value="{!c.rstk__poshipcont_poconttype__c}" />
+                            </apex:column>
+                            <apex:column headerValue="{!f_poshipcont.rstk__poshipcont_desc__c.label}">
+                                <apex:outputText value="{!c.rstk__poshipcont_desc__c}" />
+                            </apex:column>
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                
+                <apex:tab label="{!$Label.rstk__pagetab_poship_containers}" name="tab_Poshipconts_Boc" id="tab_Poshipconts_Boc" rendered="{!IsBoc && !o.rstk__poship_master__c}">
+                    <apex:pageBlockSection id="pbs_Poshipcont_Boc" showHeader="false" title="{!$Label.rstk__containers}" columns="1" >
+                        <apex:pageBlockTable value="{!poshipconts}" var="c">
+                            <apex:column headerValue="{!$Label.rstk__action}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__poshipcont__c.Edit, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink> | <apex:outputLink value="{!URLFOR($Action.rstk__poshipcont__c.View, c.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_poship_del}</apex:outputLink>
+                            </apex:column>
+                            <apex:column headerValue="{!$Label.rstk__containername}">
+                                <apex:outputLink value="{!URLFOR($Action.rstk__poshipcont__c.View, c.id)}{!ReturnUrlParms}">{!c.Name}</apex:outputLink>
+                            </apex:column>
+                            <apex:column value="{!c.rstk__poshipcont_serialno__c}" />
+                            <apex:column value="{!c.rstk__poshipcont_hotshipment__c}" />
+                            <apex:column value="{!c.rstk__poshipcont_contutilization__c}" />
+                            <apex:column value="{!c.rstk__poshipcont_bookreqstdate__c}" />
+                            <apex:column value="{!c.rstk__poshipcont_collectiondate__c}" />
+                            <apex:column value="{!c.rstk__poshipcont_comment__c}" />
+                        </apex:pageBlockTable>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                 
+                <apex:tab label="{!$Label.rstk__pagetab_poship_containers_old}" name="tab_PoshipcontsO" id="tab_PoshipcontsO" style="display:none;">
+                    <c:EditableGrid width="1150" jsController="poshipconts" data="{!poshipcontGrid}" editable="{!isEdit}" ispopup="false" disableSave="true"/>
+                        <script>
+                            poshipconts.onGridLoad = function() {
+                                self=this;
+                                this.getRows().each(function (index, el) {
+                                    var row = jQuery(this);
+                                    var contId = self.getRowValue(row, 'Id');
+                                    if (isEmpty(contId)) contId = poshipconts.rowIds[index];
+                                    if (!isEmpty(contId)) {
+                                        self.getRowObj(row, 'poshipcont_containerid__c').attr('disabled', true);
+                                        self.getRowObj(row, 'contents__g').html('<button type="button" class="btn" onclick="showContDetails(\'' + contId + '\');">Contents</button>');
+                                    }
+                                });
+                            }
+                            
+                            function showContDetails(contId) {
+                                blockUI('Retrieving Contents');
+                                contentsClicked = true;
+                                doRefreshDetails(contId);
+                                return false;
+                            }
+                            
+                            poshipconts.onSaveFailed = function(row) {
+                                unblockUI();
+                            }
+                            
+                            poshipconts.onSaved = function(row) {
+                                doView();
+                            }
+                            
+                            function saveConts() {
+                                if (poshipconts.validate()) {
+                                    poshipconts_save();
+                                } else {
+                                    unblockUI();
+                                }
+                            }
+                            
+                        </script>
+                    </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+					<c:customFields cntr="{!controller}" cols="2"/>
+				</apex:tab>    
+                <apex:tab label="{!$Label.rstk__pagetab_poship_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+        <apex:outputPanel rendered="{!!importContainersMode}">
+            <c:Popup popupId="poshipcontdtlpopup" title="{!$Label.rstk__pagepopup_poship_containercontents}" onOk="contdtl_saveAndClose();">
+                <apex:pageBlockSection id="pbs_Contents" showHeader="false" title="{!$Label.rstk__contents}" columns="2" > 
+                    <apex:pageBlockSectionItem helpText="{!$Label.rstk__filter_purchase_order_lines_by_item}">
+                        <apex:outputLabel value="{!$Label.rstk__itemfilter}"/>
+                        <apex:outputPanel >
+                            <apex:inputText id="item__c_autocomplete" styleClass="ac_input" size="30"/>
+                            <apex:inputText id="item__c" onchange="itemFilterChanged(this);" style="display:none"/>
+                            <script>autocompleteParms["{!$Component.item__c}"] = {query:"select id, name from poitem__c where poitem_div__c = '{!currDivision.id}'", queryParms:[], codeColumn:"id", descColumn:"Name"};</script>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!$Label.rstk__filter_purchase_order_lines_by_vendor}">
+                        <apex:outputLabel value="{!$Label.rstk__vendorfilter}"/>
+                        <apex:selectlist id="vendor__c" size="1" onchange="vendorFilterChanged(this);" style="width:250px">
+                            <apex:selectOptions value="{!povends}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <apex:outputPanel id="op_DetailsGrid">
+                    <c:EditableGrid jsController="contdtl" data="{!poshipcontdtlGrid}" editable="true" ispopup="true"/>
+                 </apex:outputPanel>
+            </c:Popup>
+        </apex:outputPanel>
+            <script>
+                var vendorFilter;
+                var itemFilter;
+                contdtl.onGridLoad = function() {
+                    self=this;
+                    var inStr = '';
+                    contdtl.getSelectableRows().each(function (index, el) {
+                        var row = jQuery(this);
+                        inStr += (inStr == "" ? "'" : ",'") + self.getRowValue(row, 'poshipcontdtl_poline__c') + "'";
+                    });
+                    if (!isEmpty(inStr)) {
+                        var polines = execQuery("select Id, poline_item__r.Name from poline__c where id in ("+inStr+")");
+                        var polineMap = {};
+                        if (polines != null && polines.length > 0) {
+                            for (var i=0;i<polines.length;i++) {
+                                polineMap[polines[i].Id] = polines[i].poline_item__r.Name;
+                            }
+                        }
+                        var rows = contdtl.getSelectableRows();
+                        for (var i=0;i<rows.length;i++) {
+                            var row = jQuery(rows[i]);
+                            this.setRowValue(row, 'item__g', polineMap[self.getRowValue(row, 'poshipcontdtl_poline__c')]);
+                        }
+                    }
+                
+                    if (contentsClicked) {
+                        unblockUI();
+                        sfffSetFieldValue('item__c', '');
+                        sfffSetFieldValue('vendor__c', '');
+                        _showDialog('poshipcontdtlpopup', 900);
+                    }
+                    contentsClicked = false;
+                }
+                
+                contdtl.entryChanged = function(row, rowNum, name, value) {
+                    if (name == 'poshipcontdtl_poline__c') {
+                        if (!isEmpty(value)) {
+                            var polineInfo = sfffLookupField('poline__c', value, ['poline_item__c', 'poline_item__r.Name', 'poline_qtyoutstdg__c']);
+                            this.setRowValue(row, 'item__g', polineInfo.poline_item__r.Name);
+                            this.setRowValue(row, 'poshipcontdtl_qty__c', polineInfo.poline_qtyoutstdg__c);
+                        }
+                    }
+               
+                    if (name=='poshipcontdtl_qty__c') {
+                        if (value < 0) {
+                            showError('The value must be greater than zero');
+                            value = 1;
+                            this.setRowValue(row, name, value);
+                            this.getRowObj(row, name).focus();
+                        }
+                    }
+                }
+                
+                contdtl.onSaved = function(row) {
+                    doView();
+                }
+            
+                function itemFilterChanged(el) {
+                    itemFilter = el.value;
+                    filterChanged();
+                }
+                
+                function vendorFilterChanged(el) {
+                    vendorFilter = el.value;
+                    filterChanged();
+                }
+                
+                function filterChanged(el) {
+                    var polineQuery = "select Id, Name, poline_ordno__r.pohdr_ordno__c from poline__c where poline_qtyoutstdg__c > 0 and poline_div__c = '" + divId + "'";
+                    if (!isEmpty(itemFilter)) {
+                        polineQuery += " and poline_item__c = '" + itemFilter + "' ";
+                    }
+                    if (!isEmpty(vendorFilter)) {
+                        polineQuery += " and poline_ordno__r.pohdr_vendno__c = '" + vendorFilter + "' ";
+                    }
+            
+                    var rows = contdtl.getRows();
+                    for (var i=0;i<rows.length;i++) {
+                        var row = jQuery(rows[i]);
+                        var acfld = window.autoCompleteRefs[contdtl.getRowObj(row, 'poshipcontdtl_poline__c')[0].id];
+                        acfld.flushCache();
+                        acfld.getOptions().extraParams["query"] = polineQuery;
+                    }
+                }
+            </script>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+        </apex:outputPanel>
+        
+        <apex:outputPanel id="op_importcontainers">
+            <apex:pageBlock mode="detail" rendered="{!importContainersMode}">
+                <apex:pageBlockSection showHeader="true" title="{!$Label.rstk__pagetab_poship_selectcontainerstoimport}" columns="1" collapsible="false">
+                    <apex:pageBlockTable value="{!interimcontainers}" var="c">
+                        <apex:column headerValue="{!$Label.rstk__selected}" style="vertical-align:top;">
+                            <apex:inputCheckbox id="selected" value="{!c.selected}" onclick="selectRow('{!c.pocontainer.id}');"/>
+                        </apex:column>
+                        <apex:column value="{!c.pocontainer.rstk__pocontainer_containerid__c}" />
+                        <apex:column value="{!c.pocontainer.rstk__pocontainer_serialno__c}" />
+                        <apex:column value="{!c.pocontainer.rstk__pocontainer_hotshipment__c}" />
+                        <apex:column value="{!c.pocontainer.rstk__pocontainer_priority__c}" />
+                        <apex:column value="{!c.pocontainer.rstk__pocontainer_referloop__c}" />
+                        <apex:column value="{!c.pocontainer.rstk__pocontainer_contutilization__c}" />
+                        <apex:column value="{!c.pocontainer.rstk__pocontainer_desc__c}" />
+                    </apex:pageBlockTable>
+                </apex:pageBlockSection>
+                <c:nosubmitbutton label="{!$Label.rstk__pagebtn_poship_addselectedcontainers}" onclick="blockUI(); importContainers();" style="width:210px"/>
+            </apex:pageBlock>
+        </apex:outputPanel>
+    </apex:form>
+    
+    <apex:outputPanel id="op_footer">
+        <c:footerInclude cntr="{!controller}" rendered="{!!importContainersMode}"/>
+    </apex:outputPanel>
+    
+    <script>
+        var LABEL_CantReerseSipmentRcpAsRequisitionsAlreadyProcessedAtCnsolidationCenter = "{!$Label.CantReerseSipmentRcpAsRequisitionsAlreadyProcessedAtCnsolidationCenter}";
+        var LABEL_InboundShipmentDestinationReqd = "{!$Label.InboundShipmentDestinationReqd}";
+        var LABEL_CommentFieldisRequired = "{!$Label.CommentFieldisRequired}";
+        
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

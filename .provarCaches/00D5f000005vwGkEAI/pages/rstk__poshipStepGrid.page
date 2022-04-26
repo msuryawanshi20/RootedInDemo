@@ -1,0 +1,467 @@
+<apex:page id="pg" standardController="rstk__customext__c"
+    extensions="rstk.ControllerExtnPoshipStepGrid,rstk.ControllerJobStatus" sidebar="true"
+    action="{!doBeforePageLoad}">
+    <div id="InnternalDiv" style="width:{!width}%;">
+        <apex:variable var="o" value="{!rstk__customext__c}" />
+        <apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+        <apex:variable var="fp" value="{!$ObjectType.rstk__poship__c.fields}" />
+        <apex:variable var="fs" value="{!$ObjectType.rstk__poshipstep__c.fields}" />
+        <apex:variable var="fpc" value="{!$ObjectType.rstk__poshipcont__c.fields}" />
+
+        <c:standardHeader cntr="{!controller}"
+            title="{!$Label.rstk__pagetitle_poshipstepgrid}" jqueryui="true" />
+
+        <apex:stylesheet value="{!URLFOR($Resource.rstk__sorting, 'JqueryDatatable.Css')}" />
+        <apex:stylesheet value="{!$Resource.rstk__datatableCss}"/>
+        <apex:includeScript value="{!$Resource.rstk__DatatableMInJS}" />
+        <apex:includeScript value="{!$Resource.rstk__datatableJavaScript}" />
+        <apex:includeScript value="{!$Resource.rstk__Moment}" />
+        <apex:includeScript value="{!$Resource.rstk__datetimeMoment}" />
+		
+		<style>
+            .sort {
+                display: inline
+            }
+            
+            .numSort {
+                display: inline
+            }
+            
+            .modal {
+                background-color: #fff;
+                display: none;
+                width: 500px;
+                padding: 15px;
+                text-align: left;
+                font-size: 1em;
+                border: 2px solid #333;
+                opacity: 1.0;
+                -moz-border-radius: 6px;
+                -webkit-border-radius: 6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+            .floatingStyle {
+                background-color: #829DC0 !important;
+            }
+            
+            .menu-title:before {
+                content: "Configure Columns";
+                display: block;
+                position: absolute;
+                top: 0;
+                right: 0;
+                left: 0;
+                background: #829DC0;
+                padding: 2px;
+                font-family: Verdana, Arial, Helvetica, sans-serif;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            
+            .Processing {
+                position: fixed;
+                background: url({!$Resource.rstk__busy});
+                background-repeat: no-repeat;
+                background-position: center;
+                width: 100%;
+                height: 100%;
+                z-index: 2004;
+                left: 0%;
+                top: 0%;
+            }
+            
+            table.dataTable thead .sorting {
+              background-image: url({!URLFOR($Resource.rstk__sorting,'sort_both.png')}) ;  
+            }
+            table.dataTable thead .sorting_asc {
+              background-image: url({!URLFOR($Resource.rstk__sorting, 'sort_asc.png')}) ; 
+            }
+            table.dataTable thead .sorting_desc {
+              background-image: url({!URLFOR($Resource.rstk__sorting, 'sort_desc.png')}) ;  
+            }
+            table.dataTable thead .sorting_asc_disabled {
+              background-image: url({!URLFOR($Resource.rstk__sorting, 'sort_asc_disabled.png')}) ; 
+            }
+            table.dataTable thead .sorting_desc_disabled {
+              background-image: url({!URLFOR($Resource.rstk__sorting, 'sort_desc_disabled.png')}) ; 
+            }
+            
+        </style>
+
+        <script> var rows = {}; var selectcbxs = []; 
+         var tblHeight = {!rectoDisplaySize};
+         var records = false;
+        function selectall(el) {
+            for(i = 0; i < selectcbxs.length; i++) {
+                selectcbxs[i].checked = el.checked;
+                selectRecord(Object.keys(rows)[i]);
+            }
+        }
+        
+         function selectRecord(rowid) {
+            var row = rows[rowid];
+            if(row.selected.checked) 
+            {
+                row.portRouting.disabled = false;
+                row.vesselName.disabled = false;
+                row.bookingNumber.disabled = false;
+                row.containerSerialNumber.disabled = false;
+                row.comments.disabled = false;
+                row.loadingsite.disabled = false;
+                row.collectOriginCurrent.disabled = false;
+                row.collectOriginActual.disabled = false;
+                row.uSPortETDCurrent.disabled = false;
+                row.uSPortETDActual.disabled = false;
+                row.portETATransitCurrent.disabled = false;
+                row.portETATransitActual.disabled = false;
+                row.irelandPortETACurrent.disabled = false;
+                row.irelandPortETAActual.disabled = false;
+                row.portRouting.focus();
+            }
+            else{
+                row.portRouting.disabled = true;
+                row.vesselName.disabled = true;
+                row.bookingNumber.disabled = true;
+                row.containerSerialNumber.disabled = true;
+                row.comments.disabled = true;
+                row.loadingsite.disabled = true;
+                row.collectOriginCurrent.disabled = true;
+                row.collectOriginActual.disabled = true;
+                row.uSPortETDCurrent.disabled = true;
+                row.uSPortETDActual.disabled = true;
+                row.portETATransitCurrent.disabled = true;
+                row.portETATransitActual.disabled = true;
+                row.irelandPortETACurrent.disabled = true;
+                row.irelandPortETAActual.disabled = true;
+            }
+        }
+    
+       function doConfirm(){
+            if(records){
+                if(confirm('{!$Label.rstk__confirmmessage}')){
+                    return true;
+                }else{
+                    return false;
+                }   
+            }else{
+                return true;
+            }
+       }
+       
+       function doSave() {
+            var isChecked = false;
+            for(i = 0; i < selectcbxs.length; i++) {
+                if(selectcbxs[i].checked){
+                    isChecked = true ;
+                    break ;
+                }
+            }
+            if(!isChecked){
+                alert('{!$Label.rstk__selectrecordtosave}');
+            }else {
+                saveRecords();
+            }
+            
+        }
+        
+        function doAfterJobComplete(processlog) {
+            getDetails();
+        }
+    
+    </script>
+        <apex:outputPanel id="op_hidden_rec">
+            <script>
+            records = {!displayDetails};
+        </script>
+        </apex:outputPanel>
+
+        <apex:form id="fm">
+            <apex:pageblock id="pb" mode="detail">
+                <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+                <apex:actionFunction name="getDetails" action="{!getDetails}"
+                    oncomplete="enableSort();initializeDataTable();"
+                    reRender="pageMessages,poshipStepList,op_hidden_rec" status="statusProcessing"/>
+                <apex:actionFunction name="saveRecords" action="{!saveRecords}" status="statusProcessing"
+                    oncomplete="checkJobStatus();"
+                    reRender="op_JobStatus,pageMessages" immediate="false" />
+                <apex:outputPanel id="op_JobStatus">
+                    <input type="hidden" id="processlogId" value="{!processlogId}"/>
+                </apex:outputPanel>
+                <apex:outputPanel id="op_hidden" style="display:none">
+                    <apex:inputHidden id="currentSydivId__c"
+                        value="{!currentSydiv.rstk__div__c}" />
+                </apex:outputPanel>
+
+                <apex:pageBlockSection id="pbs_main" showHeader="false"
+                    title="{!$Label.rstk__poshipstepgrid_inbound_shipment_information}" columns="2">
+                    <apex:outputField value="{!currentSydiv.rstk__div__c}" />
+                    <apex:pageBlockSectionItem />
+
+                    <apex:pageBlockSectionItem helptext="{!f.rstk__user_syusr__c.inlineHelpText}">
+                        <apex:outputLabel value="{!$Label.rstk__freight_planner}" />
+                        <apex:selectList id="user_syusr__c" value="{!o.rstk__user_syusr__c}"
+                            size="1" style="width:250px;">
+                            <apex:selectOptions value="{!syusers}" />
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helptext="{!f.rstk__carrier__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__carrier__c.label}" />
+                        <apex:outputPanel >
+                            <apex:selectList id="carrier__c" value="{!o.rstk__carrier__c}" size="1"
+                                style="width:250px;">
+                                <apex:selectOptions value="{!carrierCode}" />
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helptext="{!f.rstk__priorityShipment__c.inlineHelpText}">
+                        <apex:outputLabel value="{!$Label.rstk__priority_shipment}" />
+                        <apex:inputField id="priorityShipment__c"
+                            value="{!o.rstk__priorityShipment__c}" />
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helptext="{!f.rstk__comment2__c.inlineHelpText}">
+                        <apex:outputLabel value="{!$Label.rstk__vessel}" />
+                        <apex:inputField id="comment2__c" value="{!o.rstk__comment2__c}" />
+                    </apex:pageBlockSectionItem>
+
+
+
+                    <apex:pageBlockSectionItem helptext="{!fp.rstk__poship_comments2__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fp.rstk__poship_comments2__c.label}" />
+						<apex:selectList id="comments__c" value="{!o.rstk__shipmentComments__c}"
+							size="1" style="width:250px;">
+							<apex:selectOptions value="{!Comments2}" />
+						</apex:selectList>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helptext=" ">
+                        <apex:outputLabel value="{!$Label.rstk__poshipstepgrid_due_to_ireland_port}" />
+                        <apex:outputPanel >
+                            <apex:inputField id="custom_date__c" value="{!o.rstk__custom_date__c}" />
+                            <apex:inputField id="custom_date2__c"
+                                value="{!o.rstk__custom_date2__c}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helptext="{!fpc.rstk__poshipcont_restrictquay__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fpc.rstk__poshipcont_restrictquay__c.label}" />
+                        <apex:inputField id="custom_checkbox__c" value="{!o.rstk__custom_checkbox__c}" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+
+                <c:nosubmitbutton label="{!$Label.rstk__refresh_detail_display}"
+                    onclick="if(doConfirm()) {getDetails()}"
+                    style="width:160px;" />
+             &nbsp;
+            <c:nosubmitbutton label="{!$Label.rstk__save_changes}" onclick="doSave()"
+                    style="width:160px;" />
+            </apex:pageblock>
+
+            <apex:outputPanel id="poshipStepList">
+                <script>rows = {}; selectcbxs = []; 
+                tblHeight = {!rectoDisplaySize};
+                </script>
+                <input type="checkbox" onclick="selectall(this)" />
+                <apex:outputLabel value="{!$Label.rstk__selectall}" />
+                <table id="poshipstepTable" class="display" cellspacing="0"
+                    width="30%">
+                    <thead>
+                        <th>{!$Label.poshipStepGrid_Shipment_ID}</th>
+                      	<th>{!$Label.select}</th>
+                        <th>{!$Label.poshipStepGrid_SSL_Carrier}</th>
+                        <th>{!$Label.poshipStepGrid_Freight_Planner}</th>
+                        <th>{!$Label.poshipStepGrid_Class_5_1_or_Class_2_22}</th>
+                        <th>Restricted on Quay</th>>
+                        <th>{!$Label.poshipStepGrid_Priority_Shipment}</th>
+                        <th>{!$Label.poshipStepGrid_Shipping_Instruction_Closing_Date}</th>
+                        <th>{!$Label.poshipStepGrid_Port_Routing}</th>
+                        <th>{!$Label.poshipStepGrid_Vessel_Names}</th>
+                        <th>{!$Label.poshipStepGrid_Booking_Number}</th>
+                        <th>{!$Label.poshipStepGrid_Container_Serial_Number}</th>
+                        <th>{!$Label.poshipStepGrid_Comments}</th>
+                        <th>{!$Label.poshipStepGrid_Loading_Site}</th>
+                        <th>{!$Label.poshipStepGrid_Collection_at_Origin_Current}</th>
+                        <th>{!$Label.poshipStepGrid_Collection_at_Origin_Actual}</th>
+                        <th>{!$Label.poshipStepGrid_US_Port_ETD_Current}</th>
+                        <th>{!$Label.poshipStepGrid_US_Port_ETD_Actual}</th>
+                        <th>{!$Label.poshipStepGrid_Port_ETA_Transit_Current}</th>
+                        <th>{!$Label.poshipStepGrid_Port_ETA_Transit_Actual}</th>
+                        <th>{!$Label.poshipStepGrid_Ireland_Port_ETA_Current}</th>
+                        <th>{!$Label.poshipStepGrid_Ireland_Port_ETA_Actual}</th>
+                        <th>{!$Label.poshipStepGrid_Collection_at_Origin_Current}</th>
+                        <th>{!$Label.poshipStepGrid_Collection_at_Origin_Actual}</th>
+                        <th>{!$Label.poshipStepGrid_US_Port_ETD_Current}</th>
+                        <th>{!$Label.poshipStepGrid_US_Port_ETD_Actual}</th>
+                        <th>{!$Label.poshipStepGrid_Port_ETA_Transit_Current}</th>
+                        <th>{!$Label.poshipStepGrid_Port_ETA_Transit_Actual}</th>
+                        <th>{!$Label.poshipStepGrid_Ireland_Port_ETA_Current}</th>
+                        <th>{!$Label.poshipStepGrid_Ireland_Port_ETA_Actual}</th>  
+                    </thead>
+
+                    <tbody>
+                        <apex:repeat value="{!postepList}" var="i">
+                            <tr>
+                                <td><apex:outputLink value="{!URLFOR($Action.rstk__poship__c.View, i.po.id)}{!ReturnUrlParms}">{!i.po.Name}</apex:outputLink></td>
+                                <td><apex:inputCheckbox id="selected" value="{!i.selected}"
+                                        onchange="selectRecord('{!i.key}')" /> <script>selectcbxs[selectcbxs.length] = document.getElementById("{!$Component.selected}");</script></td>
+                                <td><apex:outputField value="{!i.po.rstk__poship_carrier__c}" /></td>
+                                <td><apex:outputField value="{!i.po.rstk__poship_frtplanner__c}" /></td>
+                                <td><apex:outputText value="{!i.classValue}" /></td>
+                                <td><apex:outputText value="{!i.restrictquay}" /></td>
+                                <td><apex:outputText value="{!i.priority}" /></td>
+                                <td><apex:outputField value="{!i.po.rstk__poship_siclosedate__c}" /></td>
+                                <td><apex:inputField id="portRouting"
+                                        value="{!i.po.rstk__poship_portrouting2__c}" /></td>
+                                <td><apex:inputField id="vesselName"
+                                        value="{!i.po.rstk__poship_vessels__c}" /></td>
+                                <td><apex:inputField id="bookingNumber"
+                                        value="{!i.po.rstk__poship_bookingno__c}" styleclass="TS" /></td>
+                                <td><apex:inputField id="containerSerialNumber"
+                                        value="{!i.po.rstk__poship_serialno__c}" styleclass="TS" /></td>
+                                <td><apex:inputField id="loadingsite"
+                                        value="{!i.po.rstk__poship_loadingsite__c}" styleclass="TS" /></td>
+                                <td><apex:inputField id="comments"
+                                        value="{!i.po.rstk__poship_comments2__c}" styleclass="TS" /></td>
+                                <td><apex:inputField id="collectOriginCurrent"
+                                        value="{!i.poStep.rstk__poshipstep_plandepartdate__c}"
+                                        styleclass="TS" /></td>
+                                <td><apex:inputField id="collectOriginActual"
+                                        value="{!i.poStep.rstk__poshipstep_actdepartdate__c}"
+                                        styleclass="TS" /></td>
+                                <td><apex:inputField id="uSPortETDCurrent"
+                                        value="{!i.poStep.rstk__poshipstep_planusportetd__c}"
+                                        styleclass="TS" /></td>
+                                <td><apex:inputField id="uSPortETDActual"
+                                        value="{!i.poStep.rstk__poshipstep_actusportetd__c}" styleclass="TS" /></td>
+                                <td><apex:inputField id="portETATransitCurrent"
+                                        value="{!i.poStep.rstk__poshipstep_planporteta__c}" styleclass="TS" /></td>
+                                <td><apex:inputField id="portETATransitActual"
+                                        value="{!i.poStep.rstk__poshipstep_actporteta__c}" styleclass="TS" /></td>
+                                <td><apex:inputField id="irelandPortETACurrent"
+                                        value="{!i.poStep.rstk__poshipstep_planarrivaldate__c}"
+                                        styleclass="TS" /></td>
+                                <td><apex:inputField id="irelandPortETAActual"
+                                        value="{!i.poStep.rstk__poshipstep_actarrivaldate__c}"
+                                        styleclass="TS" /> <script>
+                                    rows["{!i.key}"] = {
+                                        portRouting: document.getElementById("{!$Component.portRouting}"),
+                                        vesselName: document.getElementById("{!$Component.vesselName}"),
+                                        bookingNumber: document.getElementById("{!$Component.bookingNumber}"),
+                                        containerSerialNumber: document.getElementById("{!$Component.containerSerialNumber}"),
+                                        comments: document.getElementById("{!$Component.comments}"),
+                                        loadingsite: document.getElementById("{!$Component.loadingsite}"),
+                                        collectOriginCurrent: document.getElementById("{!$Component.collectOriginCurrent}"),
+                                        collectOriginActual: document.getElementById("{!$Component.collectOriginActual}"),
+                                        uSPortETDCurrent: document.getElementById("{!$Component.uSPortETDCurrent}"),
+                                        uSPortETDActual: document.getElementById("{!$Component.uSPortETDActual}"),
+                                        portETATransitCurrent: document.getElementById("{!$Component.portETATransitCurrent}"),
+                                        portETATransitActual: document.getElementById("{!$Component.portETATransitActual}"),
+                                        irelandPortETACurrent: document.getElementById("{!$Component.irelandPortETACurrent}"),
+                                        irelandPortETAActual: document.getElementById("{!$Component.irelandPortETAActual}"),
+                                        selected: document.getElementById("{!$Component.selected}")
+                                    };
+                                    rows["{!i.key}"]['portRouting'].disabled = true;
+                                    rows["{!i.key}"]['vesselName'].disabled = true;
+                                    rows["{!i.key}"]['bookingNumber'].disabled = true;
+                                    rows["{!i.key}"]['containerSerialNumber'].disabled = true;
+                                    rows["{!i.key}"]['comments'].disabled = true;
+                                    rows["{!i.key}"]['loadingsite'].disabled = true;
+                                    rows["{!i.key}"]['collectOriginCurrent'].disabled = true;   
+                                    rows["{!i.key}"]['collectOriginActual'].disabled = true;
+                                    rows["{!i.key}"]['uSPortETDCurrent'].disabled = true;
+                                    rows["{!i.key}"]['uSPortETDActual'].disabled = true;
+                                    rows["{!i.key}"]['portETATransitCurrent'].disabled = true;
+                                    rows["{!i.key}"]['portETATransitActual'].disabled = true;
+                                    rows["{!i.key}"]['irelandPortETACurrent'].disabled = true;
+                                    rows["{!i.key}"]['irelandPortETAActual'].disabled = true;
+                                    
+                                    rows["{!i.key}"]['collectOriginCurrent'].nextSibling.style.display= 'none';   
+                                    rows["{!i.key}"]['collectOriginActual'].nextSibling.style.display= 'none';
+                                    rows["{!i.key}"]['uSPortETDCurrent'].nextSibling.style.display= 'none';
+                                    rows["{!i.key}"]['uSPortETDActual'].nextSibling.style.display= 'none';
+                                    rows["{!i.key}"]['portETATransitCurrent'].nextSibling.style.display= 'none';
+                                    rows["{!i.key}"]['portETATransitActual'].nextSibling.style.display= 'none';
+                                    rows["{!i.key}"]['irelandPortETACurrent'].nextSibling.style.display= 'none';
+                                    rows["{!i.key}"]['irelandPortETAActual'].nextSibling.style.display= 'none';
+                                </script>
+                                </td>
+                                <td>
+                                    <apex:facet name="header">{!$Label.poshipStepGrid_Collection_at} <br/>{!$Label.poshipStepGrid_Origin}<br/>{!$Label.poshipStepGrid_Current}</apex:facet>
+                                    <apex:outputField value="{!i.poStep.rstk__poshipstep_plandepartdate__c}"/>
+                                </td>
+                                <td>
+                                    <apex:facet name="header">{!$Label.poshipStepGrid_Collection_at} <br/>{!$Label.poshipStepGrid_Origin}<br/>{!$Label.poshipStepGrid_Actual}</apex:facet>
+                                    <apex:outputField value="{!i.poStep.rstk__poshipstep_actdepartdate__c}"/>
+                                </td>
+                                <td>
+                                    <apex:facet name="header">{!$Label.poshipStepGrid_US_Port} <br/>{!$Label.poshipStepGrid_ETD}<br/>{!$Label.poshipStepGrid_Current}</apex:facet>
+                                    <apex:outputField value="{!i.poStep.rstk__poshipstep_planusportetd__c}"/>
+                                </td>
+                                <td>
+                                    <apex:facet name="header">{!$Label.poshipStepGrid_US_Port} <br/>{!$Label.poshipStepGrid_ETD}<br/>{!$Label.poshipStepGrid_Actual}</apex:facet>
+                                    <apex:outputField value="{!i.poStep.rstk__poshipstep_actusportetd__c}"/>
+                                </td>
+                                <td>
+                                    <apex:facet name="header">{!$Label.poshipStepGrid_Port_ETA} <br/>{!$Label.poshipStepGrid_Transit}<br/>{!$Label.poshipStepGrid_Current}</apex:facet>
+                                    <apex:outputField value="{!i.poStep.rstk__poshipstep_planporteta__c}"/>
+                                </td>
+                                <td>
+                                    <apex:facet name="header">{!$Label.poshipStepGrid_Port_ETA} <br/>{!$Label.poshipStepGrid_Transit}<br/>{!$Label.poshipStepGrid_Actual}</apex:facet>
+                                    <apex:outputField value="{!i.poStep.rstk__poshipstep_actporteta__c}"/>
+                                </td>
+                                <td>
+                                    <apex:facet name="header">{!$Label.poshipStepGrid_Ireland_Port} <br/>{!$Label.poshipStepGrid_ETA}<br/>{!$Label.poshipStepGrid_Current}</apex:facet>
+                                    <apex:outputField value="{!i.poStep.rstk__poshipstep_planarrivaldate__c}"/>
+                                </td>
+                                <td>
+                                    <apex:facet name="header">{!$Label.rstk__poshipstepgrid_ireland_port} <br/>{!$Label.rstk__poshipstepgrid_eta}<br/>{!$Label.rstk__poshipstepgrid_actual}</apex:facet>
+                                    <apex:outputField value="{!i.poStep.rstk__poshipstep_actarrivaldate__c}"/>
+                                </td>
+                            </tr>
+                        </apex:repeat>
+                    </tbody>
+                </table>
+
+                <script type="text/javascript">
+         var tbl;
+         var df = '{!sortDateformat}';
+         
+        $(document).ready( 
+         initializeDataTable());
+         
+        function initializeDataTable(){
+        	//$.fn.dataTable.moment('DD/MM/YYYY');
+        	$.fn.dataTable.moment(df);
+            tbl = $('#poshipstepTable').DataTable( {
+            scrollY:        tblHeight+"px",
+            scrollX:        true,
+            scrollCollapse: true,
+            paging:         false,
+            bFilter : false,
+            order : [],
+            columnDefs: [
+			  { targets: [1,10,11,12,13,14,15,16,17,18,19,20,21], orderable: false }
+			]
+            } );
+            
+             new $.fn.dataTable.FixedColumns( tbl, {
+                leftColumns: 1
+            } );
+        } 
+       
+        
+    </script>
+
+            </apex:outputPanel>
+
+        </apex:form>
+
+        <c:footerInclude cntr="{!controller}" />
+    </div>
+</apex:page>

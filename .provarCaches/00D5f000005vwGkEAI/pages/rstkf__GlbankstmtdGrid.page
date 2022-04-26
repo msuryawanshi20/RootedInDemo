@@ -1,0 +1,260 @@
+<apex:page standardController="rstkf__customextf__c" extensions="rstkf.ControllerExtnGlbankstmtdGrid,rstkf.RemoteQueryController" sideBar="false" showHeader="false"  action="{!doBeforePageLoad}">
+<apex:variable var="o" value="{!rstkf__customextf__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <!-- kendo/common css references -->
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__KendoUIStyle2018, '/KendoStyle/kendo.common.min.css')}" />
+    <apex:stylesheet value="{!URLFOR($Resource.rstkf__KendoUIStyle2018, '/KendoStyle/kendo.bootstrap.min.css')}" />
+
+    <!-- kendo/common js references -->
+    <apex:includeScript value="{!$Resource.rstkf__jquery}" />
+    <apex:includeScript value="{!URLFOR($Resource.rstkf__UnderscoreJS, 'underscore-min.js')}" />
+    <apex:includeScript value="{!URLFOR($Resource.rstkf__KendoUIScript2018, '/KendoUIScript/kendo.all.min.js')}" />
+    <apex:includeScript value="{!$Resource.rstkf__SecureFilters}" />
+    <apex:includeScript value="{!$Resource.rstkf__Sanitize}" />
+    <apex:includeScript value="{!$Resource.rstkf__Sanitize}" />
+    <apex:includeScript value="{!$Resource.rstkf__RootstockCommon}" />
+    <apex:includeScript value="{!$Resource.rstkf__GridActionListJS}" />
+
+    <apex:variable var="o_customext" value="{!customextf}" />
+    <apex:variable var="f_customext"
+        value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <c:standardHeader cntr="{!controller}" displayListLink="false"
+        title="{!$Label.rstkf__pgtitle_maintainstatement}" enableAutocomplete="true" />
+
+<apex:form id="fm">
+
+<apex:outputpanel id="op_vars">
+    <script>
+        var glbankacctId = '{!glbankacctId}';
+        var glbankstmthId = '{!glbankstmthId}';
+        var glcmpId = '{!customextf.custom_glcmp__c}';
+        var invokedFrom = '{!invokedFrom }';
+    </script>
+</apex:outputpanel>
+
+<apex:pageblock id="pb">
+    <apex:pageBlockButtons location="top">
+        <apex:commandButton id="close" value="{!$Label.rstkf__btn_close}" onclick="window.parent.closeGlbankstmtdGridPopup();return false;" style="width: 80px;"/>
+    </apex:pageBlockButtons>
+    <apex:pageblocksection id="pbs_AddTxn_grids" columns="1" collapsible="true">
+        <div class="grid-container">
+            <div class="grid-message" style="white-space: pre" />
+            <div id="maintainGlbankstmtdGrid" style="height: 300px;"></div>
+        </div>
+    </apex:pageblocksection>
+</apex:pageblock>
+
+</apex:form>
+
+<c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true" />
+
+<script>
+
+var maintainGlbankstmtdGrid;
+function createMaintainGlbankstmtdGrid(glbankacctId) {
+    
+    // get Glbankstmtds for a selected bank account
+    var getGlbankstmtds = function(){
+        var deferred = $.Deferred();
+        Visualforce.remoting.Manager.invokeAction(
+            '{!$RemoteAction.ControllerExtnGlbankstmtdGrid.getGlbankstmtds}',glbankstmthId,
+            function (result, event) {
+                deferred.resolve(result, event);
+                
+                enableAllButtons();
+                console.log('getGlbankstmtds returned with results');
+            },
+            {escape: false}
+        );  
+        return deferred.promise();        
+    };
+    
+    var buttons = [RootstockErp.KendoGridOptions.CommandType.AddRow,
+                   RootstockErp.KendoGridOptions.CommandType.Delete,
+                   RootstockErp.KendoGridOptions.CommandType.Save];
+    
+    var getComponentToolbarButtons = function() {
+        return RootstockErp.KendoGridOptions.GetToolbarButtons(buttons, { allowMassDelete: true });
+    };
+    
+    if (maintainGlbankstmtdGrid) {
+        $('#maintainGlbankstmtdGrid').off();
+        maintainGlbankstmtdGrid.destroy();
+        $('#maintainGlbankstmtdGrid').empty();
+    }
+    
+    var glbankstmtdFIList = JSON.parse('{!JSENCODE(glbankstmtdFIListJson)}');
+    var glbankstmtdDateFields = RootstockErp.KendoGridOptions.GetDateFields(glbankstmtdFIList);
+    maintainGlbankstmtdGrid = $('#maintainGlbankstmtdGrid').kendoGridActionList({
+        fieldList: glbankstmtdFIList,
+        getActionListFunction: getGlbankstmtds,
+        modelIdField: 'Id', //since we are using a wrapper we need to pass the full path to the id here
+        actionColumnButtons: [],
+        namespace: '{!namespaceUU}',
+        editable: true,
+        toolbarButtons: getComponentToolbarButtons(),
+        showIconButtons: false,
+        dateFields: glbankstmtdDateFields
+    }).data('kendoGridActionList');
+    
+    //Bind Actions
+    maintainGlbankstmtdGrid.wrapper.on("OnSaveGlbankstmtdFailure", OnSaveGlbankstmtdFailure); 
+    maintainGlbankstmtdGrid.wrapper.on("OnSaveGlbankstmtdSuccess", OnSaveGlbankstmtdSuccess);
+    
+    maintainGlbankstmtdGrid.wrapper.off("click",".grid-add-row-command");
+    maintainGlbankstmtdGrid.wrapper.off("click",".grid-mass-delete-command");
+    maintainGlbankstmtdGrid.wrapper.off("click",".grid-save-command");
+    
+    maintainGlbankstmtdGrid.wrapper.on("click", ".grid-add-row-command", 
+                   $.proxy(addGlbankstmtd, { gridObj: this.maintainGlbankstmtdGrid}));
+    
+    maintainGlbankstmtdGrid.wrapper.on("click", ".grid-save-command", 
+                   $.proxy(saveRecs, { grid: this.maintainGlbankstmtdGrid,
+                                              options: {dateFields: glbankstmtdDateFields,
+                                                       saveAction: '{!$RemoteAction.ControllerExtnGlbankstmtdGrid.saveGlbankstmtd}'}
+                                               }
+                         ));
+                         
+    maintainGlbankstmtdGrid.wrapper.on("click", ".grid-mass-delete-command", 
+                    $.proxy(deleteGlbankstmtds, { grid: maintainGlbankstmtdGrid, 
+                                                fieldList: glbankstmtdFIList 
+                                                }
+                        ));
+                        
+    enableAllButtons();
+     $('#New_Bank_Statement').prop('disabled', true);
+}
+
+function getFloatValue(s) {
+    return parseLocaleFloat(s) || 0;
+}
+
+function saveRecs() {
+    
+    var grid = this.grid;
+    var options = this.options;
+    var messageElement = $("#maintainGlbankstmtdGrid").closest("div.grid-container").find("div.grid-message");
+    var gridUtils = new KendoGridUtils(grid, options);
+    if (!gridUtils.IsValid()) {
+        e.preventDefault();
+        return;
+    }
+         
+    if (!gridUtils.HasChanges()) {
+        RootstockErp.Message("No records changed.", RootstockErp.MessageType.Info, messageElement);
+        return;
+    }
+              
+     RootstockErp.BlockUI(grid.element);
+     var dateFields = options.dateFields;
+     
+     var updatedRows = gridUtils.UpdatedRows();
+     var newRows = gridUtils.NewRows();
+     var deletedRows = gridUtils.DeletedRows();
+     
+     for(var delRowIdx=0;delRowIdx<deletedRows.length;delRowIdx++) {
+     	if(deletedRows[delRowIdx].Id == null) {
+     		deletedRows.splice(delRowIdx);
+     		delRowIdx--;
+     	}
+     }
+     
+     Visualforce.remoting.Manager.invokeAction(
+        '{!$RemoteAction.ControllerExtnGlbankstmtdGrid.saveGlbankstmtd}',                              
+        updatedRows, 
+        newRows, 
+        deletedRows, 
+        dateFields,
+        glcmpId,
+        glbankacctId,
+        glbankstmthId,
+        invokedFrom,
+        function (result, event) {
+            RootstockErp.UnBlockUI(grid.element);
+             enableAllButtons();        
+             if (event.type == 'exception') {
+                 RootstockErp.Message(event.message, RootstockErp.MessageType.Error, messageElement);
+             } else {
+                 if (result.success) {
+                      //refresh the grid
+                 grid.dataSource._destroyed = [];
+                 grid.dataSource.read();
+                                   
+                      // trigger onsavesuccess
+                     grid.element.trigger("OnSaveGlbankstmtdSuccess");
+                                   
+                     RootstockErp.Messages(result.messages, messageElement);
+                 }
+                 else {
+                     RootstockErp.Messages(result.messages, messageElement);
+                      grid.element.trigger({
+                          type: "OnSaveGlbankstmtdFailure",
+                          result: result,
+                          event: event
+                      });
+                  }
+              }
+         },
+         {escape: false}
+     );
+}
+
+function OnSaveGlbankstmtdFailure(obj) {
+    enableAllButtons();
+}
+
+function OnSaveGlbankstmtdSuccess() {
+    enableAllButtons();
+}
+
+function addGlbankstmtd() {
+    var gridObj = this.gridObj;
+    //glbankstmthId = jQuery("select[id*=glbankacc_stmtheader__c")[0].value;
+    var newRow = [];
+    newRow.sobjectType = 'glbankstmtd__c';
+    newRow.IsSelected__custom  = null;
+    newRow.Id = null;
+    newRow.Name = '';
+    newRow.glbankstmtd_bankref__c = null;
+    newRow.glbankstmtd_bankdate__c = null;
+    newRow.glbankstmtd_banktrantype__c = '-1';	//None
+    newRow.glbankstmtd_bankamt__c = null;
+    newRow.glbankstmtd_glbankstmth__c = glbankstmthId;
+    
+    gridObj.dataSource.insert(0,newRow);
+}
+
+function deleteGlbankstmtds() {
+    var grid = this.grid;
+    var dateFields = RootstockErp.KendoGridOptions.GetDateFields(this.fieldList);
+    var messageElement = $("#maintainGlbankstmtdGrid").closest("div.grid-container").find("div.grid-message");
+    RootstockErp.ClearMessage(messageElement);
+    var selectedRows = $.map(grid.dataSource.data(),function(val,i) {
+        if (val.IsSelected__custom) {
+            return val;
+        }
+    });
+    
+    var deleteFromDatabase = [ ];
+    var rowsToRemove = [ ];
+    $.each(selectedRows,function(i,val) {
+       grid.dataSource.remove(val);
+    });
+}
+
+function enableAllButtons() {
+    var btns = jQuery('.btn');
+    for(var i = 0; i < btns.length; i++) {
+        var btn = btns[i];
+        btn.removeAttribute('disabled');
+    }
+}
+
+function pageInit() {
+    createMaintainGlbankstmtdGrid(glbankacctId);
+}
+
+
+</script>
+
+</apex:page>

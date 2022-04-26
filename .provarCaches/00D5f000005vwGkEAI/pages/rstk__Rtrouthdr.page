@@ -1,0 +1,176 @@
+<apex:page id="pg" standardController="rstk__rtrouthdr__c" extensions="rstk.ControllerExtnRtrouthdr,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <apex:variable var="o" value="{!rstk__rtrouthdr__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__rtrouthdr__c.fields}" /> 
+
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_rtrouthdr}" customInclude="{!$Resource.rstk__rtrouthdr_cli}" enableAutocomplete="true"/>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+		<apex:actionFunction name="doClone" action="{!doClone}" immediate="true"/>
+        <!-- RSTK - 1915 -->												
+        <apex:actionFunction name="loadItemId" action="{!itemId}" immediate="true" reRender="rev" oncomplete="unblockUI();">
+            <apex:param name="itemRev" value=""/>
+        </apex:actionFunction>	
+        <apex:actionFunction name="revisionId" action="{!revisionId}" immediate="true" reRender="rev">
+            <apex:param name="revision" value=""/>
+        </apex:actionFunction> 
+        <apex:actionFunction name="sourceRevisionId" action="{!sourceRevisionId}" immediate="true" reRender="revisionSourceSection" >
+            <apex:param name="sourceRevision" value="" />
+        </apex:actionFunction>  
+        <!-- rstk - 1915 -->			  
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/> 
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <!--rstk - 1915-->
+            <c:standardButtons cntr="{!controller}" disableClone="false"/>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none">
+        </apex:outputPanel>
+        <script type="text/javascript">
+            var id;
+            var rev;
+            var sourceRev = '';
+            var showRevision = '{!showRevision}';
+        </script>
+        <c:division id="rtrouthdr_div__c" cntr="{!controller}" columns="2"/>
+        
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+        
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtrouthdr_site__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtrouthdr_site__c.label}"/>
+                <apex:outputPanel >
+                  <c:selectList id="rtrouthdr_site__c" required="true" hidden="{!isClone}" cntr="{!controller}" options="{!Sysites}" tabIndex="1"/>
+                <apex:outputField value="{!o.rstk__rtrouthdr_site__c}" rendered="{!isClone}"/> 
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtrouthdr_respplanner__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtrouthdr_respplanner__c.label}"/>
+                <c:selectList id="rtrouthdr_respplanner__c" required="true" cntr="{!controller}" options="{!planners}" tabIndex="101"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem rendered="{!showRevision && isClone}" id="revisionSourceSection"  helpText="{!$Label.rstk__rtrouthdr_sourcerevision}">
+                <apex:outputLabel value="{!$Label.rstk__source + ' '+addRevisionLabel}"/>
+                <apex:outputPanel id="sourceRev" styleClass="requiredInput" layout="block">
+                    <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+                     <apex:selectList tabindex="103" id="selectedSourceRevision" size="1" onchange="setSourceRevisionId(this.value);" style="width:250px;">
+                        <apex:selectOptions value="{!sourceRevisions}"/>
+                        <script>
+                            function setSourceRevisionId(value) {
+                                console.log('source'+value);
+                                sourceRev = value;
+                                if(value != ''){
+                                    sourceRevisionId(value);
+                                }
+                               
+                            }
+                            
+                        </script>
+                    </apex:selectList>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtrouthdr_respeng__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__rtrouthdr_respeng__c.label}"/>
+                <c:selectList id="rtrouthdr_respeng__c" required="true" cntr="{!controller}" options="{!engineers}" tabIndex="102"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem >
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__rtrouthdr_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!IF(isClone, $Label.rstk__target + ' ', '') + f.rstk__rtrouthdr_item__c.label}" />
+                <apex:outputPanel id="item">
+                    <c:autocomplete id="rtrouthdr_item__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}" query="select id, name from icitem__c where icitem_div__c = 'prm' and id not in (select rtrouthdr_item__c from rtrouthdr__c where rtrouthdr_site__c = 'prm')" queryParms="[['rtrouthdr_div__c','Division'],['rtrouthdr_site__c','Site']]"  tabIndex="2"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem >
+            </apex:pageBlockSectionItem>
+            
+            <!-- RSTK - 1915-->
+            <apex:pageBlockSectionItem rendered="{!showRevision && isClone}" id="revisionSection" helpText="{!$Label.rstk__rtrouthdr_targetrevision}">
+                <apex:outputLabel value="{!$Label.rstk__target + ' ' + addRevisionLabel}"/>
+                <apex:outputPanel id="rev" styleClass="requiredInput" layout="block">
+                    <apex:outputPanel styleClass="requiredBlock" layout="block"/>
+                     <apex:selectList tabindex="103" id="selectedRevision" size="1" onchange="revisionSelect(this.value);" style="width:250px;">
+                        <apex:selectOptions value="{!revisions}"/>
+                        <script type="text/javascript">
+                        function revisionLoad(){
+                            var itemId = sfffGetFieldValue('rtrouthdr_item__c');
+                            console.log('itemId..'+itemId);
+                            if(itemId == null || itemId == "") {
+                                alert("Please select Item");
+                                revisionId(val);
+                            }
+                            else {
+                                if(id == null) {
+                                    id = itemId;
+                                    console.log('id == ' +id);
+                                    blockUI();
+                                    loadItemId(itemId);
+                                }
+                                else {
+                                    if (itemId != id) {
+                                        id = itemId;
+                                        blockUI();
+                                        loadItemId(itemId);
+                                    }
+                                }
+                            }
+                        }  
+                        function revisionSelect(val){
+                            console.log('revision = ' +val);
+                            rev = val;
+                            console.log('rev == ' +rev);
+                            revisionId(val);
+                        }
+                       </script>
+                    </apex:selectList>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+
+            
+            <!-- -->
+            <apex:pageBlockSectionItem />
+        </apex:pageBlockSection>
+        <br/>
+        <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_rtrouthdr_info}" name="tab_Info" id="tab_Info">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <apex:pageBlock rendered="{!actionType == 'edit' || actionType == 'view'}">
+        <apex:tabPanel switchType="client" selectedTab="tab_RoutingOperations" id="rltabpanel">
+            <apex:tab label="{!$Label.rstk__pagetab_rtrouthdr_routingoperations}" name="tab_RoutingOperations" id="tab_RoutingOperations">
+                <apex:pageBlockSection id="lst_RoutingOper" showHeader="false" columns="1">
+                    <apex:outputPanel >
+                    <apex:outputLink value="{!URLFOR($Action.rstk__rtroutoper__c.New)}{!AddStandardOperationLinkParms}">{!$Label.rstk__add_standard_operation}</apex:outputLink>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+                    <apex:outputLink value="{!URLFOR($Action.rstk__rtroutoper__c.New)}{!AddSubcontractOperationLinkParms}">{!$Label.rstk__add_subcontract_operation}</apex:outputLink>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+                    <apex:outputLink value="{!URLFOR($Action.rstk__rtroutoper__c.New)}{!AddConcurrentOperationLinkParms}">{!$Label.rstk__add_concurrent_operation}</apex:outputLink>
+                    </apex:outputPanel>
+                    <apex:relatedList list="rtroutopers__r" title=""/>
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+        </apex:tabPanel>
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+    <script>
+    var LABEL_Not_possible_to_complete_the_clone = "{!$Label.rstk__not_possible_to_complete_the_clone_because_item_does_not_have_any_revisions}";
+    </script>
+</apex:page>

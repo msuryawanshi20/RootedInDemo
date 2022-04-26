@@ -1,0 +1,589 @@
+<apex:page id="pg" standardController="rstkf__glyear__c" extensions="rstkf.ControllerExtnGlyear,rstkf.RemoteQueryController" sideBar="false" showHeader="true" action="{!doBeforePageLoad}">
+    <script>function setFocusOnLoad() {}</script>
+    <apex:variable var="o" value="{!rstkf__glyear__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__glyear__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__titlefiscalyear}" enableAutocomplete="true" customInclude="{!$Resource.rstkf__glyear_cli}"/>
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <script>
+        function initializeP01StartDate(fiscalYear,glyearCompany){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnGlyear.initializeP01StartDate}', //NameSpace  
+                fiscalYear,
+                glyearCompany,  
+                function(result, event){
+                    if (event.status) {
+                        populateDefaultDate(result);
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.Exception}", event.message);
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function initializeStartDate(endDateFldId,startDatefieldID,fieldLabel,endDateValue){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnGlyear.initializeStartDate}', //NameSpace  
+                endDateValue,
+                function(result, event){
+                    if (event.status) {
+                        document.getElementById(startDatefieldID).value = result;
+                    } else if (event.type === 'exception') {
+                        alert(event.message + ' for '+ fieldLabel);
+                        document.getElementById(endDateFldId).value = '';
+                        document.getElementById(endDateFldId).focus();
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function verifyGapInDates(endDateValue,startDateValue,startDatefieldID,endDtFldLabel,startDtFldLabel){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnGlyear.verifyGapInDates}', //NameSpace  
+                endDateValue,
+                startDateValue,
+                function(result, event){
+                    if (event.status) {
+                        if(result){
+                            alert(Label_nogapsbetweentwodates,[endDtFldLabel,startDtFldLabel,startDtFldLabel,endDtFldLabel]);
+                            document.getElementById(startDatefieldID).value = '';
+                            document.getElementById(startDatefieldID).focus();
+                        }
+                    } else if (event.type === 'exception') {
+                        alert(event.message + ' for '+ startDtFldLabel);
+                        document.getElementById(startDatefieldID).value = '';
+                        document.getElementById(startDatefieldID).focus();
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message);
+                    }
+                }, {escape:false}
+            );
+        }
+
+    </script> 
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!doCancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doClone" action="{!doClone}" immediate="true" rerender="pageMessages"/>
+        <apex:actionFunction name="populateDatesForCloneGlYear" action="{!populateDatesForCloneGlYear}" reRender="pageMessages,pbs_periodStatusSec,op_misc" immediate="false" oncomplete="disableStartDate(); return false;" status="statusProcessing">
+            <apex:param name="fiscalYear" assignTo="{!fiscalYear}" value=""/>
+        </apex:actionFunction>
+        
+        <apex:outputPanel id="op_misc">
+            <script>
+                var disableStartDt = "{!disableStartDt}"
+            </script>
+        </apex:outputPanel>
+        
+        <apex:pageBlock id="pb" mode="detail" >
+            
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableClone="false"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_mainView" columns="2" rendered="{!isView}">
+                <apex:outputField value="{!o.rstkf__glyear_cmpno__c}"/>
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_year__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_year__c.label}"/>
+                    <apex:outputtext value="{0, number, ####.##}">
+                        <apex:param value="{!o.rstkf__glyear_year__c}" />
+                    </apex:outputtext>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                <apex:outputField value="{!o.rstkf__glyear_begbalset__c}"/>
+                <apex:outputField value="{!o.rstkf__glyear_closedtopostings__c}"/>
+                <apex:outputField value="{!o.rstkf__glyear_retearnacct__c}"/>
+                <apex:outputField value="{!o.rstkf__glyear_closedforadjstmnts__c}"/>
+                <apex:outputField value="{!o.rstkf__glyear_netgainlossacct__c}"/>
+                <apex:outputField value="{!o.rstkf__glyear_yearendadj__c}"/>
+                <apex:outputField value="{!o.rstkf__glyear_retgainlossacct__c}"/>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection id="pbs_main" columns="2" rendered="{!OR(isNew,isEdit)}">
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_cmpno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_cmpno__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__glyear_cmpno__c}"/>
+                        <apex:inputHidden id="glyear_cmpno__c" value="{!o.rstkf__glyear_cmpno__c}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_year__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_year__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputtext value="{0, number, ####.##}" rendered="{!isEdit}">
+                            <apex:param value="{!o.rstkf__glyear_year__c}" />
+                        </apex:outputtext>
+                        <apex:inputField id="glyear_year__c" value="{!o.rstkf__glyear_year__c}" rendered="{!isNew}" required="true" taborderhint="1"/>
+                        <apex:inputHidden id="glyear_year_hidden__c" value="{!o.rstkf__glyear_year__c}" rendered="{!isEdit}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_begbalset__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_begbalset__c.label}"/>
+                    <apex:inputCheckbox id="glyear_begbalset__c" value="{!o.rstkf__glyear_begbalset__c}" tabindex="12"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_closedtopostings__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_closedtopostings__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstkf__glyear_closedtopostings__c}"/>
+                        <apex:inputHidden id="glyear_closedtopostings_hidden__c" value="{!o.rstkf__glyear_closedtopostings__c}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_retearnacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_retearnacct__c.label}"/>
+                    <c:glaccount id="glyear_retearnacct__c" 
+                               cntr="{!controller}"
+                               ref="glyear_retearnacct__c"
+                               options="{!glyearGlaccts}"
+                               slDesc="{!retEarnAcctName}"
+                               query="{!glacctAutoCompleteQuery}" 
+                               queryParms="[]"
+                               displaySelectList="{!glyearGlaccts.size <= 999}"
+                               required="true"
+                               onchange="retearnacctChanged()"
+                               width="250px"
+                               tabIndex="16" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_closedforadjstmnts__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_closedforadjstmnts__c.label}"/>
+                    <apex:inputField value="{!o.rstkf__glyear_closedforadjstmnts__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_netgainlossacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_netgainlossacct__c.label}"/>
+                    <c:glaccount id="glyear_netgainlossacct__c" 
+                               cntr="{!controller}"
+                               ref="glyear_netgainlossacct__c"
+                               options="{!glyearGlaccts}"
+                               slDesc="{!netGainLossAcctName}"
+                               query="{!glacctAutoCompleteQuery}" 
+                               queryParms="[]"
+                               displaySelectList="{!glyearGlaccts.size <= 999}"
+                               onchange="netgainlossacctChanged()"
+                               width="250px"
+                               tabIndex="17" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_yearendadj__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_yearendadj__c.label}"/>
+                    <apex:inputCheckbox id="glyear_yearendadj__c" value="{!o.rstkf__glyear_yearendadj__c}" tabindex="14"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__glyear_retgainlossacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__glyear_retgainlossacct__c.label}"/>
+                    <c:glaccount id="glyear_retgainlossacct__c" 
+                               cntr="{!controller}"
+                               ref="glyear_retgainlossacct__c"
+                               options="{!glyearGlaccts}"
+                               slDesc="{!retGainLossAcctName}"
+                               query="{!glacctAutoCompleteQuery}" 
+                               queryParms="[]"
+                               displaySelectList="{!glyearGlaccts.size <= 999}"
+                               onchange="retgainlossacctChanged()"
+                               width="250px"
+                               tabIndex="18" />
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <BR/>  
+            <apex:tabPanel switchType="client" selectedTab="tab_detail" id="theTabPanel">
+                <apex:tab label="{!$Label.rstkf__titleperioddatesandstatus}" name="tab_detail" id="tab_detail">
+                    <apex:pageBlockSection id="pbs_periodStatusSecView" columns="1" rendered="{!isView}">
+                        <apex:pageBlockSectionItem >
+                            <apex:outputPanel id="mainTable">
+                                <table class="list" border="0" cellpadding="0" cellspacing="0">
+                                   <tr class="headerRow">
+                                      <th class="headerRow"> </th>
+                                      <th class="headerRow"> {!$Label.labelstartingdate} </th>
+                                      <th class="headerRow"> {!$Label.labelendingdate} </th>
+                                      <th class="headerRow"> {!$Label.ClosedtoAPPostings} </th>
+                                      <th class="headerRow"> {!$Label.ClosedtoARPostings} </th>
+                                      <th class="headerRow"> {!$Label.labelclosedtopostings} </th>
+                                      <th class="headerRow"> {!$Label.labelclosedforadjustments} </th>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod1}"/></td>
+                                      <td class="dataCell"><apex:outputField value="{!o.rstkf__glyear_p01start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p01end__c" value="{!o.rstkf__glyear_p01end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p01apclosedtopostings__c" value="{!o.rstkf__glyear_p01apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p01arclosedtopostings__c" value="{!o.rstkf__glyear_p01arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p01closedtopostings__c" value="{!o.rstkf__glyear_p01closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p01closedforadjstmnts__c" value="{!o.rstkf__glyear_p01closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod2}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p02start__c" value="{!o.rstkf__glyear_p02start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p02end__c" value="{!o.rstkf__glyear_p02end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p02apclosedtopostings__c" value="{!o.rstkf__glyear_p02apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p02arclosedtopostings__c" value="{!o.rstkf__glyear_p02arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p02closedtopostings__c" value="{!o.rstkf__glyear_p02closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p02closedforadjstmnts__c" value="{!o.rstkf__glyear_p02closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod3}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p03start__c" value="{!o.rstkf__glyear_p03start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p03end__c" value="{!o.rstkf__glyear_p03end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p03apclosedtopostings__c" value="{!o.rstkf__glyear_p03apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p03arclosedtopostings__c" value="{!o.rstkf__glyear_p03arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p03closedtopostings__c" value="{!o.rstkf__glyear_p03closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p03closedforadjstmnts__c" value="{!o.rstkf__glyear_p03closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod4}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p04start__c" value="{!o.rstkf__glyear_p04start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p04end__c" value="{!o.rstkf__glyear_p04end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p04apclosedtopostings__c" value="{!o.rstkf__glyear_p04apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p04arclosedtopostings__c" value="{!o.rstkf__glyear_p04arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p04closedtopostings__c" value="{!o.rstkf__glyear_p04closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p04closedforadjstmnts__c" value="{!o.rstkf__glyear_p04closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod5}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p05start__c" value="{!o.rstkf__glyear_p05start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p05end__c" value="{!o.rstkf__glyear_p05end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p05apclosedtopostings__c" value="{!o.rstkf__glyear_p05apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p05arclosedtopostings__c" value="{!o.rstkf__glyear_p05arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p05closedtopostings__c" value="{!o.rstkf__glyear_p05closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p05closedforadjstmnts__c" value="{!o.rstkf__glyear_p05closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod6}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p06start__c" value="{!o.rstkf__glyear_p06start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p06end__c" value="{!o.rstkf__glyear_p06end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p06apclosedtopostings__c" value="{!o.rstkf__glyear_p06apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p06arclosedtopostings__c" value="{!o.rstkf__glyear_p06arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p06closedtopostings__c" value="{!o.rstkf__glyear_p06closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p06closedforadjstmnts__c" value="{!o.rstkf__glyear_p06closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod7}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p07start__c" value="{!o.rstkf__glyear_p07start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p07end__c" value="{!o.rstkf__glyear_p07end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p07apclosedtopostings__c" value="{!o.rstkf__glyear_p07apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p07arclosedtopostings__c" value="{!o.rstkf__glyear_p07arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p07closedtopostings__c" value="{!o.rstkf__glyear_p07closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p07closedforadjstmnts__c" value="{!o.rstkf__glyear_p07closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod8}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p08start__c" value="{!o.rstkf__glyear_p08start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p08end__c" value="{!o.rstkf__glyear_p08end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p08apclosedtopostings__c" value="{!o.rstkf__glyear_p08apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p08arclosedtopostings__c" value="{!o.rstkf__glyear_p08arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p08closedtopostings__c" value="{!o.rstkf__glyear_p08closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p08closedforadjstmnts__c" value="{!o.rstkf__glyear_p08closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod9}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p09start__c" value="{!o.rstkf__glyear_p09start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p09end__c" value="{!o.rstkf__glyear_p09end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p09apclosedtopostings__c" value="{!o.rstkf__glyear_p09apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p09arclosedtopostings__c" value="{!o.rstkf__glyear_p09arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p09closedtopostings__c" value="{!o.rstkf__glyear_p09closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p09closedforadjstmnts__c" value="{!o.rstkf__glyear_p09closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod10}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p10start__c" value="{!o.rstkf__glyear_p10start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p10end__c" value="{!o.rstkf__glyear_p10end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p10apclosedtopostings__c" value="{!o.rstkf__glyear_p10apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p10arclosedtopostings__c" value="{!o.rstkf__glyear_p10arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p10closedtopostings__c" value="{!o.rstkf__glyear_p10closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p10closedforadjstmnts__c" value="{!o.rstkf__glyear_p10closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod11}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p11start__c" value="{!o.rstkf__glyear_p11start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p11end__c" value="{!o.rstkf__glyear_p11end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p11apclosedtopostings__c" value="{!o.rstkf__glyear_p11apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p11arclosedtopostings__c" value="{!o.rstkf__glyear_p11arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p11closedtopostings__c" value="{!o.rstkf__glyear_p11closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p11closedforadjstmnts__c" value="{!o.rstkf__glyear_p11closedforadjstmnts__c}"/></td>
+                                   </tr>
+                                   <tr class="dataRow">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod12}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p12start__c" value="{!o.rstkf__glyear_p12start__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p12end__c" value="{!o.rstkf__glyear_p12end__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p12apclosedtopostings__c" value="{!o.rstkf__glyear_p12apclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p12arclosedtopostings__c" value="{!o.rstkf__glyear_p12arclosedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p12closedtopostings__c" value="{!o.rstkf__glyear_p12closedtopostings__c}"/></td>
+                                      <td class="dataCell"><apex:outputField id="glyear_p12closedforadjstmnts__c" value="{!o.rstkf__glyear_p12closedforadjstmnts__c}"/></td>
+                                   </tr>
+                               </table>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection> 
+                    
+                    <apex:pageBlockSection id="pbs_periodStatusSec" columns="1" rendered="{!OR(isNew,isEdit)}">
+                        <apex:pageBlockSectionItem id="pbsi_periodStatusSec">
+                            <apex:outputPanel id="mainTable">
+                                <table id="glyearTable" class="list" border="0" cellpadding="0" cellspacing="0">
+                                   <tr class="headerRow">
+                                      <th class="headerRow"> </th>
+                                      <th class="headerRow"> {!$Label.labelstartingdate} </th>
+                                      <th class="headerRow"> {!$Label.labelendingdate} </th>
+                                      <th class="headerRow"> {!$Label.ClosedtoAPPostings} </th>
+                                      <th class="headerRow"> {!$Label.ClosedtoARPostings} </th>
+                                      <th class="headerRow"> {!$Label.labelclosedtopostings} </th>
+                                      <th class="headerRow"> {!$Label.labelclosedforadjustments} </th>
+                                   </tr>
+                                   <tr class="dataRow" id="01">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod1}"/></td>
+                                      <td class="dataCell">
+                                          <apex:outputField id="glyear_p01startView__c" value="{!o.rstkf__glyear_p01start__c}" rendered="{!!enableDateFields}"/>
+                                          <apex:inputField id="glyear_p01start__c" value="{!o.rstkf__glyear_p01start__c}" required="true" taborderhint="2" rendered="{!enableDateFields}"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p01endView__c" value="{!o.rstkf__glyear_p01end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p01end__c" value="{!o.rstkf__glyear_p01end__c}" required="true" taborderhint="3" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p01end__c','glyear_p02start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p01apclosedtopostings__c" value="{!o.rstkf__glyear_p01apclosedtopostings__c}" tabindex="260"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p01arclosedtopostings__c" value="{!o.rstkf__glyear_p01arclosedtopostings__c}" tabindex="261"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p01closedtopostings__c" value="{!o.rstkf__glyear_p01closedtopostings__c}" disabled="{!disablePostingAdjChkbx1}" tabindex="262"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p01closedforadjstmnts__c" value="{!o.rstkf__glyear_p01closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx1}" tabindex="263"/></td>
+                                      
+                                   </tr>
+                                   <tr class="dataRow" id="02">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod2}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p02startView__c" value="{!o.rstkf__glyear_p02start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p02start__c" value="{!o.rstkf__glyear_p02start__c}" required="true" taborderhint="4" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p01end__c','glyear_p02start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p02endView__c" value="{!o.rstkf__glyear_p02end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p02end__c" value="{!o.rstkf__glyear_p02end__c}" required="true" taborderhint="5" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p02end__c','glyear_p03start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p02apclosedtopostings__c" value="{!o.rstkf__glyear_p02apclosedtopostings__c}" tabindex="270"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p02arclosedtopostings__c" value="{!o.rstkf__glyear_p02arclosedtopostings__c}" tabindex="271"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p02closedtopostings__c" value="{!o.rstkf__glyear_p02closedtopostings__c}" disabled="{!disablePostingAdjChkbx2}" tabindex="272"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p02closedforadjstmnts__c" value="{!o.rstkf__glyear_p02closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx2}" tabindex="273"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="03">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod3}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p03startView__c" value="{!o.rstkf__glyear_p03start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p03start__c" value="{!o.rstkf__glyear_p03start__c}" required="true" taborderhint="6" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p02end__c','glyear_p03start__c',this.value); return false;"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p03endView__c" value="{!o.rstkf__glyear_p03end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p03end__c" value="{!o.rstkf__glyear_p03end__c}" required="true" taborderhint="7" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p03end__c','glyear_p04start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p03apclosedtopostings__c" value="{!o.rstkf__glyear_p03apclosedtopostings__c}" tabindex="280"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p03arclosedtopostings__c" value="{!o.rstkf__glyear_p03arclosedtopostings__c}" tabindex="281"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p03closedtopostings__c" value="{!o.rstkf__glyear_p03closedtopostings__c}" disabled="{!disablePostingAdjChkbx3}" tabindex="282"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p03closedforadjstmnts__c" value="{!o.rstkf__glyear_p03closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx3}" tabindex="283"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="04">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod4}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p04startView__c" value="{!o.rstkf__glyear_p04start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p04start__c" value="{!o.rstkf__glyear_p04start__c}" required="true" taborderhint="8" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p03end__c','glyear_p04start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p04endView__c" value="{!o.rstkf__glyear_p04end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p04end__c" value="{!o.rstkf__glyear_p04end__c}" required="true" taborderhint="9" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p04end__c','glyear_p05start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p04apclosedtopostings__c" value="{!o.rstkf__glyear_p04apclosedtopostings__c}" tabindex="290"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p04arclosedtopostings__c" value="{!o.rstkf__glyear_p04arclosedtopostings__c}" tabindex="291"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p04closedtopostings__c" value="{!o.rstkf__glyear_p04closedtopostings__c}" disabled="{!disablePostingAdjChkbx4}" tabindex="292"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p04closedforadjstmnts__c" value="{!o.rstkf__glyear_p04closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx4}" tabindex="293"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="05">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod5}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p05startView__c" value="{!o.rstkf__glyear_p05start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p05start__c" value="{!o.rstkf__glyear_p05start__c}" required="true" taborderhint="10" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p04end__c','glyear_p05start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p05endView__c" value="{!o.rstkf__glyear_p05end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p05end__c" value="{!o.rstkf__glyear_p05end__c}" required="true" taborderhint="11" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p05end__c','glyear_p06start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p05apclosedtopostings__c" value="{!o.rstkf__glyear_p05apclosedtopostings__c}" tabindex="300"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p05arclosedtopostings__c" value="{!o.rstkf__glyear_p05arclosedtopostings__c}" tabindex="301"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p05closedtopostings__c" value="{!o.rstkf__glyear_p05closedtopostings__c}" disabled="{!disablePostingAdjChkbx5}" tabindex="302"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p05closedforadjstmnts__c" value="{!o.rstkf__glyear_p05closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx5}" tabindex="303"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="06">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod6}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p06startView__c" value="{!o.rstkf__glyear_p06start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p06start__c" value="{!o.rstkf__glyear_p06start__c}" required="true" taborderhint="12" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p05end__c','glyear_p06start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p06endView__c" value="{!o.rstkf__glyear_p06end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p06end__c" value="{!o.rstkf__glyear_p06end__c}" required="true" taborderhint="13" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p06end__c','glyear_p07start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p06apclosedtopostings__c" value="{!o.rstkf__glyear_p06apclosedtopostings__c}" tabindex="310"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p06arclosedtopostings__c" value="{!o.rstkf__glyear_p06arclosedtopostings__c}" tabindex="311"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p06closedtopostings__c" value="{!o.rstkf__glyear_p06closedtopostings__c}" disabled="{!disablePostingAdjChkbx6}" tabindex="312"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p06closedforadjstmnts__c" value="{!o.rstkf__glyear_p06closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx6}" tabindex="313"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="07">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod7}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p07startView__c" value="{!o.rstkf__glyear_p07start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p07start__c" value="{!o.rstkf__glyear_p07start__c}" required="true" taborderhint="14" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p06end__c','glyear_p07start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p07endView__c" value="{!o.rstkf__glyear_p07end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p07end__c" value="{!o.rstkf__glyear_p07end__c}" required="true" taborderhint="15" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p07end__c','glyear_p08start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p07apclosedtopostings__c" value="{!o.rstkf__glyear_p07apclosedtopostings__c}" tabindex="320"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p07arclosedtopostings__c" value="{!o.rstkf__glyear_p07arclosedtopostings__c}" tabindex="321"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p07closedtopostings__c" value="{!o.rstkf__glyear_p07closedtopostings__c}" disabled="{!disablePostingAdjChkbx7}" tabindex="322"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p07closedforadjstmnts__c" value="{!o.rstkf__glyear_p07closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx7}" tabindex="323"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="08">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod8}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p08startView__c" value="{!o.rstkf__glyear_p08start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p08start__c" value="{!o.rstkf__glyear_p08start__c}" required="true" taborderhint="16" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p07end__c','glyear_p08start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p08endView__c" value="{!o.rstkf__glyear_p08end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p08end__c" value="{!o.rstkf__glyear_p08end__c}" required="true" taborderhint="17" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p08end__c','glyear_p09start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p08apclosedtopostings__c" value="{!o.rstkf__glyear_p08apclosedtopostings__c}" tabindex="330"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p08arclosedtopostings__c" value="{!o.rstkf__glyear_p08arclosedtopostings__c}" tabindex="331"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p08closedtopostings__c" value="{!o.rstkf__glyear_p08closedtopostings__c}" disabled="{!disablePostingAdjChkbx8}" tabindex="332"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p08closedforadjstmnts__c" value="{!o.rstkf__glyear_p08closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx8}" tabindex="333"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="09">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod9}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p09startView__c" value="{!o.rstkf__glyear_p09start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p09start__c" value="{!o.rstkf__glyear_p09start__c}" required="true" taborderhint="18" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p08end__c','glyear_p09start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p09endView__c" value="{!o.rstkf__glyear_p09end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p09end__c" value="{!o.rstkf__glyear_p09end__c}" required="true" taborderhint="19" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p09end__c','glyear_p10start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p09apclosedtopostings__c" value="{!o.rstkf__glyear_p09apclosedtopostings__c}" tabindex="340"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p09arclosedtopostings__c" value="{!o.rstkf__glyear_p09arclosedtopostings__c}" tabindex="341"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p09closedtopostings__c" value="{!o.rstkf__glyear_p09closedtopostings__c}" disabled="{!disablePostingAdjChkbx9}" tabindex="342"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p09closedforadjstmnts__c" value="{!o.rstkf__glyear_p09closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx9}" tabindex="343"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="10">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod10}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p10startView__c" value="{!o.rstkf__glyear_p10start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p10start__c" value="{!o.rstkf__glyear_p10start__c}" required="true" taborderhint="20" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p09end__c','glyear_p10start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p10endView__c" value="{!o.rstkf__glyear_p10end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p10end__c" value="{!o.rstkf__glyear_p10end__c}" required="true" taborderhint="21" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p10end__c','glyear_p11start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p10apclosedtopostings__c" value="{!o.rstkf__glyear_p10apclosedtopostings__c}" tabindex="350"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p10arclosedtopostings__c" value="{!o.rstkf__glyear_p10arclosedtopostings__c}" tabindex="351"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p10closedtopostings__c" value="{!o.rstkf__glyear_p10closedtopostings__c}" disabled="{!disablePostingAdjChkbx10}" tabindex="352"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p10closedforadjstmnts__c" value="{!o.rstkf__glyear_p10closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx10}" tabindex="353"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="11">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod11}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p11startView__c" value="{!o.rstkf__glyear_p11start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p11start__c" value="{!o.rstkf__glyear_p11start__c}" required="true" taborderhint="22" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p10end__c','glyear_p11start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p11endView__c" value="{!o.rstkf__glyear_p11end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p11end__c" value="{!o.rstkf__glyear_p11end__c}" required="true" taborderhint="23" rendered="{!enableDateFields}" onchange="initializeStartDateField('glyear_p11end__c','glyear_p12start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p11apclosedtopostings__c" value="{!o.rstkf__glyear_p11apclosedtopostings__c}" tabindex="360"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p11arclosedtopostings__c" value="{!o.rstkf__glyear_p11arclosedtopostings__c}" tabindex="361"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p11closedtopostings__c" value="{!o.rstkf__glyear_p11closedtopostings__c}" disabled="{!disablePostingAdjChkbx11}" tabindex="362"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p11closedforadjstmnts__c" value="{!o.rstkf__glyear_p11closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx11}" tabindex="363"/></td>
+                                   </tr>
+                                   <tr class="dataRow" id="12">
+                                      <td class="dataCell"><apex:outputLabel value="{!$Label.rstkf__labelperiod12}"/></td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p12startView__c" value="{!o.rstkf__glyear_p12start__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p12start__c" value="{!o.rstkf__glyear_p12start__c}" required="true" taborderhint="24" rendered="{!enableDateFields}" onchange="verifyGapsInDates('glyear_p11end__c','glyear_p12start__c',this.value); return false;"/>
+                                      </td>
+                                      <td class="dataCell">
+                                        <apex:outputField id="glyear_p12endView__c" value="{!o.rstkf__glyear_p12end__c}" rendered="{!!enableDateFields}"/>
+                                        <apex:inputField id="glyear_p12end__c" value="{!o.rstkf__glyear_p12end__c}" required="true" taborderhint="25" rendered="{!enableDateFields}"/>
+                                      </td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p12apclosedtopostings__c" value="{!o.rstkf__glyear_p12apclosedtopostings__c}" tabindex="370"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p12arclosedtopostings__c" value="{!o.rstkf__glyear_p12arclosedtopostings__c}" tabindex="371"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p12closedtopostings__c" value="{!o.rstkf__glyear_p12closedtopostings__c}" disabled="{!disablePostingAdjChkbx12}" tabindex="372"/></td>
+                                      <td class="dataCell"><apex:inputCheckbox id="glyear_p12closedforadjstmnts__c" value="{!o.rstkf__glyear_p12closedforadjstmnts__c}" disabled="{!disablePostingAdjChkbx12}" tabindex="373"/></td>
+                                   </tr>
+                               </table>
+                            </apex:outputPanel>
+                        </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstkf__pagetab_info}" name="tab_Info" id="tab_Info">
+                    <c:InfoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+        var isNew = "{!isNew}";
+        var isCloneMode = "{!isCloneMode}";
+        var company = "{!o.rstkf__glyear_cmpno__c}";
+        var LABEL_glyear_p01start__c = "{!f.glyear_p01start__c.label}";
+        var LABEL_glyear_p01end__c = "{!f.glyear_p01end__c.label}";
+        var LABEL_glyear_p07start__c = "{!f.glyear_p07start__c.label}";
+        var LABEL_glyear_p07end__c = "{!f.glyear_p07end__c.label}";
+        var LABEL_glyear_p02start__c = "{!f.glyear_p02start__c.label}";
+        var LABEL_glyear_p02end__c = "{!f.glyear_p02end__c.label}";
+        var LABEL_glyear_p08start__c = "{!f.glyear_p08start__c.label}";
+        var LABEL_glyear_p08end__c = "{!f.glyear_p08end__c.label}";
+        var LABEL_glyear_p03start__c = "{!f.glyear_p03start__c.label}";
+        var LABEL_glyear_p03end__c = "{!f.glyear_p03end__c.label}";
+        var LABEL_glyear_p09start__c = "{!f.glyear_p09start__c.label}";
+        var LABEL_glyear_p09end__c = "{!f.glyear_p09end__c.label}";
+        var LABEL_glyear_p04start__c = "{!f.glyear_p04start__c.label}";
+        var LABEL_glyear_p04end__c = "{!f.glyear_p04end__c.label}";
+        var LABEL_glyear_p10start__c = "{!f.glyear_p10start__c.label}";
+        var LABEL_glyear_p10end__c = "{!f.glyear_p10end__c.label}";
+        var LABEL_glyear_p11start__c = "{!f.glyear_p11start__c.label}";
+        var LABEL_glyear_p11end__c = "{!f.glyear_p11end__c.label}";
+        var LABEL_glyear_p05start__c = "{!f.glyear_p05start__c.label}";
+        var LABEL_glyear_p05end__c = "{!f.glyear_p05end__c.label}";
+        var LABEL_glyear_p06start__c = "{!f.glyear_p06start__c.label}";
+        var LABEL_glyear_p12start__c = "{!f.glyear_p12start__c.label}";
+        var LABEL_glyear_p06end__c = "{!f.glyear_p06end__c.label}";
+        var LABEL_glyear_p12end__c = "{!f.glyear_p12end__c.label}";
+        var LABEL_glyear_p13start__c = "{!f.glyear_p13start__c.label}";
+        var LABEL_glyear_p13end__c = "{!f.glyear_p13end__c.label}";
+        var Label_valmustbeinbetween = "{!$Label.valmustbeinbetween}";
+        var Label_fieldcantbeblank = "{!$Label.fieldcantbeblank}";
+        var Label_lableincorrectvaluefor = "{!$Label.lableincorrectvaluefor}";
+        var Label_alreadyexistsforthecompany = "{!$Label.alreadyexistsforthecompany}";
+        var Label_value1mustbegreaterthanval2 = "{!$Label.value1mustbegreaterthanval2}";
+        var Label_nogapsbetweentwodates = "{!$Label.thereshouldbenogapsbetweenField1andField2}";
+        var Label_accountsmustbeunique = "{!$Label.account_cannot_be_the_same_as_account1_or_account2_or_account3}";
+        var Label_fiscalYear = "{!f.rstkf__glyear_year__c.label}";
+        var Label_retearnacct = "{!f.rstkf__glyear_retearnacct__c.label}";
+        var Label_netgainlossacct = "{!f.rstkf__glyear_netgainlossacct__c.label}";
+        var Label_retgainlossacct = "{!f.rstkf__glyear_retgainlossacct__c.label}";
+        var msg_periodNClosedtoPostingscannotbeuncheckedastheYearisClosedforPosting = "{!$Label.periodNClosedtoPostingscannotbeuncheckedastheYearisClosedforPosting}";
+    </script>
+    
+</apex:page>

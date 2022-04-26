@@ -1,0 +1,157 @@
+<apex:page id="pg" standardController="rstk__poshipcont__c" extensions="rstk.ControllerExtnPoshipcontDtlGrid" sideBar="false" action="{!doBeforePageLoad}" showHeader="false">
+    <c:standardHeader cntr="{!controller}" showHeader="false" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <style>
+        .hidden{visibility:hidden;}
+        .rcptinput{
+            width:60px;
+            text-align:right; 
+        }
+        .sort {display:inline}
+        .numSort {display:inline}
+
+            .modal {
+                background-color:#fff;
+                display:none;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+            .modal h2 {
+                margin:0px;
+                padding:10px 0 10px 45px;
+                font-size:16px;
+            }
+            
+            .modalComponents {
+                color:#efefef;
+                height:200px;
+                z-index:50;
+            }
+             
+    </style>
+    
+    
+    <script>
+        function jqueryOnReady() {
+             jQuery("button[rel*=popup]").overlay({
+            
+                top: "10%",
+            
+                // some mask tweaks suitable for modal dialogs
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+            
+                fixed:false,
+                
+                closeOnClick: false
+            });
+            
+            jQuery("button[rel*=win]").overlay({
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                fixed:false,
+                closeOnClick: false,
+                
+                onBeforeLoad: function(e) {
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+'Frame');
+                    var blockWin =content.closest('div');
+  
+                    var src = null;
+                   
+                    if (winId == 'PopupNotesAttachments')
+                    {
+                        var notesLine = sfffGetFieldValue('notes_lineid__c');
+                        src = "{!URLFOR($Page.rstk__Notesandattachments)}?objname=poasnreq__c&id=" + notesLine + "&nea=Y&nda=Y&nn=Y&na=Y";
+                    }
+                    if (src != null)
+                    {
+                        blockWin.block({
+                            message: '',
+                            centerX: true, 
+                            centerY: true,
+                            css: { 
+                                border: 'none', 
+                                padding: '15px', 
+                                cursor: 'wait',
+                                opacity: .5, 
+                                textAlign: 'center'
+                            }
+                        });
+                        content[0].src = src;
+                        
+                        content.load(function() { blockWin.unblock(); });
+                    }
+                }
+            });
+        }   
+    
+    
+        function showNotesAndAttachments(lineId) {
+            console.log('get notes for lineId: ' + lineId);
+            sfffSetFieldValue('notes_lineid__c', lineId);
+            jQuery(".btnPopupNotesAttachments").click();
+            return false;
+        }
+    </script>
+    <apex:form id="fm">
+    
+    <button style="visibility:hidden" class="btnPopupNotesAttachments" rel="#winNotesAttachments"></button>
+     <div class="modal" id="winNotesAttachments" style="height:330px;width:800px" >
+         <apex:inputHidden id="notes_lineid__c" />
+         <h2>{!$Label.ASN_Requisition_Notes_and_Attachments}</h2>
+         <iframe id="PopupNotesAttachmentsFrame" height="300px" width="100%" frameborder="0" src="about:blank"></iframe>
+         <button id="btnPopupNotesAttachmentsClose" type="button" class="close" onclick="notes_close()"> Close </button>
+     </div>
+    <apex:pageBlock id="pb" mode="detail">  
+        <apex:pageBlockSection id="pbs_poshipcontdtl" showHeader="false" title="{!$Label.rstk__information}" columns="1">
+            <apex:outputPanel id="pbo_poshipcontdtl" style="height:250px;overflow:auto;display:block">
+                <apex:pageBlockTable id="pbt_poshipcontdtl" value="{!PoshipcontDtls}" var="c"> 
+                    <apex:column headerValue="{!$Label.rstk__supplier_requisition}" style="width:90px;">
+                        <apex:outputLink value="{!URLFOR($Action.rstk__supreq__c.View, c.poOb.rstk__poshipcontdtl_supreq__c)}" target="_blank">{!c.poOb.poshipcontdtl_supreq__r.Name}</apex:outputLink>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__poshipcontdtlgrid_part_number}" style="width:90px;">
+                        <apex:outputLink value="{!URLFOR($Action.rstk__supitem__c.View, c.poOb.poshipcontdtl_supreq__r.rstk__supreq_supitem__c)}" target="_blank">{!c.poOb.poshipcontdtl_supreq__r.supreq_supitem__r.Name}</apex:outputLink>
+                    </apex:column>
+                    <apex:column style="width:150px" headerValue="{!$Label.rstk__pagetab_notesandattachments_notesandattachments}" >
+                        <apex:outputPanel rendered="{!AND(c.poOb.rstk__poshipcontdtl_supreq__c != null,OR(c.numofNotes > 0,c.numofAttachment > 0 ))}">
+                                <a id="notesBtn{!c.poasnreqOb.id}" href="#" onclick="return showNotesAndAttachments('{!c.poasnreqOb.id}');"
+                             style="font-weight:bold;">{!$Label.poshipcontDtlGrid_Notes}({!c.numofNotes}) &amp; {!$Label.poshipcontDtlGrid_Attachments}({!c.numofAttachment})</a>
+                        </apex:outputPanel>
+                        <apex:outputPanel rendered="{!AND(c.poOb.rstk__poshipcontdtl_supreq__c != null, c.numofNotes == 0,c.numofAttachment == 0 )}">
+                                {!$Label.poshipcontDtlGrid_Notes}({!c.numofNotes}) &amp; {!$Label.poshipcontDtlGrid_Attachments}({!c.numofAttachment})
+                        </apex:outputPanel>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:outputPanel>
+        </apex:pageBlockSection>    
+    </apex:pageBlock>
+     <div id="pleaseWaitPopup" style="display:none">
+          <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+          <apex:outputPanel styleClass="topPopup">
+             <apex:image url="{!$Resource.rstk__busy}"/>
+          </apex:outputPanel>
+      </div>
+    </apex:form>
+
+   <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+
+</apex:page>

@@ -1,0 +1,213 @@
+<apex:page id="pg" standardController="rstk__rtwcgroup__c" extensions="rstk.ControllerExtnRtwcgroup" action="{!doBeforePageLoad}" sideBar="false" showHeader="true">
+    <apex:variable var="o" value="{!rstk__rtwcgroup__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__rtwcgroup__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}"  title="{!$Label.rstk__labelworkcentergroup}"  customInclude="{!$Resource.rstk__rtwcgroup_cli}"/>     
+     
+    <!-- Includes -->
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    <apex:includeScript value="{!$Resource.rstk__hover_popup}" />
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    
+    <apex:form id="fm" >
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+       
+         <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" />
+                <c:nosubmitbutton label="{!$Label.rstk__labelgroupdetailmaintenance}" onclick="openRtwcgwcDetailGridPopup();" style="width:200px;" rendered="{!isView}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main2" columns="1" rendered="{!isView}" >
+                <apex:outputField value="{!o.rstk__rtwcgroup_div__c}" />
+                <apex:outputField value="{!o.rstk__rtwcgroup_group__c}" />
+                <apex:outputField value="{!o.rstk__rtwcgroup_desc__c}" />
+                <apex:outputField value="{!o.rstk__rtwcgroup_comments__c}" />
+                
+                <c:Popup popupId="rtwcgwcDetailGridPopup" title="{!$Label.rstk__labelworkcentergrpdetail}" onOk="rtwcgwcDetail.onSaved();">
+                    <c:PageableGrid jsController="rtwcgwcDetail" width="1500" data="{!rtwcgwcDetails}" pageSize="10" editable="true" ispopup="false"/>
+                    <script>
+                        var rtwcgroupDiv = "{!currDiv}";
+                        var selWCArr = [];
+                        var selectedWCMap = new Object();
+                        //console.log('Work Center Group Div = '+rtwcgroupDiv);
+                        
+                        rtwcgwcDetail.addRow = function(rowCallback) {
+                            self = this;
+                            rtwcgwcDetailHandler.prototype.addRow.call(self, rowCallback);
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var rowId = self.getRowValue(row, 'Id');
+                                var idx = row.find("input[id$='idx']");
+                                var workCenterGrp = self.getRowValue(row, 'rtwcgwc_rtwcgroup__c');
+                                //console.log('Work Center Group Detail rowId = '+rowId + ' and workCenterGrp = '+workCenterGrp);
+                                //console.log('rowId value = '+rowId + ' and idx value = '+idx.val());
+                                if(rowId ==''){
+                                    var selectedwc = self.getRowValue(row, 'rtwcgwc_rtwctr__c');
+                                    selectedWCMap[idx.val()] = selectedwc;
+                                    //console.log('Selected Work Center  = '+selectedwc);
+                                    if(selectedwc){
+                                        if(selWCArr.indexOf(selectedwc) == -1)
+                                            selWCArr.push(selectedwc);
+                                    }else{
+                                        //console.log('selected WC Array length = '+selWCArr.length);
+                                        var selectedworkcenter = "''";
+                                        for(var i=0; i < selWCArr.length;i++){
+                                            selectedworkcenter = selectedworkcenter +','+"'"+selWCArr[i]+"'";
+                                        }
+                                        //console.log('inside else condn : already selectedworkcenter are = '+selectedworkcenter);                                      
+                                        var workcenters = execQuery("select Id, Name from rtwctr__c where rtwctr_div__c =  '" + rtwcgroupDiv + 
+                                                                    "' and Id not in ( select rtwcgwc_rtwctr__c from rtwcgwc__c where rtwcgwc_rtwcgroup__c = '"+ workCenterGrp +
+                                                                    "') and Id not in ("+ selectedworkcenter + ") order by Name");
+                                        rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].length = 0;
+                                        rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].options[0] = new Option("{!$Label.rstk__selectoptionnone}", "");
+                                        for(i=0; i<workcenters.length; i++) {
+                                            rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].options[rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].length] = new Option( workcenters[i].Name,workcenters[i].Id, false, false);
+                                        }                           
+                                    }
+                                }// end of If condition for rowID empty check
+                            });
+                        }// end of addRow function
+                        
+                        rtwcgwcDetail.entryChanged = function(row, rowNum, name, value) {
+                            selectedWCMap[rowNum] = value;
+                            //console.log('Entry changed at rowNum = '+rowNum + ' name = '+name + ' value = '+value );
+                            self = this;
+                            this.getVisibleRows().each(function (index, el) {
+                                var row = jQuery(this);
+                                var idx = row.find("input[id$='idx']");
+                                var rowId = self.getRowValue(row, 'Id');
+                                var workCenterGrp = self.getRowValue(row, 'rtwcgwc_rtwcgroup__c');
+                                if( rowId == '' && idx.val() != rowNum){
+                                    //console.log('re-initialize workcenter list for row = '+ idx.val() + ' current work center value = '+ selectedWCMap[idx.val()]);
+                                    var currRowWrkCenterVal = selectedWCMap[idx.val()];
+                                    var usedWCValues = "''";
+                                    for( var key in selectedWCMap ){
+                                         if(selectedWCMap[key] && selectedWCMap[key] != currRowWrkCenterVal){
+                                            usedWCValues = usedWCValues + ','+"'"+selectedWCMap[key]+"'";
+                                         }
+                                    }
+                                    //console.log('selected work center values other than current row = ' + usedWCValues );
+                                    var updatedWCList = execQuery("select Id, Name from rtwctr__c where rtwctr_div__c =  '" + rtwcgroupDiv + 
+                                                                    "' and Id not in ( select rtwcgwc_rtwctr__c from rtwcgwc__c where rtwcgwc_rtwcgroup__c = '"+ workCenterGrp +
+                                                                    "') and Id not in ("+ usedWCValues + ") order by Name");
+                                    
+                                    rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].length = 0;
+                                    if(currRowWrkCenterVal){
+                                        for( i=0 ; i < updatedWCList.length; i++ ) {
+                                            if( currRowWrkCenterVal == updatedWCList[i].Id ){
+                                                rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].options[0] = new Option( updatedWCList[i].Name,updatedWCList[i].Id, false, false);
+                                            }
+                                        }
+                                        //console.log('select list size should be 1 = ' + rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].length );
+                                        for( i=0 ; i < updatedWCList.length; i++ ) {
+                                            rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].options[rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].length] = new Option( updatedWCList[i].Name,updatedWCList[i].Id, false, false);
+                                        }
+                                        
+                                    }else{
+                                        rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].options[0] = new Option("{!$Label.rstk__selectoptionnone}", "");
+                                        for( i=0 ; i < updatedWCList.length; i++ ) {
+                                            rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].options[rtwcgwcDetail.getRowObj(row, 'rtwcgwc_rtwctr__c')[0].length] = new Option( updatedWCList[i].Name,updatedWCList[i].Id, false, false);
+                                        }
+                                    }                                                           
+                                                                                                        
+                                }
+                            });// end of getVisibleRows
+                        }       
+                        
+                        rtwcgwcDetail.validate = function() {
+                        self = this;
+                        var isvalid = true;
+                        this.getVisibleRows().each(function (index, el) {
+                            var row = jQuery(this);
+                            var rowId = self.getRowValue(row, 'Id');
+                            if(rowId ==''){
+                                //var name = self.getRowValue(row, 'name');
+                                var workcenter = self.getRowValue(row, 'rtwcgwc_rtwctr__c');
+                                //console.log('RowId = '+rowId + ' and Work Center = '+workcenter);
+                                if(!workcenter){
+                                    alert("{!$Label.rstk__entervalueforreqiredfields}","Work Center");
+                                    isvalid = false;
+                                    return false;
+                                }
+                            }
+                        }); 
+                        return isvalid;
+                       }
+                       
+                    </script>
+                    <div id="pleaseWaitPopup" style="display: none">
+                        <apex:outputPanel styleClass="topPopupBackground" layout="block" />
+                        <apex:outputPanel styleClass="topPopup">
+                            <apex:image url="{!$Resource.rstk__busy}" />
+                        </apex:outputPanel>
+                    </div>
+                </c:Popup>
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection id="pbs_main" showHeader="false" columns="1" rendered="{!OR(isNew,isEdit)}">
+                <apex:pageBlockSectionItem helpText="{!f.rstk__rtwcgroup_div__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__rtwcgroup_div__c.label}" />
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__rtwcgroup_div__c}" />
+                        <apex:inputHidden value="{!o.rstk__rtwcgroup_div__c}" id="rtwcgroup_div__c"/>
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__rtwcgroup_group__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__rtwcgroup_group__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!o.rstk__rtwcgroup_group__c}" rendered="{!isEdit}"/>
+                        <apex:inputField id="rtwcgroup_group__c" value="{!o.rstk__rtwcgroup_group__c}" rendered="{!isNew}" onchange="this.value=this.value.toUpperCase();checkForUniqueGroupID(this.value);" required="true"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__rtwcgroup_desc__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__rtwcgroup_desc__c.label}" />
+                    <apex:inputField id="rtwcgroup_desc__c" value="{!o.rstk__rtwcgroup_desc__c}" />
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__rtwcgroup_comments__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__rtwcgroup_comments__c.label}" />
+                    <apex:inputField id="rtwcgroup_comments__c" value="{!o.rstk__rtwcgroup_comments__c}" />
+                </apex:pageBlockSectionItem>
+          </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    <apex:relatedList id="rtwcgwcList" list="rtwcgwcs__r" rendered="{!isView}"/>
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>
+        var LABEL_groupId = "{!f.rstk__rtwcgroup_group__c.label}";
+        var Label_GroupIdAlreadyExists = "{!$Label.rstk__labelgroupidalreadyexists}";
+        
+        function reloadPage() {
+            window.location.replace(window.location);
+        }
+    
+        rtwcgwcDetail_isloading = false;        
+        function openRtwcgwcDetailGridPopup() {
+            if (!_isDialogOpen()) {
+                _showDialog('rtwcgwcDetailGridPopup',800);
+            }
+            if (rtwcgwcDetail != null) {        
+                rtwcgwcDetail.onSaved = function() {
+                    showTopDialog('pleaseWaitPopup');
+                    reloadPage();
+                }
+                closeTopDialog();
+             } else {
+                if (!rtwcgwcDetail_isloading) {
+                    rtwcgwcDetail_isloading = true;
+                    showTopDialog('pleaseWaitPopup');
+                }
+                setTimeout(openFramePopup, 200);
+            }
+        }
+        
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

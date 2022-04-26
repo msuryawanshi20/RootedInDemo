@@ -1,0 +1,149 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_bommassadd}" standardController="rstk__bommassadd__c" extensions="rstk.ControllerExtnBOMMassAdd,rstk.RemoteQueryController" sideBar="false" showHeader="{!!isFrameless}" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__bommassadd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__bommassadd__c.fields}" />
+    <apex:variable var="f_ln" value="{!$ObjectType.rstk__bommassaddline__c.fields}" />
+    <apex:variable var="f_div" value="{!$ObjectType.rstk__sydiv__c.fields}" />
+    <apex:variable var="f_peitem" value="{!$ObjectType.rstk__peitem__c.fields}" />
+    <apex:variable var="f_peitemrev" value="{!$ObjectType.rstk__peitemrev__c.fields}" />
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_bommassadd}" customInclude="{!$Resource.rstk__bommassadd_cli}" enableAutocomplete="true" enableQuickMenu="{!!isFrameless}"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}" />
+    <style>
+    .ac_results li {
+    margin: 0px;
+    padding: 2px 5px;
+    cursor: pointer;
+    display: block;
+    width: 100%;
+    font: menu;
+    font-size: 12px;
+    overflow: visible;
+	}
+    </style>
+    <script>
+    	var isFrameless = {!isFrameless};
+    	var closeOnOpen = {!closeOnOpen};
+    </script>
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="onDivChangeAction" action="{!onDivChange}" immediate="true" oncomplete="unblockUI();"
+            rerender="revLbl, revFld, ecoLbl, ecoFld, stsLbl, stsFld, effDateLbl, effDateFld, hiddenVars ">
+            <apex:param name="pohdrId" assignTo="{!pohdrId}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/> 
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:outputPanel id="hiddenVars" style="display:none">
+            <apex:inputHidden id="effMode__c" value="{!effMode}"/>
+        </apex:outputPanel>
+
+        <apex:pageBlock id="pb" mode="detail">
+        <apex:pageBlockButtons >
+            <c:standardButtons cntr="{!controller}" disableDelete="true" disableCancel="true"/>
+            <apex:commandButton onclick="parent.unblockUI();return false;" value="{!$Label.rstk__pagebtn_bommassadd_cancel}" immediate="true" style="width:50px" rendered="{!isFrameless}"/>
+        </apex:pageBlockButtons>
+
+        <apex:outputPanel style="display:none">
+            <apex:inputText id="addeco__c" rendered="{!!showECO}"/>
+        </apex:outputPanel>
+        
+        
+        <c:division id="div__c" cntr="{!controller}"/>
+        <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__item__c.label}"/>
+                <c:autocomplete id="item__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}" query="select id, name from peitem__c where peitem_inactivests__c != 'I' and peitem_invrevmaster__c = false and peitem_div__c = 'prm'" queryParms="[['div__c','Division']]" tabIndex="10"/>
+            </apex:pageBlockSectionItem> 
+            
+            <apex:pageBlockSectionItem />           
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__addrev__c.inlineHelpText}" rendered="{!showRev}">
+            	<apex:outputLabel value="{!f.rstk__addrev__c.label}" />
+            	<c:selectList id="addrev__c" cntr="{!controller}" options="{!ItemRevisions}" tabIndex="20"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__addeco__c.inlineHelpText}" rendered="{!showECO}">
+                <apex:outputPanel id="ecoLbl" layout="inline">
+                    <apex:outputLabel value="{!f.rstk__addeco__c.label}" />
+                </apex:outputPanel>
+                <apex:outputPanel id="ecoFld" layout="inline">
+                    <apex:outputPanel layout="inline">
+                    <apex:inputText id="addeco__c" disabled="true"/>
+                    </apex:outputPanel>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+        
+            <apex:pageBlockSectionItem helpText="{!f.rstk__fromsts__c.inlineHelpText}" rendered="{!showSts}">
+            	<apex:outputLabel value="{!f.rstk__fromsts__c.label}" />
+            	<c:inputField id="addsts__c" cntr="{!controller}" tabIndex="30"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__effdate__c.inlineHelpText}" rendered="{!showEffDate}">
+            	<apex:outputLabel value="{!f.rstk__effdate__c.label}" />
+            	<c:inputField id="effdate__c" cntr="{!controller}"  tabIndex="35"/>
+            </apex:pageBlockSectionItem>
+        </apex:pageBlockSection>
+        
+        
+            <apex:pageBlockSection id="pbs_lineItems" showHeader="true" columns="1" title="{!$Label.rstk__pagetab_bommassadd_components}" collapsible="false" >
+            <apex:outputPanel >
+                <apex:commandButton value="{!$Label.rstk__pagebtn_bommassadd_add}" onclick="return getSublist('components').insertLine();" style="width:75px;" immediate="true"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_bommassadd_remove}" onclick="return getSublist('components').deleteLine();" style="width:75px;" immediate="true"/>
+            </apex:outputPanel>
+            
+                <apex:pageBlockTable id="pbt_lineItems" onclick="rowClicked()" value="{!components}" var="d">
+                    <apex:column headerValue="{!f_ln.rstk__componentitem__c.label}" style="min-width:250px" width="250px">
+                        <apex:inputText id="componentitem_autocomplete__c" value="{!d.rstk__componentitem_autocomplete__c}" style="min-width:400px;" tabIndex="105" size="80"/>
+                        <apex:inputText id="componentitem__c" value="{!d.rstk__componentitem__c}" style="display:none;" tabIndex="100"/>
+                    </apex:column>                  
+                    <apex:column headerValue="{!f_ln.rstk__line__c.label}" style="width:40px">
+                        <apex:inputText id="line__c" value="{!d.rstk__line__c}" style="width:40px" tabIndex="110"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_ln.rstk__refdes__c.label}" style="min-width:400px" width="400px" rendered="{!showRefdes}">
+                        <apex:inputField id="refdes__c" value="{!d.rstk__refdes__c}" style="width:400px"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__enguom}" style="width:40px">
+                    	<apex:outputText id="enguom__c" value="" style="width:40px"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_ln.rstk__qtyper__c.label}" style="width:60px">
+                        <apex:inputField id="qtyper__c" value="{!d.rstk__qtyper__c}" onkeypress="return filterNonNumeric(event, this)" style="width:60px" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_ln.rstk__scrappct__c.label}" style="width:60px">
+                        <apex:inputField id="scrappct__c" value="{!d.rstk__scrappct__c}" onkeypress="return filterNonNumeric(event, this)" style="width:60px" />
+                    </apex:column>
+                    <apex:column headerValue="{!f_ln.rstk__setupqty__c.label}" style="width:60px">
+                        <apex:inputField id="setupqty__c" value="{!d.rstk__setupqty__c}" onkeypress="return filterNonNumeric(event, this)" style="width:60px"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+                <apex:outputPanel >
+                <script>sublistid = "pg:fm:pb:pbs_lineItems:pbt_lineItems";</script>                    
+                </apex:outputPanel>
+            <apex:outputPanel >
+                <apex:commandButton value="{!$Label.rstk__pagebtn_bommassadd_add}" onclick="return getSublist('components').insertLine();" style="width:75px;" immediate="true"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_bommassadd_remove}" onclick="return getSublist('components').deleteLine();" style="width:75px;" immediate="true"/>
+            </apex:outputPanel>
+            </apex:pageBlockSection>
+    
+        
+    </apex:pageBlock>
+    </apex:form>
+      
+    <script>
+        {!controller.initPage}
+        var Component = "{!$Label.PleaseEnterAtLeastOneComponent}";
+        var Quantity = "{!$Label.PleaseEnterQuantity}";
+        var PeitemIsOn = "{!$Label.PeitemIsOnDuplicateLines}";
+        var ItemParent = "{!$Label.PleaseEnterAnItemParent}";       
+        var EnterComponent = "{!$Label.PleaseEnterComponent}";
+        var QtyPer = "{!$Label.PleaseEnterQtyPer}";
+        var Decimals = "{!$Label.PleaseEnterQtyPerWithNotMoreThanDecimals}";
+        var CompItemNo = "{!$Label.CompItemNoHasAnEffectivityPeriod}";
+        var LABEL_EnterNonNegQtyPer = "{!$Label.EnterNonNegQtyPer}";
+        var Reference = "{!$Label.ReferenceDesignatorsSyntaxError}";     
+		var Designators = "{!$Label.NumberOfReferenceDesignators}";		
+		var OnlyOneReferenceDesignatorAllowed = "{!$Label.OnlyOneReferenceDesignatorAllowed}";		
+    </script>
+
+</apex:page>

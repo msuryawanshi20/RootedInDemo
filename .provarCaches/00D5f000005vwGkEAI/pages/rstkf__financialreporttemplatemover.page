@@ -1,0 +1,93 @@
+<apex:page id="pg" title="{!$Label.rstkf__financial_report_template_mover}" docType="html-5.0" standardController="rstkf__customextf__c" extensions="rstkf.ControllerExtnFinancialReportMover,rstkf.ControllerJobStatus" sideBar="false" action="{!doBeforePageLoad}">
+
+    <apex:variable var="o" value="{!rstkf__customextf__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:sectionHeader title="{!$Label.rstkf__financial_report_template_mover}" help="{!helpUrl}"/>
+    <c:standardHeader cntr="{!controller}" showHeader="false" title="{!$Label.rstkf__financial_report_template_mover}" customInclude="{!$Resource.rstkf__financialreporttemplatemover_cli}" enableQuickMenu="true"/>
+    
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        
+        <apex:actionFunction name="importReportTemplates" action="{!importReportTemplates}" immediate="false" oncomplete="checkJobStatus();" reRender="pageMessages, op_JobStatus">
+            <apex:param name="overrideTemplate" assignTo="{!overrideTemplate}" value="{!overrideTemplate}"/>
+        </apex:actionFunction>
+        
+        <apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+            
+        <apex:pageBlock id="pb" mode="detail" >
+            <apex:pageBlockButtons location="bottom">
+                <apex:commandButton onclick="doTemplateImports(); return false;" value="{!$Label.rstkf__export_templates}" immediate="false" style="width:125px"/>
+                <apex:commandButton onclick="resetFields(); return false;" value="{!$Label.rstkf__labelreset}" style="width:125px"/>
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main" columns="1">
+                <apex:outputField value="{!o.rstkf__finreportmover_glcmp__c}"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__finreportmover_templateheader__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__finreportmover_templateheader__c.label}"/>
+                    <apex:selectList id="finreportmover_templateheader__c" value="{!o.rstkf__finreportmover_templateheader__c}" size="1" style="width:150px;" tabindex="1"> 
+                        <apex:selectOptions value="{!templateHeaders}" /> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__finreportmover_variant__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__finreportmover_variant__c.label}"/>
+                    <apex:selectList id="finreportmover_variant__c" value="{!o.rstkf__finreportmover_variant__c}" size="1" style="width:150px;" tabindex="2"> 
+                        <apex:selectOptions value="{!variants}" /> 
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+                
+                <apex:inputCheckbox id="finreportmover_copysublines__c" value="{!o.rstkf__finreportmover_copysublines__c}" tabindex="3"/>
+                
+                <apex:inputCheckbox id="finreportmover_copyreportaccgrphead__c" onchange="toggleGrpLines();return false;" value="{!o.rstkf__finreportmover_copyreportaccgrphead__c}" tabindex="4"/>
+                
+                <apex:inputCheckbox id="finreportmover_copyreportaccgrplines__c" value="{!o.rstkf__finreportmover_copyreportaccgrplines__c}" tabindex="5"/>
+                
+                <apex:inputField id="finreportmover_destglcmp__c" value="{!o.rstkf__finreportmover_destglcmp__c}" taborderhint="6"/>
+                
+                <apex:inputField id="finreportmover_username__c" value="{!o.rstkf__finreportmover_username__c}" required="true" style="width:150px;" taborderhint="8"/>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__finreportmover_password__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__finreportmover_password__c.label}"/>
+                    <apex:outputPanel styleClass="requiredInput" layout="block" id="userpasswordPanel" >
+                        <apex:outputPanel styleClass="requiredBlock"/>
+                        <apex:inputSecret id="finreportmover_password__c" value="{!o.rstkf__finreportmover_password__c}" required="true" style="width:150px;" tabindex="50"/>
+                    </apex:outputPanel>     
+                </apex:pageBlockSectionItem>
+
+                <apex:inputCheckbox id="finreportmover_isdestnsndbox__c" value="{!o.rstkf__finreportmover_isdestnsndbox__c}" tabindex="10"/>
+
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}"/>
+    <script>
+        var company = "{!o.rstkf__finreportmover_glcmp__c}";
+        var LABEL_Task_completed_with_errors = "{!$Label.Task_completed_with_errors}";
+        var LABEL_Task_completed_successfully = "{!$Label.Task_completed_successfully}";
+        var LABEL_ConfirmationMessage = "{!$Label.doyouwanttooverrideexistingvariantindestinationorganization}";
+    </script>
+</apex:page>

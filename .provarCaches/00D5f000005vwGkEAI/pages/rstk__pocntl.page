@@ -1,0 +1,266 @@
+<apex:page id="pg" standardController="rstk__pocntl__c" extensions="rstk.ControllerExtnPocntl" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__pocntl__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__pocntl__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_pocntl}" customInclude="{!$Resource.rstk__pocntl_cli}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquerytoolsoverlay}" />
+    
+    <style>
+            .modal {
+                background-color:#fff;
+                display:none;
+                padding:15px;
+                text-align:left;
+                font-size:1em;
+                border:2px solid #333;
+            
+                opacity:1.0;
+                -moz-border-radius:6px;
+                -webkit-border-radius:6px;
+                -moz-box-shadow: 0 0 50px #ccc;
+                -webkit-box-shadow: 0 0 50x #ccc;
+            }
+            
+            .modal h2 {
+                margin:0px;
+                padding:10px 0 10px 45px;
+                font-size:16px;
+            }
+            
+            .modalComponents {
+                color:#efefef;
+                height:450px;
+                z-index:100;
+            }
+            
+    </style>
+
+    <script>
+        function closeEmailTmplClonePopup() {
+            jQuery(".close").click();
+            refreshEmailTemplatesTab();
+        }
+        jQuery(document).ready(function() {
+            jQuery("button[rel*=win]").overlay({
+                mask: {
+                    color: '#ebecff',
+                    loadSpeed: 200,
+                    opacity: 0.8
+                },
+                
+                closeOnClick: false,
+                
+                onBeforeLoad: function(e) {
+                    jQuery('#winVFPage').block({
+                        message: '',
+                        centerX: true, 
+                        centerY: true,
+                        css: { 
+                            border: 'none', 
+                            padding: '15px', 
+                            cursor: 'wait',
+                            opacity: .5, 
+                            textAlign: 'center'
+                        }
+                    });
+                    
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var templateId = jQuery(e.target.getTrigger().closest('span')[0].previousSibling).find('select').val();
+                    var content = jQuery("#"+winId+"Frame");
+                    if (content.length>0) {
+                        if (winId == 'CloneEmailTemplate') {
+                            content[0].src = "/apex/CloneEmailTemplate?srcid="+templateId;
+                        }
+                    
+                        content.load(function() {
+                            jQuery('#winVFPage').unblock();
+                        });
+                    }
+                },
+                onClose: function(e) {
+                    var winId = e.target.getTrigger().attr('class').substring(3);
+                    var content = jQuery("#"+winId+"Frame");
+                    if (content.length>0) content[0].src = 'about:blank';
+                }
+            });
+
+        });
+    </script>
+
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="refreshEmailTemplatesTab" action="{!refreshEmailTemplatesTab}" rerender="poprintemailtmpl_select"/>
+        
+        <div class="modal" id="winCloneEmailTemplate" style="width:700px">
+            <h2>{!$Label.Clone_Email_Template}</h2>
+            <iframe id="CloneEmailTemplateFrame" height="320px" width="100%" frameborder="0" src="about:blank"></iframe>
+            <button type="button" class="close" onclick="closePopup()"> {!$Label.pagebtn_Close} </button>
+        </div>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+            
+            </apex:outputPanel>
+            <c:division id="pocntl_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="2" >
+                 <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_sfapprovpohdr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_sfapprovpohdr__c.label}"/>
+                    <c:inputField id="pocntl_sfapprovpohdr__c" required="false" cntr="{!controller}" tabIndex="5"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_itemselectfileind__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_itemselectfileind__c.label}"/>
+                    <c:inputField id="pocntl_itemselectfileind__c" required="false" cntr="{!controller}" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_pricedecimal__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_pricedecimal__c.label}"/>
+                    <c:inputField id="pocntl_pricedecimal__c" required="true" cntr="{!controller}" tabIndex="6"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_allowmfrovr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_allowmfrovr__c.label}"/>
+                    <c:inputField id="pocntl_allowmfrovr__c" required="false" cntr="{!controller}" tabIndex="7"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_ltplacepo__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_ltplacepo__c.label}"/>
+                    <c:inputField id="pocntl_ltplacepo__c" required="false" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_printappmfr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_printappmfr__c.label}"/>
+                    <c:inputField id="pocntl_printappmfr__c" required="false" cntr="{!controller}" tabIndex="8"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_dirmtlrequestorg__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_dirmtlrequestorg__c.label}"/>
+                    <c:selectList id="pocntl_dirmtlrequestorg__c" required="false" cntr="{!controller}" options="{!DirSyorgs}" tabIndex="10"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_poprintemailtmpl__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_poprintemailtmpl__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputPanel rendered="{!!isView}">
+                            <apex:outputPanel id="poprintemailtmpl_select">
+                                <apex:selectList value="{!o.rstk__pocntl_poprintemailtmpl__c}" multiselect="false" rendered="{!!isView}" size="1">
+                                    <apex:selectOptions value="{!POPrintEmailTemplates}"/>
+                                </apex:selectList>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!AND(!syconfig.rstk__syconfig_drawloop__c,!isRootDox)}">
+                                <button class="winCloneEmailTemplate" rel="#winCloneEmailTemplate" style="padding:4px 5px">{!$Label.rstk__clone}</button>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                        <apex:outputText value="{!POPrintEmailTemplateName}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_intersystem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_intersystem__c.label}"/>
+                    <c:inputField id="pocntl_intersystem__c" cntr="{!controller}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_potemplovr__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_potemplovr__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField value="{!o.rstk__pocntl_potemplovr__c}" rendered="{!!isView}"/>
+                        <apex:outputField value="{!o.rstk__pocntl_potemplovr__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_defltnosel__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_defltnosel__c.label}"/>
+                    <c:inputField id="pocntl_defltnosel__c" cntr="{!controller}" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_supprintcl__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_supprintcl__c.label}"/>
+                    <c:inputField id="pocntl_supprintcl__c" required="false" cntr="{!controller}" tabIndex="9"/>
+                </apex:pageBlockSectionItem>
+                 
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_extraheader__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_extraheader__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField value="{!o.rstk__pocntl_extraheader__c}" rendered="{!!isView}"/>
+                        <apex:outputText value="{!o.rstk__pocntl_extraheader__c}" rendered="{!isView}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_dateupdate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_dateupdate__c.label}"/>
+                    <c:inputField id="pocntl_dateupdate__c" cntr="{!controller}" tabIndex="7"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_extradetails__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_extradetails__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField value="{!o.rstk__pocntl_extradetails__c}" rendered="{!!isView}"/>
+                        <apex:outputText value="{!o.rstk__pocntl_extradetails__c}" rendered="{!isView}"/>
+                    </apex:outputPanel> 
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_rcptshowprice__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_rcptshowprice__c.label}"/>
+                    <c:inputField id="pocntl_rcptshowprice__c" cntr="{!controller}" tabIndex="8"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_bankfeeacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__pocntl_bankfeeacct__c.label}"/>
+                    <c:selectList id="pocntl_bankfeeacct__c" required="false" cntr="{!controller}" options="{!bankfeeacct}" tabIndex="12"/>
+                </apex:pageBlockSectionItem>
+
+            </apex:pageBlockSection>
+
+            <apex:tabPanel switchType="client" selectedTab="tab_indsrv" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_pocntl_indirectandservice}" name="tab_indsrv" id="tab_indsrv">
+                    <apex:pageBlockSection >
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_svrcrequestorg__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__pocntl_svrcrequestorg__c.label}"/>
+                        <c:selectList id="pocntl_svrcrequestorg__c" required="false" cntr="{!controller}" options="{!SvrSyorgs}" tabIndex="22"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_indmtlrequestorg__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__pocntl_indmtlrequestorg__c.label}"/>
+                        <c:selectList id="pocntl_indmtlrequestorg__c" required="false" cntr="{!controller}" options="{!PurDeptSyorgs}" tabIndex="24"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_dfltindcomcod__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__pocntl_dfltindcomcod__c.label}"/>
+                        <c:selectList id="pocntl_dfltindcomcod__c" required="false" cntr="{!controller}" options="{!Pocomcods}" tabIndex="26"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__pocntl_indmtlauthind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__pocntl_indmtlauthind__c.label}"/>
+                        <c:inputField id="pocntl_indmtlauthind__c" required="false" cntr="{!controller}" tabIndex="28"/>
+                    </apex:pageBlockSectionItem>
+                    </apex:pageBlockSection>
+                </apex:tab>
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_pocntl_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    
+    <script>
+        var LABEL_GrpFieldWillNeedToBeDefinedOnceGrpCreated = "{!$Label.rstk__grpfieldwillneedtobedefinedoncegrpcreated}";
+        var LABEL_InvalidValForField = "{!$Label.rstk__invalidvalforfield}";
+    </script>
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

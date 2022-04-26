@@ -1,0 +1,364 @@
+<apex:page sideBar="false" showHeader="false" standardStylesheets="false" showChat="false">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<apex:stylesheet value="{!URLFOR($Resource.rstk__jquery_mobile_1_4_5, '/jquery.mobile-1.4.5.css')}" />
+	<c:common_client_labels />
+	<apex:includeScript value="{!$Resource.rstk__alert_prototype_cli}" />
+	<apex:includeScript value="{!$Resource.rstk__jQuery_182}"/>
+	<apex:includeScript value="{!$Resource.rstk__BlockUI}" />
+	<apex:includeScript value="{!URLFOR($Resource.rstk__jquery_mobile_1_4_5, '/jquery.mobile-1.4.5.js')}" />
+	<apex:includeScript value="{!$Resource.rstk__mobileInventoryTransfer_cli}" />
+	<apex:includeScript value="{!$Resource.rstk__connection}" />
+	<apex:includeScript value="{!$Resource.rstk__common_client_mobile}" />
+	<apex:includeScript value="{!$Resource.rstk__sfff}" />
+	
+	<script>
+		var __siteUrlPrefix = '{!$Site.Prefix}';
+		var __sfdcSessionId = '{!GETSESSIONID()}';
+		sforce.connection.sessionId = __sfdcSessionId;
+		
+		var userId = '{!$User.Id}';
+		var scriptSrc = jQuery('script')[1].src;
+		if (scriptSrc.indexOf("__") > 0) {
+			sforce.connection.defaultNamespace = scriptSrc.substring(scriptSrc.lastIndexOf("/") + 1).split("__")[0];
+		}
+		
+		var gradeA = jQuery.support.htmlSerialize;
+		// gradeA = jQuery.mobile.gradeA();
+		
+		var toPage;
+		var serialPage;
+		var fromPage;
+		
+		jQuery(document).ready(function() {
+			var nextLink = jQuery('#nextLinkFromPage');
+			var backLinkSerial = jQuery('#backLinkSerial');
+			
+			if (gradeA) {
+				jQuery('#serial_count_label').addClass('ui-input-text');
+				jQuery('.divnavb').remove();
+			} else {
+				jQuery('.ah').remove();
+				jQuery('.divnava').remove();
+				
+				serialPage = jQuery('#serialPage');
+				serialPage.hide();
+				
+				toPage = jQuery('#toPage');
+				toPage.hide();
+				
+				fromPage = jQuery('#fromPage');
+			}
+			
+			setDefaults();
+		});
+	</script>
+	<style>
+		.leftItem {
+		    clear: both;
+		    float: left;
+		    width: 30%;
+		}
+		 
+		.rightItem {
+		    float: left;
+		    width: 65%
+		}
+		
+		.abnb { 
+			font-size: 20px !important; 
+			color: #99862F;
+			font-weight: bold;
+		}
+	
+		label.ui-input-text {
+			font-size: 20px !important;
+			font-weight: bold;
+			text-align: right;
+			vertical-align: bottom !important;
+			width: 80% !important;
+		}
+		
+		textarea {
+			font-weight: bold;
+		}
+		
+		textarea.ui-input-text {
+		    height : 350px;
+		}
+		
+		.abna .ui-btn-inner {
+			font-size: 18px !important;
+		}
+		
+		bottom_div {
+			position:absolute;
+		    bottom:0;
+		}
+      
+	</style>
+ </head>
+ <body>
+	<div data-role="page" id="fromPage">
+		<div data-theme="a" data-role="header">
+			<h3>{!$Label.Inventory_Transfer}</h3>
+			<a class="ah ui-btn-right" data-icon="home" href="javascript:invokeMobileMenu()" rel="external">Home</a>
+		</div>
+		<div data-role="content">
+			<div data-role="navbar" data-iconpos="bottom" data-position="fixed">
+				<div class="divnava">
+					<ul>
+						<li>
+							<a class="abna" href="javascript:invokeMobileMenu()" id="backLinkFromPage" data-transition="fade" data-theme="" data-icon="">Back</a>
+						</li>
+						<li>
+							<a class="abna" href="javascript:fromPageNext()" id="nextLinkFromPage" data-transition="fade" data-theme="" data-icon="">Next</a>
+						</li>
+					</ul>
+				</div>
+				<div class="divnavb ui-grid-a">
+					<div class="ui-block-a"><a href="javascript:invokeMobileMenu()" class="abnb" id="backLinkFromPage" data-transition="fade" data-theme="" data-inline="true" >Back</a></div>
+					<div class="ui-block-b"><a href="javascript:invokeMobileMenu()" class="abnb" id="homeLink" data-transition="fade" data-theme="" data-inline="true" >Home</a></div>
+				</div>
+			</div>
+			
+			<form action="">
+			<div >
+				<div class="leftItem">
+					<label for="from_div__c">{!$Label.mobileinventorytransfer_FromDivision}</label>
+				</div>
+				<div class="rightItem">
+					<input id="from_div__c" placeholder="Scan From Division" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="fromDivChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="line_itemtext__c">{!$Label.mobileinventorytransfer_ItemNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="line_itemtext__c" placeholder="Scan Item No" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="itemChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="transfer_qty__c">{!$Label.mobileinventorytransfer_TransferQuantity}</label>
+				</div>
+				<div class="rightItem">
+					<input id="transfer_qty__c" placeholder="Scan Transfer Quantity" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="qtyChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="from_proj__c">{!$Label.mobileinventorytransfer_FromProject}</label>
+				</div>
+				<div class="rightItem">
+					<input id="from_proj__c" placeholder="Scan From Project" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="fromProjChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="from_site__c">{!$Label.mobileinventorytransfer_FromSite}</label>
+				</div>
+				<div class="rightItem">
+					<input id="from_site__c" placeholder="Scan From Site" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="fromSiteChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="from_locationid__c">{!$Label.mobileinventorytransfer_FromLocationId}</label>
+				</div>
+				<div class="rightItem">
+					<input id="from_locationid__c" placeholder="Scan From Location ID" type="text" 
+						onKeydown="return scanFocus(event, this);"  onchange="fromLocIdChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="from_locationnumber__c">{!$Label.mobileinventorytransfer_FromLocationNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="from_locationnumber__c" placeholder="Scan From Location No" type="text"
+						onchange="fromLocNumChanged(this);" />
+				</div>
+			</div>
+		</form>
+		</div>
+		
+		<br></br>
+		<div class="divnavb bottom_div"><a href="javascript:fromPageNext()" class="abnb" id="nextLinkFromPage" data-transition="fade" data-theme="" data-inline="true" >{!$Label.pglink_Next}</a></div>
+	</div>
+	
+	<div data-role="page" id="serialPage">
+		<div data-theme="a" data-role="header">
+			<h3>{!$Label.Inventory_Transfer}</h3>
+			<a class="ah ui-btn-right" data-icon="home" href="javascript:invokeMobileMenu()" rel="external">{!$Label.mobileInventoryTransfer_Home}</a>
+		</div>
+		<div data-role="content">
+			<div data-role="navbar" data-iconpos="bottom" data-position="fixed">
+				<div class="divnava">
+					<ul>
+						<li>
+							<a class="abna" href="javascript:invokeFromPage()" id="backLinkSerial" data-transition="fade" data-theme="" data-icon="">{!$Label.Back}</a>
+						</li>
+		               <li>
+							<a class="abna" href="javascript:serialPageNext()" id="nextLinkSerial" data-transition="fade" data-theme="" data-icon="">{!$Label.pglink_Next}</a>
+						</li>
+					</ul>
+				</div>
+				<div class="divnavb ui-grid-a">
+					<div class="ui-block-a"><a href="javascript:invokeFromPage()" class="abnb" id="backLinkSerial" data-transition="fade" data-theme="" data-inline="true" >{!$Label.Back}</a></div>
+					<div class="ui-block-b"><a href="javascript:invokeMobileMenu()" class="abnb" id="homeLink" data-transition="fade" data-theme="" data-inline="true" >{!$Label.mobileInventoryTransfer_Home}</a></div>
+				</div>
+			</div>
+			
+			<div >
+				<div class="leftItem">
+					<label for="line_lotnumber__c">{!$Label.mobileinventorytransfer_LotNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="line_lotnumber__c" placeholder="Scan Lot No" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="lotNumberChanged(this)" />
+				</div>
+			</div>
+			
+			<div >
+				<div class="leftItem">
+					<label for="serial">{!$Label.mobileinventorytransfer_Serial}</label>
+				</div>
+				<div class="rightItem">
+					<input id="serial" placeholder="Scan Serial" type="text" 
+						onKeydown="return scanFocus(event, this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="line_serialnos__c">{!$Label.mobileinventorytransfer_SerialNos}</label>
+				</div>
+				<div class="rightItem">
+					<textarea cols="30" rows="20" name="line_serialnos__c" id="line_serialnos__c"
+						onKeydown="return scanFocus(event, this);" onchange="serialsChanged(this)" ></textarea>
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label id="serial_count_label" width="100%" for="serial_count">{!$Label.mobileinventorytransfer_SerialsEntered}</label>
+				</div>
+				<div class="rightItem">
+					<span id="serial_count">0</span>
+				</div>
+			</div>
+		</div>
+		
+		<br></br>
+		<div class="divnavb bottom_div"><a href="javascript:serialPageNext()" class="abnb" id="nextLinkSerial" data-transition="fade" data-theme="" data-inline="true" >{!$Label.pglink_Next}</a></div>
+	</div>
+	
+	<div data-role="page" id="toPage">
+		<div data-theme="a" data-role="header">
+			<h3>{!$Label.Inventory_Transfer}</h3>
+			<a class="ah ui-btn-right" data-icon="home" href="javascript:invokeMobileMenu()" rel="external">{!$Label.mobileInventoryTransfer_Home}</a>
+		</div>
+		<div data-role="content">
+			<div data-role="navbar" data-iconpos="bottom" data-position="fixed">
+				<div class="divnava">
+					<ul>
+						<li>
+							<a class="abna" href="javascript:toPageBack()" id="backLinkToPage" data-transition="fade" data-theme="" data-icon="">{!$Label.Back}</a>
+						</li>
+		               <li>
+							<a class="abna" href="javascript:callDoTransfer()" id="nextLinkToPage" data-transition="fade" data-theme="" data-icon="">{!$Label.mobileInventoryTransfer_Perform_Transfer}</a>
+						</li>
+					</ul>
+				</div>
+				<div class="divnavb ui-grid-a">
+					<div class="ui-block-a"><a href="javascript:toPageBack()" class="abnb" id="backLinkToPage" data-transition="fade" data-theme="" data-inline="true" >{!$Label.Back}</a></div>
+					<div class="ui-block-b"><a href="javascript:invokeMobileMenu()" class="abnb" id="homeLink" data-transition="fade" data-theme="" data-inline="true" >{!$Label.mobileInventoryTransfer_Home}</a></div>
+				</div>
+			</div>
+			
+			<div >
+				<div class="leftItem">
+					<label for="to_div__c">{!$Label.mobileinventorytransfer_ToDivision}</label>
+				</div>
+				<div class="rightItem">
+					<input id="to_div__c" placeholder="Scan To Division" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="toDivChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="to_proj__c">{!$Label.mobileinventorytransfer_ToProject}</label>
+				</div>
+				<div class="rightItem">
+					<input id="to_proj__c" placeholder="Scan To Project" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="toProjChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="to_site__c">{!$Label.mobileinventorytransfer_ToSite}</label>
+				</div>
+				<div class="rightItem">
+					<input id="to_site__c" placeholder="Scan To Site" type="text" 
+						onKeydown="return scanFocus(event, this);" onchange="toSiteChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="to_locationid__c">{!$Label.mobileinventorytransfer_ToLocationId}</label>
+				</div>
+				<div class="rightItem">
+					<input id="to_locationid__c" placeholder="Scan To Location ID" type="text" 
+						onKeydown="return scanFocus(event, this);"  onchange="toLocIdChanged(this);" />
+				</div>
+			</div>
+			<div >
+				<div class="leftItem">
+					<label for="to_locationnumber__c">{!$Label.mobileinventorytransfer_ToLocationNo}</label>
+				</div>
+				<div class="rightItem">
+					<input id="to_locationnumber__c" placeholder="Scan To Location No" type="text"
+						onchange="toLocNumChanged(this);" />
+				</div>
+			</div>
+		</div>
+		<br></br>
+		<div class="divnavb bottom_div"><a href="javascript:callDoTransfer()" class="abnb" id="nextLinkToPage" data-transition="fade" data-theme="" data-inline="true" >{!$Label.mobileInventoryTransfer_Perform_Transfer}</a></div>
+	</div>
+</body>
+
+	<script>
+		var LABEL_DivNotValid = "{!$Label.DivNotValid}";
+		var LABEL_ToDivNotValidOrSpecItemDoesntExist = "{!$Label.ToDivNotValidOrSpecItemDoesntExist}";
+		var LABEL_InventoryItemNotValid = "{!$Label.InventoryItemNotValid}";
+		var LABEL_ProjEntryNotValid = "{!$Label.ProjEntryNotValid}";
+		var LABEL_SiteEnteredNotValid = "{!$Label.SiteEnteredNotValid}";
+		var LABEL_InvalidLocIdForFromDiv = "{!$Label.InvalidLocIdForFromDiv}";
+		var LABEL_InvalidLocIdForToDiv = "{!$Label.InvalidLocIdForToDiv}";
+		var LABEL_LocNumNotValidForLocId = "{!$Label.LocNumNotValidForLocId}";
+		var LABEL_NoInventoryItemFoundForSelLotNum = "{!$Label.NoInventoryItemFoundForSelLotNum}";
+		var LABEL_QtyToTransferIsGrtrThanLocQtyForSelLotNum = "{!$Label.QtyToTransferIsGrtrThanLocQtyForSelLotNum}";
+		var LABEL_DuplicateSrlFoundAndRemoved = "{!$Label.DuplicateSrlFoundAndRemoved}";
+		var LABEL_CantEnterMoreSrlsThanTransferQty = "{!$Label.CantEnterMoreSrlsThanTransferQty}";
+		var LABEL_SrlALreadyEntered = "{!$Label.SrlALreadyEntered}";
+		var LABEL_NoInventoryLocItemFound = "{!$Label.NoInventoryLocItemFound}";
+		var LABEL_TransfQtyCantExceedLocQty = "{!$Label.TransfQtyCantExceedLocQty}";
+		var LABEL_MissingOrInvalidLotNum = "{!$Label.MissingOrInvalidLotNum}";
+		var LABEL_SrlsNotValid = "{!$Label.SrlsNotValid}";
+		var LABEL_SrlNumEnteredIsLessThanReceiptQty_EnterMoreSrlNums = "{!$Label.SrlNumEnteredIsLessThanReceiptQty_EnterMoreSrlNums}";
+		var LABEL_SrlNumEnteredIsMoreThanReceiptQty_RemoveSrlNums = "{!$Label.SrlNumEnteredIsMoreThanReceiptQty_RemoveSrlNums}";
+		var LABEL_ErrorInProcessTransfer = "{!$Label.ErrorInProcessTransfer}";
+		var LABEL_InventoryTransferCompletedWithSuccess = "{!$Label.InventoryTransferCompletedWithSuccess}";
+		var LABEL_ErrorInProcessTransfer_ChkEmailForErrorLog = "{!$Label.ErrorInProcessTransfer_ChkEmailForErrorLog}";
+		var LABEL_CantEnterMoreSrlsThanTransferQty = "{!$Label.CantEnterMoreSrlsThanTransferQty}";
+		var LABEL_ErrorInProcessingTransfer = "{!$Label.ErrorInProcessingTransfer}";
+		var LABEL_LocNumNotValidForLocId = "{!$Label.LocNumNotValidForLocId}";
+		var LABEL_QtyToTransferIsGrtrThanLocQtyForSelLotNum = "{!$Label.QtyToTransferIsGrtrThanLocQtyForSelLotNum}";
+	</script>
+</apex:page>

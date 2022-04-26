@@ -1,0 +1,393 @@
+<apex:page id="pg" standardController="rstk__poship__c" extensions="rstk.ControllerExtnPoship2,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__poship__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__poship__c.fields}" /> 
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_poship}" enableAutocomplete="true"/>
+    <apex:includeScript value="{!$Resource.rstk__sublist}"/>
+    <apex:stylesheet value="{!$Resource.rstk__ModalPopup_css}"/>
+    <apex:includeScript value="{!$Resource.rstk__jquery_autocomplete}"/>
+    <apex:includeScript value="{!$Resource.rstk__RowHandler_js}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.rstk__autocomplete, 'autocomplete/css/jquery.autocomplete.css')}" />
+    
+    <script>
+        var mode = null;
+        var divId = '{!o.rstk__poship_div__c}';
+        var contentsClicked = false;
+        function pageInit(type) {
+            mode = type;
+        }
+        
+        var autoCompleteRefs = {};
+
+        function createFieldChangeHandlers() {
+            fieldChangeHandlers = {
+                poship_poroute__c: porouteChanged
+            };
+                
+        }
+        
+        function doRecalcDates() {
+            doRemoteAction({
+                controllerMethod: getController("ControllerExtnPoship").recalculateDatesNeeded,
+                parameters: { poshipId: pageParms.recordId },
+                callback: function(response) {
+                    if(response && response.success == 'true') {
+                        window.location.reload();
+                    } else {
+                        alert("{!$Label.rstk__an_occurred_during_processing}" + "\n\n" + response.error);
+                        unblockUI();
+                    }
+                },
+                blockui: true,
+                waitMessage: "{!$Label.rstk__pleasewait}",
+                allowRuninbackground: false,
+                uiBlockedAfterComplete: true
+            });
+        }
+        
+        function doUpdatePODates() {
+            doRemoteAction({
+                controllerMethod: getController("ControllerExtnPoship").updatePODates,
+                parameters: { poshipId: pageParms.recordId },
+                callback: function(response) {
+                    if(response && response.success == 'true') {
+                        window.location.reload();
+                    } else {
+                        alert("{!$Label.rstk__an_occurred_during_processing}" + "\n\n" + response.error);
+                        unblockUI();
+                    }
+                },
+                blockui: true,
+                waitMessage: "{!$Label.rstk__pleasewait}",
+                allowRuninbackground: false,
+                uiBlockedAfterComplete: true
+            });
+        }
+        
+        function doSaveAll() {
+            blockUI();
+            window.setTimeout(saveAll,300);
+            return false;
+        }
+
+        // It is necessary to save locally in edit mode to avoid concurrency issues when child records update the poship_datecalcreqd__c field.
+        function saveAll() {
+            try {
+                var poships = execQuery("select id, poship_poroute__c, poship_routetype__c, poship_comments2__c from poship__c where id = '" + pageParms.recordId + "'", true);
+                if (poships) {
+                    var poship = poships[0];
+                    var updatePoship = false;
+                    if (poship.poship_poroute__c != sfffGetFieldValue('poship_poroute__c')) {
+                        poship.poship_poroute__c = sfffGetFieldValue('poship_poroute__c');
+                        updatePoship = true;
+                    }
+                    if (poship.poship_routetype__c != sfffGetFieldValue('poship_routetype__c')) {
+                        poship.poship_routetype__c = sfffGetFieldValue('poship_routetype__c');
+                        updatePoship = true;
+                    }
+                    if (poship.poship_comments2__c != sfffGetFieldValue('poship_comments2__c')) {
+                        poship.poship_comments2__c = sfffGetFieldValue('poship_comments2__c');
+                        updatePoship = true;
+                    }
+
+                    if (updatePoship) {
+                        var result = sforce.connection.update(poships);
+                        if (!result[0].getBoolean("success")) {
+                            unblockUI();
+                            alert("{!$Label.rstk__failed_to_update_inbound_shipment}" + result[0]);
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                unblockUI();
+                alert("{!$Label.rstk__soagh_error}" + e);
+                return;
+            }
+            saveSteps();
+        }
+        
+        function porouteChanged() {
+            var porouteId = sfffGetFieldValue('poship_poroute__c');
+            if (porouteId) {
+                porouteInfo = sfffLookupField('poroute__c', porouteId,['poroute_routetype__c']);
+                sfffSetFieldValue('poship_routetype__c', porouteInfo.poroute_routetype__c);
+            }
+        }
+    </script>
+    
+    <apex:form id="fm" rendered="{!displayPageContent}">
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doRefreshDetails" action="{!setCurrentContainerId}" oncomplete="contdtl_reset();return false;" immediate="true">
+            <apex:param name="firstParam" assignTo="{!poshipcontId}" value="" />
+        </apex:actionFunction>
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <c:standardButtons cntr="{!controller}" disableSave="true" disableCancel="true"/>
+                <apex:commandButton onclick="doPageSave();return false;" value="{!$Label.rstk__pagebtn_save}" rendered="{!isNew}" style="width:50px"/>
+                <apex:commandButton onclick="doSaveAll();return false;" value="{!$Label.rstk__pagebtn_save}" style="width:50px" rendered="{!isEdit}"/>
+                <apex:commandButton onclick="doView();return false;" value="{!$Label.rstk__pagebtn_cancel}" immediate="true" style="width:50px" rendered="{!isEdit}"/>
+                <apex:commandButton onclick="doCancel();return false;" value="{!$Label.rstk__pagebtn_cancel}" rendered="{!isNew}" immediate="true" style="width:50px"/>
+                <apex:commandButton onclick="doRecalcDates();return false;" value="{!$Label.rstk__poship2_pagebtn_calculatedatesneeded}" style="width:150px" disabled="{!!enableCalculateDates}" rendered="{!isView}"/>
+                <apex:commandButton onclick="doUpdatePODates();return false;" value="{!$Label.rstk__poship2_pagebtn_updateposwithplannedarrivaldate}" style="width:210px" disabled="{!DisablePOUpdateDates}" rendered="{!isView}"/>
+            </apex:pageBlockButtons>
+            
+            <apex:outputPanel style="display:none">
+
+            </apex:outputPanel>
+            
+            <c:division id="poship_div__c" cntr="{!controller}" />
+            <apex:pageBlockSection id="pbs_Main" showHeader="false" title="{!$Label.rstk__information}" columns="1" > 
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_shipmentid__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_shipmentid__c.label}"/>
+                    <c:inputField id="poship_shipmentid__c" required="true" cntr="{!controller}" tabIndex="1"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_poroute__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_poroute__c.label}"/>
+                    <c:selectList id="poship_poroute__c" required="true" cntr="{!controller}" options="{!poroutes}" tabIndex="2"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_routetype__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_routetype__c.label}"/>
+                    <c:selectList id="poship_routetype__c" required="true" cntr="{!controller}" options="{!portetypes}" tabIndex="3"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_comments2__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_comments2__c.label}"/>
+                    <!-- <c:inputText id="poship_comments__c" required="false" cntr="{!controller}" maxlength="200" width="350px" tabIndex="6"/> -->
+                    <apex:inputField id="poship_comments2__c" value="{!o.rstk__poship_comments2__c}"  taborderhint="4"/>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__poship_poupdatedate__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__poship_poupdatedate__c.label}"/>
+                    <apex:outputField value="{!o.rstk__poship_poupdatedate__c}"></apex:outputField>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            <apex:tabPanel switchType="client" selectedTab="tab_Poshipsteps" id="theTabPanel">
+                <apex:tab label="{!$Label.rstk__pagetab_poship_steps}" name="tab_Poshipsteps" id="tab_Poshipsteps">
+                    <c:EditableGrid width="1150" jsController="poshipsteps" data="{!poshipstepGrid}" editable="{!isEdit}" ispopup="false" disableSave="true"/>
+<script>
+    poshipsteps.onGridLoad = function() {
+        poshipsteps.getSelectableRows().each(function (index, el) {
+            var row = jQuery(this);
+            var recId = poshipsteps.getRowValue(row, 'Id');
+            if (!isEmpty(recId)) {
+                poshipsteps.getRowObj(row, 'poshipstep_stepid__c').attr('disabled', true);
+            }
+        });
+        poshipsteps.getRows().each(function (index, el) {
+            var row = jQuery(this);
+            poshipsteps.getRowObj(row, 'poshipstep_needdepartdate__c').attr('disabled', true);
+            poshipsteps.getRowObj(row, 'poshipstep_needarrivaldate__c').attr('disabled', true);
+        });
+    }
+    
+    poshipsteps.onSaved = function(row) {
+        saveConts();
+    }
+    
+    poshipsteps.onSaveFailed = function(row) {
+        unblockUI();
+    }
+    
+    poshipsteps.resetRow = function(row) {
+        self=this;
+        poshipstepsHandler.prototype.resetRow.call(self, row);
+        var maxSeq = -1;
+        poshipsteps.getRows().each(function(){
+            var r=jQuery(this);
+            var v = parseLocaleFloat(poshipsteps.getRowValue(r, 'poshipstep_seq__c')) || 0;
+            if (maxSeq < v) {
+                maxSeq = v;
+            }
+        });
+        poshipsteps.setRowValue(row, "poshipstep_seq__c", maxSeq + 1);
+    }
+    
+    function saveSteps() {
+        if (poshipsteps.validate()) {
+            poshipsteps_save();
+        }
+    }
+    
+</script>
+                    </apex:tab>
+                <apex:tab label="{!$Label.rstk__pagetab_poship_containers}" name="tab_Poshipconts" id="tab_Poshipconts">
+                    <c:EditableGrid width="1150" jsController="poshipconts" data="{!poshipcontGrid}" editable="{!isEdit}" ispopup="false" disableSave="true"/>
+<script>
+    poshipconts.onGridLoad = function() {
+        self=this;
+        this.getRows().each(function (index, el) {
+            var row = jQuery(this);
+            var contId = self.getRowValue(row, 'Id');
+            if (isEmpty(contId)) contId = poshipconts.rowIds[index];
+            if (!isEmpty(contId)) {
+                self.getRowObj(row, 'poshipcont_containerid__c').attr('disabled', true);
+                self.getRowObj(row, 'contents__g').html('<button type="button" class="btn" onclick="showContDetails(\'' + contId + '\');">Contents</button>');
+            }
+        });
+    }
+    
+    function showContDetails(contId) {
+        blockUI('Retrieving Contents');
+        contentsClicked = true;
+        doRefreshDetails(contId);
+        return false;
+    }
+    
+    poshipconts.onSaveFailed = function(row) {
+        unblockUI();
+    }
+    
+    poshipconts.onSaved = function(row) {
+        doView();
+    }
+    
+    function saveConts() {
+        if (poshipconts.validate()) {
+            poshipconts_save();
+        } else {
+            unblockUI();
+        }
+    }
+    
+</script>
+                    </apex:tab>
+               <!-- <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab> -->    
+                <apex:tab label="{!$Label.rstk__pagetab_poship_info}" name="tab_Info" id="tab_Info">
+                    <c:infoSection cntr="{!controller}" showHeader="false"/>
+                </apex:tab>
+            </apex:tabPanel>
+        </apex:pageBlock>
+        
+        <apex:outputPanel >
+            <c:Popup popupId="poshipcontdtlpopup" title="{!$Label.rstk__pagepopup_poship_containercontents}" onOk="contdtl_saveAndClose();">
+                <apex:pageBlockSection id="pbs_Contents" showHeader="false" title="{!$Label.rstk__contents}" columns="2" > 
+                    <apex:pageBlockSectionItem helpText="{!$Label.rstk__filter_purchase_order_lines_by_item}">
+                        <apex:outputLabel value="{!$Label.rstk__itemfilter}"/>
+                        <apex:outputPanel >
+                            <apex:inputText id="item__c_autocomplete" styleClass="ac_input" size="30"/>
+                            <apex:inputText id="item__c" onchange="itemFilterChanged(this);" style="display:none"/>
+                            <script>autocompleteParms["{!$Component.item__c}"] = {query:"select id, name from poitem__c where poitem_div__c = '{!currDivision.id}'", queryParms:[], codeColumn:"id", descColumn:"Name"};</script>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem helpText="{!$Label.rstk__filter_purchase_order_lines_by_vendor}">
+                        <apex:outputLabel value="{!$Label.rstk__vendorfilter}"/>
+                        <apex:selectlist id="vendor__c" size="1" onchange="vendorFilterChanged(this);" style="width:250px">
+                            <apex:selectOptions value="{!povends}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <apex:outputPanel id="op_DetailsGrid">
+                    <c:EditableGrid jsController="contdtl" data="{!poshipcontdtlGrid}" editable="true" ispopup="true"/>
+                 </apex:outputPanel>
+            </c:Popup>
+        </apex:outputPanel>
+        
+<script>
+    var vendorFilter;
+    var itemFilter;
+    contdtl.onGridLoad = function() {
+        self=this;
+        var inStr = '';
+        contdtl.getSelectableRows().each(function (index, el) {
+            var row = jQuery(this);
+            inStr += (inStr == "" ? "'" : ",'") + self.getRowValue(row, 'poshipcontdtl_poline__c') + "'";
+        });
+        if (!isEmpty(inStr)) {
+            var polines = execQuery("select Id, poline_item__r.Name from poline__c where id in ("+inStr+")");
+            var polineMap = {};
+            if (polines != null && polines.length > 0) {
+                for (var i=0;i<polines.length;i++) {
+                    polineMap[polines[i].Id] = polines[i].poline_item__r.Name;
+                }
+            }
+            var rows = contdtl.getSelectableRows();
+            for (var i=0;i<rows.length;i++) {
+                var row = jQuery(rows[i]);
+                this.setRowValue(row, 'item__g', polineMap[self.getRowValue(row, 'poshipcontdtl_poline__c')]);
+            }
+        }
+    
+        if (contentsClicked) {
+            unblockUI();
+            sfffSetFieldValue('item__c', '');
+            sfffSetFieldValue('vendor__c', '');
+            _showDialog('poshipcontdtlpopup', 900);
+        }
+        contentsClicked = false;
+    }
+    
+    contdtl.entryChanged = function(row, rowNum, name, value) {
+        if (name == 'poshipcontdtl_poline__c') {
+            if (!isEmpty(value)) {
+                var polineInfo = sfffLookupField('poline__c', value, ['poline_item__c', 'poline_item__r.Name', 'poline_qtyoutstdg__c']);
+                this.setRowValue(row, 'item__g', polineInfo.poline_item__r.Name);
+                this.setRowValue(row, 'poshipcontdtl_qty__c', polineInfo.poline_qtyoutstdg__c);
+            }
+        }
+   
+        if (name=='poshipcontdtl_qty__c') {
+            if (value < 0) {
+                showError('The value must be greater than zero');
+                value = 1;
+                this.setRowValue(row, name, value);
+                this.getRowObj(row, name).focus();
+            }
+        }
+    }
+    
+    contdtl.onSaved = function(row) {
+        doView();
+    }
+
+    function itemFilterChanged(el) {
+        itemFilter = el.value;
+        filterChanged();
+    }
+    
+    function vendorFilterChanged(el) {
+        vendorFilter = el.value;
+        filterChanged();
+    }
+    
+    function filterChanged(el) {
+        var polineQuery = "select Id, Name, poline_ordno__r.pohdr_ordno__c from poline__c where poline_qtyoutstdg__c > 0 and poline_div__c = '" + divId + "'";
+        if (!isEmpty(itemFilter)) {
+            polineQuery += " and poline_item__c = '" + itemFilter + "' ";
+        }
+        if (!isEmpty(vendorFilter)) {
+            polineQuery += " and poline_ordno__r.pohdr_vendno__c = '" + vendorFilter + "' ";
+        }
+
+        var rows = contdtl.getRows();
+        for (var i=0;i<rows.length;i++) {
+            var row = jQuery(rows[i]);
+            var acfld = window.autoCompleteRefs[contdtl.getRowObj(row, 'poshipcontdtl_poline__c')[0].id];
+            acfld.flushCache();
+            acfld.getOptions().extraParams["query"] = polineQuery;
+        }
+    }
+
+    
+</script>
+        
+        <div id="pleaseWaitPopup" style="display:none">
+            <apex:outputPanel styleClass="topPopupBackground" layout="block"/>
+            <apex:outputPanel styleClass="topPopup">
+               <apex:image url="{!$Resource.rstk__busy}"/>
+            </apex:outputPanel>
+        </div>
+    </apex:form>
+    
+    <c:footerInclude cntr="{!controller}" />
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>

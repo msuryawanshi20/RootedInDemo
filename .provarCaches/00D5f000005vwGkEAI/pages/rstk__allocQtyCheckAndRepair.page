@@ -1,0 +1,110 @@
+<apex:page id="pg" title="{!$Label.rstk__allocqtycheckandrepair}" standardController="rstk__customext__c" extensions="rstk.ControllerExtnAllocQtyCheckAndRepair,rstk.ControllerJobStatus,rstk.RemoteQueryController" action="{!doBeforePageLoad}" showHeader="true">
+	<apex:variable var="o" value="{!rstk__customext__c}" />
+	<apex:variable var="f" value="{!$ObjectType.rstk__customext__c.fields}" />
+    <script>
+        function scheduleAnalysisCheck(){
+            var schedName = document.getElementById('pg:fm:pb1:pbs_schedule:schedName:schedName').value;
+            var cronExpr = document.getElementById('pg:fm:pb1:pbs_schedule:cronExprSecItem:cronExpr').value;
+            
+            if(schedName == '') {
+                alert("{!$Label.rstk__please_enter_schedule_name}");
+                return false;
+            }
+            
+            if(cronExpr == ''){
+                alert("{!$Label.rstk__please_enter_cron_expresion}");
+                return false;
+            }
+            scheduleCheckAndRepair();
+        }
+    </script>
+    <!--apex:sectionHeader subtitle="{!$Label.rstk__allocqtycheckandrepair}" title=""/-->
+	<c:standardHeader cntr="{!controller}" enableAutocomplete="true" showHeader="true" title="{!$Label.rstk__allocqtycheckandrepair}" subtitle=""/>
+    <apex:form id="fm">
+        <apex:panelGroup id="pgCriticalErrMsg" rendered="{!renderSchedule}">
+            <apex:pageMessage severity="{!CritErr.severity}" strength="{!CritErr.strength}" title="{!CritErr.title}" summary="{!CritErr.summary}"></apex:pageMessage>
+        </apex:panelGroup>
+        <apex:actionFunction name="startAnalysisAndRepair" action="{!startAnalysisAndRepair}" oncomplete="checkJobStatus();" reRender="op_JobStatus,pageMessages" immediate="false"/>		
+        <apex:actionFunction name="scheduleCheckAndRepair" action="{!scheduleCheckAndRepair}" immediate="false">
+            <apex:param name="cronExpr" assignTo="{!cronExpr}" value=""/>
+            <apex:param name="schedName" assignTo="{!schedName}" value=""/>	           	
+        </apex:actionFunction>
+        <apex:pageBlock id="pb1" mode="detail">
+			<apex:outputPanel id="op_JobStatus">
+	        	<input type="hidden" id="processlogId" value="{!processlogId}"/>
+	        </apex:outputPanel>	   	    
+	
+			<apex:pageBlockSection id="pbs_Main1" showHeader="false" title="{!$Label.rstk__information}" columns="1" >            	
+                <apex:outputField value="{!o.rstk__allocQty_division__c}"/> 
+                <apex:pageBlockSectionItem helpText="{!f.rstk__allocQty_site__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__allocQty_site__c.label}"/>                    	
+                    <!--apex:inputField id="allocQty_site" value="{!o.allocQty_site__c}"/-->
+                    <c:largeSelectList id="allocQty_site__c" cntr="{!controller}" options="{!sites}" tabIndex="12" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__allocQty_project__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__allocQty_project__c.label}"/>                    	
+                    <c:autocomplete id="allocQty_project__c" cntr="{!controller}" slDesc="{!projectDesc}" query="select id, name from pjproj__c where pjproj_div__c = '{!o.rstk__allocQty_division__c}'" width="300px" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__allocQty_item__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__allocQty_item__c.label}"/>                    	
+                    <!--apex:inputField id="allocQty_item" value="{!o.allocQty_item__c}"/-->
+                    <c:autocomplete id="allocQty_item__c" cntr="{!controller}" slDesc="{!itemDesc}" query="select id, name from icitem__c where icitem_div__c = '{!o.rstk__allocQty_division__c}'" width="300px" />
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__allocQty_repair__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__allocQty_repair__c.label}"/>                    	
+                    <apex:inputField id="allocQty_repair" value="{!o.rstk__allocQty_repair__c}"/>
+                </apex:pageBlockSectionItem>
+                
+            </apex:pageBlockSection>    
+        	<apex:pageBlockSection id="pbs_main" showHeader="false" columns="1">			
+				<apex:pageBlockSectionItem id="perform_Analysis_btn">
+					<c:nosubmitbutton label="{!$Label.rstk__performanalysis}" onclick="validateStartAnalysisAndRepair();"/>
+				</apex:pageBlockSectionItem>				
+			</apex:pageBlockSection>   
+			<apex:pageBlockSection />
+			<apex:pageBlockSection />
+            <apex:PageBlockSection id="pbs_schedule" title="{!$Label.rstk__schedule_analysis}" >  
+                <apex:pageBlockSectionItem helpText="{!f.rstk__allocQty_schedulename__c.inlineHelpText}" Id="schedName">
+                    <apex:outputLabel value="{!f.rstk__allocQty_schedulename__c.label}" for="{!f.rstk__allocQty_schedulename__c.label}" title="{!f.rstk__allocQty_schedulename__c.label}"/>
+                    <apex:inputField id="schedName" value="{!o.rstk__allocQty_schedulename__c}"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstk__allocQty_cronExpression__c.inlineHelpText}" Id="cronExprSecItem">
+                    <apex:outputLabel value="{!f.rstk__allocQty_cronExpression__c.label}" for="{!f.rstk__allocQty_cronExpression__c.label}" title="{!f.rstk__allocQty_cronExpression__c.label}"/>
+                    <apex:inputField id="cronExpr" value="{!o.rstk__allocQty_cronExpression__c}"/>
+                </apex:pageBlockSectionItem>    
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstk__allocQty_sheduleRepair__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstk__allocQty_sheduleRepair__c.label}"/>                    	
+                    <apex:inputField id="allocQty_sheduleRepair" value="{!o.rstk__allocQty_sheduleRepair__c}"/>
+                </apex:pageBlockSectionItem>	
+                <apex:pageBlockSectionItem />	
+                
+				<apex:pageBlockSectionItem id="perform_Analysis_btn">
+					<c:nosubmitbutton label="{!$Label.rstk__pagebtn_supdmdreqanalysisandrepair_scheduleanalysis}" onclick="scheduleAnalysisCheck();"/>
+				</apex:pageBlockSectionItem>				
+			</apex:pageBlockSection> 
+            <apex:outputPanel id="resultDisplay">
+                <!-- 
+				<apex:pageBlockTable id="pbt_resultDisplay" value="{!resultList}" var="d" rendered="{!showResultDisplay}">
+                </apex:pageBlockTable> -->
+            </apex:outputPanel>
+        </apex:pageBlock> 
+        </apex:form>
+        <script>
+            function validateStartAnalysisAndRepair() {
+                blockUI();
+                startAnalysisAndRepair();
+            }
+            
+            function doAfterJobComplete(processlog) {
+                unblockUI();
+                if(processlog && !processlog.iserror__c) {
+                    //getSyresults();
+                }
+            }
+        </script>	
+		<c:footerInclude cntr="{!controller}" />
+</apex:page>

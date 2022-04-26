@@ -1,0 +1,65 @@
+<apex:page id="pg" title="{!$Label.rstk__pagetitle_createplannedtransferpicklist}" standardController="rstk__ictransreqh__c" extensions="rstk.ControllerExtnPlannedTransferPicklist,rstk.ControllerJobStatus" sidebar="true" action="{!doBeforePageLoad}">
+    <apex:variable var="o" value="{!rstk__ictransreqh__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__ictransreqh__c.fields}" />
+    <script>
+    	var rFTemplate = '{!rFTemplate}';
+        var isRootDox = {!isRootDox};
+        
+    	function doCreatePicklist() {
+    		if (!groupfld.value) {
+				alert("{!$Label.SelectPlannedTransferGroup}");
+    			return;
+    		}
+    		blockUI();
+    		createPicklist();
+    	}
+    	function doAfterJobComplete(pl) {
+    		if(pl && pl.iserror__c) {
+				// do nothing
+				unblockUI();
+			} else {
+				unblockUI();
+				openPicklistReport();
+			}
+    	}
+    	function openPicklistReport() {
+			try {
+				if(rFTemplate){
+					window.open('/apex/printDOX?oid='+groupfld.value+'&t=' + rFTemplate, 'toolbar=0,resizeable=0');
+				}else{
+					window.open('/apex/PlannedTransferPicklistPdf?ictransreqhid=' + groupfld.value + '&barcode=true', 'toolbar=0,resizeable=0');
+				}
+			} finally {
+				return false;
+			}
+		}
+    </script>
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_createplannedtransferpicklist}" />
+    <apex:form id="fm">
+    	<apex:actionFunction name="createPicklist" action="{!createPicklist}" oncomplete="checkJobStatus()" rerender="pageMessages, op_JobStatus" immediate="false" />
+    	
+    	<apex:outputPanel id="op_JobStatus">
+    		<input type="hidden" id="processlogId" value="{!processlogId}"/>
+        </apex:outputPanel>
+    	
+		<apex:pageblock id="pb" mode="detail">
+    	 	<c:division id="ictransreqh_div__c" cntr="{!controller}" />
+    	 	<apex:pageBlockSection id="pbs_main" showHeader="false" columns="1" >
+    	 		<apex:pageBlockSectionItem helptext="{!f.rstk__ictransreqh_group__c.inlineHelpText}">
+                    <apex:outputLabel value="{!$Label.rstk__plannedtransfergroup}" />
+                    <apex:outputPanel >
+                        <apex:selectList id="ictransreqh_group__c" value="{!o.rstk__ictransreqh_group__c}" size="1" style="width:250px;" tabIndex="400" required="true">
+                            <apex:selectOptions value="{!groupNums}" />
+                        </apex:selectList>
+                        <script>var groupfld = document.getElementById("{!$Component.ictransreqh_group__c}");</script>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+    	 	</apex:pageBlockSection>
+    	 	<apex:pageBlockSection id="pbs_main1" columns="1">
+    	 		<c:nosubmitbutton label="{!$Label.rstk__pagebtn_createplannedtransferpicklist_createpicklist}" onclick="doCreatePicklist();" style="width:160px;" />
+    	 	</apex:pageBlockSection>
+    	 	
+    	 </apex:pageblock>
+    </apex:form>
+    <c:footerInclude cntr="{!controller}" />
+</apex:page>

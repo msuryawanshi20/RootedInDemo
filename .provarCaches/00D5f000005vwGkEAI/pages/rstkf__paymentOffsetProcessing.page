@@ -1,0 +1,116 @@
+<apex:page id="pg" standardController="rstkf__povendcmpno__c" extensions="rstkf.ControllerExtnPaymentOffsetProcessing,rstkf.RemoteQueryController,rstkf.ControllerJobStatus" sideBar="true" action="{!doBeforePageLoad}">
+	<apex:variable var="f" value="{!$ObjectType.rstkf__povendcmpno__c.fields}" />
+	<apex:variable var="o" value="{!rstkf__povendcmpno__c}" />
+	<apex:variable var="f_apoffsettxn" value="{!$ObjectType.rstkf__apoffsettxn__c.fields}" />
+    <apex:variable var="f_customextf" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstkf__title_paymentoffsetprocessing}" enableAutoComplete="true"/>
+    <style>
+	    .Processing
+	    {
+	        position: fixed;
+	        background: url({!$Resource.busy});
+	        background-repeat: no-repeat;
+	        background-position: center;
+	        width: 100%;
+	        height: 100%;
+	        z-index: 2004;
+	        left: 0%;
+	        top: 0%;
+	    }
+	</style>
+	<script>
+	 function doAfterJobComplete(pl) {
+	      if(pl && pl.iserror__c) {
+                unblockUI();
+            } else {
+            	dopopulatePaymentOffsets();
+            	
+            }
+        } 
+	</script>
+ 	
+	<apex:form id="fm">
+    	<apex:actionStatus id="statusProcessing" startStyleClass="Processing"/> 
+		<apex:actionFunction name="doProcessPaymentOffset" action="{!processPaymentOffset}" oncomplete="checkJobStatus();" rerender="op_JobStatus,op_tabs,pageMessages" immediate="false"/>
+		<apex:actionFunction name="dosetPaymentDate" action="{!setPaymentDate}" oncomplete="unblockUI();" rerender="op_pbmain,op_pbmain,pageMessages" immediate="false"/>
+		<apex:actionFunction name="dopopulatePaymentOffsets" action="{!populatePaymentOffsets}" oncomplete="unblockUI();" rerender="op_tabs,pageMessages" immediate="false"/>
+		
+		<apex:outputPanel id="op_JobStatus">
+            <input type="hidden" id="processlogId" value="{!processLogId}"/>
+        </apex:outputPanel>
+		
+		<apex:outputPanel id="op_pbmain">
+		<apex:pageBlock id="pb" mode="detail">
+			<apex:pageBlockSection id="pbs_company" showHeader="false" title="{!$Label.rstkf__company}" columns="1" >
+            	<apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__custom_glcmp__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f_customextf.rstkf__custom_glcmp__c.label}" />
+                    <apex:outputField value="{!customextf.rstkf__custom_glcmp__c}"/>
+                </apex:pageBlockSectionItem>
+			
+				<apex:pageBlockSectionItem helpText="{!f.rstkf__povendcmpno_vendno__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__povendcmpno_vendno__c.label}"/>
+                    <apex:outputPanel id="op_socustcmpno">
+                    <c:autocomplete id="povendcmpno_vendno__c" cntr="{!controller}" slDesc="{!vendCompanyDesc}" 
+                   query="select id, name from povendcmpno__c where povendcmpno_socustcmpno__c != null and povendcmpno_cmpno__c = '{!customextf.rstkf__custom_glcmp__c}' "/>
+                   </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+               	
+                <apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__payoffset_preview__c.inlineHelpText}">
+                   	<apex:outputLabel value="{!f_customextf.rstkf__payoffset_preview__c.label}"/>
+                  	<apex:inputField value="{!customextf.rstkf__payoffset_preview__c}"/>
+                </apex:pageBlockSectionItem>
+               	
+               	<apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__payoffset_basisdate__c.inlineHelpText}">
+                   	<apex:outputLabel value="{!f_customextf.rstkf__payoffset_basisdate__c.label}"/>
+                  	<apex:inputField value="{!customextf.rstkf__payoffset_basisdate__c}" onchange="dosetPaymentDate();blockUI();return false;" />
+                </apex:pageBlockSectionItem>
+               	
+               	<apex:pageBlockSectionItem helpText="{!f_customextf.rstkf__payoffset_paymentdate__c.inlineHelpText}">
+                   	<apex:outputLabel value="{!f_customextf.rstkf__payoffset_paymentdate__c.label}"/>
+                  	<apex:outputField value="{!customextf.rstkf__payoffset_paymentdate__c}"/>
+                </apex:pageBlockSectionItem>
+            
+            </apex:pageBlockSection>
+			
+			<apex:pageBlockButtons >
+			  <apex:commandButton id="processPaymentOffsetBtn" value="{!$Label.rstkf__btn_processpaymentoffset}" onclick=" blockUI(); doProcessPaymentOffset();return false;" disabled="{!showPaymentOffsetBtn}"/>
+            </apex:pageBlockButtons>
+            </apex:pageBlock>
+            </apex:outputPanel>
+        </apex:form>
+        
+        <apex:form id="tabs_fm">
+        <apex:pageBlock id="pb_tabs">   
+            <apex:outputPanel id="op_tabs">
+            <apex:tabPanel switchType="client" selectedTab="tab_PurchOrders" id="theTabPanel" rendered="{!isPayOffset}">
+               <apex:tab label="{!$Label.rstkf__tab_paymentoffsets}" id="tab_PaymentOffsets" name="tab_PaymentOffsets"  rendered="{!isPayOffset}">
+                	<apex:pageBlockSection id="pbs_PaymentOffsets" showHeader="false" columns="1">
+        				<apex:outputPanel id="op_PaymentOffsets">
+        					<div style="overflow: scroll; height: 500px;">
+        					<apex:pageBlockTable id="pbt_offsets" value="{!paymentOffsets}" var="p">       	 			
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_socustcmpno__c.label}" value="{!p.rstkf__apoffsettxn_socustcmpno__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_paydate__c.label}" value="{!p.rstkf__apoffsettxn_paydate__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_arbalance__c.label}" value="{!p.rstkf__apoffsettxn_arbalance__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_apbalance__c.label}" value="{!p.rstkf__apoffsettxn_apbalance__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_appayamt__c.label}" value="{!p.rstkf__apoffsettxn_appayamt__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_aramatdue__c.label}" value="{!p.rstkf__apoffsettxn_aramatdue__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_apinvtxn__c.label}" value="{!p.rstkf__apoffsettxn_apinvtxn__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_arinvtxn__c.label}" value="{!p.rstkf__apoffsettxn_arinvtxn__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_appayd__c.label}" value="{!p.rstkf__apoffsettxn_appayd__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_basisdate__c.label}" value="{!p.rstkf__apoffsettxn_basisdate__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_apcutoffdate__c.label}" value="{!p.rstkf__apoffsettxn_apcutoffdate__c}"/>
+		        	 			<apex:column headerValue="{!f_apoffsettxn.rstkf__apoffsettxn_arcutoffdate__c.label}" value="{!p.rstkf__apoffsettxn_arcutoffdate__c}"/>
+		        	 		</apex:pageBlockTable>
+		        	 		</div>
+		        	 	</apex:outputPanel>
+        			</apex:pageBlockSection>
+                </apex:tab>
+            </apex:tabPanel>
+			</apex:outputPanel>
+		</apex:pageBlock> 
+	</apex:form>
+	
+	<c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+ </apex:page>

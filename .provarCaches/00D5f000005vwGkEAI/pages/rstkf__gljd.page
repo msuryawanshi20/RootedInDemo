@@ -1,0 +1,443 @@
+<apex:page id="pg" standardController="rstkf__gljd__c" extensions="rstkf.ControllerExtnGljd,rstkf.RemoteQueryController" sideBar="false" action="{!doBeforePageLoad}">     
+    <apex:variable var="o" value="{!rstkf__gljd__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstkf__gljd__c.fields}" /> 
+    <apex:variable var="f_gljh" value="{!$ObjectType.rstkf__gljh__c.fields}" />
+    <apex:variable var="fdim" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <apex:variable var="f_customext" value="{!$ObjectType.rstkf__customextf__c.fields}" />
+    <apex:sectionHeader subtitle="{!$Label.rstkf__journal_entry_detail}" title="{!actionTitle}" help="{!helpUrl}"/>
+    <apex:outputLink value="{!URLFOR($Action.rstkf__gljh__c.View, gljd.rstkf__gljd_gljh__c)}" rendered="{!viewMode}">&nbsp;«&nbsp;{!$Label.Back_to_Journal_Header}</apex:outputlink>
+
+    <c:standardHeader cntr="{!controller}" enableAutoComplete="true" enableQuickMenu="false" customInclude="{!$Resource.rstkf__gljd_cli}" displayListLink="false" showHeader="false"/>    
+    <script>
+    	var companyId = '{!companyId}';
+        function getAccountDescription(glacct,titlefieldID){
+            Visualforce.remoting.Manager.invokeAction(  
+                '{!$RemoteAction.ControllerExtnGljd.getAccountDescription}', //NameSpace  
+                glacct,
+                function(result, event){
+                    if (event.status) {
+                        checkResult(result,titlefieldID);
+                    } else if (event.type === 'exception') {
+                        alert("{!$Label.Exception}", event.message);
+                    } else {
+                        alert("{!$Label.UnexpectedStatus}", event.message); 
+                    }
+                }, {escape:false}
+            );
+        }
+        
+        function checkSavegljd(newEntry) {
+            console.log(' Inside checkSavegljd gljetempid '+gljetempid);
+            if(gljetempid == '') {
+                var lineNo = sfffGetFieldValue('gljd_lineno__c');
+                console.log('Inside saveEntryCheck lineNo = '+lineNo);
+                if(lineNo == '' || lineNo == null || lineNo.trim() == '') {
+                    alert(Label_Please_Enter_Line_No);
+                    unblockUI(); 
+                    return false;
+                }
+            }   
+            
+            var glacct = sfffGetFieldValue('gljd_glacct__c');
+            var dramt = document.getElementById('pg:fm:pb:pbs_main:pbs_dramt:gljd_dramt__c').value;
+            var cramt = document.getElementById('pg:fm:pb:pbs_main:pbs_cramt:gljd_cramt__c').value;
+            
+            console.log('Inside checkSavegljd glacct = '+glacct);
+            if(glacct == '' || glacct == null) {
+                alert('{!$Label.Entry_can_not_be_posted_without_Account}');
+                unblockUI(); 
+                return false;
+            }            
+            //dramt = dramt.replace(/,/g, "");
+            //cramt = cramt.replace(/,/g, "");  
+            
+            if( ((!locl.isNaN(dramt)) && (locl.parseFloat(dramt) > 0)) && ((!locl.isNaN(cramt)) && (locl.parseFloat(cramt) > 0)) ){ 
+                alert('{!$Label.Either_Debit_amount_or_Credit_amount_can_be_filled}');
+                unblockUI(); 
+                return false;
+            }
+            
+            
+            if(locl.parseFloat(dramt) != 0 || dramt != '') {
+                if(locl.isNaN(dramt) || (locl.parseFloat(dramt) < 0) ) {
+                    alert('{!$Label.Please_enter_valid_Debit_amount}'); 
+                    unblockUI(); 
+                    return false; 
+                }    
+            } 
+              
+            if(locl.parseFloat(cramt) != 0 || cramt != '') {
+                if(locl.isNaN(cramt) || (locl.parseFloat(cramt) < 0) ) {
+                    alert('{!$Label.Please_enter_valid_Credit_amount}'); 
+                    unblockUI(); 
+                    return false;
+                }    
+            }
+            
+            if(newEntry == 'true') {                
+                saveAndNewGljd();       
+            } else {
+                savegljd();
+            }    
+        }        
+        
+        var olddebitamount = "{!gljd.rstkf__gljd_dramt__c}";
+        var oldCreditAmount = "{!gljd.rstkf__gljd_cramt__c}";
+        var totalDebit = "{!totalDebits}";
+        var totalCredit = "{!totalCredits}";        
+        var oldLineNo = "{!gljd.rstkf__gljd_lineno__c}";
+        var gljetempid = "{!gljd.id}";
+        var gljHeader = "{!gljd.rstkf__gljd_gljh__c}";
+        
+        function refreshParent() {
+            //alert(Label_Record_Saved);
+            var lineInput = document.getElementById('pg:fm:pb:pbs_main:pbs_lineno:gljd_lineno__c');
+            console.log(' lineInput '+lineInput);
+            if(lineInput != null){
+                lineInput.disabled=true;
+            }
+            
+            window.parent.reloadJournals();         
+        }
+    
+        function newGljdCheck() {
+            newGljd("{!gljd.Id}");        
+        }    
+    
+        function deleteGljdCheck() {
+            if(confirm("{!$Label.AreYouSure}")) {
+                deleteGljd();
+            } else {
+                unblockUI();   
+            }  
+        }    
+    
+    </script>            
+    <apex:form id="fm">                 
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="savegljd" action="{!saveAndViewGljd}" immediate="false" status="pleaseWaitStatus" oncomplete="refreshParent();"/>
+        <apex:actionFunction name="newGljd" action="{!newGljd}" immediate="false" status="pleaseWaitStatus" >
+            <apex:param name="previousGljd" assignTo="{!previousGljd}" value=""/>
+        </apex:actionFunction>    
+        <apex:actionFunction name="editGljd" action="{!editGljd}" immediate="false" status="pleaseWaitStatus" />
+        <apex:actionFunction name="deleteGljd" action="{!deleteGljd}" immediate="false" status="pleaseWaitStatus" />
+        <apex:actionFunction name="saveAndNewGljd" action="{!saveAndNewGljd}" immediate="false" status="pleaseWaitStatus" />
+        <apex:actionFunction name="cancelGljd" action="{!cancelGljd}" immediate="false" status="pleaseWaitStatus" />
+        <apex:actionFunction name="backToGljh" action="{!backToGljh}" immediate="false" status="pleaseWaitStatus" />
+        
+        <apex:pageBlock id="pb" mode="detail">
+            <apex:pageBlockButtons >
+                <apex:outputPanel id="op_hdrbtns_view" rendered="{!AND(viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                    <input type="button" id="newEntry" value="{!$Label.New_Entry}" class="btn" onclick="blockUI();newGljdCheck();"/>
+                    <input type="button" id="editEntry" value="{!$Label.gljd_Edit}" class="btn" onclick="blockUI();editGljd();"/>
+                    <input type="button" id="deleteEntry" value="{!$Label.gljd_Delete}" class="btn" onclick="blockUI();deleteGljdCheck();"/>
+                </apex:outputPanel>
+                
+                <apex:outputPanel id="op_hdrbtns_new" rendered="{!isNew}">
+                    <input type="button" id="savegljds" value="{!$Label.btn_save}" class="btn" onclick="blockUI();checkSavegljd();"/>
+                    <input type="button" id="savegljdsAndNew" value="{!$Label.btn_SaveandNew}" class="btn" onclick="blockUI();checkSavegljd('true');;"/>
+                    <input type="button" id="cancelEntry" value="{!$Label.Cancel}" class="btn" onclick="cancelGljd();"/>
+                </apex:outputPanel>
+                
+                <apex:outputPanel id="op_hdrbtns_edit" rendered="{!AND(isEdit,gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                    <input type="button" id="savegljds_edit" value="{!$Label.pagebtn_Save}" class="btn" onclick="blockUI();checkSavegljd();" rendered="{!gljd.gljd_gljh__r.gljh_status__c != postStatus}"/>
+                </apex:outputPanel>
+                
+                <apex:outputPanel id="op_hdrbtns_editCancel" rendered="{!isEdit}">
+                    <input type="button" id="cancelEntry_edit" value="{!$Label.Cancel}" class="btn" onclick="cancelGljd();"/>
+                </apex:outputPanel>
+                
+                
+            </apex:pageBlockButtons>
+            
+            <apex:pageBlockSection id="pbs_main" columns="2" >
+                 <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_gljh__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__gljd_gljh__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField id="gljd_gljh__c" value="{!gljd.rstkf__gljd_gljh__c}"/>                  
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                <!--
+                <apex:pageBlockSectionItem helpText="{!f_customext.gljd_totalDebits__c.inlineHelpText}" id="totalDebits">
+                    <apex:outputLabel value="{!f_customext.gljd_totalDebits__c.label}"/>
+                    <apex:outputPanel id="TotalDebits_op">
+                        <apex:outputText id="TotalDebits" value="{!totalDebits}"/>
+                                        
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                
+                <apex:pageBlockSectionItem helpText="{!f_customext.gljd_totalCredits__c.inlineHelpText}" id="totalCredits">
+                    <apex:outputLabel value="{!f_customext.gljd_totalCredits__c.label}"/>
+                    <apex:outputPanel id="TotalCredit_op">
+                        <apex:outputText id="TotalCredit" value="{!totalCredits}"/>                                     
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                -->
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_lineno__c.inlineHelpText}" id="pbs_lineno">
+                    <apex:outputLabel value="{!f.rstkf__gljd_lineno__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:outputField value="{!gljd.rstkf__gljd_lineno__c}" rendered="{!OR(isEdit,viewMode)}"/>
+                        <apex:inputField id="gljd_lineno__c" value="{!gljd.rstkf__gljd_lineno__c}" rendered="{!isNew}"/>
+                        <apex:inputHidden id="gljd_dimvals__c" value="{!gljd.rstkf__gljd_dimvals__c}" />
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_glacct__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__gljd_glacct__c.label}"/>
+                    <apex:outputPanel >  
+                        <c:glaccount id="gljd_glacct__c" 
+                               cntr="{!controller}"
+                               ref="gljd_glacct__c"
+                               options="{!glaccts}"
+                               slDesc="{!glacctName}"
+                               query="{!glacctAutoCompleteQuery}" 
+                               queryParms="[]"
+                               displaySelectList="{!glaccts.size <= 999}"
+                               rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}"
+                               onchange="gljdGlacctChanged()"
+                               width="200px"
+                               tabIndex="10" />   
+                        <apex:outputField value="{!gljd.rstkf__gljd_glacct__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>                        
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <!--
+                <apex:pageBlockSectionItem helpText="{!f_customext.gljd_accountTitle__c.inlineHelpText}" id="Accounttitle">
+                    <apex:outputLabel value="{!f_customext.gljd_accountTitle__c.label}"/>
+                    <apex:outputPanel id="op_Accounttitle">
+                        <apex:outputText id="accountDescription" value="{!accountDescription}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                -->
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_dramt__c.inlineHelpText}" id="pbs_dramt">
+                    <apex:outputLabel value="{!f.rstkf__gljd_dramt__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="gljd_dramt__c" value="{!gljd.rstkf__gljd_dramt__c}" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}"/>
+                        <apex:outputField value="{!gljd.rstkf__gljd_dramt__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem> 
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_dramtmcurr__c.inlineHelpText}" id="pbs_dramtmcurr" rendered="{!gljd.gljd_gljh__r.rstkf__gljh_maintcurr__c != null}">
+                    <apex:outputLabel value="{!f.rstkf__gljd_dramtmcurr__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="gljd_dramtmcurr__c" value="{!gljd.rstkf__gljd_dramtmcurr__c}" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}"/>
+                        <apex:outputField value="{!gljd.rstkf__gljd_dramtmcurr__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!gljd.gljd_gljh__r.rstkf__gljh_maintcurr__c == null}"/>
+                
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_cramt__c.inlineHelpText}" id="pbs_cramt">
+                    <apex:outputLabel value="{!f.rstkf__gljd_cramt__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="gljd_cramt__c" value="{!gljd.rstkf__gljd_cramt__c}" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}"/> 
+                        <apex:outputField value="{!gljd.rstkf__gljd_cramt__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>                     
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_cramtmcurr__c.inlineHelpText}" id="pbs_cramtmcurr" rendered="{!gljd.gljd_gljh__r.rstkf__gljh_maintcurr__c != null}">
+                    <apex:outputLabel value="{!f.rstkf__gljd_cramtmcurr__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="gljd_cramtmcurr__c" value="{!gljd.rstkf__gljd_cramtmcurr__c}" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}"/>
+                        <apex:outputField value="{!gljd.rstkf__gljd_cramtmcurr__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem rendered="{!gljd.gljd_gljh__r.rstkf__gljh_maintcurr__c == null}"/>
+                
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_linecomment__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__gljd_linecomment__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:inputField id="gljd_linecomment__c" value="{!gljd.rstkf__gljd_linecomment__c}" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}"/>
+                        <apex:outputField value="{!gljd.rstkf__gljd_linecomment__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_gldiv__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__gljd_gldiv__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="gljd_gldiv__c" value="{!gljd.rstkf__gljd_gldiv__c}" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}"> 
+                                <apex:selectOptions value="{!glDivs}" />
+                        </apex:selectList>
+                        <apex:outputField value="{!gljd.rstkf__gljd_gldiv__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_glproj__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__gljd_glproj__c.label}"/>
+                    <apex:outputPanel >
+                        <c:autocomplete id="gljd_glproj__c" ref="gljd_glproj__c" cntr="{!controller}" slDesc="{!projName}" query="Select Id, Name from glproj__c where glproj_gldiv__c = 'prm'" queryParms="[['gljd_gldiv__c','Division']]" tabIndex="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}"/>
+                        <apex:outputField value="{!gljd.rstkf__gljd_glproj__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!f.rstkf__gljd_vatclass__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.rstkf__gljd_vatclass__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="gljd_vatclass__c" value="{!gljd.rstkf__gljd_vatclass__c}" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus, hasVat)}"> 
+                                <apex:selectOptions value="{!vatclasses}" />
+                        </apex:selectList>
+                        <apex:outputField value="{!gljd.rstkf__gljd_vatclass__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus, !hasVat)}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval1__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fdim.rstk__dimval1__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval1__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval1__c" value="{!dimvalrecord.rstk__dimval1__c}" style="width:400px;" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                                        <apex:selectOptions value="{!dimValsOptions1}"/>
+                                </apex:selectlist>
+                                <apex:outputField value="{!dimvalrecord.rstk__dimval1__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval2__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fdim.rstk__dimval2__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval2__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval2__c" value="{!dimvalrecord.rstk__dimval2__c}" style="width:400px;" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                                        <apex:selectOptions value="{!dimValsOptions2}"/>
+                                </apex:selectlist>
+                                <apex:outputField value="{!dimvalrecord.rstk__dimval2__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval3__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fdim.rstk__dimval3__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval3__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval3__c" value="{!dimvalrecord.rstk__dimval3__c}" style="width:400px;" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                                        <apex:selectOptions value="{!dimValsOptions3}"/>
+                                </apex:selectlist>
+                                <apex:outputField value="{!dimvalrecord.rstk__dimval3__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval4__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fdim.rstk__dimval4__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval4__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval4__c" value="{!dimvalrecord.rstk__dimval4__c}" style="width:400px;" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                                        <apex:selectOptions value="{!dimValsOptions4}"/>
+                                </apex:selectlist>
+                                <apex:outputField value="{!dimvalrecord.rstk__dimval4__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval5__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fdim.rstk__dimval5__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval5__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval5__c" value="{!dimvalrecord.rstk__dimval5__c}" style="width:400px;" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                                        <apex:selectOptions value="{!dimValsOptions5}"/>
+                                </apex:selectlist>
+                                <apex:outputField value="{!dimvalrecord.rstk__dimval5__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval6__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fdim.rstk__dimval6__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval6__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval6__c" value="{!dimvalrecord.rstk__dimval6__c}" style="width:400px;" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                                        <apex:selectOptions value="{!dimValsOptions6}"/>
+                                </apex:selectlist>
+                                <apex:outputField value="{!dimvalrecord.rstk__dimval6__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval7__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fdim.rstk__dimval7__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval7__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval7__c" value="{!dimvalrecord.rstk__dimval7__c}" style="width:400px;" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                                        <apex:selectOptions value="{!dimValsOptions7}"/>
+                                </apex:selectlist>
+                                <apex:outputField value="{!dimvalrecord.rstk__dimval7__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <apex:pageBlockSectionItem helpText="{!fdim.rstk__dimval8__c.inlineHelpText}">
+                        <apex:outputLabel value="{!fdim.rstk__dimval8__c.label}"/>
+                        <apex:outputPanel >
+                                <span id="modalstatic_dimvals_dimval8__c"></span>
+                                <apex:selectlist id="modal_dimvals_dimval8__c" value="{!dimvalrecord.rstk__dimval8__c}" style="width:400px;" size="1" rendered="{!AND(!viewMode, gljd.gljd_gljh__r.rstkf__gljh_status__c != postStatus)}">
+                                        <apex:selectOptions value="{!dimValsOptions8}"/>
+                                </apex:selectlist>
+                                <apex:outputField value="{!dimvalrecord.rstk__dimval8__c}" rendered="{!OR(viewMode,gljd.gljd_gljh__r.rstkf__gljh_status__c == postStatus)}"/>
+                        </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem />
+                
+                <!-- 
+                <apex:pageBlockSectionItem helpText="{!f.gljd_icitem__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.gljd_icitem__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="gljd_icitem__c" value="{!o.gljd_icitem__c}" size="1" rendered="{!!viewMode}"> 
+                                <apex:selectOptions value="{!items}" />
+                        </apex:selectList>
+                        <apex:outputField value="{!o.gljd_icitem__c}" rendered="{!viewMode}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem> 
+                
+                <apex:pageBlockSectionItem helpText="{!f.gljd_socust__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.gljd_socust__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="gljd_socust__c" value="{!o.gljd_socust__c}" size="1" rendered="{!!viewMode}"> 
+                                <apex:selectOptions value="{!customer}" />
+                        </apex:selectList> 
+                        <apex:outputField value="{!o.gljd_socust__c}" rendered="{!viewMode}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem>  
+                
+                <apex:pageBlockSectionItem helpText="{!f.gljd_povend__c.inlineHelpText}">
+                    <apex:outputLabel value="{!f.gljd_povend__c.label}"/>
+                    <apex:outputPanel >
+                        <apex:selectList id="gljd_povend__c" value="{!o.gljd_povend__c}" size="1" rendered="{!!viewMode}"> 
+                                <apex:selectOptions value="{!vendor}" />
+                        </apex:selectList> 
+                        <apex:outputField value="{!o.gljd_povend__c}" rendered="{!viewMode}"/>
+                    </apex:outputPanel>
+                </apex:pageBlockSectionItem> 
+                -->                                  
+            </apex:pageBlockSection>
+            <apex:tabPanel switchType="client" selectedTab="tab_Custom" id="theTabPanel">
+                <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                    <c:customFields cntr="{!controller}" cols="2"/>
+                </apex:tab>
+            </apex:tabPanel>    
+        </apex:pageBlock> 
+    </apex:form>    
+    <c:footerInclude cntr="{!controller}" hideNotesAndAttachments="true"/>
+    <script>        
+        var Label_Please_Enter_Line_No = "{!$Label.Please_Enter_Line_No}";  
+        var Label_Template_is_out_of_balance_still_want_to_save = "{!$Label.Template_is_out_of_balance_still_want_to_save}";
+        var Label_Template_is_Incomplete_still_want_to_save = "{!$Label.Template_is_Incomplete_still_want_to_save}";
+        var Label_Record_Saved = "{!$Label.Record_Saved}";
+        var Label_Please_enter_valid_Debit_amount = "{!$Label.Please_enter_valid_Debit_amount}";
+        var Label_Either_Debit_amount_or_Credit_amount_can_be_filled     = "{!$Label.Either_Debit_amount_or_Credit_amount_can_be_filled }";
+        var Label_Please_enter_valid_Credit_amount = "{!$Label.Please_enter_valid_Credit_amount}";
+        var Label_Line_Number_already_exists = "{!$Label.Line_Number_already_exists}";
+        var Label_Please_enter_valid_Line_No = "{!$Label.Please_enter_valid_Line_No}";
+        var Label_Please_enter_valid_Debit_Amount_Maintenance_Currency = "{!$Label.Please_enter_valid_Debit_Amount_Maintenance_Currency}";
+        var Label_Please_enter_valid_Credit_Amount_Maintenance_Currency = "{!$Label.Please_enter_valid_Credit_Amount_Maintenance_Currency}";
+        setSelectListRequired("gljd_glacct__c");        
+    </script>     
+</apex:page>

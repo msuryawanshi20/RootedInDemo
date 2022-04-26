@@ -1,0 +1,1254 @@
+<apex:page id="pg" standardController="rstk__wocst__c" extensions="rstk.ControllerExtnWocst,rstk.ControllerJobStatus,rstk.RemoteQueryController" sideBar="true" action="{!doBeforePageLoad}" lightningStyleSheets="{!useLightningStyleSheets}">
+    <apex:variable var="o" value="{!rstk__wocst__c}" />
+    <apex:variable var="f" value="{!$ObjectType.rstk__wocst__c.fields}" />
+    <apex:variable var="f1" value="{!$ObjectType.rstk__dimvals__c.fields}" />
+    <apex:variable var="f_wopsch" value="{!$ObjectType.rstk__wopsch__c.fields}" />
+    
+    <apex:variable var="f_woordop" value="{!$ObjectType.rstk__woordop__c.fields}" />
+    
+    <apex:variable var="f_woordopact" value="{!$ObjectType.rstk__woordopact__c.fields}" />
+    
+    <apex:variable var="f_wopwip" value="{!$ObjectType.rstk__wopwip__c.fields}" />
+    
+    <apex:variable var="f_woordsrl" value="{!$ObjectType.rstk__woordsrl__c.fields}" />
+    
+    <c:standardHeader cntr="{!controller}" title="{!$Label.rstk__pagetitle_wocst}" customInclude="{!$Resource.rstk__wocst_cli}" customInclude2="{!$Resource.rstk__wocst_lib}" enableAutocomplete="true"/>
+
+    <apex:outputPanel id="op_PageContent">
+    <style>
+        .Processing
+        {
+            position: fixed;
+            background: url({!$Resource.rstk__busy});
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 100%;
+            height: 100%;
+            z-index: 2004;
+            left: 0%;
+            top: 0%;
+        }
+    </style>
+    
+    <apex:form id="fm">
+        <apex:actionStatus id="statusProcessing" startStyleClass="Processing"/>
+        <apex:actionFunction name="doDelete" action="{!doDelete}" immediate="true" rerender="pageMessages,op_PageButtons"/>
+        <apex:actionFunction name="doView" action="{!view}" immediate="true"/>
+        <apex:actionFunction name="doEdit" action="{!edit}" immediate="true"/>
+        <apex:actionFunction name="doCancel" action="{!cancel}" immediate="true"/>
+        <apex:actionFunction name="doListview" action="{!doListview}" immediate="true"/>
+        <apex:actionFunction name="doSave" action="{!save}"/>
+        <apex:actionFunction name="doRefreshHPComponents" rerender="pbs_HPComponents" immediate="true"/>
+        <!-- RSTK-5626: Added oncomplete function to reload the page -->
+        <apex:actionFunction name="doRefreshComponents" rerender="op_HPComponents,op_updateissueprojbtn,op_Components" oncomplete="blockUI();window.location.reload();" immediate="true"/>
+        <!--  -->
+        <apex:actionFunction name="doRefreshNicComponents" rerender="pbs_NIComp" immediate="false"/>
+        <apex:actionFunction name="doRefreshOperations" rerender="op_Operations" oncomplete="formatLocaleOutputFields();" immediate="true"/>
+        <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
+        <apex:actionFunction name="doUpdateDisplayOptions" action="{!doUpdateDisplayOptions}" immediate="true" oncomplete="window.location.reload();" status="statusProcessing">
+            <apex:param name="componentListDisplay" assignTo="{!componentListDisplay}" value="" />
+            <apex:param name="operationListDisplay" assignTo="{!operationListDisplay}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="doBackscheduleOperations" action="{!doBackscheduleOperations}" rerender="pageMessages,op_Dates,op_Misc,op_Operations" immediate="true" oncomplete="unblockUI();"/>
+        <apex:actionFunction name="doExtractOperations" action="{!doExtractOperations}" rerender="pageMessages,op_resultVars" immediate="true" oncomplete="if (actionError == false) {window.location.reload();} else {unblockUI();}">
+            <apex:param name="altOperCode" assignTo="{!altOperCode}" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="doAssignSerialsFromPrimary" action="{!doAssignSerialsFromPrimary}" rerender="pageMessages,op_serialnumbers" immediate="true" oncomplete="unblockUI();" status="statusProcessing">
+            <apex:param name="woorddmdid" assignTo="{!woorddmdid}" value="" />
+        </apex:actionFunction>
+        
+        <apex:actionFunction name="archiveWorkOrder" action="{!archiveWorkOrder}" immediate="true" rerender="pageMessages" oncomplete="unblockUI();window.location.reload();"/>
+        <apex:actionFunction name="restoreWorkOrder" action="{!restoreWorkOrder}" immediate="true" rerender="pageMessages" oncomplete="unblockUI();window.location.reload();"/>
+
+        <apex:actionFunction name="refreshPjprojwbs" rerender="pageMessages,op_pjprojwbs" immediate="true" status="statusProcessing">
+            <apex:param name="pjprojid" assignTo="{!o.wocst_proj__c}" value="" />
+        </apex:actionFunction>
+
+        <apex:pageBlock id="pb" mode="detail" title="{!IF((!isNew && showLaborOnly), $Label.rstk__laboronlyorder, '')}">
+        <apex:pageBlockButtons id="pbb" location="top">
+            <apex:outputPanel id="op_PageButtons">
+                <c:standardButtons cntr="{!controller}"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_wocst_release}" onclick="doSetFFCompanyAndProcess(doRelease); return false;" rendered="{!DisplayRelease}" style="width:75px;"/>
+                <apex:commandButton id="cb_CloseWO" disabled="true" value="{!$Label.rstk__pagebtn_wocst_closeworkorder}" onclick="doSetFFCompanyAndProcess(doCloseWorkorder); return false;" rendered="{!closeWO}" style="width:125px;"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_wocst_reversewoclose}" onclick="doSetFFCompanyAndProcess(doReverseWOClose); return false;" rendered="{!DisplayReverseWOClose}" style="width:125px;"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_wocst_archive}" onclick="if (confirm('{!$Label.rstk__warningonlythefollowingchildrecordswillberestorable}')) {blockUI();archiveWorkOrder();} return false;" rendered="{!(o.rstk__wocst_ordsts__c = '9' && o.rstk__wocst_archived__c = false)}" style="width:80px;"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_wocst_restore}" onclick="blockUI();restoreWorkOrder(); return false;" rendered="{!(o.rstk__wocst_ordsts__c = '9' && o.rstk__wocst_archived__c = true)}" style="width:80px;"/>
+                <apex:commandButton value="{!$Label.rstk__pagebtn_wocst_printpicklist}" onClick="window.open('/apex/printDOX?oid={!o.id}&template={!o.wocst_div__r.rstk__sydiv_formtmplt_wpk__c}');return false;" disabled="{!DisablePrintPickList}" rendered="{!DisplayPrintPickList}" style="width:80px;"/>
+            </apex:outputPanel>
+        </apex:pageBlockButtons>
+        
+        <apex:outputPanel style="display:none" rendered="{!isView}">
+            <apex:inputCheckbox id="wocst_refurbind__c" value="{!o.rstk__wocst_refurbind__c}"/>
+            <apex:outputPanel id="op_resultVars">
+                <script>
+                    var actionError = {!actionError};
+                    var actionResult = "{!JSENCODE(actionResult)}";
+                </script>
+            </apex:outputPanel>
+        </apex:outputPanel>
+        
+        <apex:outputPanel style="display:none">
+            <apex:inputHidden value="{!o.wocst_item__r.icitem_item__r.rstk__peitem_item__c}"/>
+            <input type="hidden" id="sydiv_projact__c" value="{!IF(currDivision.sydiv_projact__c,'1','0')}"/>
+            <input type="hidden" id="sydiv_revcntlact__c" value="{!IF(currDivision.sydiv_revcntlact__c,'1','0')}"/>
+            <input type="hidden" id="sydiv_itemprojacctsrcind_pl__c" value="{!currDivision.sydiv_itemprojacctsrcind_pl__c}"/>
+            <apex:inputHidden id="wocst_wbs__c" value="{!o.rstk__wocst_wbs__c}"/>
+            <apex:inputHidden id="wocst_issue_all_sts_pl__c" value="{!o.rstk__wocst_issue_all_sts_pl__c}"/>
+            <apex:inputHidden id="wocst_condcd__c" value="{!o.rstk__wocst_condcd__c}"/>
+            <c:inputCheckbox id="wocst_estind__c" cntr="{!controller}"/>
+            <c:inputCheckbox id="wocst_icixrind__c" cntr="{!controller}"/>
+            <apex:inputHidden id="custpage_wocst_extract_ops__c" value="{!o.rstk__custpage_wocst_extract_ops__c}"/>
+            <apex:inputHidden id="custpage_wocst_orig_ordsts__c" value="{!o.rstk__custpage_wocst_orig_ordsts__c}"/>
+            <apex:inputHidden id="custpage_wocst_orig_qtyreq__c" value="{!o.rstk__custpage_wocst_orig_qtyreq__c}"/>
+            <apex:inputHidden id="custpage_wocst_item_srl_ind__c" value="{!o.rstk__custpage_wocst_item_srl_ind__c}"/>
+            <apex:inputHidden id="custpage_wocst_item_lot_ind__c" value="{!o.rstk__custpage_wocst_item_lot_ind__c}"/>
+            <apex:inputHidden id="custpage_wocst_any_cost_txns__c" value="{!o.rstk__custpage_wocst_any_cost_txns__c}"/>
+            <apex:inputHidden id="custpage_wocst_any_woordop__c" value="{!o.rstk__custpage_wocst_any_woordop__c}"/>
+            <apex:inputHidden id="custpage_wocst_any_woorddmd__c" value="{!o.rstk__custpage_wocst_any_woorddmd__c}"/>
+            <apex:inputHidden id="custpage_wocst_any_nonzero_woorddmd__c" value="{!o.rstk__custpage_wocst_any_nonzero_woorddmd__c}"/>
+            <apex:inputHidden id="custpage_wocst_min_qtyreq__c" value="{!o.rstk__custpage_wocst_min_qtyreq__c}"/>
+            <apex:inputHidden id="custpage_wocst_num_srl_used__c" value="{!o.rstk__custpage_wocst_num_srl_used__c}"/>
+            <apex:inputHidden id="custpage_wocst_num_srl_avail__c" value="{!o.rstk__custpage_wocst_num_srl_avail__c}"/>
+            <apex:inputHidden id="custpage_wocst_max_srlseqno__c" value="{!o.rstk__custpage_wocst_max_srlseqno__c}"/>
+            <apex:inputHidden id="cp_wocst_disassm_iclocitem_select__c" value="{!o.rstk__cp_wocst_disassm_iclocitem_select__c}"/>
+            <apex:inputHidden id="cp_wocst_numunassignedserials__c" value="{!numunassignedserials}"/>
+            <apex:inputText id="wocst_ordsts__c" value="{!o.rstk__wocst_ordsts__c}"/> 
+            <c:inputField id="wocst_qtyscrap__c" cntr="{!controller}" disabled="true"/>
+            <c:inputField id="wocst_qtyship__c" cntr="{!controller}" disabled="true"/>
+            <apex:inputHidden id="wocst_itemtype__c" value="{!o.rstk__wocst_itemtype__c}"/>
+            <apex:inputHidden id="wocst_effind_pl__c" value="{!o.rstk__wocst_effind_pl__c}"/>
+            <apex:inputHidden id="wocst_site__c" value="{!o.rstk__wocst_site__c}"/>
+            <c:inputField id="wocst_lotnodteassgned__c" cntr="{!controller}"/>
+            <apex:inputCheckbox id="synch_effrevdate__c" rendered="{!isRevinvActive}"/>
+            <c:selectList id="wocst_effrev__c" cntr="{!controller}" options="{!effRevs}" rendered="{!isRevinvActive}"/>
+            <c:inputField id="wocst_effdte__c" cntr="{!controller}" rendered="{!isRevinvActive}"/>
+            <c:inputCheckbox id="wocst_disassmind__c" cntr="{!controller}" rendered="{!!IsDisassemblyAllowed}"/>
+        </apex:outputPanel>
+        
+        <c:division id="wocst_div__c" cntr="{!controller}" columns="2"/>
+        <apex:pageBlockSection id="pbs_main" showHeader="false" title="{!$Label.rstk__information}" columns="2">
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_targetsite__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_site__c.label}"/>
+                <c:selectList id="wocst_targetsite__c" required="true" cntr="{!controller}" options="{!sysites}" tabIndex="2"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_duedte__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_duedte__c.label}"/>
+                <c:inputField id="wocst_duedte__c" cntr="{!controller}" required="true" tabIndex="6"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_ordno__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_ordno__c.label}"/>
+                <c:inputText id="wocst_ordno__c" required="{!!autoOrderNumber}" cntr="{!controller}" tabIndex="{!IF(autoOrderNumber, '4', '3')}" disabled="{!autoOrderNumber}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_ordsts_pl__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_ordsts_pl__c.label}"/>
+                <c:inputField id="wocst_ordsts_pl__c" required="true" cntr="{!controller}" tabIndex="7"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_item__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_item__c.label}"/>
+                <c:autocomplete id="wocst_item__c" cntr="{!controller}" required="true" slDesc="{!itemDesc}" secondarySearchColumn="icitem_descr__c" query="select id, name from icitem__c where icitem_item__r.peitem_inactivests__c != 'I' and formula_disassmind__c = false and icitem_div__c = 'prm'" queryParms="[['wocst_div__c','Division']]" minChars="{!minCharForAutoComplete}" tabIndex="{!IF(autoOrderNumber, '3', '4')}"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_resp__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_resp__c.label}"/>
+                <c:selectList id="wocst_resp__c" cntr="{!controller}" options="{!sl.syusrs}" tabIndex="9"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_qtyreq__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_qtyreq__c.label}"/>
+                <c:inputField id="wocst_qtyreq__c" required="true" cntr="{!controller}" tabIndex="5"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_proj__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_proj__c.label}"/>
+                <c:autocomplete id="wocst_proj__c" cntr="{!controller}" query="select id, name from pjproj__c where pjproj_completed__c = false and pjproj_div__c = 'prm'" queryParms="[['wocst_div__c','Division']]" slDesc="{!projectDesc}" required="true" tabIndex="8"/>
+            </apex:pageBlockSectionItem>
+            
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_lstbookdtetime__c.inlineHelpText}">
+                <apex:outputLabel value="{!f.rstk__wocst_lstbookdtetime__c.label}"/>
+                <apex:outputField id="wocst_lstbookdtetime__c" value="{!o.rstk__wocst_lstbookdtetime__c}"/>
+            </apex:pageBlockSectionItem>
+
+            <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_pjprojwbs__c.inlineHelpText}" rendered="{!IsWBSActive}">
+                <apex:outputLabel value="{!f.rstk__wocst_pjprojwbs__c.label}"/>
+                <apex:outputPanel id="op_pjprojwbs">
+                    <c:selectList id="wocst_pjprojwbs__c" cntr="{!controller}" options="{!ChargeCodes}" tabIndex="12" rendered="{!(isNew || o.rstk__wocst_ordsts__c = '1' || o.rstk__wocst_ordsts__c = '2')}"/>
+                    <apex:outputField value="{!o.rstk__wocst_pjprojwbs__c}" rendered="{!!(isNew || o.rstk__wocst_ordsts__c = '1' || o.rstk__wocst_ordsts__c = '2')}"/>
+                </apex:outputPanel>
+            </apex:pageBlockSectionItem>
+            <apex:pageBlockSectionItem rendered="{!!IsWBSActive}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+
+        </apex:pageBlockSection>
+        <!-- <apex:pageBlockSection id="pbs_AdditionalDetails" showHeader="true" title="{!$Label.pagetab_wocst_AdditionalDetails}" columns="1" onclick="rerenderSection('AdditionalDetails', false);">
+        <apex:outputPanel id="op_AdditionalDetails" >-->
+        <apex:tabPanel switchType="client" selectedTab="tab_SettingsIndicators" id="theTabPanel" rendered="{!renderAdditionalDetails}">
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_settings_indicators}" name="tab_SettingsIndicators" id="tab_SettingsIndicators">
+                <apex:pageBlockSection id="pbs_SettingsIndicators" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_reworkind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_reworkind__c.label}"/>
+                        <c:inputCheckbox id="wocst_reworkind__c" cntr="{!controller}" tabIndex="102" disabled="{!!isNew}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_wosonumind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_wosonumind__c.label}"/>
+                        <apex:outputField id="wocst_wosonumind__c" value="{!o.rstk__wocst_wosonumind__c}" rendered="{!!isNew}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_refurbind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_refurbind__c.label}"/>
+                        <c:inputCheckbox id="wocst_refurbind__c" cntr="{!controller}" tabIndex="104" disabled="{!!isNew}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_soline__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_soline__c.label}"/>
+                        <apex:outputField id="wocst_soline__c" value="{!o.rstk__wocst_soline__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_disassmind__c.inlineHelpText}" rendered="{!IsDisassemblyAllowed}">
+                        <apex:outputLabel value="{!f.rstk__wocst_disassmind__c.label}"/>
+                        <c:inputCheckbox id="wocst_disassmind__c" cntr="{!controller}" tabIndex="103" disabled="{!!isNew}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!!IsDisassemblyAllowed}"><apex:outputText value=""/></apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_consignind__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_consignind__c.label}"/>
+                        <c:inputCheckbox id="wocst_consignind__c" cntr="{!controller}" tabIndex="107"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:outputField value="{!o.rstk__wocst_estind__c}"/>
+                    
+                    <apex:outputField value="{!o.rstk__wocst_archived__c}"/>
+                </apex:pageBlockSection>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_qtysandhrs}" name="Qtyshrs" id="Qtyshrs">
+                <apex:pageBlockSection id="pbs_Qtyshrs" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_qtyacc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_qtyacc__c.label}"/>
+                        <c:inputField id="wocst_qtyacc__c" cntr="{!controller}" disabled="true" tabIndex="201"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_totsethrs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_totsethrs__c.label}"/>
+                        <c:inputField id="wocst_totsethrs__c" cntr="{!controller}" disabled="true" tabIndex="301"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_qtyinwip__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_qtyinwip__c.label}"/>
+                        <c:inputField id="wocst_qtyinwip__c" cntr="{!controller}" disabled="true" tabIndex="202"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_totlabhrs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_totlabhrs__c.label}"/>
+                        <c:inputField id="wocst_totlabhrs__c" cntr="{!controller}" disabled="true" tabIndex="302"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_totmachhrs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_totmachhrs__c.label}"/>
+                        <c:inputField id="wocst_totmachhrs__c" cntr="{!controller}" disabled="true" tabIndex="304"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_totrunhrs__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_totrunhrs__c.label}"/>
+                        <c:inputField id="wocst_totrunhrs__c" cntr="{!controller}" disabled="true" tabIndex="303"/>
+                    </apex:pageBlockSectionItem>
+
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_dates}" name="Dates" id="Dates">
+                <apex:outputPanel id="op_Dates">
+                <apex:pageBlockSection id="pbs_Dates" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_stsdte__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_stsdte__c.label}"/>
+                        <c:inputField id="wocst_stsdte__c" cntr="{!controller}" disabled="true" tabIndex="351"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_schedfirmdte__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_schedfirmdte__c.label}"/>
+                        <c:inputField id="wocst_schedfirmdte__c" cntr="{!controller}" tabIndex="352"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_actfirmdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_actfirmdate__c.label}"/>
+                        <apex:outputField value="{!o.rstk__wocst_actfirmdate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_reldte__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_reldte__c.label}"/>
+                        <c:inputField id="wocst_reldte__c" cntr="{!controller}" tabIndex="353"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_actreldate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_actreldate__c.label}"/>
+                        <apex:outputField value="{!o.rstk__wocst_actreldate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_schedpickdte__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_schedpickdte__c.label}"/>
+                        <c:inputField id="wocst_schedpickdte__c" cntr="{!controller}" tabIndex="401"/>
+                    </apex:pageBlockSectionItem>
+
+                     <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_actpickdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_actpickdate__c.label}"/>
+                        <apex:outputField value="{!o.rstk__wocst_actpickdate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_schdcompdate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_schdcompdate__c.label}"/>
+                        <c:inputField id="wocst_schdcompdate__c" cntr="{!controller}" disabled="true" tabIndex="402"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_actclosedate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_actclosedate__c.label}"/>
+                        <apex:outputField value="{!o.rstk__wocst_actclosedate__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_traveler_lastprinteddate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_traveler_lastprinteddate__c.label}"/>
+                        <apex:outputField value="{!o.rstk__wocst_traveler_lastprinteddate__c}"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_schdayserlylate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_schdayserlylate__c.label}"/>
+                        <c:inputField id="wocst_schdayserlylate__c" cntr="{!controller}" disabled="true" tabIndex="1014"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_picklist_lastprinteddate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_picklist_lastprinteddate__c.label}"/>
+                        <apex:outputField value="{!o.rstk__wocst_picklist_lastprinteddate__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                </apex:pageBlockSection>
+                </apex:outputPanel>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_totalcost}" name="tab_Totalcost" id="tab_Totalcost" rendered="{!!isNew && showCostsTab}">
+                <table cellpadding="2px" cellspacing="2px">
+                    <tr>
+                        <td width="150px" align="right">&nbsp;</td>
+                        <td width="200px" align="right">{!$Label.wocst_CHARGES}</td>
+                        <td width="200px" align="right">{!$Label.wocst_DEDUCTIONS}</td>
+                        <td width="200px" align="right">{!$Label.wocst_VARIANCE}</td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__material}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostmtl_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedmtl_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarmtl_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__labor}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostlab_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedlab_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarlab_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__materialoverhead}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostohdmtl_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedohdmtl_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarohdmtl_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__laboroverhead}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostohdlab_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedohdlab_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarohdlab_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td colspan="4"></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__fringeoverhead}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostohdfrng_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedohdfrng_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarohdfrng_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__machineoverhead}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostohdmach_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedohdmach_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarohdmach_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__subcontractmaterial}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostsubmtl_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedsubmtl_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarsubmtl_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__subcontractlabor}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostsublab_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedsublab_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarsublab_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td colspan="4"></td>
+                    </tr>
+
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__freight}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostfrght_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedfrght_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarfrght_calc__c}"/></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__otherindirect}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcostothlnd_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_orddedothlnd_calc__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvarothlnd_calc__c}"/></td>
+                    </tr>
+
+                    <tr>
+                        <td colspan="4"></td>
+                    </tr>
+                    <tr>
+                        <td align="right"><apex:outputLabel value="{!$Label.rstk__totalcharges}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordcost_total__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordded_total__c}"/></td>
+                        <td align="right"><apex:outputField value="{!o.rstk__wocst_ordvar_total__c}"/></td>
+                    </tr>
+                </table>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_costdetails}" name="Costdetails" id="Costdetails" rendered="{!!isNew && showCostsTab}">
+                <apex:pageBlockSection id="pbs_Costdetails" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel />
+                        <apex:outputText value="{!$Label.rstk__componentcharges}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel />
+                        <apex:outputText value="{!$Label.rstk__operationcharges}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstmtl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstmtl__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstmtl__c" cntr="{!controller}" disabled="true" tabIndex="601"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_suptotcstlab__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_suptotcstlab__c.label}"/>
+                        <c:inputField id="wocst_suptotcstlab__c" cntr="{!controller}" disabled="true" tabIndex="651"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstlab__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstlab__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstlab__c" cntr="{!controller}" disabled="true" tabIndex="602"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_suptotcstohdlab__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_suptotcstohdlab__c.label}"/>
+                        <c:inputField id="wocst_suptotcstohdlab__c" cntr="{!controller}" disabled="true" tabIndex="652"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstohdmtl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstohdmtl__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstohdmtl__c" cntr="{!controller}" disabled="true" tabIndex="603"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_suptotcstohdfrng__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_suptotcstohdfrng__c.label}"/>
+                        <c:inputField id="wocst_suptotcstohdfrng__c" cntr="{!controller}" disabled="true" tabIndex="653"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstohdlab__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstohdlab__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstohdlab__c" cntr="{!controller}" disabled="true" tabIndex="604"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_suptotcstohdmach__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_suptotcstohdmach__c.label}"/>
+                        <c:inputField id="wocst_suptotcstohdmach__c" cntr="{!controller}" disabled="true" tabIndex="654"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_suptotcstsublab__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_suptotcstsublab__c.label}"/>
+                        <c:inputField id="wocst_suptotcstsublab__c" cntr="{!controller}" disabled="true" tabIndex="655"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstohdfrng__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstohdfrng__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstohdfrng__c" cntr="{!controller}" disabled="true" tabIndex="606"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstohdmach__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstohdmach__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstohdmach__c" cntr="{!controller}" disabled="true" tabIndex="607"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_suptotcst_total__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_suptotcst_total__c.label}"/>
+                        <c:inputField id="wocst_suptotcst_total__c" cntr="{!controller}" disabled="true" tabIndex="657"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstsubmtl__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstsubmtl__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstsubmtl__c" cntr="{!controller}" disabled="true" tabIndex="608"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstsublab__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstsublab__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstsublab__c" cntr="{!controller}" disabled="true" tabIndex="609"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem />
+
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstfrght__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstfrght__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstfrght__c" cntr="{!controller}" disabled="true" tabIndex="610"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcstothlnd__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcstothlnd__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcstothlnd__c" cntr="{!controller}" disabled="true" tabIndex="611"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem />
+                    <apex:pageBlockSectionItem />
+
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_dmdtotcst_total__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_dmdtotcst_total__c.label}"/>
+                        <c:inputField id="wocst_dmdtotcst_total__c" cntr="{!controller}" disabled="true" tabIndex="610"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_closevar}" name="Closevar" id="Closevar" rendered="{!!isNew}">
+                <apex:pageBlockSection id="pbs_Closevar" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarmtl_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarmtl_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarmtl_calc__c" cntr="{!controller}" disabled="true" tabIndex="701"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarohdmach_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarohdmach_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarohdmach_calc__c" cntr="{!controller}" disabled="true" tabIndex="751"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarlab_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarlab_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarlab_calc__c" cntr="{!controller}" disabled="true" tabIndex="702"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarsubmtl_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarsubmtl_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarsubmtl_calc__c" cntr="{!controller}" disabled="true" tabIndex="752"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarohdmtl_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarohdmtl_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarohdmtl_calc__c" cntr="{!controller}" disabled="true" tabIndex="703"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarsublab_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarsublab_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarsublab_calc__c" cntr="{!controller}" disabled="true" tabIndex="753"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarohdlab_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarohdlab_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarohdlab_calc__c" cntr="{!controller}" disabled="true" tabIndex="704"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarohdfrng_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarohdfrng_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarohdfrng_calc__c" cntr="{!controller}" disabled="true" tabIndex="705"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarfrght_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarfrght_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarfrght_calc__c" cntr="{!controller}" disabled="true" tabIndex="706"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_finvarothlnd_calc__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_finvarothlnd_calc__c.label}"/>
+                        <c:inputField id="wocst_finvarothlnd_calc__c" cntr="{!controller}" disabled="true" tabIndex="707"/>
+                    </apex:pageBlockSectionItem>
+
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_closvar_total__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_closvar_total__c.label}"/>
+                        <c:inputField id="wocst_closvar_total__c" cntr="{!controller}" disabled="true" tabIndex="755"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_effectivity}" name="Effectivity" id="Effectivity" rendered="{!!isRevinvActive}">
+                <apex:pageBlockSection id="pbs_Effectivity" showHeader="false" columns="1">
+                    <apex:pageBlockSectionItem helpText="If checked - the Effective Date and Effective Revision will be synchronized">
+                        <apex:outputLabel value="{!$Label.rstk__synchronizeeffectivedatetorevision}"/>
+                        <apex:inputCheckbox id="synch_effrevdate__c" onchange="effRevChanged();"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_effrev__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_effrev__c.label}"/>
+                        <c:selectList id="wocst_effrev__c" cntr="{!controller}" options="{!effRevs}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_effdte__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_effdte__c.label}"/>
+                        <c:inputField id="wocst_effdte__c" cntr="{!controller}" tabIndex="802"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_lot}" name="Lot" id="Lot">
+                <apex:pageBlockSection id="pbs_Lot" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_lotno__c.inlineHelpText}" rendered="{!!o.wocst_item__r.rstk__icitem_validatelotfrm__c}">
+                        <apex:outputLabel value="{!f.rstk__wocst_lotno__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:inputText id="wocst_lotno__c" value="{!o.rstk__wocst_lotno__c}" tabIndex="851" rendered="{!!isView}"/>
+                            
+                            <apex:outputField value="{!o.rstk__wocst_lotno__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_lotno__c.inlineHelpText}" rendered="{!o.wocst_item__r.rstk__icitem_validatelotfrm__c}">
+                        <apex:outputLabel value="{!f.rstk__wocst_lotno__c.label}"/>
+                        <apex:outputPanel >
+                            <apex:selectList id="wocst_lotno__c" value="{!o.rstk__wocst_lotno__c}" tabIndex="851" size="1" rendered="{!!isView}"> 
+                                <apex:selectOptions value="{!lotnos}"/>
+                            </apex:selectList>
+                            
+                            <apex:outputField value="{!o.rstk__wocst_lotno__c}" rendered="{!isView}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_lotnodteassgned__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_lotnodteassgned__c.label}"/>
+                        <apex:outputField value="{!o.rstk__wocst_lotnodteassgned__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem />
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_lotexpiredate__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_lotexpiredate__c.label}"/>
+                        <c:inputField id="wocst_lotexpiredate__c" cntr="{!controller}" tabIndex="853"/>
+                    </apex:pageBlockSectionItem>
+
+                </apex:pageBlockSection>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_misc}" name="Misc" id="Misc">
+                <apex:outputPanel id="op_Misc">
+                <apex:pageBlockSection id="pbs_Misc" showHeader="false" columns="2">
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_wipacct__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_wipacct__c.label}"/>
+                        <c:largeSelectList id="wocst_wipacct__c" cntr="{!controller}" options="{!wipSyaccs}" required="true" tabIndex="1001"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_numbops__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_numbops__c.label}"/>
+                        <c:inputField id="wocst_numbops__c" cntr="{!controller}" disabled="true" tabIndex="1011"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_wovaracct__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_wovaracct__c.label}"/>
+                        <c:largeSelectList id="wocst_wovaracct__c" cntr="{!controller}" options="{!varSyaccs}" required="true" tabIndex="1002"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_opsrmng__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_opsrmng__c.label}"/>
+                        <c:inputField id="wocst_opsrmng__c" cntr="{!controller}" disabled="true" tabIndex="1012"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_woscrapacct__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_woscrapacct__c.label}"/>
+                        <c:largeSelectList id="wocst_woscrapacct__c" cntr="{!controller}" options="{!scrapSyaccs}" required="true" tabIndex="1003"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_lastop__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_lastop__c.label}"/>
+                        <c:inputField id="wocst_lastop__c" cntr="{!controller}" disabled="true" tabIndex="1013"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_orgid__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_orgid__c.label}"/>
+                        <c:selectList id="wocst_orgid__c" cntr="{!controller}" options="{!orgs}" tabIndex="1004"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f.rstk__wocst_altcode__c.inlineHelpText}">
+                        <apex:outputLabel value="{!f.rstk__wocst_altcode__c.label}"/>
+                        <c:inputField id="wocst_altcode__c" cntr="{!controller}" disabled="true" tabIndex="803"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                </apex:outputPanel>
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_dimensions}" name="Dimensions" id="Dimensions" rendered="{!numdims > 0}">
+                <!-- RSTK-5176 -->
+                <apex:pageBlockSection id="pbs_Dimensions" showHeader="false" columns="1" rendered="{!!isDimensionValuesEditable}">
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval1__c.inlineHelpText}" rendered="{!numdims > 0}">
+                        <apex:outputLabel value="{!f1.rstk__dimval1__c.label}"/>
+                        <apex:outputField value="{!dimvals.rstk__dimval1__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval2__c.inlineHelpText}" rendered="{!numdims > 1}">
+                        <apex:outputLabel value="{!f1.rstk__dimval2__c.label}"/>
+                        <apex:outputField value="{!dimvals.rstk__dimval2__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval3__c.inlineHelpText}" rendered="{!numdims > 2}">
+                        <apex:outputLabel value="{!f1.rstk__dimval3__c.label}"/>
+                        <apex:outputField value="{!dimvals.rstk__dimval3__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval4__c.inlineHelpText}" rendered="{!numdims > 3}">
+                        <apex:outputLabel value="{!f1.rstk__dimval4__c.label}"/>
+                        <apex:outputField value="{!dimvals.rstk__dimval4__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval5__c.inlineHelpText}" rendered="{!numdims > 4}">
+                        <apex:outputLabel value="{!f1.rstk__dimval5__c.label}"/>
+                        <apex:outputField value="{!dimvals.rstk__dimval5__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval6__c.inlineHelpText}" rendered="{!numdims > 5}">
+                        <apex:outputLabel value="{!f1.rstk__dimval6__c.label}"/>
+                        <apex:outputField value="{!dimvals.rstk__dimval6__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval7__c.inlineHelpText}" rendered="{!numdims > 6}">
+                        <apex:outputLabel value="{!f1.rstk__dimval7__c.label}"/>
+                        <apex:outputField value="{!dimvals.rstk__dimval7__c}"/>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval8__c.inlineHelpText}" rendered="{!numdims > 7}">
+                        <apex:outputLabel value="{!f1.rstk__dimval8__c.label}"/>
+                        <apex:outputField value="{!dimvals.rstk__dimval8__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+
+                <apex:pageBlockSection id="pbs_Dimensions1" showHeader="false" columns="1" rendered="{!isDimensionValuesEditable}">
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval1__c.inlineHelpText}" rendered="{!numdims > 0}">
+                        <apex:outputLabel value="{!f1.rstk__dimval1__c.label}"/>
+                        <apex:selectlist value="{!dimvals.rstk__dimval1__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!Dimesion1Values}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval2__c.inlineHelpText}" rendered="{!numdims > 1}">
+                        <apex:outputLabel value="{!f1.rstk__dimval2__c.label}"/>
+                        <apex:selectlist value="{!dimvals.rstk__dimval2__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!Dimesion2Values}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval3__c.inlineHelpText}" rendered="{!numdims > 2}">
+                        <apex:outputLabel value="{!f1.rstk__dimval3__c.label}"/>
+                        <apex:selectlist value="{!dimvals.rstk__dimval3__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!Dimesion3Values}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval4__c.inlineHelpText}" rendered="{!numdims > 3}">
+                        <apex:outputLabel value="{!f1.rstk__dimval4__c.label}"/>
+                        <apex:selectlist value="{!dimvals.rstk__dimval4__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!Dimesion4Values}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval5__c.inlineHelpText}" rendered="{!numdims > 4}">
+                        <apex:outputLabel value="{!f1.rstk__dimval5__c.label}"/>
+                        <apex:selectlist value="{!dimvals.rstk__dimval5__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!Dimesion5Values}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval6__c.inlineHelpText}" rendered="{!numdims > 5}">
+                        <apex:outputLabel value="{!f1.rstk__dimval6__c.label}"/>
+                        <apex:selectlist value="{!dimvals.rstk__dimval6__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!Dimesion6Values}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval7__c.inlineHelpText}" rendered="{!numdims > 6}">
+                        <apex:outputLabel value="{!f1.rstk__dimval7__c.label}"/>
+                        <apex:selectlist value="{!dimvals.rstk__dimval7__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!Dimesion7Values}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                    
+                    <apex:pageBlockSectionItem helpText="{!f1.rstk__dimval8__c.inlineHelpText}" rendered="{!numdims > 7}">
+                        <apex:outputLabel value="{!f1.rstk__dimval8__c.label}"/>
+                        <apex:selectlist value="{!dimvals.rstk__dimval8__c}" size="1" style="width:250px">
+                            <apex:selectOptions value="{!Dimesion8Values}"/>
+                        </apex:selectlist>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <!--  -->
+            </apex:tab>
+            
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_disassembly}" name="Disassembly" id="Disassembly" rendered="false">
+            </apex:tab>
+            <apex:tab label="{!customFieldTabName}" name="tab_Custom" id="tab_Custom" rendered="{!hasCustomFields}">
+                <c:customFields cntr="{!controller}" cols="2"/>
+            </apex:tab>
+            <apex:tab label="{!$Label.rstk__pagetab_wocst_info}" name="tab_Info" id="tab_Info" rendered="{!!isNew}">
+                <c:infoSection cntr="{!controller}" showHeader="false"/>
+            </apex:tab>
+        </apex:tabPanel>
+        <!-- </apex:outputPanel>
+        </apex:pageBlockSection> -->
+        
+        <div id="selectRefurb" style="display:none">
+            <h2>{!$Label.wocst_ComponentSelection}</h2>
+            <hr></hr>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:300px;overflow-y:scroll;display:block">
+            <apex:pageBlockSection id="pbs_Components" showHeader="false" columns="1" rendered="{!ShowRefurbSelection}">
+                <apex:pageBlockTable id="pbt_Components" value="{!components}" var="rec">
+                    <apex:column headerValue="{!$Label.rstk__select}">
+                        <apex:inputCheckbox id="refurb_selected"/>
+                        <apex:inputHidden id="refurb_id" value="{!rec.id}"/>
+                    </apex:column>          
+                    <apex:column headerValue="{!$Label.rstk__component}" value="{!rec.component}"/>
+                    <apex:column headerValue="{!$Label.rstk__description}" value="{!rec.description}"/>
+                    <apex:column headerValue="{!$Label.rstk__qtyreq}" style="text-align:right;">
+                        <c:outputFormattedNumber value="{!rec.qtyRequired}" decimals="{!rec.qtyDecimal}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+            </div>
+            <div id="issueBtns" style="clear:both">
+                <p><input type="button" value="{!$Label.pagebtn_wocst_OK}" onclick="setRefurbs();"/></p>
+            </div>
+        </div>
+        
+        <div id="selectHomeProjComponents" style="display:none">
+            <h2>{!$Label.wocst_UpdateIssueProject}</h2>
+            <hr></hr>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:150px;overflow-y:auto;display:block">
+            <apex:outputPanel id="op_HPComponents" >
+	            <apex:pageBlockSection id="pbs_HPComponents" showHeader="false" columns="1" rendered="{!ShowHomeProjComponents}">
+	                <apex:pageBlockTable id="pbt_HPComponents" value="{!homeprojcomponents}" var="rec">
+	                    <apex:column headerValue="{!$Label.rstk__homeproj}">
+	                        <apex:inputCheckbox id="homeproj_selected"/>
+	                        <apex:inputHidden id="hp_id" value="{!rec.id}"/>
+	                    </apex:column>          
+	                    <apex:column headerValue="{!$Label.rstk__woproj}">
+	                        <apex:inputCheckbox id="woproj_selected"/>
+	                        <apex:inputHidden id="wop_id" value="{!rec.id}"/>
+	                    </apex:column>          
+	                    <apex:column headerValue="{!$Label.rstk__component}" value="{!rec.component}"/>
+	                    <apex:column headerValue="{!$Label.rstk__description}" value="{!rec.description}"/>
+	                </apex:pageBlockTable>
+	            </apex:pageBlockSection>
+            </apex:outputPanel>
+            </div>
+            <div id="issueBtns" style="clear:both">
+                <p><input type="button" value="{!$Label.pagebtn_wocst_Update}" onclick="updateIssueProject();"/><input type="button" value="Cancel" onclick="unblockUI();"/></p>
+            </div>
+        </div>
+        
+        <div id="selectPrimaryComponent" style="display:none">
+            <h2>{!$Label.PrimaryComponent}</h2>
+            <hr></hr>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:80px;overflow-y:scroll;display:block">
+            <apex:pageBlockSection id="pbs_primaryComponents" showHeader="false" columns="1" rendered="{!ShowAssignSrlFromPrimary}">
+                <apex:selectlist id="primary_component_select__c" size="1">
+                    <apex:selectOptions value="{!NonZeroSerialComponents}"/>
+                </apex:selectlist>
+            </apex:pageBlockSection>
+            </div>
+            <div id="actionBtns" style="clear:both">
+                <p><input type="button" value="{!$Label.pagebtn_wocst_AssignSerials}" onclick="assignSerialsFromPrimary();"/><input type="button" value="{!$Label.wocst_Cancel}" onclick="unblockUI();"/></p>
+            </div>
+        </div>
+
+        <div id="selectAltOperCode" style="display:none">
+            <p><b><label>{!$Label.wocst_AlternateOperationCode_optional}</label>
+            <apex:selectlist id="altOperCode" size="1" style="width:100px" rendered="{!actionType == 'view'}">
+                <apex:selectOptions value="{!altOperCodes}"/>
+            </apex:selectlist>
+            </b></p>
+            <p><input type="button" value="{!$Label.pagebtn_wocst_ExtractOperations}" onclick="unblockUI();blockUI();doExtractOperations(document.getElementById('pg:fm:pb:altOperCode').value);"/><input type="button" value="{!$Label.pagebtn_wocst_Cancel}" onclick="jQuery('#altOperCode').val(''); delete taskParms['altOperCode']; unblockUI();"/></p>
+        </div>
+        <div id="selectExtractOptions" style="display:none">
+            <p id="altop2"><b><label>{!$Label.wocst_AlternateOperationCode_optional}</label>
+            <apex:selectlist id="altOperCode2" size="1" style="width:100px" rendered="{!actionType == 'view'}">
+                <apex:selectOptions value="{!altOperCodes}"/>
+            </apex:selectlist>
+            </b></p>
+            <p style="display:{!IF(o.wocst_estind__c, 'none', 'block')}"><b><label>{!$Label.wocst_GeneratePicklistRecords}</label><input type="checkbox" id="genPicklist" onchange="document.getElementById('incBackflushOpt').style.display = this.checked?'block':'none'"/></b></p>
+            <div id="incBackflushOpt" style="display:none">
+                <p><b><label>{!$Label.wocst_IncludeBackflushComponentsinPicklist}</label><input type="checkbox" id="incBackflush" /></b></p>
+            </div>
+            <p><input id="extractCompOpt" type="button" value="{!$Label.pagebtn_wocst_ExtractComponents}" onclick="taskParms['altOperCode'] = document.getElementById('pg:fm:pb:altOperCode2').value; taskParms['genPicklist'] = jQuery('#genPicklist').is(':checked')?'T':'F'; taskParms['incBackflush'] = jQuery('#incBackflush').is(':checked')?'T':'F'; performTask();"/><input type="button" value="{!$Label.pagebtn_wocst_Cancel}" onclick="delete taskParms['genPicklist']; unblockUI();"/></p>
+        </div>
+        <div id="generatePicklist" style="display:none">
+            <p><b><label>{!$Label.wocst_IncludeBackflushComponentsinPicklist}</label><input type="checkbox" id="incBackflush2" /></b></p>
+            <p><input type="button" value="{!$Label.pagebtn_wocst_GeneratePicklist}" onclick="taskParms['incBackflush'] = jQuery('#incBackflush2').is(':checked')?'T':'F'; performTask();"/><input type="button" value="{!$Label.pagebtn_wocst_Cancel}" onclick="delete taskParms['genPicklist']; unblockUI();"/></p>
+        </div>
+        <div id="updateComponentQtyReq" style="display:none">
+            <p><b><label id="updateComponentQtyReqLbl">{!$Label.pagebtn_wocst_UpdateQtyReqforComponents}</label><c:inputCheckbox id="cp_upd_dmd_qtyreq__c" cntr="{!controller}"/>&nbsp;&nbsp;&nbsp;<input type="button" value="{!$Label.pagebtn_wocst_OK}" onclick="validateRework();unblockUI();"/></b></p>
+        </div>
+        <div id="displayOptions" style="display:none">
+            <h2>{!$Label.wocst_UpdateDisplayOptions}</h2>
+            <hr></hr>
+            <div class="bPageBlock brndScnBrd apexDefaultPageBlock secondaryPalette" style="height:50px;overflow-y:auto;display:block">
+            <apex:pageBlockSection id="pbs_Displayoptions" showHeader="false" columns="1">
+                <apex:pageBlockSectionItem id="pbsi_Dispcompgrid" dataStyle="width:40%" labelStyle="width:60%">
+                    <apex:outputLabel value="{!$Label.rstk__displaycomponentsaseditablegrid}"/>
+                    <apex:inputCheckbox id="dispcompgrid"/>
+                </apex:pageBlockSectionItem>
+                <apex:pageBlockSectionItem id="pbsi_Dispopgrid" dataStyle="width:40%" labelStyle="width:60%">
+                    <apex:outputLabel value="{!$Label.rstk__displayoperationsaseditablegrid}"/>
+                    <apex:inputCheckbox id="dispopgrid"/>
+                </apex:pageBlockSectionItem>
+            </apex:pageBlockSection>
+            </div>
+            <div id="updateBtns" style="clear:both">
+                <p><input type="button" value="{!$Label.pagebtn_wocst_Update}" onclick="updateDisplayOptions();"/><input type="button" value="{!$Label.pagebtn_wocst_Cancel}" onclick="unblockUI();"/></p>
+            </div>
+        </div>
+        <div id="compGrid" style="display:none">
+            <table cellspacing="0" cellpadding="0" margin="0" width="100%" height="100%">
+                <tr><td><iframe id="compGridFrame" src="" width="100%" height="600px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe></td></tr>
+                <tr><td><input onclick="unblockUI();doRefreshComponents(); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_Close}"/></td></tr>
+            </table>
+        </div>
+        <div id="opGrid" style="display:none">
+            <table cellspacing="0" cellpadding="0" margin="0" width="100%" height="100%">
+                <tr><td><iframe id="opGridFrame" src="" width="100%" height="400px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe></td></tr>
+                <tr><td><input onclick="unblockUI(); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_Close}"/></td></tr>
+            </table>
+        </div>
+<!-- RCB: 12451 -->      
+        <div id="nicGrid" style="display:none">
+            <table cellspacing="0" cellpadding="0" margin="0" width="100%" height="100%">
+                <tr><td><iframe id="nicGridFrame" src="" width="100%" height="600px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe></td></tr>
+                <tr><td><input onclick="unblockUI();doRefreshNicComponents(); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_Close}"/></td></tr>
+            </table>
+        </div>
+    </apex:pageBlock>
+    </apex:form>
+    
+    <apex:pageBlock id="pb_RelatedLists" rendered="{!!isNew}">
+    <apex:pageBlockSection id="pbs_RelatedLists" showHeader="true" title="{!$Label.rstk__pagetab_wocst_relatedlists}" columns="1">
+    <apex:outputPanel id="op_RelatedLists" style="display:none;">
+    <script>
+        var op_RelatedLists = document.getElementById("{!$Component.op_RelatedLists}");
+        var componentListDisplay = '{!JSENCODE(componentListDisplay)}';
+        var operationListDisplay = '{!JSENCODE(operationListDisplay)}';
+    </script>
+    <apex:tabPanel switchType="client" selectedTab="tab_Components" id="theTabPanel">
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_components}" name="tab_Components" id="tab_Components" rendered="{!componentListDisplay != 'true'}">
+            <apex:pageBlockSection id="pbs_Components" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!!DisplayReverseWOClose && o.rstk__wocst_ordsts__c != '8' && o.rstk__wocst_ordsts__c != '9'}">
+                    <input onclick="window.location.replace('{!URLFOR($Action.woorddmd__c.New)}{!JSENCODE(ReturnUrlParms)}'); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_AddComponent}"/>&nbsp;
+                    <apex:outputPanel id="op_updateissueprojbtn">
+                    	<input id="updateissueprojbtn" onclick="showHomeProjSelection(); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_UpdateIssueProject}"/>&nbsp;
+                    </apex:outputPanel>
+                    <input id="componentgridbtn" onclick="showComponentGrid(); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_QuickEntryGrid}"/>&nbsp;
+                </apex:outputPanel>
+                <apex:outputPanel id="op_Components">
+                    <apex:relatedList list="woorddmds__r"/>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_components}" name="tab_ComponentsGrid" id="tab_ComponentsGrid" rendered="{!componentListDisplay == 'true'}">
+            <apex:pageBlockSection id="pbs_ComponentsGrid" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!!DisplayReverseWOClose && o.rstk__wocst_ordsts__c != '8' && o.rstk__wocst_ordsts__c != '9'}">
+                    <iframe id="compGridFrame" src="/apex/woorddmdgrid?id={!o.Id}" width="100%" height="320px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                </apex:outputPanel>
+                <apex:outputPanel id="op_Components" rendered="{!DisplayReverseWOClose || o.rstk__wocst_ordsts__c == '8' || o.rstk__wocst_ordsts__c == '9'}">
+                    <apex:relatedList list="woorddmds__r"/>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_comptxns}" name="tab_CompTxns" id="tab_CompTxns" rendered="{!showCostsTab}">
+            <apex:pageBlockSection id="pbs_CompTxns" showHeader="false" columns="1">
+                <apex:relatedList list="woorddmdcsts__r"/>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_operations}" name="tab_Operations" id="tab_Operations" rendered="{!operationListDisplay != 'true'}">
+            <apex:pageBlockSection id="pbs_Operations" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!!DisplayReverseWOClose && o.rstk__wocst_ordsts__c != '1' && o.rstk__wocst_ordsts__c != '8' && o.rstk__wocst_ordsts__c != '9'}">
+                    <input onclick="window.location.replace('{!URLFOR($Action.woordop__c.New)}{!JSENCODE(ReturnUrlParms)}&opType=Standard Operation'); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_AddStandardOperation}"/>&nbsp;
+                    <input onclick="window.location.replace('{!URLFOR($Action.woordop__c.New)}{!JSENCODE(ReturnUrlParms)}&opType=Subcontract Operation'); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_AddSubcontractOperation}"/>&nbsp;
+                    <input onclick="window.location.replace('{!URLFOR($Action.woordop__c.New)}{!JSENCODE(ReturnUrlParms)}&opType=Concurrent Operation'); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_AddConcurrentOperation}"/>&nbsp;&nbsp;
+                    <input id="operationgridbtn" onclick="showOperationGrid(); return false;" type="button" class="btn" value="{!$Label.pagebtn_wocst_QuickEntryGrid}"/>&nbsp;
+                </apex:outputPanel>
+                <apex:outputPanel id="op_Operations">
+                    <apex:pageBlockTable value="{!operations}" var="rec">
+                        <apex:column headerValue="{!$Label.rstk__editandview}"><apex:outputLink value="{!URLFOR($Action.rstk__woordop__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__wocst_edit}</apex:outputLink>&nbsp;|&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__woordop__c.View, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__wocst_view}</apex:outputLink></apex:column>
+                        <apex:column headerValue="{!$Label.rstk__operno}" value="{!rec.oper}"/>
+                        <apex:column headerValue="{!$Label.rstk__process}" value="{!rec.procno}"/>
+                        <apex:column headerValue="{!$Label.rstk__workcenter}" value="{!rec.wctr}"/>
+                        <apex:column headerValue="{!f_woordop.rstk__woordop_setuptype_pl__c.label}" value="{!rec.setuptype}"/>
+                        <apex:column headerValue="{!f_woordop.rstk__woordop_setuphrstd__c.label}">
+                            <apex:outputText html-decimals="6" value="{!rec.setuphrstd}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_woordop.rstk__woordop_runtype_pl__c.label}" value="{!rec.runtype}"/>
+                        <apex:column headerValue="{!f_woordop.rstk__woordop_runhrstd__c.label}">
+                            <apex:outputText html-decimals="6" value="{!rec.runhrstd}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!$Label.rstk__sub}" value="{!rec.subflag}"/>
+                        <apex:column headerValue="{!$Label.rstk__laborbf}" value="{!rec.labbackflush}"/>
+                        <apex:column headerValue="{!f_wopsch.rstk__wopsch_schstartdate__c.label}" value="{!rec.schstartdate}"/>
+                        <apex:column headerValue="{!f_wopsch.rstk__wopsch_schcompdate__c.label}" value="{!rec.schcompdate}"/>
+                        <apex:column headerValue="{!f_wopsch.rstk__wopsch_schsetuphrs__c.label}">
+                            <apex:outputText html-decimals="6" value="{!rec.schsetuphrs}"/>
+                        </apex:column>
+                        <apex:column headerValue="{!f_wopsch.rstk__wopsch_schrunhrs__c.label}">
+                            <apex:outputText html-decimals="6" value="{!rec.schrunhrs}"/>
+                        </apex:column>
+                    </apex:pageBlockTable>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_operations}" name="tab_OperationsGrid" id="tab_OperationsGrid" rendered="{!operationListDisplay == 'true'}">
+            <apex:pageBlockSection id="pbs_OperationsGrid" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!!DisplayReverseWOClose && o.rstk__wocst_ordsts__c != '1' && o.rstk__wocst_ordsts__c != '8' && o.rstk__wocst_ordsts__c != '9'}">
+                    <iframe id="opGridFrame" src="/apex/woordopgrid?id={!o.Id}" width="100%" height="320px" seamless="true" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                </apex:outputPanel>
+                <apex:outputPanel id="op_Operations" rendered="{!DisplayReverseWOClose || o.rstk__wocst_ordsts__c == '1' || o.rstk__wocst_ordsts__c == '8' || o.rstk__wocst_ordsts__c == '9'}">
+                    <apex:relatedList list="woordops__r"/>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_operqtys_hrs}" name="tab_OperQtysHrs" id="tab_OperQtysHrs" rendered="{!isView}">
+            <apex:pageBlockSection id="pbs_OperQtysHrs" showHeader="false" columns="1">
+                <apex:pageBlockTable value="{!operationsQtysAndHrs}" var="rec">
+                    <apex:column headerValue="{!$Label.rstk__editandview}"><apex:outputLink value="{!URLFOR($Action.rstk__woordopact__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink>&nbsp;|&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__woordopact__c.View, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_confsel_view}</apex:outputLink></apex:column>
+                    <apex:column headerValue="{!$Label.rstk__operno}" value="{!rec.oper}"/>
+                    <apex:column headerValue="{!$Label.rstk__process}" value="{!rec.procno}"/>
+                    <apex:column headerValue="{!$Label.rstk__workcenter}" value="{!rec.wctr}"/>
+                    <apex:column headerValue="{!$Label.rstk__qtyavail}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyavail}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_woordopact.rstk__woordopact_qtycomp__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtycomp}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_woordopact.rstk__woordopact_qtymoved__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtymoved}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__setuphrs}">
+                        <apex:outputText html-decimals="2" value="{!rec.actsetuphrs}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__runhrs}">
+                        <apex:outputText html-decimals="2" value="{!rec.actrunhrs}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__machhrs}">
+                        <apex:outputText html-decimals="2" value="{!rec.actmachhrs}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_opercosts}" name="tab_OperCosts" id="tab_OperCosts" rendered="{!isView && showCostsTab}">
+            <apex:pageBlockSection id="pbs_OperCosts" showHeader="false" columns="1">
+                <apex:pageBlockTable value="{!operationsCosts}" var="rec">
+                    <apex:column headerValue="{!$Label.rstk__editandview}"><apex:outputLink value="{!URLFOR($Action.rstk__wopcst__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink>&nbsp;|&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__wopcst__c.View, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_confsel_view}</apex:outputLink></apex:column>
+                    <apex:column headerValue="{!$Label.rstk__operno}" value="{!rec.oper}"/>
+                    <apex:column headerValue="{!$Label.rstk__process}" value="{!rec.procno}"/>
+                    <apex:column headerValue="{!$Label.rstk__workcenter}" value="{!rec.wctr}"/>
+                    <apex:column headerValue="{!$Label.rstk__labor}">
+                        <apex:outputText html-decimals="2" value="{!rec.cstlab}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__labohd}">
+                        <apex:outputText html-decimals="2" value="{!rec.cstohdlab}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__fringeohd}">
+                        <apex:outputText html-decimals="2" value="{!rec.cstohdfrng}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__machohd}">
+                        <apex:outputText html-decimals="2" value="{!rec.cstohdmach}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__sublab}">
+                        <apex:outputText html-decimals="2" value="{!rec.cstsublab}"/>
+                    </apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_opertxns}" name="tab_OperTxns" id="tab_OperTxns" rendered="{!isView && showCostsTab}">
+            <apex:outputPanel id="op_opertxns">
+            <apex:pageBlockSection id="pbs_OperTxns" showHeader="false" columns="1">
+                <apex:pageBlockTable value="{!operationsTxns}" var="rec">
+                    <apex:column headerValue="{!$Label.rstk__editandview}"><apex:outputLink value="{!URLFOR($Action.rstk__wopwip__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}</apex:outputLink>&nbsp;|&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__wopwip__c.View, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_confsel_view}</apex:outputLink></apex:column>
+                    <apex:column headerValue="{!$Label.rstk__operno}" value="{!rec.oper}"/>
+                    <apex:column headerValue="{!$Label.rstk__process}" value="{!rec.procno}"/>
+                    <apex:column headerValue="{!$Label.rstk__workcenter}" value="{!rec.wctr}"/>
+                    <apex:column headerValue="{!f_wopwip.rstk__wopwip_labhrs__c.label}">
+                        <apex:outputText html-decimals="2" value="{!rec.labhrs}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__laborrate}" rendered="{!viewLaborRates}">
+                        <apex:outputText html-decimals="2" value="{!rec.emplrate}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__cost}" rendered="{!viewLaborRates}">
+                        <apex:outputText html-decimals="2" value="{!rec.cost}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_wopwip.CreatedDate.label}" value="{!rec.createdate}"/>
+                </apex:pageBlockTable>
+                <apex:form id="fm_opertxns">
+                    <apex:actionStatus id="statusProcessing2" startStyleClass="Processing"/>
+                    <apex:panelGrid columns="7" rendered="{!noOfRecords > 0}">
+                        <apex:commandButton reRender="op_opertxns" value="|<" action="{!first}" immediate="true" disabled="{!!hasPrevious}" title="{!$Label.rstk__firstpage}" status="statusProcessing2"/>
+                        <apex:commandButton reRender="op_opertxns" value="<" action="{!previous}" immediate="true" disabled="{!!hasPrevious}" title="{!$Label.rstk__previouspage}" status="statusProcessing2"/>
+                        <apex:commandButton reRender="op_opertxns" value=">" action="{!next}" immediate="true" disabled="{!!hasNext}" title="{!$Label.rstk__nextpage}" status="statusProcessing2"/>
+                        <apex:commandButton reRender="op_opertxns" value=">|" action="{!last}" immediate="true" disabled="{!!hasNext}" title="{!$Label.rstk__lastpage}" status="statusProcessing2"/>
+                        <apex:outputText >{!(pageNumber * size)+1-size}-{!IF((pageNumber * size)>noOfRecords, noOfRecords,(pageNumber * size))} of {!noOfRecords}</apex:outputText>
+                    </apex:panelGrid>
+                </apex:form>
+            </apex:pageBlockSection>
+            </apex:outputPanel>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_serialnumbers}" name="tab_SerialNumbers" id="tab_SerialNumbers" rendered="{!showSerialNumbersTab}">
+            <apex:outputPanel id="op_serialnumbers">
+            <apex:pageBlockSection id="pbs_SNFastEntry" showHeader="true" title="{!$Label.rstk__pagetab_wocst_serialnumberfastentry}" columns="1" rendered="{!showSerialNumbersFastEntry}">
+                <apex:outputPanel >
+                <Table>
+                    <TR>
+                        <TD><Label>{!$Label.wocst_Start}</Label><input id="start_srlno" size="31" maxlength="30" style="font-size:8pt;"/></TD>
+                        <TD rowspan="3"><textarea id="srlnums" name="srlnums" cols="40"  rows="5"></textarea></TD>
+                    </TR>
+                    <TR>
+                        <TD><Label>&nbsp;{!$Label.wocst_End}</Label><input id="end_srlno" size="31" maxlength="30" style="font-size:8pt;"/></TD>
+                    </TR>
+                    <TR>
+                        <TD align="right">
+                            <input onclick="createSrlNoRange('start_srlno', 'end_srlno', 'srlnums');" type="button" value="{!$Label.pagebtn_wocst_Generate}"/>
+                            <input onclick="assignSrls();" type="button" value="{!$Label.pagebtn_wocst_Assign}"/>
+                        </TD>
+                    </TR>
+                </Table>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+            <apex:pageBlockSection id="pbs_SerialNumbers" showHeader="false" columns="1">
+                <apex:outputPanel rendered="{!ShowAssignSrlFromPrimary}">
+                    <input id="primarycompbtn" onclick="showPrimaryComponentSelection(); return false;" type="button" class="btn" value="{!$Label.AssignSerialsFromPrimaryComponent}"/>&nbsp;
+                </apex:outputPanel>
+                <apex:pageBlockTable id="pbt_SerialNumbers" value="{!serialNumbers}" var="rec">
+                    <apex:column headerValue="{!$Label.rstk__editandview}"><apex:outputLink value="{!URLFOR($Action.rstk__woordsrl__c.Edit, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagelink_edit}
+                        
+                        </apex:outputLink>&nbsp;|&nbsp;<apex:outputLink value="{!URLFOR($Action.rstk__woordsrl__c.View, rec.id)}{!ReturnUrlParms}">{!$Label.rstk__pagebtn_confsel_view}</apex:outputLink></apex:column>
+                    <apex:column id="srlno" headerValue="{!f_woordsrl.rstk__woordsrl_srlno__c.label}" value="{!rec.srlno}"/>
+                    <apex:column headerValue="{!f_woordsrl.rstk__woordsrl_qtyacc__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyacc}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!f_woordsrl.rstk__woordsrl_qtyscrap__c.label}">
+                        <apex:outputText html-decimals="{!qtyDecimal}" value="{!rec.qtyscrap}"/>
+                    </apex:column>
+                    <apex:column headerValue="{!$Label.rstk__assigndate}" value="{!rec.assigndate}"/>
+                    <apex:column headerValue="{!$Label.rstk__componentlinks}"><apex:outputLink value="{!URLFOR($Action.rstk__woordsrl__c.Edit, rec.id)}{!ReturnUrlParms}&complink=yes">Link</apex:outputLink>&nbsp;&nbsp;{!rec.complink}</apex:column>
+                </apex:pageBlockTable>
+            </apex:pageBlockSection>
+            </apex:outputPanel>
+        </apex:tab>
+        <apex:tab label="{!$Label.rstk__pagetab_wocst_picklist}" name="tab_PickList" id="tab_PickList">
+            <apex:pageBlockSection id="pbs_PickList" showHeader="false" columns="1">
+                <apex:relatedList list="icdmdpicklocs__r"/>
+            </apex:pageBlockSection>
+        </apex:tab>
+<!-- RCB: 12451 -->
+        <apex:tab label="{!$Label.rstk__non_inventory_components}" name="tab_NIComp" id="tab_NIComp" >
+            <apex:pageBlockSection id="pbs_NIComp" showHeader="false" columns="1">
+                <apex:outputPanel >
+                    <input id="nicgridbtn" onclick="showNicComponentGrid(); return false;" type="button" class="btn" value="{!$Label.NIC_Entry}" />&nbsp;
+                </apex:outputPanel>
+                <apex:outputPanel id="nic_Components">
+                    <apex:relatedList list="woordnics__r"/>
+                </apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:tab>
+        
+    </apex:tabPanel>
+    </apex:outputPanel>
+    
+    </apex:pageBlockSection>
+    
+    </apex:pageBlock>
+    
+    <c:footerInclude cntr="{!controller}" />
+
+    </apex:outputPanel>
+    
+    <script>
+        var IsAnyUnissuedQuantity = "{!IsAnyUnissuedQuantity}";
+        var ShopcalNotSupport = "{!$Label.rstk__shopcalnotsupported}";        
+        var StatusNotChanged = "{!$Label.rstk__statusmaynotchangedtoplanned}";
+        var ChangeNotAllow = "{!$Label.rstk__changenotallowed}";
+        var CannotChangeStatus = "{!$Label.rstk__cannotchangethisstatus}";
+        var CannotChangeDueDate = "{!$Label.rstk__cannotchangeduedateandqty}";
+        var DueDateNotEarlier = "{!$Label.rstk__duedatecannotearlier}";
+        var MustUseAlphabetical = "{!$Label.rstk__mustusealphabeticalcharacter}";
+        var QtyRequiredWholeNum = "{!$Label.rstk__qtyrequiredwholenumber}";
+        var QuantityWholeNum = "{!$Label.rstk__quantitywholenumber}";
+        var QtyCannotExceedDecimals = "{!$Label.rstk__quantitycannotexceeddecimals}";
+        var CantChangeDueDate = "{!$Label.rstk__cannotchangeduedate}";        
+        var QtyReqCannotBeLess = "{!$Label.rstk__quantityrequiredcannotbeless}";
+        var QtyReqCannotLess = "{!$Label.rstk__qtyrequiredcannotbeless}";
+        var NewWorkOrderQty = "{!$Label.rstk__newworkorderquantity}";
+        var WorkOrderQty = "{!$Label.rstk__workorderquantity}";
+        var QtyMustZero = "{!$Label.rstk__qtymustbezero}";
+        var QtyMustAtLeast = "{!$Label.rstk__qtymustbeatleast}";
+        var QtyCannotExceeed = "{!$Label.rstk__qtycannotexceeed}";
+        var StockLocContains = "{!$Label.rstk__stocklocationcontains}";
+        var NoAleternateRoutingExist = "{!$Label.rstk__noaleternateroutingexists}";
+        var EnteredInvalidChar = "{!$Label.rstk__lotnumberenteredinvalidcharacters}";
+        var QuickAddSerialNeeded = "{!$Label.rstk__onlyquickaddserialneeded}";        
+        var LABEL_AllocationComplete = "{!$Label.rstk__allocationcomplete}";
+        var LABEL_DeAllocationcomplete = "{!$Label.rstk__deallocationcomplete}";
+        var LABEL_SelectAtleastOneComponent = "{!$Label.rstk__selectatleastonecomponent}";
+        var LABEL_NoComponentIssuesHaveBeenPerformedForThisComponent = "{!$Label.rstk__nocomponentissueshavebeenperformedforthiscomponent}";
+        var LABEL_NoComponentsAvailableForUpdate = "{!$Label.rstk__nocomponentsavailableforupdate}";
+        var LABEL_FailedToUpdateComponents = "{!$Label.rstk__failedtoupdatecomponents}";
+        var LABEL_Warn_AllComponentsNotAllocated = "{!$Label.rstk__warn_allcomponentsnotallocated}";
+        var LABEL_QtyReqdCantBeIncreasedAtThisStatus = "{!$Label.rstk__qtyreqdcantbeincreasedatthisstatus}";
+        var LABEL_MaxQtyAvailable = "{!$Label.rstk__maxqtyavailable}";
+        var LABEL_InvalidEnd_NumOfSerialsWouldExceedQtyReqd = "{!$Label.rstk__invalidend_numofserialswouldexceedqtyreqd}";
+        var LABEL_EnterAtleastOneSrlNum = "{!$Label.rstk__enteratleastonesrlnum}";
+        var LABEL_ErrorClosingWO = "{!$Label.rstk__errorclosingwo}";
+        var LABEL_ErrorPerfWOCloseReversal = "{!$Label.rstk__errorperfwoclosereversal}";
+        var LABEL_ErrorWhileRecallingOrd = "{!$Label.rstk__errorwhilerecallingord}";
+        var LABEL_ErrorWhileReleasingOrd = "{!$Label.rstk__errorwhilereleasingord}";
+        var LABEL_ErrorOccuredDuringProcesing = "{!$Label.rstk__erroroccuredduringprocesing}";
+        var LABEL_InvalidEndNumSpecified = "{!$Label.rstk__invalidendnumspecified}";
+        var LABEL_OrdRecalled = "{!$Label.rstk__ordrecalled}";
+        var LABEL_OrdReleased = "{!$Label.rstk__ordreleased}";
+        var LABEL_ProcessLogEntryFound = "{!$Label.rstk__processlogentryfound}";
+        var LABEL_WOCloseReversed = "{!$Label.rstk__woclosereversed}";
+        var LABEL_WOClosed = "{!$Label.rstk__woclosed}";
+        var LABEL_ThereIsQtyNotYetIssuedInDemand_CloseWO = "{!$Label.rstk__thereisqtynotyetissuedindemand_closewo}";
+        var LABEL_NoPickListRecordsExist_ClkOkToProceesWithStatusChangeOrCancelToAbort = "{!$Label.rstk__nopicklistrecordsexist_clkoktoproceeswithstatuschangeorcanceltoabort}";
+        var LABEL_ClkOkToSaveExtractOperns_CancelToOnlySaveChanges = "{!$Label.rstk__clkoktosaveextractoperns_canceltoonlysavechanges}";
+        var LABEL_MaxQtyAvailable_ClkOkToSetQtyReqdToThisVal = "{!$Label.rstk__maxqtyavailable_clkoktosetqtyreqdtothisval}";
+        var LABEL_CloseWorkOrder = "{!$Label.rstk__closeworkorder}";
+        var LABEL_PerformWorkOrderCloseReversal = "{!$Label.rstk__performworkorderclosereversal}";
+        var LABEL_Warning_WoScheduledReleaseDateWillBePriorToToday_Continue = "{!$Label.rstk__warning_woscheduledreleasedatewillbepriortotoday_continue}";
+        var LABEL_Invalid_Lot_Number_Item_setting_requires_the_Lot_Number_to_be_predefined = "{!$Label.rstk__invalid_lot_number_item_setting_requires_the_lot_number_to_be_predefined}";
+        var LABEL_soagh_Error = "{!$Label.rstk__soagh_error}";
+        var LABEL_ClosingWorkOrder = "{!$Label.rstk__closingworkorder}";
+        var LABEL_ReversingWorkOrderClose = "{!$Label.rstk__reversingworkorderclose}";
+        var LABEL_ReleasingOrder = "{!$Label.rstk__releasingorder}";
+        var LABEL_RecallingOrder = "{!$Label.rstk__recallingorder}";
+        var LABEL_ThisWillReduceTheWorkOrderQuantity = "{!$Label.rstk__thiswillreducetheworkorderquantity}";
+        var LABEL_NoComponentsCouldBeAllocated = "{!$Label.rstk__nocomponentscouldbeallocated}";
+        var isManualSchedActive = ('{!isManualSchedActive}' == 'true');
+    </script>
+    
+    <apex:dynamicComponent componentValue="{!DynamicRelatedLists}" rendered="{!isView}"/>
+</apex:page>
