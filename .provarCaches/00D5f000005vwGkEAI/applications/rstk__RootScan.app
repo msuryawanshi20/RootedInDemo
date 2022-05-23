@@ -4,6 +4,7 @@
     <description>Rootstock ERP Mobile App</description>
     <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
     <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
     <label>RootScan</label>
     <tabs>rstk__rscansetupinst</tabs>
     <tabs>rstk__mobidevice__c</tabs>

@@ -5,6 +5,7 @@
     <formFactors>Large</formFactors>
     <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
     <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
     <label>Sales Invoicing</label>
     <logo>rstk__Rootstock_Logos/rstk__Rootstock_Logo_300x55.gif</logo>
     <tabs>rstk__soinv__c</tabs>

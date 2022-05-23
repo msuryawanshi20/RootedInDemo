@@ -9,6 +9,7 @@
     <formFactors>Large</formFactors>
     <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
     <isNavPersonalizationDisabled>true</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
     <label>Rootstock Custom UI Rules/Actions</label>
     <navType>Standard</navType>
     <tabs>rootstock__Custom_UI_Rule__c</tabs>

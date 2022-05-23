@@ -65,6 +65,7 @@
         var grid;
         var items; // to store selected journlas
         var exportFlag = true;
+        var nsPrefix = pageParms.namespaceprefix ? (pageParms.namespaceprefix + '__') : '';
 
         function createKendoGrid(year, period, showUnPosted) {
             var parsedResult;
@@ -76,9 +77,7 @@
                     '{!$RemoteAction.ControllerExtnGljh.getallJEs}',year,period,showUnPosted,
                     function (result, event) {
                         console.log('result',result);
-                        var tempRslt = new Object();
-                        tempRslt.records = JSON.parse(result);                   
-                        deferred.resolve(tempRslt, event);
+                        deferred.resolve(result, event);
                         var getJournalsBtn = document.getElementById("getAllGljh");
                         getJournalsBtn.disabled = false;
 
@@ -87,8 +86,24 @@
                 );  
             return deferred.promise();        
             };
-
-
+			
+			var  jeno = 'gljh_jeno__c';
+			var  status = 'gljh_status__c';
+			var  desc = 'gljh_desc__c';
+			var  sum_of_debit = 'sum_of_debit__c';
+			var  sum_of_credit = 'sum_of_credit__c';
+			var reversed = 'gljh_reversed__c';
+			
+			var namespace = '{!namespace}';
+			if(namespace != ''){
+				jeno = 'rstkf__gljh_jeno__c';
+				status = 'rstkf__gljh_status__c';
+				desc = 'rstkf__gljh_desc__c';
+				sum_of_debit = 'rstkf__sum_of_debit__c';
+				sum_of_credit = 'rstkf__sum_of_credit__c';
+				reversed = 'rstkf__gljh_reversed__c';
+			
+			}
             // creating JE kendo grid
            grid = $('#jegrid').kendoGridActionList({
                 pdf: {
@@ -102,12 +117,12 @@
                     scale: 0.8
                 },
                 fieldList: [{field: 'Name',title: 'JE #',template: "<a href='/#=Id#'>#= Name #</a>"},
-                            {fieldtype: 'number', field: 'gljh_jeno__c', title: 'JE Reference Number'},
-                            {fieldtype: 'string', field: 'gljh_status__c', title: 'Status'},
-                            {fieldtype: 'string', field: 'gljh_desc__c', title: 'Description'},
-                            {fieldtype: 'number', field: 'sum_of_debit__c',template:"<p align='right'> #= convertNumber(sum_of_debit__c) #</p>", title: 'Dr Amount'},
-                            {fieldtype: 'number', field: 'sum_of_credit__c',template:"<p  align='right'> #= convertNumber(sum_of_credit__c) #</p>", title: 'Cr Amount'},
-                            {field: 'gljh_reversed__c', title: 'Is a Reversal', template: '# if( gljh_reversed__c == "true") {# <p><img src="/img/checkbox_checked.gif" /></p> #} else{# <p><img src="/img/checkbox_unchecked.gif" /></p> #} #'}
+                            {fieldtype: 'number', field: jeno, title: 'JE Reference Number'},
+                            {fieldtype: 'string', field: status, title: 'Status'},
+                            {fieldtype: 'string', field: desc, title: 'Description'},
+                            {fieldtype: 'number', field: sum_of_debit ,template:"<p align='right'> #= convertNumber("+sum_of_debit+") #</p>", title: 'Dr Amount'},
+                            {fieldtype: 'number', field: sum_of_credit,template:"<p  align='right'> #= convertNumber("+sum_of_credit+") #</p>", title: 'Cr Amount'},
+                            {field: reversed, title: 'Is a Reversal', template: '# if( '+reversed+' == "true") {# <p><img src="/img/checkbox_checked.gif" /></p> #} else{# <p><img src="/img/checkbox_unchecked.gif" /></p> #} #'}
                             
                            ],
                 getActionListFunction: getJEs,
@@ -397,7 +412,7 @@
                alert("{!$Label.Please_select_Only_One_Entry}");
             }
             else if (items.length == 1){
-                    if(items[0].gljh_status__c == "Posted"){
+                if(items[0].get(nsPrefix+"gljh_status__c") == "Posted"){    
                         openCloneDialog();
                     }else{
                         alert("{!$Label.Journal_cannot_be_Cloned_and_Reversed_as_it_is_not_yet_posted}"); 

@@ -4,6 +4,7 @@
     <description>Rootstock Financials</description>
     <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
     <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
     <label>Rootstock Financials</label>
     <tabs>standard-Chatter</tabs>
     <tabs>standard-Dashboard</tabs>

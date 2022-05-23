@@ -248,10 +248,27 @@ select:disabled {
           }
           return false;
         }
+// RSTK-10713
+        var operationInProgress = null;
+        function checkInvoiceBatchStatus(opType) {
+            console.log('***checkInvoiceBatchStatus');
+            operationInProgress = opType;
+            var isBackground = (document.getElementById('isBackground') && document.getElementById('isBackground').value == 'true');
+            if (isBackground) {
+                blockUI();
+                checkJobStatus();
+            }
+        }
+        function doAfterJobComplete(processlog) {
+            console.log('***doAfterJobComplete');
+            if (processlog.iserror__c) unblockUI();
+            else displaycm();
+        }
     </script>
 
     <apex:form id="fm">
-<!-- RCB: 23507 -->        
+        <apex:actionFunction name="displaycm" action="{!displaycm}" />
+<!-- RCB: 23507 -->       
         <apex:actionFunction name="doRefreshsoinvlineacctdist" rerender="pbs_lineitems" immediate="true"/>
         <div id="soinvlinecosGrid" style="display:none" >
             <table cellspacing="0" cellpadding="0" margin="0" width="100%" height="100%">
@@ -262,9 +279,9 @@ select:disabled {
         
            <apex:outputPanel id="hiddenFieldsPanel" style="display:none;">
             {!$Label.rstk__soinv_printed}:<apex:inputField id="invPrinted" value="{!o.rstk__soinv_printed__c}" /><br/>
-            {!$Label.rstk__soinv_posted}:<apex:inputText id="invPosted" value="{!o.rstk__soinv_posted__c}" /><br/>
-            {!$Label.rstk__soinv_div}:<apex:inputText id="soinv_div__c" value="{!o.rstk__soinv_div__c}" /><br/>
-            {!$Label.rstk__soinv_ppy}:<apex:inputText id="soinv_ppyinv__c" value="{!o.rstk__soinv_ppyinv__c}" /><br/>
+            {!$Label.soinv_Posted}:<apex:inputText id="invPosted" value="{!o.rstk__soinv_posted__c}" /><br/>
+            {!$Label.soinv_Div}:<apex:inputText id="soinv_div__c" value="{!o.rstk__soinv_div__c}" /><br/>
+            {!$Label.soinv_PPY}:<apex:inputText id="soinv_ppyinv__c" value="{!o.rstk__soinv_ppyinv__c}" /><br/>
             <apex:inputText id="soinv_pre_approved__c" value="{!o.rstk__soinv_pre_approved__c}" /><br/>
        </apex:outputPanel>
                
@@ -481,7 +498,7 @@ select:disabled {
             <apex:actionFunction name="doCancelInvoice" action="{!doCancelInvoice}" immediate="true" oncomplete="formatLocaleOutputFields(); unblockUI();" rerender="pageMessages"/>
             <apex:actionFunction name="setCurrentFFCompanyAndProcess" action="{!setCurrentFFCompany}" oncomplete="doAfterSettingFFCompany();" immediate="true"/>
             <apex:actionFunction name="removeFromBatch" action="{!removeFromBatch}" immediate="false"/>
-            <apex:actionFunction name="createCreditMemo" action="{!createCreditMemo}" immediate="false" rerender="pageMessages" oncomplete="closeTopDialog();">
+            <apex:actionFunction name="createCreditMemo" action="{!createCreditMemo}" immediate="false" rerender="pageMessages,pbs_Main" oncomplete="closeTopDialog();" status="submitStatus" >
                <apex:param name="allowReinvoicing" value="false"/>
             </apex:actionFunction>
             <apex:actionFunction name="refreshPage" action="{!refreshPage}" immediate="false"/>
@@ -523,16 +540,16 @@ select:disabled {
                         disabled="{!addToInvoiceBtnDisabled || o.rstk__soinv_transferred__c}"
                         immediate="true" rendered="{!AND(invType,!allowManualInvoice)}"/>
                     <apex:commandButton onclick="return preApproveInvoice();"
-                        value="{!preapproveBtnLabel}" disabled="{!OR(invCancelled, o.rstk__soinv_approved__c)}" />
+                    value="{!preapproveBtnLabel}" disabled="{!OR(invCancelled, o.rstk__soinv_approved__c, !canPreApprove)}" />
                     <apex:commandButton onclick="return approveInvoice();"
-                        value="{!approveBtnLabel}" disabled="{!OR(invCancelled,AND(o.rstk__soinv_transferred__c, !generalJournalHeaderRequired))}" />
+                    value="{!approveBtnLabel}" disabled="{!OR(invCancelled,AND(o.rstk__soinv_transferred__c, !generalJournalHeaderRequired), !canApprove)}" />
                     <apex:commandButton onclick="return printInvoiceJS();" value="{!IF(invType,$Label.rstk__pagebtn_soinv_printinvoice, $Label.rstk__pagebtn_soinv_printcredit)}" rerender="invPrinted, soinv_printed, pageMessages"
                         disabled="{!printInvoiceBtnDisabled}" immediate="true"  />
                     <apex:commandButton onclick="return showBatchProcessing();"
                         value="{!$Label.rstk__batchprocessing}" immediate="true"
                         disabled="{!OR(o.rstk__soinv_transferred__c, invCancelled)}"  rendered="{!invType}"/>
                     <apex:commandButton onclick="try { doSetFFCompanyAndProcess(transferToAR, pageParms['isFF']); } finally { return false; }"
-                        value="{!xferBtnLabel}" disabled="{!xferToARBtnDisabled}" />
+                    value="{!xferBtnLabel}" disabled="{!OR(xferToARBtnDisabled, !canTransfer)}" />
                     <apex:commandButton onclick="return showCommissionDetails();"
                         value="{!$Label.rstk__commissiondetails}" disabled="{!commDtlsBtnDisabled}"
                         immediate="true" rerender="hiddenFieldsPanel" rendered="{!!hideCommission}"/>
@@ -569,14 +586,21 @@ select:disabled {
                 w.commit(function() { _closeDialog(); refreshPage(); });
               } catch (e) {
                 console.log(e.stack);
-                alert("{!$Label.rstk__soinv_error_closing_payment_window}" + e);
+                alert("{!$Label.Soinv_Error_closing_payment_window}" + e);
               }
             }
           }
         </script>
 
             <apex:pageBlockSection id="pbs_Main" showHeader="false"
-                title="{!$Label.rstk__information}" columns="2"> 
+                title="{!$Label.rstk__information}" columns="2">
+                <apex:outputPanel id="jsPanel"> <script>setTimeout(function() { {!jsToExecute} }, 10);</script> </apex:outputPanel>
+                <apex:actionStatus id="submitStatus" onstop="unblockUI()"/>
+                <script>try {unblockUI();} catch (e){}</script> 
+                <apex:outputPanel id="op_JobStatus">
+                    <input type="hidden" id="processlogId" value="{!processlogId}"/>
+                    <input type="hidden" id="isBackground" value="{!isBackground}"/>
+                </apex:outputPanel>
                <apex:pageBlockSectionItem helpText="{!f.rstk__soinv_div__c.inlineHelpText}">
                     <apex:outputLabel value="{!f.rstk__soinv_div__c.label}" />
                     <apex:outputField value="{!o.rstk__soinv_div__c}" />
@@ -898,7 +922,7 @@ select:disabled {
                                 <div style="position: absolute; bottom: 0px;"><apex:outputLabel value="{!f.rstk__soinv_extcomment__c.label}" /></div>
                                 </div>
                                 <div style="float: right;">
-                                  <apex:inputCheckbox id="soinv_printcomment__c" value="{!o.rstk__soinv_printcomment__c}" disabled="{!!OR(isEditable, isEditingApproved)}" />{!$Label.rstk__printexternalcommentson} {!pageTitle}</div>
+                                  <apex:inputCheckbox id="soinv_printcomment__c" value="{!o.rstk__soinv_printcomment__c}" disabled="{!!OR(isEditable, isEditingApproved)}" />{!$Label.PrintExternalCommentsOn} {!pageTitle}</div>
                                 <div style="float: left; width: 800px">
                                   <apex:inputTextarea id="soinv_extcomment__c" value="{!o.rstk__soinv_extcomment__c}" rows="6" richtext="true" rendered="{!OR(isEditable, isEditingApproved)}" />
                                   <apex:outputField value="{!o.rstk__soinv_extcomment__c}" rendered="{!!OR(isEditable, isEditingApproved)}" /></div>

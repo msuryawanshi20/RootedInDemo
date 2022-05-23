@@ -280,6 +280,8 @@
         </apex:actionFunction>
         
         <apex:actionFunction name="setExchangeRateValue" action="{!setExchangeRateValue}" immediate="true" oncomplete="openpopup();" rerender="pageMessages,op_var,op_rate_schedule"  status="statusProcessing"/>
+        
+        <apex:actionFunction name="doDeletePrepayment" action="{!deletePrepayment}" immediate="true" oncomplete="" rerender="pageMessages"  status="statusProcessing"/>
             
         
         
@@ -446,8 +448,9 @@
                             <apex:commandButton onclick="setVendorTxns('D');return false;" value="{!$Label.rstkf__debitmemosettings}" rendered="{!batch.txn.showDebitMemoSettings}"/>
                             <apex:commandButton onclick="setVendorTxns('A');return false;" value="{!$Label.rstkf__applyvendorcredittoinvoicedebitmemo}" rendered="{!batch.txn.showApplyVendorCredit && batch.txn.apinvtxn.rstkf__apinvtxn_unapplamtmaint__c > 0}"/>
                             <apex:commandButton onclick="setVendorTxns('C');return false;" value="{!$Label.rstkf__copyvendorcreditfrominvoicedebitmemo}" rendered="{!batch.txn.showCopyVendorCredit}"/>
-                            <apex:commandButton onclick="checkDeleteApinvtxn();return false;" value="{!$Label.rstkf__pageval_delete}" rendered="{!!batch.txn.isNew && apBatchOpt && batch.txn.isDeleteable}" style="width:90px"/>
+                            <apex:commandButton onclick="checkDeleteApinvtxn();return false;" value="{!$Label.rstkf__pageval_delete}" rendered="{!!batch.txn.isNew && apBatchOpt && batch.txn.isDeleteable && !delPrePayYN}" style="width:90px"/>
                             <apex:commandButton onclick="cancelTxn();return false;" value="{!$Label.rstkf__pageval_cancel}" style="width:80px" rendered="{!apBatchOpt && !isNew}"/>
+                            <apex:commandButton onclick="doDeletePrepayment();return false;" value="{!$Label.rstkf__button_delete_prepay_transaction}" rendered="{!delPrePayYN}" style="width:180px"/>
                         </apex:outputPanel>
                     </apex:pageBlockButtons>
                     
@@ -1417,10 +1420,14 @@
         <apex:outputPanel id="op_defaults">
             <apex:pageBlock mode="detail" title="{!$Label.rstkf__setlinedistributiondefaults}">
                 <apex:actionStatus id="statusProcessing3" startStyleClass="Processing"/>
-                <apex:actionFunction name="updateDefaults" action="{!updateDefaults}" immediate="false" oncomplete="unblockUI()" rerender="pageMessages,op_accounts,op_lines,op_apinvdists,op_txndetails" status="statusProcessing3"/>
+                <apex:actionFunction name="updateDefaults" action="{!updateDefaults}" immediate="true" oncomplete="unblockUI()" rerender="pageMessages,op_accounts,op_lines,op_apinvdists,op_txndetails" status="statusProcessing3"/>
                 <apex:actionFunction name="dfltdivChanged" action="{!dfltdivChanged}" immediate="true" rerender="op_dfltproj,op_txndetails" status="statusProcessing3">
                     <apex:param name="dfltdiv" assignTo="{!o_t.rstkf__apinvtxn_dfltdiv__c}" value="" />
                 </apex:actionFunction>
+                <apex:actionFunction name="dfltprojChanged" action="{!dfltprojChanged}" immediate="true" oncomplete="" rerender="op_dfltproj" status="statusProcessing3">
+                <apex:param name="dfltprojId" assignTo="{!o_t.rstkf__apinvtxn_dfltproj__c}" value="" />
+                </apex:actionFunction>
+                
                 <apex:pageBlockButtons location="top">
                     <apex:commandButton value="{!$Label.rstkf__pageval_set}" onclick="updateDefaults();return false;" style="width:50px"/>
                 </apex:pageBlockButtons>
@@ -1453,8 +1460,8 @@
                         <apex:pageBlockSectionItem helpText="{!f_t.rstkf__apinvtxn_dfltproj__c.inlineHelpText}" rendered="{!!o_h.rstkf__apinvh_pobatchind__c}">
                             <apex:outputLabel value="{!f_t.rstkf__apinvtxn_dfltproj__c.label}"/>
                             <apex:outputPanel id="op_dfltproj">
-								<input type="text" name="apinvtxn_dfltproj__c_autocomplete" id="apinvtxn_dfltproj__c_autocomplete" class="ac_input" style="width:200px;" tabIndex="2000" value="{!DfltProjName}"/>
-								<apex:inputText id="apinvtxn_dfltproj__c" value="{!o_t.rstkf__apinvtxn_dfltproj__c}" style="display:none"/>
+                           		<input type="text" name="apinvtxn_dfltproj__c_autocomplete" id="apinvtxn_dfltproj__c_autocomplete" class="ac_input" style="width:200px;" tabIndex="2000" value="{!DfltProjName}" onchange="dodfltprojChanged(this.value); return false;"/>
+								<apex:inputText id="apinvtxn_dfltproj__c" value="{!o_t.rstkf__apinvtxn_dfltproj__c}" onchange="dodfltprojChanged(this.value); return false;" style="display:none"/>
 								<script>autocompleteParms["apinvtxn_dfltproj__c"] = {query:"select Id, Name from glproj__c where glproj_gldiv__c = '{!o_t.rstkf__apinvtxn_dfltdiv__c}' and glproj_pjproj__c != '{!dflthomeproj}' and glproj_pjproj__r.rstk__pjproj_completed__c = false", queryParms:[], codeColumn:"Id", descColumn:"Name"};setupAutocomplete();</script>
                             </apex:outputPanel>
                         </apex:pageBlockSectionItem>
@@ -1626,6 +1633,12 @@
         var nextFocusId;
         var fromTabEvent = false;
         var distmod = false;
+        
+        function dodfltprojChanged(dfltprojId) {
+        	dfltprojChanged(dfltprojId);
+         	return false;
+        }
+        
         
         function doGetExchangeRate(scheduleId) {
         	if(scheduleId == ''){
